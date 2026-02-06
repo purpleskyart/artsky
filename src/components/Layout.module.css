@@ -56,6 +56,43 @@
     gap: 0.25rem;
     flex-shrink: 0;
   }
+  /* Mobile: account button matches bottom nav style (icon + label, muted) */
+  .headerAccountNavBtn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.1rem;
+    padding: 0.2rem 0.35rem;
+    min-height: 0;
+    border: none;
+    border-radius: var(--glass-radius-sm);
+    background: transparent;
+    color: var(--muted);
+    font-weight: 500;
+    font-size: 0.55rem;
+    cursor: pointer;
+    font-family: inherit;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .headerAccountNavBtn:hover {
+    color: var(--text);
+    background: var(--glass-highlight);
+  }
+  .headerAccountNavBtn .navIcon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+  }
+  .headerAccountNavBtn .navIcon svg {
+    width: 22px;
+    height: 22px;
+  }
+  .headerAccountNavBtn .navLabel {
+    white-space: nowrap;
+  }
 }
 
 /* Logged-out: show Log in + Create account in header on mobile and desktop */

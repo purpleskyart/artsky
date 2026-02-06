@@ -541,16 +541,18 @@ export default function Layout({ title, children, showNav, showColumnView = true
   const navItems = (
     <>
       {navTrayItems}
-      <button
-        type="button"
-        className={styles.navBtn}
-        onClick={() => openAccountPanel()}
-        aria-label="Accounts and settings"
-        aria-expanded={accountSheetOpen || accountMenuOpen}
-      >
-        <span className={styles.navIcon}><AccountIcon /></span>
-        <span className={styles.navLabel}>Accounts</span>
-      </button>
+      {isDesktop && (
+        <button
+          type="button"
+          className={styles.navBtn}
+          onClick={() => openAccountPanel()}
+          aria-label="Accounts and settings"
+          aria-expanded={accountSheetOpen || accountMenuOpen}
+        >
+          <span className={styles.navIcon}><AccountIcon /></span>
+          <span className={styles.navLabel}>Accounts</span>
+        </button>
+      )}
     </>
   )
 
@@ -776,12 +778,13 @@ export default function Layout({ title, children, showNav, showColumnView = true
                       <button
                         ref={accountBtnRef}
                         type="button"
-                        className={styles.headerBtn}
+                        className={styles.headerAccountNavBtn}
                         onClick={() => openAccountPanel()}
                         aria-label="Accounts and settings"
                         aria-expanded={accountSheetOpen}
                       >
-                        <AccountIcon />
+                        <span className={styles.navIcon}><AccountIcon /></span>
+                        <span className={styles.navLabel}>Accounts</span>
                       </button>
                     </div>
                   )}
@@ -905,12 +908,13 @@ export default function Layout({ title, children, showNav, showColumnView = true
                 <button
                   ref={accountBtnRef}
                   type="button"
-                  className={styles.headerBtn}
+                  className={!isDesktop ? styles.headerAccountNavBtn : styles.headerBtn}
                   onClick={() => setAccountMenuOpen((o) => !o)}
                   aria-label="Accounts and settings"
                   aria-expanded={accountMenuOpen}
                 >
-                  <AccountIcon />
+                  <span className={styles.navIcon}><AccountIcon /></span>
+                  {!isDesktop && <span className={styles.navLabel}>Accounts</span>}
                 </button>
                 {accountMenuOpen && (
                   <div ref={accountMenuRef} className={styles.accountMenu} role="menu" aria-label="Accounts and settings">

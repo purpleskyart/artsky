@@ -269,6 +269,7 @@ function PostBlock({
   sessionsList,
   switchAccount,
   currentDid,
+  focusedCommentUri,
 }: {
   node: AppBskyFeedDefs.ThreadViewPost | AppBskyFeedDefs.NotFoundPost | AppBskyFeedDefs.BlockedPost | { $type: string }
   depth?: number
@@ -288,6 +289,7 @@ function PostBlock({
   sessionsList?: AtpSessionData[]
   switchAccount?: (did: string) => Promise<boolean>
   currentDid?: string
+  focusedCommentUri?: string
 }) {
   if (!isThreadViewPost(node)) return null
   const { post } = node
@@ -301,9 +303,10 @@ function PostBlock({
   const isCollapsed = hasReplies && collapsedThreads?.has(post.uri)
   const canCollapse = !!onToggleCollapse
   const isReplyTarget = replyingTo?.uri === post.uri
+  const isFocused = focusedCommentUri === post.uri
 
   return (
-    <article className={styles.postBlock} style={{ marginLeft: depth * 12 }} data-comment-uri={post.uri}>
+    <article className={`${styles.postBlock} ${isFocused ? styles.commentFocused : ''}`} style={{ marginLeft: depth * 12 }} data-comment-uri={post.uri}>
       {canCollapse && (
         <div className={styles.collapseColumn}>
           <button
@@ -460,6 +463,7 @@ function PostBlock({
                     sessionsList={sessionsList}
                     switchAccount={switchAccount}
                     currentDid={currentDid}
+                    focusedCommentUri={focusedCommentUri}
                   />
                 )
               })}
@@ -734,7 +738,11 @@ export default function PostDetailPage() {
       const nextComment = key === 'w' || key === 's' || key === 'a'
       if (inCommentsSection && threadRepliesFlat.length > 0 && nextComment) {
         if (key === 'w') {
-          setFocusedCommentIndex((i) => Math.max(0, i - 1))
+          if (focusedCommentIndex === 0) {
+            setPostSectionIndex(hasMediaSection ? 1 : 0)
+          } else {
+            setFocusedCommentIndex((i) => Math.max(0, i - 1))
+          }
         } else {
           setFocusedCommentIndex((i) => Math.min(threadRepliesFlat.length - 1, i + 1))
         }
@@ -952,8 +960,9 @@ export default function PostDetailPage() {
             {'replies' in thread && Array.isArray(thread.replies) && thread.replies.length > 0 && (
               <div ref={commentsSectionRef} className={styles.replies}>
                 {threadReplies.map((r) => {
+                  const focusedCommentUri = threadRepliesFlat[focusedCommentIndex]?.uri
                   const flatIndex = threadRepliesFlat.findIndex((f) => f.uri === r.post.uri)
-                  const isFocused = hasRepliesSection && postSectionIndex === postSectionCount - 1 && flatIndex >= 0 && flatIndex === focusedCommentIndex
+                  const isFocusedCollapsed = hasRepliesSection && postSectionIndex === postSectionCount - 1 && flatIndex >= 0 && flatIndex === focusedCommentIndex
                   if (collapsedThreads.has(r.post.uri)) {
                     const replyCount = 'replies' in r && Array.isArray(r.replies) ? (r.replies as unknown[]).length : 0
                     const label = replyCount === 0 ? 'Comment' : `${replyCount} reply${replyCount !== 1 ? 's' : ''}`
@@ -962,7 +971,7 @@ export default function PostDetailPage() {
                       <div
                         key={r.post.uri}
                         data-comment-uri={r.post.uri}
-                        className={`${styles.collapsedCommentWrap} ${isFocused ? styles.commentFocused : ''}`}
+                        className={`${styles.collapsedCommentWrap} ${isFocusedCollapsed ? styles.commentFocused : ''}`}
                         style={{ marginLeft: 0 }}
                       >
                         <button type="button" className={styles.collapsedCommentBtn} onClick={() => toggleCollapse(r.post.uri)}>
@@ -982,7 +991,6 @@ export default function PostDetailPage() {
                     <div
                       key={r.post.uri}
                       data-comment-uri={r.post.uri}
-                      className={isFocused ? styles.commentFocused : undefined}
                     >
                       <PostBlock
                         node={r}
@@ -1003,6 +1011,7 @@ export default function PostDetailPage() {
                         sessionsList={sessionsList}
                         switchAccount={switchAccount}
                         currentDid={sessionFromContext?.did ?? undefined}
+                        focusedCommentUri={focusedCommentUri}
                       />
                     </div>
                   )
