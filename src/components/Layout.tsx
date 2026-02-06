@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo, useSyncExternalStore } from 'react'
+import { useState, useRef, useEffect, useMemo, useCallback, useSyncExternalStore } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useSession } from '../context/SessionContext'
 import { useTheme } from '../context/ThemeContext'
@@ -118,14 +118,6 @@ function Column3Icon() {
     </svg>
   )
 }
-function PersonIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
-      <circle cx="12" cy="7" r="4" />
-    </svg>
-  )
-}
 function PlusIcon() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -197,6 +189,9 @@ export default function Layout({ title, children, showNav, showColumnView = true
     return () => { cancelled = true }
   }, [sessionsDidKey, sessionsList])
   const { theme, setTheme } = useTheme()
+  const cycleTheme = useCallback(() => {
+    setTheme(theme === 'dark' ? 'light' : theme === 'light' ? 'system' : 'dark')
+  }, [theme, setTheme])
   const { viewMode, setViewMode, viewOptions } = useViewMode()
   const { artOnly, toggleArtOnly } = useArtOnly()
   const path = loc.pathname
@@ -549,6 +544,17 @@ export default function Layout({ title, children, showNav, showColumnView = true
                       {viewMode === '3' && <Column3Icon />}
                     </button>
                   )}
+                  <button
+                    type="button"
+                    className={styles.headerBtn}
+                    onClick={cycleTheme}
+                    aria-label={`Theme: ${theme === 'dark' ? 'Dark' : theme === 'light' ? 'Light' : 'System'}. Click to cycle.`}
+                    title={theme === 'dark' ? 'Dark' : theme === 'light' ? 'Light' : 'Device'}
+                  >
+                    {theme === 'dark' && <MoonIcon />}
+                    {theme === 'light' && <SunIcon />}
+                    {theme === 'system' && <SystemIcon />}
+                  </button>
                   <Link to="/login" className={styles.headerAuthLink}>
                     Log in
                   </Link>
@@ -571,6 +577,17 @@ export default function Layout({ title, children, showNav, showColumnView = true
                   {viewMode === '3' && <Column3Icon />}
                 </button>
               )}
+              <button
+                type="button"
+                className={styles.headerBtn}
+                onClick={cycleTheme}
+                aria-label={`Theme: ${theme === 'dark' ? 'Dark' : theme === 'light' ? 'Light' : 'System'}. Click to cycle.`}
+                title={theme === 'dark' ? 'Dark' : theme === 'light' ? 'Light' : 'Device'}
+              >
+                {theme === 'dark' && <MoonIcon />}
+                {theme === 'light' && <SunIcon />}
+                {theme === 'system' && <SystemIcon />}
+              </button>
               {!isDesktop && (
                 <button
                   type="button"

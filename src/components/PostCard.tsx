@@ -218,10 +218,15 @@ export default function PostCard({ item, showRepostGlow = false }: Props) {
 
   const handleImageLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
     const img = e.currentTarget
-    if (img.naturalWidth && img.naturalHeight) {
-      setMediaAspect(img.naturalWidth / img.naturalHeight)
+    if (!img.naturalWidth || !img.naturalHeight) return
+    /* For multi-image posts, set aspect only once (from whichever image loads first)
+       so the container doesn't resize when cycling – keeps prev/next arrow positions fixed. */
+    if (isMultipleImages) {
+      setMediaAspect((prev) => (prev != null ? prev : img.naturalWidth! / img.naturalHeight!))
+      return
     }
-  }, [])
+    setMediaAspect(img.naturalWidth / img.naturalHeight)
+  }, [isMultipleImages])
 
   /* Keep previous aspect when switching images so the container doesn't flash to 3/4 and back */
   useEffect(() => {
