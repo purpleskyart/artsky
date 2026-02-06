@@ -7,7 +7,6 @@ import {
   uploadStandardSiteDocumentBlob,
   listStandardSiteRepliesForDocument,
   createStandardSiteComment,
-  getSession,
   agent,
   publicAgent,
   type StandardSiteDocumentView,
@@ -81,8 +80,8 @@ export default function ForumPostDetailPage() {
   const [likeLoadingMap, setLikeLoadingMap] = useState<Record<string, boolean>>({})
   const [likeUriOverrideMap, setLikeUriOverrideMap] = useState<Record<string, string>>({})
   const [replyAs, setReplyAs] = useState<{ handle: string; avatar?: string }>({ handle: '' })
-  const session = getSession()
-  const { sessionsList, switchAccount, currentDid } = useSession()
+  const { session, sessionsList, switchAccount } = useSession()
+  const currentDid = session?.did ?? ''
   const inlineReplyTextareaRef = useRef<HTMLTextAreaElement>(null)
   const isOwn = session?.did && doc?.did === session.did
   const docUrl = doc ? documentUrl(doc) : null
@@ -620,7 +619,7 @@ export default function ForumPostDetailPage() {
                                 >
                                   ×
                                 </button>
-                                {replyAs.handle && sessionsList?.length && switchAccount && currentDid ? (
+                                {replyAs.handle && sessionsList?.length && currentDid ? (
                                   <ReplyAsRow
                                     replyAs={replyAs}
                                     sessionsList={sessionsList}
@@ -649,7 +648,7 @@ export default function ForumPostDetailPage() {
                                 onKeyDown={(e) => {
                                   if ((e.key === 'Enter' || e.key === 'E') && (e.metaKey || e.ctrlKey)) {
                                     e.preventDefault()
-                                    if (replyText.trim() && !posting) (e.target.form as HTMLFormElement)?.requestSubmit()
+                                    if (replyText.trim() && !posting) (e.target as HTMLTextAreaElement).form?.requestSubmit()
                                   }
                                 }}
                                 className={postBlockStyles.textarea}
