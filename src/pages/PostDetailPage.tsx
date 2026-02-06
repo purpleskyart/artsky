@@ -864,7 +864,7 @@ export default function PostDetailPage() {
           setFocusedCommentIndex(0)
           requestAnimationFrame(() => {
             descriptionSectionRef.current?.focus()
-            descriptionSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+            descriptionSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
           })
         } else if (idx < mediaCount + 1 + commentCount) {
           const commentIdx = idx - (mediaCount + 1)
@@ -929,6 +929,8 @@ export default function PostDetailPage() {
   useEffect(() => {
     const inCommentsSection = hasRepliesSection && postSectionIndex === postSectionCount - 1
     if (!inCommentsSection || postSectionCount <= 1) return
+    /* Only scroll when focus is actually in the comments section (avoids scrolling to comment after W to description) */
+    if (!commentsSectionRef.current?.contains(document.activeElement)) return
     const flat = threadRepliesFlatRef.current
     if (focusedCommentIndex < 0 || focusedCommentIndex >= flat.length) return
     const uri = flat[focusedCommentIndex]?.uri
