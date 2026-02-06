@@ -58,13 +58,14 @@ function MediaGallery({
         {items.map((m, i) => {
           if (m.type === 'video' && m.videoPlaylist) {
             return (
-              <VideoWithHls
-                key={i}
-                playlistUrl={m.videoPlaylist}
-                poster={m.url || undefined}
-                className={styles.galleryMedia}
-                autoPlay={i === firstVideoIndex}
-              />
+              <div key={i} className={styles.galleryVideoWrap}>
+                <VideoWithHls
+                  playlistUrl={m.videoPlaylist}
+                  poster={m.url || undefined}
+                  className={styles.galleryVideo}
+                  autoPlay={i === firstVideoIndex}
+                />
+              </div>
             )
           }
           return (
