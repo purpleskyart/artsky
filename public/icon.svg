@@ -1,12 +1,17 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none" stroke="#7c3aed" stroke-width="24" stroke-linecap="round" stroke-linejoin="round">
-  <!-- Art palette: main circle with paint dabs -->
-  <circle cx="256" cy="256" r="140"/>
-  <circle cx="256" cy="140" r="28" fill="#7c3aed"/>
-  <circle cx="380" cy="200" r="24" fill="#7c3aed"/>
-  <circle cx="380" cy="320" r="24" fill="#7c3aed"/>
-  <circle cx="256" cy="372" r="24" fill="#7c3aed"/>
-  <circle cx="132" cy="320" r="24" fill="#7c3aed"/>
-  <circle cx="132" cy="200" r="24" fill="#7c3aed"/>
-  <!-- Brush hint -->
-  <path d="M180 340l-48 72" stroke-width="20"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Art beret (hat) on top -->
+  <ellipse cx="256" cy="130" rx="135" ry="50" fill="#7c3aed" stroke="#5b21b6" stroke-width="12"/>
+  <circle cx="256" cy="100" r="32" fill="#8b5cf6" stroke="#5b21b6" stroke-width="10"/>
+  <!-- Owl face -->
+  <ellipse cx="256" cy="280" rx="150" ry="170" fill="#7c3aed" stroke="#5b21b6" stroke-width="14"/>
+  <!-- Eyes -->
+  <circle cx="200" cy="250" r="55" fill="#fff" stroke="#5b21b6" stroke-width="10"/>
+  <circle cx="312" cy="250" r="55" fill="#fff" stroke="#5b21b6" stroke-width="10"/>
+  <circle cx="200" cy="258" r="28" fill="#1e293b"/>
+  <circle cx="312" cy="258" r="28" fill="#1e293b"/>
+  <!-- Beak -->
+  <path d="M256 300 L232 348 L256 332 L280 348 Z" fill="#f59e0b" stroke="#b45309" stroke-width="6"/>
+  <!-- Ear tufts -->
+  <path d="M115 220 L75 120" stroke="#7c3aed" stroke-width="22" stroke-linecap="round"/>
+  <path d="M397 220 L437 120" stroke="#7c3aed" stroke-width="22" stroke-linecap="round"/>
 </svg>

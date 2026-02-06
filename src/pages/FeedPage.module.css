@@ -3,6 +3,10 @@
   padding-bottom: 5rem;
 }
 
+.searchRow {
+  margin-bottom: 0.75rem;
+}
+
 .error {
   color: var(--error);
   padding: 0.5rem 0;

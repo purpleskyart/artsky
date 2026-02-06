@@ -196,6 +196,24 @@ export function getPostMediaUrl(post: PostView): { url: string; type: 'image' | 
   return info ? { url: info.url, type: info.type } : null
 }
 
+/** Typeahead search for actors (usernames). */
+export async function searchActorsTypeahead(q: string, limit = 10) {
+  const term = q.trim()
+  if (!term) return { actors: [] }
+  const res = await agent.app.bsky.actor.searchActorsTypeahead({ q: term, limit })
+  return res.data
+}
+
+/** Get suggested feeds for search dropdown. */
+export async function getSuggestedFeeds(limit = 8) {
+  try {
+    const res = await agent.app.bsky.feed.getSuggestedFeeds({ limit })
+    return res.data.feeds
+  } catch {
+    return []
+  }
+}
+
 /** Search posts by hashtag (tag without #). Returns PostView[]; use with cursor for pagination. */
 export async function searchPostsByTag(tag: string, cursor?: string) {
   const normalized = tag.replace(/^#/, '').trim()
@@ -210,8 +228,10 @@ export async function searchPostsByTag(tag: string, cursor?: string) {
   return { posts: res.data.posts, cursor: res.data.cursor }
 }
 
-/** Post a reply (comment) to a Bluesky post */
+/** Post a reply to a post. For top-level reply use same uri/cid for root and parent. */
 export async function postReply(
+  rootUri: string,
+  rootCid: string,
   parentUri: string,
   parentCid: string,
   text: string
@@ -222,7 +242,7 @@ export async function postReply(
     text: t,
     createdAt: new Date().toISOString(),
     reply: {
-      root: { uri: parentUri, cid: parentCid },
+      root: { uri: rootUri, cid: rootCid },
       parent: { uri: parentUri, cid: parentCid },
     },
   })

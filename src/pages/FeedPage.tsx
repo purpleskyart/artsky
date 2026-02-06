@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { agent, getPostMediaInfo, type TimelineItem } from '../lib/bsky'
 import type { FeedSource } from '../types'
 import FeedSelector from '../components/FeedSelector'
+import SearchBar from '../components/SearchBar'
 import PostCard from '../components/PostCard'
 import Layout from '../components/Layout'
 import styles from './FeedPage.module.css'
@@ -50,6 +51,9 @@ export default function FeedPage() {
   return (
     <Layout title="Feed" showNav>
       <div className={styles.wrap}>
+        <div className={styles.searchRow}>
+          <SearchBar onSelectFeed={setSource} />
+        </div>
         <FeedSelector
           value={source}
           onChange={setSource}

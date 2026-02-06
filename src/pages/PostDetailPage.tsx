@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useState, useMemo } from 'react'
+import { useCallback, useEffect, useRef, useState, useMemo } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import type { AppBskyFeedDefs } from '@atproto/api'
-import { agent, postReply, getPostAllMedia, getPostMediaUrl } from '../lib/bsky'
-import { getArtboards, addPostToArtboard } from '../lib/artboards'
+import { agent, postReply, getPostAllMedia, getPostMediaUrl, getSession } from '../lib/bsky'
+import { getArtboards, createArtboard, addPostToArtboard } from '../lib/artboards'
 import Layout from '../components/Layout'
 import VideoWithHls from '../components/VideoWithHls'
 import PostText from '../components/PostText'
@@ -144,11 +144,17 @@ function PostBlock({
   depth = 0,
   collapsedThreads,
   onToggleCollapse,
+  onReply,
+  rootPostUri,
+  rootPostCid,
 }: {
   node: AppBskyFeedDefs.ThreadViewPost | AppBskyFeedDefs.NotFoundPost | AppBskyFeedDefs.BlockedPost | { $type: string }
   depth?: number
   collapsedThreads?: Set<string>
   onToggleCollapse?: (uri: string) => void
+  onReply?: (parentUri: string, parentCid: string, handle: string) => void
+  rootPostUri?: string
+  rootPostCid?: string
 }) {
   if (!isThreadViewPost(node)) return null
   const { post } = node
@@ -165,12 +171,23 @@ function PostBlock({
     <article className={styles.postBlock} style={{ marginLeft: depth * 12 }}>
       <div className={styles.postHead}>
         {avatar && <img src={avatar} alt="" className={styles.avatar} />}
-        <Link
-          to={`/profile/${encodeURIComponent(handle)}`}
-          className={styles.handleLink}
-        >
-          @{handle}
-        </Link>
+        <div className={styles.authorRow}>
+          <Link
+            to={`/profile/${encodeURIComponent(handle)}`}
+            className={styles.handleLink}
+          >
+            @{handle}
+          </Link>
+          {onReply && (
+            <button
+              type="button"
+              className={styles.replyBtn}
+              onClick={() => onReply(post.uri, post.cid, handle)}
+            >
+              Reply
+            </button>
+          )}
+        </div>
       </div>
       {text && (
         <p className={styles.postText}>
@@ -204,6 +221,9 @@ function PostBlock({
                   depth={depth + 1}
                   collapsedThreads={collapsedThreads}
                   onToggleCollapse={onToggleCollapse}
+                  onReply={onReply}
+                  rootPostUri={rootPostUri}
+                  rootPostCid={rootPostCid}
                 />
               ))}
             </div>
@@ -228,7 +248,17 @@ export default function PostDetailPage() {
   const [addToBoardId, setAddToBoardId] = useState<string | null>(null)
   const [addedToBoard, setAddedToBoard] = useState<string | null>(null)
   const [collapsedThreads, setCollapsedThreads] = useState<Set<string>>(() => new Set())
+  const [followLoading, setFollowLoading] = useState(false)
+  const [authorFollowed, setAuthorFollowed] = useState(false)
+  const [replyingTo, setReplyingTo] = useState<{ uri: string; cid: string; handle: string } | null>(null)
+  const [newBoardName, setNewBoardName] = useState('')
+  const [showNewBoardForm, setShowNewBoardForm] = useState(false)
+  const commentFormRef = useRef<HTMLFormElement>(null)
   const boards = getArtboards()
+  const session = getSession()
+  const isOwnPost = thread && isThreadViewPost(thread) && session?.did === thread.post.author.did
+  const alreadyFollowing =
+    (thread && isThreadViewPost(thread) && !!thread.post.author.viewer?.following) || authorFollowed
 
   function toggleCollapse(uri: string) {
     setCollapsedThreads((prev) => {
@@ -237,6 +267,19 @@ export default function PostDetailPage() {
       else next.add(uri)
       return next
     })
+  }
+
+  async function handleFollowAuthor() {
+    if (!thread || !isThreadViewPost(thread) || followLoading || alreadyFollowing) return
+    setFollowLoading(true)
+    try {
+      await agent.follow(thread.post.author.did)
+      setAuthorFollowed(true)
+    } catch {
+      // leave button state unchanged so user can retry
+    } finally {
+      setFollowLoading(false)
+    }
   }
 
   const load = useCallback(async () => {
@@ -262,16 +305,41 @@ export default function PostDetailPage() {
     e.preventDefault()
     if (!thread || !isThreadViewPost(thread) || !comment.trim()) return
     const rootPost = thread.post
+    const parent = replyingTo ?? { uri: rootPost.uri, cid: rootPost.cid }
     setPosting(true)
     try {
-      await postReply(rootPost.uri, rootPost.cid, comment.trim())
+      await postReply(rootPost.uri, rootPost.cid, parent.uri, parent.cid, comment.trim())
       setComment('')
+      setReplyingTo(null)
       await load()
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : 'Failed to post comment')
     } finally {
       setPosting(false)
     }
+  }
+
+  function handleReplyTo(parentUri: string, parentCid: string, handle: string) {
+    setReplyingTo({ uri: parentUri, cid: parentCid, handle })
+    const form = document.querySelector(`.${styles.commentForm} textarea`) as HTMLTextAreaElement | null
+    form?.focus()
+  }
+
+  function handleCreateArtboardAndAdd() {
+    if (!thread || !isThreadViewPost(thread) || !newBoardName.trim()) return
+    const post = thread.post
+    const media = getPostMediaUrl(post)
+    const board = createArtboard(newBoardName.trim())
+    addPostToArtboard(board.id, {
+      uri: post.uri,
+      cid: post.cid,
+      authorHandle: post.author.handle,
+      text: (post.record as { text?: string })?.text?.slice(0, 200),
+      thumb: media?.url,
+    })
+    setAddedToBoard(board.id)
+    setNewBoardName('')
+    setShowNewBoardForm(false)
   }
 
   function handleAddToArtboard() {
@@ -309,12 +377,28 @@ export default function PostDetailPage() {
                 {thread.post.author.avatar && (
                   <img src={thread.post.author.avatar} alt="" className={styles.avatar} />
                 )}
-                <Link
-                  to={`/profile/${encodeURIComponent(thread.post.author.handle ?? thread.post.author.did)}`}
-                  className={styles.handleLink}
-                >
-                  @{thread.post.author.handle ?? thread.post.author.did}
-                </Link>
+                <div className={styles.authorRow}>
+                  <Link
+                    to={`/profile/${encodeURIComponent(thread.post.author.handle ?? thread.post.author.did)}`}
+                    className={styles.handleLink}
+                  >
+                    @{thread.post.author.handle ?? thread.post.author.did}
+                  </Link>
+                  {!isOwnPost && (
+                    alreadyFollowing ? (
+                      <span className={styles.followingLabel}>Following</span>
+                    ) : (
+                      <button
+                        type="button"
+                        className={styles.followBtn}
+                        onClick={handleFollowAuthor}
+                        disabled={followLoading}
+                      >
+                        {followLoading ? 'Following…' : 'Follow'}
+                      </button>
+                    )
+                  )}
+                </div>
               </div>
               {(thread.post.record as { text?: string })?.text && (
                 <p className={styles.postText}>
@@ -329,7 +413,16 @@ export default function PostDetailPage() {
                 <select
                   id="board-select"
                   value={addToBoardId ?? ''}
-                  onChange={(e) => setAddToBoardId(e.target.value || null)}
+                  onChange={(e) => {
+                    const v = e.target.value
+                    if (v === '__new__') {
+                      setShowNewBoardForm(true)
+                      setAddToBoardId(null)
+                    } else {
+                      setAddToBoardId(v || null)
+                      setShowNewBoardForm(false)
+                    }
+                  }}
                   className={styles.select}
                 >
                   <option value="">Choose…</option>
@@ -338,6 +431,7 @@ export default function PostDetailPage() {
                       {b.name}
                     </option>
                   ))}
+                  <option value="__new__">+ New artboard…</option>
                 </select>
                 {addToBoardId && (
                   <button type="button" className={styles.addBtn} onClick={handleAddToArtboard}>
@@ -345,6 +439,26 @@ export default function PostDetailPage() {
                   </button>
                 )}
               </div>
+              {showNewBoardForm && (
+                <div className={styles.newBoardForm}>
+                  <input
+                    type="text"
+                    placeholder="Artboard name"
+                    value={newBoardName}
+                    onChange={(e) => setNewBoardName(e.target.value)}
+                    className={styles.newBoardInput}
+                    onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleCreateArtboardAndAdd())}
+                  />
+                  <div className={styles.newBoardActions}>
+                    <button type="button" className={styles.addBtn} onClick={handleCreateArtboardAndAdd} disabled={!newBoardName.trim()}>
+                      Create &amp; add
+                    </button>
+                    <button type="button" className={styles.cancelBtn} onClick={() => { setShowNewBoardForm(false); setNewBoardName('') }}>
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
               {addedToBoard && (
                 <p className={styles.added}>
                   Added to {boards.find((b) => b.id === addedToBoard)?.name}
@@ -360,21 +474,39 @@ export default function PostDetailPage() {
                     depth={0}
                     collapsedThreads={collapsedThreads}
                     onToggleCollapse={toggleCollapse}
+                    onReply={handleReplyTo}
+                    rootPostUri={thread.post.uri}
+                    rootPostCid={thread.post.cid}
                   />
                 ))}
               </div>
             )}
-            <form onSubmit={handlePostReply} className={styles.commentForm}>
+            <form ref={commentFormRef} onSubmit={handlePostReply} className={styles.commentForm}>
+              {replyingTo && (
+                <p className={styles.replyingTo}>
+                  Replying to @{replyingTo.handle}
+                  <button type="button" className={styles.cancelReply} onClick={() => setReplyingTo(null)} aria-label="Cancel reply">
+                    ×
+                  </button>
+                </p>
+              )}
               <textarea
-                placeholder="Write a comment…"
+                placeholder={replyingTo ? `Reply to @${replyingTo.handle}…` : 'Write a comment…'}
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && e.metaKey) {
+                    e.preventDefault()
+                    if (comment.trim() && !posting) commentFormRef.current?.requestSubmit()
+                  }
+                }}
                 className={styles.textarea}
                 rows={3}
                 maxLength={300}
               />
+              <p className={styles.hint}>⌘ Enter to post</p>
               <button type="submit" className={styles.submit} disabled={posting || !comment.trim()}>
-                {posting ? 'Posting…' : 'Post comment'}
+                {posting ? 'Posting…' : replyingTo ? 'Post reply' : 'Post comment'}
               </button>
             </form>
           </>
