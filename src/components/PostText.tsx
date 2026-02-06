@@ -1,8 +1,9 @@
 import { Link } from 'react-router-dom'
 import styles from './PostText.module.css'
 
-/** Matches URLs (http/https) and hashtags (#word). URLs first so fragment # is not treated as hashtag. */
-const LINKIFY_REGEX = /(https?:\/\/[^\s<>"']+)|(#[\w]+)/gi
+/** Matches: explicit URLs, www. URLs, bare domains (e.g. example.com), and hashtags. */
+const LINKIFY_REGEX =
+  /(https?:\/\/[^\s<>"']+)|(www\.[^\s<>"'\],;:)!?]+)|(?<![@\/])((?:[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}(?:\/[^\s<>"']*)?)|(#[\w]+)/gi
 
 export interface PostTextProps {
   text: string
@@ -15,7 +16,7 @@ export interface PostTextProps {
 
 export default function PostText({ text, className, maxLength, stopPropagation }: PostTextProps) {
   const displayText = maxLength != null && text.length > maxLength ? text.slice(0, maxLength) + '…' : text
-  const segments: Array<{ type: 'text' | 'url' | 'hashtag'; value: string }> = []
+  const segments: Array<{ type: 'text' | 'url' | 'bareUrl' | 'hashtag'; value: string }> = []
   let lastIndex = 0
   let match: RegExpExecArray | null
   const re = new RegExp(LINKIFY_REGEX.source, 'gi')
@@ -23,9 +24,11 @@ export default function PostText({ text, className, maxLength, stopPropagation }
     if (match.index > lastIndex) {
       segments.push({ type: 'text', value: displayText.slice(lastIndex, match.index) })
     }
-    const value = match[1] ?? match[2]
+    const value = match[1] ?? match[2] ?? match[3] ?? match[4]
     if (match[1]) {
       segments.push({ type: 'url', value })
+    } else if (match[2] || match[3]) {
+      segments.push({ type: 'bareUrl', value })
     } else {
       segments.push({ type: 'hashtag', value })
     }
@@ -58,6 +61,22 @@ export default function PostText({ text, className, maxLength, stopPropagation }
               onClick={onClick}
             >
               {href}
+            </a>
+          )
+        }
+        if (seg.type === 'bareUrl') {
+          const raw = seg.value.replace(/[.,;:)!?]+$/, '')
+          const href = `https://${raw}`
+          return (
+            <a
+              key={i}
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={styles.link}
+              onClick={onClick}
+            >
+              {seg.value}
             </a>
           )
         }
