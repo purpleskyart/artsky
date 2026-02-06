@@ -20,11 +20,60 @@
   padding: 2rem 1rem;
 }
 
+.guestSection {
+  margin-bottom: 1rem;
+}
+
 .guestHint {
   text-align: center;
   color: var(--muted);
   font-size: 0.9rem;
   margin: 0 0 0.75rem;
+}
+
+.guestLink {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.guestLink:hover {
+  text-decoration: underline;
+}
+
+.guestPreview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: center;
+}
+
+.guestPreviewCard {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.6rem 1rem;
+  background: var(--glass-highlight);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--glass-radius-sm);
+  text-decoration: none;
+  color: var(--text);
+  min-width: 0;
+}
+
+.guestPreviewCard:hover {
+  border-color: var(--accent);
+  background: rgba(124, 58, 237, 0.08);
+}
+
+.guestPreviewLabel {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.guestPreviewName {
+  font-size: 0.95rem;
+  font-weight: 600;
 }
 
 .masonry {

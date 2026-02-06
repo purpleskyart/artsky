@@ -1,4 +1,5 @@
 import { AtpAgent, type AtpSessionData, type AtpSessionEvent } from '@atproto/api'
+import { GUEST_FEED_ACCOUNTS } from '../config/guestFeed'
 
 const BSKY_SERVICE = 'https://bsky.social'
 const SESSION_KEY = 'artsky-bsky-session'
@@ -109,8 +110,8 @@ export const agent = new AtpAgent({
   persistSession,
 })
 
-/** Handles shown in the guest feed when not logged in */
-export const GUEST_FEED_HANDLES = ['studio.blender.org', 'godotengine.org', 'stsci.edu']
+/** Handles for the guest feed (from config). Re-exported for convenience. */
+export const GUEST_FEED_HANDLES = GUEST_FEED_ACCOUNTS.map((a) => a.handle)
 
 /** Fetch and merge author feeds for guest (no login). cursor = offset as string. */
 export async function getGuestFeed(

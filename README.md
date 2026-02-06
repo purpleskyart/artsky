@@ -59,8 +59,16 @@ Open **http://localhost:5173/** (dev uses base `/`). For production-like base pa
 - **vite-plugin-pwa** for manifest and service worker
 - Artboards and session stored in **localStorage** (no backend)
 
+## Guest feed (logged-out users)
+
+When users are not signed in, the feed shows posts from a fixed list of Bluesky accounts and a preview section with links to their profiles. To change which accounts appear:
+
+- **Edit** `src/config/guestFeed.ts`  
+  Each entry has a `handle` (e.g. `studio.blender.org`) and a `label` (e.g. `Blender`) used in the UI. Add, remove, or reorder entries there; the feed and the preview section update automatically.
+
 ## Repo structure
 
+- `src/config/guestFeed.ts` – **Guest feed accounts** (edit this to change what logged-out users see)
 - `src/lib/bsky.ts` – Bluesky agent, session persistence, feed/reply helpers
 - `src/lib/artboards.ts` – Artboard CRUD in localStorage
 - `src/pages/` – Login, Feed, Artboards, Artboard detail, Post detail

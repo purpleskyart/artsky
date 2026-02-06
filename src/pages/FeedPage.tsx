@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { agent, getPostMediaInfo, getGuestFeed, type TimelineItem } from '../lib/bsky'
+import { GUEST_FEED_ACCOUNTS } from '../config/guestFeed'
 import type { FeedSource } from '../types'
 import FeedSelector from '../components/FeedSelector'
 import PostCard from '../components/PostCard'
@@ -77,7 +78,32 @@ export default function FeedPage() {
           />
         )}
         {!session && (
-          <p className={styles.guestHint}>Showing posts from Blender, Godot Engine &amp; NASA. Sign in to see your feed.</p>
+          <section className={styles.guestSection} aria-label="Guest feed">
+            <p className={styles.guestHint}>
+              Showing posts from{' '}
+              {GUEST_FEED_ACCOUNTS.map((a, i) => (
+                <span key={a.handle}>
+                  {i > 0 && i === GUEST_FEED_ACCOUNTS.length - 1 ? ' & ' : i > 0 ? ', ' : ''}
+                  <Link to={`/profile/${encodeURIComponent(a.handle)}`} className={styles.guestLink}>
+                    {a.label}
+                  </Link>
+                </span>
+              ))}
+              . Sign in to see your feed.
+            </p>
+            <div className={styles.guestPreview}>
+              {GUEST_FEED_ACCOUNTS.map((a) => (
+                <Link
+                  key={a.handle}
+                  to={`/profile/${encodeURIComponent(a.handle)}`}
+                  className={styles.guestPreviewCard}
+                >
+                  <span className={styles.guestPreviewLabel}>@{a.handle}</span>
+                  <span className={styles.guestPreviewName}>{a.label}</span>
+                </Link>
+              ))}
+            </div>
+          </section>
         )}
         {error && <p className={styles.error}>{error}</p>}
         {loading ? (
