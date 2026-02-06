@@ -73,12 +73,13 @@ export default function TagPage() {
     const onKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable) return
+      if (e.ctrlKey || e.metaKey) return
       if (mediaItems.length === 0) return
 
       const items = mediaItemsRef.current
       const i = keyboardFocusIndexRef.current
       const key = e.key.toLowerCase()
-      if (key === 'w' || key === 's' || key === 'a' || key === 'd' || key === 'e' || key === 'x' || key === 'c') e.preventDefault()
+      if (key === 'w' || key === 's' || key === 'a' || key === 'd' || key === 'e' || key === 'enter' || key === 'x' || key === 'c') e.preventDefault()
 
       if (key === 'w') {
         setKeyboardFocusIndex((idx) => Math.max(0, idx - cols))
@@ -96,7 +97,7 @@ export default function TagPage() {
         setKeyboardFocusIndex((idx) => Math.min(items.length - 1, idx + 1))
         return
       }
-      if (key === 'e') {
+      if (key === 'e' || key === 'enter') {
         const item = items[i]
         if (item) navigate(`/post/${encodeURIComponent(item.post.uri)}`)
         return

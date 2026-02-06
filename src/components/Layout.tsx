@@ -271,11 +271,12 @@ export default function Layout({ title, children, showNav, showColumnView = true
     document.title = title ? `${title} · ArtSky` : 'ArtSky'
   }, [title])
 
-  /* Global keyboard: Q = back (works on all pages when not typing) */
+  /* Global keyboard: Q = back (works on all pages when not typing). Ctrl/Cmd+key never handled so browser (e.g. Ctrl+R) and Cmd+Enter submit work. */
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable) return
+      if (e.ctrlKey || e.metaKey) return
       if (e.key.toLowerCase() !== 'q') return
       e.preventDefault()
       navigate(-1)
@@ -470,7 +471,7 @@ export default function Layout({ title, children, showNav, showColumnView = true
   }
 
   function handleComposeKeyDown(e: React.KeyboardEvent, form: HTMLFormElement | null) {
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+    if ((e.key === 'Enter' || e.key === 'E') && (e.metaKey || e.ctrlKey)) {
       e.preventDefault()
       if (form && (composeText.trim() || composeImages.length > 0) && !composePosting) {
         form.requestSubmit()

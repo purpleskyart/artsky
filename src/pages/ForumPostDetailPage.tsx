@@ -60,6 +60,7 @@ export default function ForumPostDetailPage() {
   const [editMediaNewFiles, setEditMediaNewFiles] = useState<File[]>([])
   const [editSaving, setEditSaving] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const replyFormRef = useRef<HTMLFormElement>(null)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
   const [deleteLoading, setDeleteLoading] = useState(false)
   const [likeLoadingMap, setLikeLoadingMap] = useState<Record<string, boolean>>({})
@@ -318,7 +319,15 @@ export default function ForumPostDetailPage() {
                     )}
                   </>
                 ) : (
-                  <div className={styles.editForm}>
+                  <div
+                    className={styles.editForm}
+                    onKeyDown={(e) => {
+                      if ((e.key === 'Enter' || e.key === 'E') && (e.metaKey || e.ctrlKey)) {
+                        e.preventDefault()
+                        if (!editSaving) handleEditSave()
+                      }
+                    }}
+                  >
                     <label className={styles.editLabel}>
                       Title
                       <input
@@ -393,11 +402,17 @@ export default function ForumPostDetailPage() {
             {session && (
               <section className={styles.replySection}>
                 <h2 className={styles.replySectionTitle}>Reply</h2>
-                <form onSubmit={handleReplySubmit} className={styles.replyForm}>
+                <form ref={replyFormRef} onSubmit={handleReplySubmit} className={styles.replyForm}>
                   <textarea
                     className={styles.replyTextarea}
                     value={replyText}
                     onChange={(e) => setReplyText(e.target.value)}
+                    onKeyDown={(e) => {
+                      if ((e.key === 'Enter' || e.key === 'E') && (e.metaKey || e.ctrlKey)) {
+                        e.preventDefault()
+                        if (replyText.trim() && !posting) replyFormRef.current?.requestSubmit()
+                      }
+                    }}
                     placeholder="Write a reply…"
                     rows={3}
                     disabled={posting}

@@ -196,6 +196,7 @@ export default function FeedPage() {
     const onKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable) return
+      if (e.ctrlKey || e.metaKey) return
       if (location.pathname !== '/feed') return
 
       const items = mediaItemsRef.current
@@ -203,7 +204,7 @@ export default function FeedPage() {
       if (items.length === 0) return
 
       const key = e.key.toLowerCase()
-      if (key === 'w' || key === 's' || key === 'a' || key === 'd' || key === 'e' || key === 'r' || key === 'x' || key === 'c') e.preventDefault()
+      if (key === 'w' || key === 's' || key === 'a' || key === 'd' || key === 'e' || key === 'enter' || key === 'r' || key === 'x' || key === 'c') e.preventDefault()
 
       if (key === 'w') {
         setKeyboardFocusIndex((idx) => Math.max(0, idx - cols))
@@ -221,7 +222,7 @@ export default function FeedPage() {
         setKeyboardFocusIndex((idx) => Math.min(items.length - 1, idx + 1))
         return
       }
-      if (key === 'e') {
+      if (key === 'e' || key === 'enter') {
         const item = items[i]
         if (item) navigate(`/post/${encodeURIComponent(item.post.uri)}`)
         return

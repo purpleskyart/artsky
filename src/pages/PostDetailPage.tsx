@@ -423,7 +423,7 @@ function PostBlock({
               value={replyComment ?? ''}
               onChange={(e) => setReplyComment(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && e.metaKey) {
+                if ((e.key === 'Enter' || e.key === 'E') && (e.metaKey || e.ctrlKey)) {
                   e.preventDefault()
                   if ((replyComment ?? '').trim() && !replyPosting) commentFormRef.current?.requestSubmit()
                 }
@@ -433,7 +433,7 @@ function PostBlock({
               maxLength={300}
               autoFocus
             />
-            <p className={styles.hint}>⌘ Enter to post</p>
+            <p className={styles.hint}>⌘ Enter or ⌘ E to post</p>
             <button type="submit" className={styles.submit} disabled={replyPosting || !(replyComment ?? '').trim()}>
               {replyPosting ? 'Posting…' : 'Post reply'}
             </button>
@@ -535,10 +535,12 @@ export default function PostDetailPage() {
   const [showBoardDropdown, setShowBoardDropdown] = useState(false)
   const [postSectionIndex, setPostSectionIndex] = useState(0)
   const commentFormRef = useRef<HTMLFormElement>(null)
+  const commentFormWrapRef = useRef<HTMLDivElement>(null)
   const mediaSectionRef = useRef<HTMLDivElement>(null)
   const descriptionSectionRef = useRef<HTMLDivElement>(null)
   const commentsSectionRef = useRef<HTMLDivElement>(null)
   const [focusedCommentIndex, setFocusedCommentIndex] = useState(0)
+  const [commentFormFocused, setCommentFormFocused] = useState(false)
   const prevSectionIndexRef = useRef(0)
   const boards = getArtboards()
   const session = getSession()
@@ -773,6 +775,7 @@ export default function PostDetailPage() {
     const onKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable) return
+      if (e.ctrlKey || e.metaKey) return
       const key = e.key.toLowerCase()
       if (key === 'r') {
         const t = thread
@@ -789,14 +792,45 @@ export default function PostDetailPage() {
         }
         return
       }
-      if (key !== 'w' && key !== 'a' && key !== 's') return
-      if (postSectionCount <= 1 && key !== 'w') return
 
       const inCommentsSection = hasRepliesSection && postSectionIndex === postSectionCount - 1
       const inDescriptionSection = descriptionSectionRef.current?.contains(target) ?? false
       const inMediaSection = mediaSectionRef.current?.contains(target) ?? false
+      const inCommentFormWrap = commentFormWrapRef.current?.contains(target) ?? false
+
+      if (key === 'e' || key === 'enter') {
+        e.preventDefault()
+        if ((commentFormFocused || inCommentFormWrap) && commentFormRef.current) {
+          const ta = commentFormRef.current.querySelector('textarea')
+          if (ta) {
+            (ta as HTMLTextAreaElement).focus()
+            setCommentFormFocused(true)
+          }
+          return
+        }
+        if (inCommentsSection && threadRepliesFlat.length > 0 && focusedCommentIndex >= 0 && focusedCommentIndex < threadRepliesFlat.length) {
+          const focused = threadRepliesFlat[focusedCommentIndex]
+          if (focused?.handle) navigate(`/profile/${encodeURIComponent(focused.handle)}`)
+          return
+        }
+        if ((inDescriptionSection || inMediaSection) && thread && isThreadViewPost(thread)) {
+          const handle = thread.post.author?.handle ?? thread.post.author?.did ?? ''
+          if (handle) navigate(`/profile/${encodeURIComponent(handle)}`)
+          return
+        }
+        return
+      }
+
+      if (key !== 'w' && key !== 'a' && key !== 's') return
+      if (postSectionCount <= 1 && key !== 'w') return
 
       if (key === 'w') {
+        if (commentFormFocused) {
+          e.preventDefault()
+          setCommentFormFocused(false)
+          setFocusedCommentIndex(threadRepliesFlat.length - 1)
+          return
+        }
         if (inDescriptionSection && hasMediaSection && rootMediaForNav.length > 0) {
           e.preventDefault()
           setPostSectionIndex(0)
@@ -896,6 +930,14 @@ export default function PostDetailPage() {
           } else {
             setFocusedCommentIndex((i) => Math.max(0, i - 1))
           }
+        } else if (key === 's') {
+          if (focusedCommentIndex === threadRepliesFlat.length - 1) {
+            e.preventDefault()
+            setCommentFormFocused(true)
+            requestAnimationFrame(() => commentFormWrapRef.current?.focus())
+          } else {
+            setFocusedCommentIndex((i) => Math.min(threadRepliesFlat.length - 1, i + 1))
+          }
         } else {
           setFocusedCommentIndex((i) => Math.min(threadRepliesFlat.length - 1, i + 1))
         }
@@ -910,7 +952,7 @@ export default function PostDetailPage() {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [postSectionCount, postSectionIndex, hasRepliesSection, threadRepliesFlat, focusedCommentIndex, thread, hasMediaSection, handleReplyTo, rootMediaForNav.length])
+  }, [postSectionCount, postSectionIndex, hasRepliesSection, threadRepliesFlat, focusedCommentIndex, commentFormFocused, thread, hasMediaSection, handleReplyTo, rootMediaForNav.length, navigate])
 
   useEffect(() => {
     if (postSectionCount <= 1) return
@@ -921,22 +963,6 @@ export default function PostDetailPage() {
     if (hasRepliesSection && postSectionIndex === postSectionCount - 1) ref = commentsSectionRef.current
     if (ref) ref.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }, [postSectionIndex, hasMediaSection, hasRepliesSection, postSectionCount])
-
-  useEffect(() => {
-    if (hasMediaSection && postSectionIndex === 0 && rootMediaForNav.length > 0) {
-      const mediaSection = mediaSectionRef.current
-      const items = mediaSection?.querySelectorAll<HTMLElement>('[data-media-item]')
-      const activeElement = document.activeElement as HTMLElement
-      const isMediaFocused = mediaSection?.contains(activeElement) && activeElement.hasAttribute?.('data-media-item')
-      if (!isMediaFocused && items && items.length > 0) {
-        const first = items[0]
-        requestAnimationFrame(() => {
-          first.focus()
-          first.scrollIntoView({ behavior: 'smooth', block: 'start' })
-        })
-      }
-    }
-  }, [postSectionIndex, hasMediaSection, rootMediaForNav.length])
 
   useEffect(() => {
     if (postSectionIndex === postSectionCount - 1 && hasRepliesSection && prevSectionIndexRef.current !== postSectionCount - 1) {
@@ -1189,6 +1215,16 @@ export default function PostDetailPage() {
             )}
             {(!replyingTo || (thread && isThreadViewPost(thread) && replyingTo.uri === thread.post.uri)) && (
               <div className={styles.inlineReplyFormWrap}>
+                <div
+                  ref={commentFormWrapRef}
+                  tabIndex={-1}
+                  className={commentFormFocused ? styles.commentFormWrapFocused : undefined}
+                  onBlur={() => {
+                    requestAnimationFrame(() => {
+                      if (!commentFormRef.current?.contains(document.activeElement)) setCommentFormFocused(false)
+                    })
+                  }}
+                >
                 <form ref={commentFormRef} onSubmit={handlePostReply} className={styles.commentForm}>
                   {replyAs && (
                     <div className={styles.inlineReplyFormHeader}>
@@ -1219,7 +1255,7 @@ export default function PostDetailPage() {
                   value={comment}
                   onChange={(e) => setComment(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' && e.metaKey) {
+                    if ((e.key === 'Enter' || e.key === 'E') && (e.metaKey || e.ctrlKey)) {
                       e.preventDefault()
                       if (comment.trim() && !posting) commentFormRef.current?.requestSubmit()
                     }
@@ -1228,11 +1264,12 @@ export default function PostDetailPage() {
                   rows={3}
                   maxLength={300}
                 />
-                <p className={styles.hint}>⌘ Enter to post</p>
+                <p className={styles.hint}>⌘ Enter or ⌘ E to post</p>
                 <button type="submit" className={styles.submit} disabled={posting || !comment.trim()}>
                   {posting ? 'Posting…' : 'Post comment'}
                 </button>
               </form>
+                </div>
               </div>
             )}
           </>

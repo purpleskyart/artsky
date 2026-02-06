@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { listStandardSiteDocumentsAll, listStandardSiteDocumentsForForum, getSession, type StandardSiteDocumentView } from '../lib/bsky'
 import { FORUM_DISCOVERY_URLS } from '../config/forumDiscovery'
 import { formatRelativeTime, formatExactDateTime } from '../lib/date'
@@ -31,7 +31,12 @@ export default function ForumPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [focusedIndex, setFocusedIndex] = useState(0)
   const session = getSession()
+  const navigate = useNavigate()
+  const listRef = useRef<HTMLUListElement>(null)
+  const focusedIndexRef = useRef(focusedIndex)
+  focusedIndexRef.current = focusedIndex
 
   const load = useCallback(async () => {
     try {
@@ -64,6 +69,43 @@ export default function ForumPage() {
     () => documents.filter((doc) => matchesSearch(doc, searchQuery)),
     [documents, searchQuery]
   )
+
+  useEffect(() => {
+    setFocusedIndex((i) => (filteredDocuments.length ? Math.min(i, filteredDocuments.length - 1) : 0))
+  }, [filteredDocuments.length])
+
+  useEffect(() => {
+    if (!listRef.current || focusedIndex < 0) return
+    const li = listRef.current.querySelector(`[data-forum-index="${focusedIndex}"]`)
+    if (li) li.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+  }, [focusedIndex])
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable) return
+      if (e.ctrlKey || e.metaKey) return
+      if (!listRef.current || filteredDocuments.length === 0) return
+      const key = e.key.toLowerCase()
+      if (key === 'w' || key === 's' || key === 'a') {
+        e.preventDefault()
+        if (key === 'w' || key === 'a') {
+          setFocusedIndex((i) => Math.max(0, i - 1))
+        } else {
+          setFocusedIndex((i) => Math.min(filteredDocuments.length - 1, i + 1))
+        }
+        return
+      }
+      if (key === 'enter' || key === 'e') {
+        e.preventDefault()
+        const doc = filteredDocuments[focusedIndexRef.current]
+        if (doc) navigate(`/forum/post/${encodeURIComponent(doc.uri)}`)
+        return
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [filteredDocuments, navigate])
 
   const showSignInForTab = (tab === 'followed' || tab === 'mine') && !session
 
@@ -130,8 +172,8 @@ export default function ForumPage() {
               : 'No posts match your search.'}
           </div>
         ) : (
-          <ul className={styles.list}>
-            {filteredDocuments.map((doc) => {
+          <ul ref={listRef} className={styles.list}>
+            {filteredDocuments.map((doc, index) => {
               const handle = doc.authorHandle ?? doc.did
               const url = documentUrl(doc)
               const createdAt = doc.createdAt
@@ -163,9 +205,13 @@ export default function ForumPage() {
                   </div>
                 </div>
               )
+              const isFocused = index === focusedIndex
               return (
-                <li key={doc.uri}>
-                  <Link to={forumPostUrl} className={styles.postLink}>
+                <li key={doc.uri} data-forum-index={index}>
+                  <Link
+                    to={forumPostUrl}
+                    className={isFocused ? `${styles.postLink} ${styles.postLinkFocused}` : styles.postLink}
+                  >
                     <article className={postBlockStyles.postBlock}>
                       <div className={postBlockStyles.postBlockContent}>
                         {head}
