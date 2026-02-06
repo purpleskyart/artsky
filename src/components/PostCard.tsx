@@ -36,6 +36,14 @@ function ImagesIcon() {
   )
 }
 
+function ImageIcon() {
+  return (
+    <svg className={styles.mediaIcon} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z" />
+    </svg>
+  )
+}
+
 function RepostIcon() {
   return (
     <svg className={styles.repostIcon} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
@@ -69,6 +77,7 @@ export default function PostCard({ item, showRepostGlow = false }: Props) {
   const { session } = useSession()
   const { artOnly } = useArtOnly()
   const videoRef = useRef<HTMLVideoElement>(null)
+  const mediaWrapRef = useRef<HTMLDivElement>(null)
   const hlsRef = useRef<Hls | null>(null)
   const { post, reason } = item as { post: typeof item.post; reason?: { $type?: string; by?: { handle?: string; did?: string } } }
   const media = getPostMediaInfo(post)
@@ -211,6 +220,7 @@ export default function PostCard({ item, showRepostGlow = false }: Props) {
 
   const isVideo = media.type === 'video' && media.videoPlaylist
   const isMultipleImages = media.type === 'image' && (media.imageCount ?? 0) > 1
+  const isSingleImage = media.type === 'image' && (media.imageCount ?? 0) <= 1
   const allMedia = getPostAllMedia(post)
   const imageItems = allMedia.filter((m) => m.type === 'image')
   const currentImageUrl = isMultipleImages && imageItems.length ? imageItems[imageIndex]?.url : media.url
@@ -255,6 +265,27 @@ export default function PostCard({ item, showRepostGlow = false }: Props) {
       }
     }
   }, [isVideo, media.videoPlaylist])
+
+  /* Autoplay video when in view, pause when out of view */
+  useEffect(() => {
+    if (!isVideo || !mediaWrapRef.current || !videoRef.current) return
+    const el = mediaWrapRef.current
+    const video = videoRef.current
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0]
+        if (!entry || !video) return
+        if (entry.isIntersecting) {
+          video.play().catch(() => {})
+        } else {
+          video.pause()
+        }
+      },
+      { threshold: 0.25, rootMargin: '0px' }
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [isVideo])
 
   function onMediaEnter() {
     if (videoRef.current) {
@@ -345,6 +376,7 @@ export default function PostCard({ item, showRepostGlow = false }: Props) {
         onTouchCancel={clearLongPressTimer}
       >
         <div
+          ref={mediaWrapRef}
           className={styles.mediaWrap}
           style={{
             aspectRatio:
@@ -409,10 +441,25 @@ export default function PostCard({ item, showRepostGlow = false }: Props) {
         <div className={styles.meta}>
           <div className={styles.handleBlock}>
             <span className={styles.handleRow}>
+              {isVideo && (
+                <span className={styles.mediaBadge} title="Video">
+                  <VideoIcon />
+                </span>
+              )}
+              {isMultipleImages && (
+                <span className={styles.mediaBadge} title={`${media.imageCount} images`}>
+                  <ImagesIcon />
+                </span>
+              )}
+              {isSingleImage && (
+                <span className={styles.mediaBadge} title="Image">
+                  <ImageIcon />
+                </span>
+              )}
               {post.author.avatar && (
                 <img src={post.author.avatar} alt="" className={styles.authorAvatar} loading="lazy" />
               )}
-              <span className={showNotFollowingGreen ? styles.handleLinkWrapNotFollowing : repostedByHandle && showRepostGlow ? styles.handleLinkWrapRepost : styles.handleLinkWrap}>
+              <span className={showNotFollowingGreen ? styles.handleLinkWrapNotFollowing : styles.handleLinkWrap}>
                 <Link
                   to={`/profile/${encodeURIComponent(handle)}`}
                   className={styles.handleLink}
@@ -439,16 +486,6 @@ export default function PostCard({ item, showRepostGlow = false }: Props) {
                 >
                   <RepostIcon />
                 </Link>
-              )}
-              {isVideo && (
-                <span className={styles.mediaBadge} title="Video – hover to play, click to open post">
-                  <VideoIcon />
-                </span>
-              )}
-              {isMultipleImages && (
-                <span className={styles.mediaBadge} title={`${media.imageCount} images`}>
-                  <ImagesIcon />
-                </span>
               )}
               <div
                 className={`${styles.addWrap} ${addOpen ? styles.addWrapOpen : ''}`}
