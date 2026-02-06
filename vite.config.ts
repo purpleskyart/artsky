@@ -3,8 +3,9 @@ import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vite.dev/config/
+// Use relative base so the app works on GitHub Pages whether deployed at / or /artsky/
 export default defineConfig({
-  base: process.env.NODE_ENV === 'production' ? '/artsky/' : '/', // GitHub Pages: https://<user>.github.io/artsky/
+  base: './',
   plugins: [
     react(),
     VitePWA({
@@ -17,15 +18,15 @@ export default defineConfig({
         background_color: '#0f0f1a',
         display: 'standalone',
         orientation: 'portrait',
-        scope: '/artsky/',
-        start_url: '/artsky/',
+        scope: './',
+        start_url: './',
         icons: [
-          { src: '/artsky/icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any maskable' },
+          { src: './icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any maskable' },
         ],
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-        navigateFallback: '/artsky/index.html',
+        navigateFallback: './index.html',
       },
     }),
   ],
