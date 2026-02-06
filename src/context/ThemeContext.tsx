@@ -24,7 +24,11 @@ function getStored(): ThemeMode {
 function getResolved(mode: ThemeMode): 'light' | 'dark' {
   if (mode === 'light') return 'light'
   if (mode === 'dark') return 'dark'
-  if (typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: light)').matches) return 'light'
+  try {
+    if (typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: light)').matches) return 'light'
+  } catch {
+    /* ignore */
+  }
   return 'dark'
 }
 
