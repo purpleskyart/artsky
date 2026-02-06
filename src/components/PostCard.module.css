@@ -339,10 +339,7 @@
 
 .handleLinkWrapRepost {
   display: inline;
-  border-radius: 0.2rem;
-  box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.35);
-  padding: 0 0.15rem;
-  margin: 0 -0.15rem;
+  text-shadow: 0 0 8px rgba(34, 197, 94, 0.5);
 }
 
 .handleLink {
