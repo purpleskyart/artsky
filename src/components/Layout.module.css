@@ -425,7 +425,7 @@
   to { opacity: 1; }
 }
 
-/* Mobile account popup (replaces bottom sheet) */
+/* Mobile account popup – no animation, just appear */
 .accountPopup {
   position: fixed;
   left: 50%;
@@ -441,13 +441,133 @@
   border: 1px solid var(--glass-border);
   border-radius: var(--glass-radius);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
-  animation: popIn 0.2s ease;
 }
 
 .accountPopupContent {
   overflow-y: auto;
   max-height: 85vh;
   padding: 1rem;
+}
+
+/* Mobile account popup – icon-only compact */
+.accountPopupContentCompact {
+  overflow-y: auto;
+  max-height: 85vh;
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.menuCompactRow {
+  display: flex;
+  gap: 0.35rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.menuCompactBtn,
+.menuCompactBtnActive {
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1px solid var(--glass-border);
+  background: var(--glass-highlight);
+  color: var(--text);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.menuCompactBtnActive {
+  border-color: var(--accent);
+  background: rgba(124, 58, 237, 0.2);
+  color: var(--accent);
+}
+
+.menuCompactColWrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+}
+
+.menuCompactNum {
+  font-size: 0.6rem;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.menuCompactAccounts {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+.menuCompactItem,
+.menuCompactItemActive {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.6rem;
+  font-size: 0.85rem;
+  text-align: left;
+  color: var(--text);
+  background: transparent;
+  border: none;
+  border-radius: var(--glass-radius-sm);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.menuCompactItemActive {
+  color: var(--accent);
+  font-weight: 600;
+  background: rgba(124, 58, 237, 0.12);
+}
+
+.menuCompactHandle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.menuCompactActions {
+  display: flex;
+  gap: 0.35rem;
+  justify-content: center;
+  padding-top: 0.25rem;
+  border-top: 1px solid var(--glass-border);
+}
+
+.menuCompactActionBtn,
+.menuCompactActionSec {
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.menuCompactActionBtn {
+  background: var(--accent);
+  color: white;
+}
+
+.menuCompactActionSec {
+  background: var(--glass-highlight);
+  border: 1px solid var(--glass-border);
+  color: var(--muted);
 }
 
 .accountPopupContent .sheetTitle {

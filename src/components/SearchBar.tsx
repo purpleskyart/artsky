@@ -25,9 +25,11 @@ interface Props {
   compact?: boolean
   /** Optional close callback (e.g. for mobile overlay) */
   onClose?: () => void
+  /** Show suggestions dropdown above the input (e.g. mobile overlay) */
+  suggestionsAbove?: boolean
 }
 
-export default function SearchBar({ onSelectFeed, inputRef: externalInputRef, compact, onClose }: Props) {
+export default function SearchBar({ onSelectFeed, inputRef: externalInputRef, compact, onClose, suggestionsAbove }: Props) {
   const navigate = useNavigate()
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<SearchFilter>('all')
@@ -152,7 +154,7 @@ export default function SearchBar({ onSelectFeed, inputRef: externalInputRef, co
   }
 
   return (
-    <div className={`${styles.wrap} ${compact ? styles.compact : ''}`} ref={containerRef}>
+    <div className={`${styles.wrap} ${compact ? styles.compact : ''} ${suggestionsAbove ? styles.suggestionsAbove : ''}`} ref={containerRef}>
       <div className={styles.searchRow}>
         <button
           type="button"

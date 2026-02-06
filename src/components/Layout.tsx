@@ -79,6 +79,73 @@ function EyeIcon({ off }: { off?: boolean }) {
   )
 }
 
+function SunIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
+    </svg>
+  )
+}
+function MoonIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+    </svg>
+  )
+}
+function SystemIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="2" y="3" width="20" height="14" rx="2" />
+      <path d="M8 21h8M12 17v4" />
+    </svg>
+  )
+}
+function GridSmallIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="3" y="3" width="7" height="7" />
+      <rect x="14" y="3" width="7" height="7" />
+      <rect x="14" y="14" width="7" height="7" />
+      <rect x="3" y="14" width="7" height="7" />
+    </svg>
+  )
+}
+function PersonIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+      <circle cx="12" cy="7" r="4" />
+    </svg>
+  )
+}
+function PlusIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M12 5v14M5 12h14" />
+    </svg>
+  )
+}
+function LogOutIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+      <polyline points="16 17 21 12 16 7" />
+      <line x1="21" y1="12" x2="9" y2="12" />
+    </svg>
+  )
+}
+function LogInIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
+      <polyline points="10 17 15 12 10 7" />
+      <line x1="15" y1="12" x2="3" y2="12" />
+    </svg>
+  )
+}
+
 const DESKTOP_BREAKPOINT = 768
 function getDesktopSnapshot() {
   return typeof window !== 'undefined' ? window.innerWidth >= DESKTOP_BREAKPOINT : false
@@ -147,9 +214,7 @@ export default function Layout({ title, children, showNav }: Props) {
       setTimeout(() => searchInputRef.current?.focus(), 300)
     } else {
       setMobileSearchOpen(true)
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => searchInputRef.current?.focus())
-      })
+      setTimeout(() => searchInputRef.current?.focus(), 150)
     }
   }
 
@@ -305,6 +370,79 @@ export default function Layout({ title, children, showNav }: Props) {
     </>
   )
 
+  const accountPanelContentCompact = (
+    <>
+      <div className={styles.menuCompactRow}>
+        {(['light', 'dark', 'system'] as const).map((t) => (
+          <button
+            key={t}
+            type="button"
+            className={theme === t ? styles.menuCompactBtnActive : styles.menuCompactBtn}
+            onClick={() => setTheme(t)}
+            title={t === 'light' ? 'Light' : t === 'dark' ? 'Dark' : 'System'}
+            aria-label={t === 'light' ? 'Light' : t === 'dark' ? 'Dark' : 'System'}
+          >
+            {t === 'light' ? <SunIcon /> : t === 'dark' ? <MoonIcon /> : <SystemIcon />}
+          </button>
+        ))}
+      </div>
+      <div className={styles.menuCompactRow}>
+        {viewOptions.map((m) => (
+          <button
+            key={m}
+            type="button"
+            className={viewMode === m ? styles.menuCompactBtnActive : styles.menuCompactBtn}
+            onClick={() => setViewMode(m)}
+            title={VIEW_LABELS[m]}
+            aria-label={VIEW_LABELS[m]}
+          >
+            <span className={styles.menuCompactColWrap}>
+              <GridSmallIcon />
+              <span className={styles.menuCompactNum}>{m}</span>
+            </span>
+          </button>
+        ))}
+      </div>
+      {session && (
+        <>
+          <div className={styles.menuCompactAccounts}>
+            {sessionsList.map((s) => (
+              <button
+                key={s.did}
+                type="button"
+                className={s.did === session?.did ? styles.menuCompactItemActive : styles.menuCompactItem}
+                onClick={() => handleSelectAccount(s.did)}
+                title={`@${s.handle}`}
+              >
+                <PersonIcon />
+                <span className={styles.menuCompactHandle}>@{s.handle}</span>
+              </button>
+            ))}
+          </div>
+          <div className={styles.menuCompactActions}>
+            <button type="button" className={styles.menuCompactActionBtn} onClick={handleAddAccount} title="Add account" aria-label="Add account">
+              <PlusIcon />
+            </button>
+            <button type="button" className={styles.menuCompactActionSec} onClick={handleLogout} title="Log out" aria-label="Log out">
+              <LogOutIcon />
+            </button>
+          </div>
+        </>
+      )}
+      {!session && (
+        <button
+          type="button"
+          className={styles.menuCompactActionBtn}
+          onClick={() => { setAccountSheetOpen(false); navigate('/login'); }}
+          title="Sign in"
+          aria-label="Sign in"
+        >
+          <LogInIcon />
+        </button>
+      )}
+    </>
+  )
+
   return (
     <div className={styles.wrap}>
       <header className={styles.header}>
@@ -383,7 +521,7 @@ export default function Layout({ title, children, showNav }: Props) {
               />
               <div className={styles.searchOverlayCenter} role="dialog" aria-label="Search">
                 <div className={styles.searchOverlayCard}>
-                  <SearchBar inputRef={searchInputRef} onClose={closeMobileSearch} />
+                  <SearchBar inputRef={searchInputRef} onClose={closeMobileSearch} suggestionsAbove />
                 </div>
               </div>
             </>
@@ -396,9 +534,8 @@ export default function Layout({ title, children, showNav }: Props) {
                 aria-hidden
               />
               <div className={styles.accountPopup} role="dialog" aria-label="Account and settings">
-                <div className={styles.accountPopupContent}>
-                  <h2 className={styles.sheetTitle}>Account</h2>
-                  {accountPanelContent}
+                <div className={styles.accountPopupContentCompact}>
+                  {accountPanelContentCompact}
                 </div>
               </div>
             </>

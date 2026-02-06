@@ -10,6 +10,8 @@ import PostText from './PostText'
 import styles from './PostCard.module.css'
 
 const LONG_PRESS_MS = 350
+const LONG_PRESS_MS_TOUCH = 550
+const LONG_PRESS_MOVE_THRESHOLD = 14
 
 interface Props {
   item: TimelineItem
@@ -78,12 +80,17 @@ export default function PostCard({ item }: Props) {
   const [newBoardName, setNewBoardName] = useState('')
   const [showLongPressMenu, setShowLongPressMenu] = useState(false)
   const [longPressPosition, setLongPressPosition] = useState({ x: 0, y: 0 })
+  const [longPressViewport, setLongPressViewport] = useState({ x: 0, y: 0 })
   const addRef = useRef<HTMLDivElement>(null)
   const cardRef = useRef<HTMLDivElement>(null)
   const longPressMenuRef = useRef<HTMLDivElement>(null)
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const didLongPressRef = useRef(false)
   const longPressPositionRef = useRef({ x: 0, y: 0 })
+  const longPressViewportRef = useRef({ x: 0, y: 0 })
+  const touchStartRef = useRef({ x: 0, y: 0 })
+  const lastTapRef = useRef(0)
+  const didDoubleTapRef = useRef(false)
 
   const clearLongPressTimer = useCallback(() => {
     if (longPressTimerRef.current !== null) {
@@ -95,17 +102,29 @@ export default function PostCard({ item }: Props) {
   const startLongPressTimer = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX
     const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY
+    const isTouch = 'touches' in e
+    touchStartRef.current = { x: clientX, y: clientY }
     if (cardRef.current) {
       const rect = cardRef.current.getBoundingClientRect()
       longPressPositionRef.current = { x: clientX - rect.left, y: clientY - rect.top }
     }
+    longPressViewportRef.current = { x: clientX, y: clientY }
     clearLongPressTimer()
+    const delay = isTouch ? LONG_PRESS_MS_TOUCH : LONG_PRESS_MS
     longPressTimerRef.current = setTimeout(() => {
       longPressTimerRef.current = null
       didLongPressRef.current = true
       setLongPressPosition(longPressPositionRef.current)
+      setLongPressViewport(longPressViewportRef.current)
       setShowLongPressMenu(true)
-    }, LONG_PRESS_MS)
+    }, delay)
+  }, [clearLongPressTimer])
+
+  const checkTouchMove = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length === 0) return
+    const dx = e.touches[0].clientX - touchStartRef.current.x
+    const dy = e.touches[0].clientY - touchStartRef.current.y
+    if (Math.hypot(dx, dy) > LONG_PRESS_MOVE_THRESHOLD) clearLongPressTimer()
   }, [clearLongPressTimer])
 
   useEffect(() => {
@@ -234,6 +253,12 @@ export default function PostCard({ item }: Props) {
       didLongPressRef.current = false
       return
     }
+    if (didDoubleTapRef.current) {
+      didDoubleTapRef.current = false
+      e.preventDefault()
+      e.stopPropagation()
+      return
+    }
     navigate(`/post/${encodeURIComponent(post.uri)}`)
   }
 
@@ -281,7 +306,19 @@ export default function PostCard({ item }: Props) {
         onMouseUp={clearLongPressTimer}
         onMouseLeave={clearLongPressTimer}
         onTouchStart={(e) => startLongPressTimer(e)}
-        onTouchEnd={clearLongPressTimer}
+        onTouchMove={checkTouchMove}
+        onTouchEnd={(e) => {
+          clearLongPressTimer()
+          if (didLongPressRef.current) return
+          const now = Date.now()
+          if (now - lastTapRef.current < 400) {
+            lastTapRef.current = 0
+            didDoubleTapRef.current = true
+            agent.like(post.uri, post.cid).catch(() => {})
+          } else {
+            lastTapRef.current = now
+          }
+        }}
         onTouchCancel={clearLongPressTimer}
       >
         <div
@@ -458,13 +495,13 @@ export default function PostCard({ item }: Props) {
           role="menu"
           aria-label="Post actions"
           style={{
-            left: longPressPosition.x,
-            top: longPressPosition.y,
+            left: longPressViewport.x,
+            top: longPressViewport.y,
           }}
         >
           <button
             type="button"
-            className={styles.longPressBtn}
+            className={styles.longPressBtnTop}
             onClick={handleLongPressLike}
             title="Like"
             aria-label="Like"
@@ -473,7 +510,7 @@ export default function PostCard({ item }: Props) {
           </button>
           <button
             type="button"
-            className={styles.longPressBtn}
+            className={styles.longPressBtnBottom}
             onClick={handleLongPressRepost}
             title="Repost"
             aria-label="Repost"
@@ -482,7 +519,7 @@ export default function PostCard({ item }: Props) {
           </button>
           <button
             type="button"
-            className={styles.longPressBtn}
+            className={styles.longPressBtnLeft}
             onClick={handleLongPressAddToCollection}
             title="Add to collection"
             aria-label="Add to collection"

@@ -134,6 +134,12 @@
   z-index: 100;
 }
 
+.suggestionsAbove .dropdown {
+  top: auto;
+  bottom: calc(100% + 4px);
+  max-height: 240px;
+}
+
 .item {
   display: flex;
   align-items: center;

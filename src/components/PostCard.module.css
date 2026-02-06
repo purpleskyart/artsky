@@ -249,54 +249,67 @@
   opacity: 0.9;
 }
 
-/* Long-press action menu at pointer (350ms hold) – liquid glass */
+/* Long-press action menu: buttons above, below, left of thumb (fixed so not under finger) */
 .longPressOverlay {
-  position: absolute;
+  position: fixed;
   transform: translate(-50%, -50%);
-  border-radius: 999px;
-  background: var(--glass-bg-strong);
-  -webkit-backdrop-filter: blur(var(--glass-blur-strong));
-  backdrop-filter: blur(var(--glass-blur-strong));
-  border: 1px solid var(--glass-border);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.25rem;
-  z-index: 10;
-  padding: 0.35rem 0.5rem;
-  pointer-events: auto;
+  width: 0;
+  height: 0;
+  z-index: 100;
+  pointer-events: none;
 }
 
-.longPressBtn {
-  width: 2.25rem;
-  height: 2.25rem;
+.longPressOverlay button {
+  position: absolute;
+  width: 2.5rem;
+  height: 2.5rem;
   min-width: var(--touch-min);
   min-height: var(--touch-min);
   padding: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--glass-highlight);
+  background: var(--glass-bg-strong);
+  -webkit-backdrop-filter: blur(var(--glass-blur-strong));
+  backdrop-filter: blur(var(--glass-blur-strong));
   border: 1px solid var(--glass-border);
   border-radius: 50%;
   color: var(--text);
   cursor: pointer;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
   -webkit-tap-highlight-color: transparent;
+  pointer-events: auto;
 }
 
-.longPressBtn:hover {
+.longPressBtnTop {
+  left: 50%;
+  bottom: 100%;
+  transform: translate(-50%, -0.5rem);
+}
+
+.longPressBtnBottom {
+  left: 50%;
+  top: 100%;
+  transform: translate(-50%, 0.5rem);
+}
+
+.longPressBtnLeft {
+  right: 100%;
+  top: 50%;
+  transform: translate(-0.5rem, -50%);
+}
+
+.longPressOverlay button:hover {
   color: var(--accent);
   border-color: var(--accent);
-  background: rgba(124, 58, 237, 0.15);
+  background: rgba(124, 58, 237, 0.2);
 }
 
-.longPressBtn:focus {
+.longPressOverlay button:focus {
   outline: none;
 }
 
-.longPressBtn:focus-visible {
+.longPressOverlay button:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
