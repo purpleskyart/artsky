@@ -793,10 +793,24 @@ export default function PostDetailPage() {
         return
       }
 
-      const inCommentsSection = hasRepliesSection && postSectionIndex === postSectionCount - 1
+      const focusInComments = (commentsSectionRef.current?.contains(target) ?? false) && hasRepliesSection
+      const inCommentsSection = hasRepliesSection && (postSectionIndex === postSectionCount - 1 || focusInComments)
       const inDescriptionSection = descriptionSectionRef.current?.contains(target) ?? false
       const inMediaSection = mediaSectionRef.current?.contains(target) ?? false
       const inCommentFormWrap = commentFormWrapRef.current?.contains(target) ?? false
+
+      const getFocusedCommentIndexFromDom = (): number => {
+        if (!commentsSectionRef.current || !target.closest) return focusedCommentIndex
+        const commentEl = target.closest('[data-comment-uri]') as HTMLElement | null
+        if (!commentEl) return focusedCommentIndex
+        const uri = commentEl.getAttribute('data-comment-uri')
+        if (!uri) return focusedCommentIndex
+        const idx = threadRepliesFlat.findIndex((f) => f.uri === uri)
+        return idx >= 0 ? idx : focusedCommentIndex
+      }
+      const effectiveFocusedCommentIndex = focusInComments && postSectionIndex !== postSectionCount - 1
+        ? getFocusedCommentIndexFromDom()
+        : focusedCommentIndex
 
       if (key === 'e' || key === 'enter') {
         e.preventDefault()
@@ -878,18 +892,18 @@ export default function PostDetailPage() {
       }
 
       if (key === 's' || key === 'a') {
-        if (inDescriptionSection && hasMediaSection && rootMediaForNav.length > 0) {
+        if (inDescriptionSection && hasRepliesSection) {
           e.preventDefault()
-          setPostSectionIndex(0)
-          const mediaSection = mediaSectionRef.current
-          const items = mediaSection?.querySelectorAll<HTMLElement>('[data-media-item]')
-          const first = items?.[0]
-          if (first) {
-            requestAnimationFrame(() => {
-              first.focus()
-              first.scrollIntoView({ behavior: 'smooth', block: 'start' })
-            })
-          }
+          setPostSectionIndex(postSectionCount - 1)
+          setFocusedCommentIndex(0)
+          requestAnimationFrame(() => {
+            const commentsSection = commentsSectionRef.current
+            const firstComment = commentsSection?.querySelector<HTMLElement>('[data-comment-uri]')
+            if (firstComment) {
+              (firstComment as HTMLElement).focus()
+              firstComment.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+            }
+          })
           return
         }
         if (inMediaSection && rootMediaForNav.length > 0) {
@@ -916,6 +930,15 @@ export default function PostDetailPage() {
             }
             return
           }
+          if (currentIndex === rootMediaForNav.length - 1) {
+            e.preventDefault()
+            setPostSectionIndex(1)
+            requestAnimationFrame(() => {
+              descriptionSectionRef.current?.focus()
+              descriptionSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+            })
+            return
+          }
         }
       }
 
@@ -925,10 +948,11 @@ export default function PostDetailPage() {
       const nextComment = key === 'w' || key === 's' || key === 'a'
       if (inCommentsSection && threadRepliesFlat.length > 0 && nextComment) {
         if (key === 'w') {
-          if (focusedCommentIndex === 0) {
+          if (effectiveFocusedCommentIndex === 0) {
             e.preventDefault()
             const nextSection = hasMediaSection ? 1 : 0
             setPostSectionIndex(nextSection)
+            setFocusedCommentIndex(0)
             requestAnimationFrame(() => {
               const desc = descriptionSectionRef.current
               if (desc) {
@@ -937,18 +961,19 @@ export default function PostDetailPage() {
               }
             })
           } else {
-            setFocusedCommentIndex((i) => Math.max(0, i - 1))
+            const nextIdx = Math.max(0, effectiveFocusedCommentIndex - 1)
+            setFocusedCommentIndex(nextIdx)
           }
         } else if (key === 's') {
-          if (focusedCommentIndex === threadRepliesFlat.length - 1) {
+          if (effectiveFocusedCommentIndex === threadRepliesFlat.length - 1) {
             e.preventDefault()
             setCommentFormFocused(true)
             requestAnimationFrame(() => commentFormWrapRef.current?.focus())
           } else {
-            setFocusedCommentIndex((i) => Math.min(threadRepliesFlat.length - 1, i + 1))
+            setFocusedCommentIndex(Math.min(threadRepliesFlat.length - 1, effectiveFocusedCommentIndex + 1))
           }
         } else {
-          setFocusedCommentIndex((i) => Math.min(threadRepliesFlat.length - 1, i + 1))
+          setFocusedCommentIndex(Math.min(threadRepliesFlat.length - 1, effectiveFocusedCommentIndex + 1))
         }
         return
       }
@@ -1175,6 +1200,7 @@ export default function PostDetailPage() {
                       <div
                         key={r.post.uri}
                         data-comment-uri={r.post.uri}
+                        tabIndex={-1}
                         className={`${styles.collapsedCommentWrap} ${isFocusedCollapsed ? styles.commentFocused : ''}`}
                         style={{ marginLeft: 0 }}
                       >
@@ -1195,6 +1221,7 @@ export default function PostDetailPage() {
                     <div
                       key={r.post.uri}
                       data-comment-uri={r.post.uri}
+                      tabIndex={-1}
                     >
                       <PostBlock
                         node={r}
