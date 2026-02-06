@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useSession } from '../context/SessionContext'
+import { useViewMode } from '../context/ViewModeContext'
 import SearchBar from './SearchBar'
 import styles from './Layout.module.css'
 
@@ -15,6 +16,7 @@ export default function Layout({ title, children, showNav }: Props) {
   const navigate = useNavigate()
   const { session, logout } = useSession()
   const path = loc.pathname
+  const { viewMode, toggleViewMode } = useViewMode()
   const [accountOpen, setAccountOpen] = useState(false)
   const accountRef = useRef<HTMLDivElement>(null)
 
@@ -51,6 +53,16 @@ export default function Layout({ title, children, showNav }: Props) {
           </div>
         )}
         <h1 className={styles.title}>{title}</h1>
+        {showNav && (
+          <button
+            type="button"
+            className={styles.viewModeBtn}
+            onClick={toggleViewMode}
+            title={viewMode === 'compact' ? 'Switch to larger previews' : 'Switch to more columns'}
+          >
+            {viewMode === 'compact' ? 'Large view' : 'Compact view'}
+          </button>
+        )}
         {showNav && session && (
           <div className={styles.accountWrap} ref={accountRef}>
             <button

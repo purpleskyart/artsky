@@ -1,6 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { SessionProvider, useSession } from './context/SessionContext'
+import { ViewModeProvider } from './context/ViewModeContext'
 import LoginPage from './pages/LoginPage'
 import FeedPage from './pages/FeedPage'
 import ArtboardsPage from './pages/ArtboardsPage'
@@ -123,9 +124,11 @@ export default function App() {
   return (
     <ErrorBoundary>
       <HashRouter>
-        <SessionProvider>
-          <AppRoutes />
-        </SessionProvider>
+        <ViewModeProvider>
+          <SessionProvider>
+            <AppRoutes />
+          </SessionProvider>
+        </ViewModeProvider>
       </HashRouter>
     </ErrorBoundary>
   )

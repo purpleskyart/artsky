@@ -4,6 +4,7 @@ import { agent, getPostMediaInfo, getSession, type TimelineItem } from '../lib/b
 import PostCard from '../components/PostCard'
 import PostText from '../components/PostText'
 import Layout from '../components/Layout'
+import { useViewMode } from '../context/ViewModeContext'
 import styles from './ProfilePage.module.css'
 
 const REASON_REPOST = 'app.bsky.feed.defs#reasonRepost'
@@ -36,6 +37,7 @@ export default function ProfilePage() {
   const [followLoading, setFollowLoading] = useState(false)
   const [followUriOverride, setFollowUriOverride] = useState<string | null>(null)
   const session = getSession()
+  const { viewMode } = useViewMode()
 
   useEffect(() => {
     if (!handle) return
@@ -318,7 +320,7 @@ export default function ProfilePage() {
             <div className={styles.empty}>No liked posts with images or videos.</div>
           ) : (
             <>
-              <div className={styles.grid}>
+              <div className={`${styles.grid} ${viewMode === 'large' ? styles.gridLarge : ''}`}>
                 {likedMediaItems.map((item) => (
                   <PostCard key={item.post.uri} item={item} />
                 ))}
@@ -341,7 +343,7 @@ export default function ProfilePage() {
           </div>
         ) : (
           <>
-            <div className={styles.grid}>
+            <div className={`${styles.grid} ${viewMode === 'large' ? styles.gridLarge : ''}`}>
               {mediaItems.map((item) => (
                 <PostCard key={item.post.uri} item={item} />
               ))}

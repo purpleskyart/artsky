@@ -5,6 +5,7 @@ import type { FeedSource } from '../types'
 import FeedSelector from '../components/FeedSelector'
 import PostCard from '../components/PostCard'
 import Layout from '../components/Layout'
+import { useViewMode } from '../context/ViewModeContext'
 import styles from './FeedPage.module.css'
 
 const DEFAULT_SOURCES: FeedSource[] = [
@@ -14,6 +15,7 @@ const DEFAULT_SOURCES: FeedSource[] = [
 export default function FeedPage() {
   const location = useLocation()
   const navigate = useNavigate()
+  const { viewMode } = useViewMode()
   const [source, setSource] = useState<FeedSource>(DEFAULT_SOURCES[0])
   const [items, setItems] = useState<TimelineItem[]>([])
   const [cursor, setCursor] = useState<string | undefined>()
@@ -73,7 +75,7 @@ export default function FeedPage() {
           <div className={styles.empty}>No posts with images or videos in this feed.</div>
         ) : (
           <>
-            <div className={styles.masonry}>
+            <div className={`${styles.masonry} ${viewMode === 'large' ? styles.masonryLarge : ''}`}>
               {mediaItems.map((item) => (
                 <PostCard key={item.post.uri} item={item} />
               ))}

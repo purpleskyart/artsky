@@ -5,6 +5,7 @@ import type { TimelineItem } from '../lib/bsky'
 import type { AppBskyFeedDefs } from '@atproto/api'
 import PostCard from '../components/PostCard'
 import Layout from '../components/Layout'
+import { useViewMode } from '../context/ViewModeContext'
 import styles from './TagPage.module.css'
 
 /** Wrap PostView into TimelineItem shape for PostCard */
@@ -15,6 +16,7 @@ function toTimelineItem(post: AppBskyFeedDefs.PostView): TimelineItem {
 export default function TagPage() {
   const { tag: tagParam } = useParams<{ tag: string }>()
   const tag = tagParam ? decodeURIComponent(tagParam) : ''
+  const { viewMode } = useViewMode()
   const [items, setItems] = useState<TimelineItem[]>([])
   const [cursor, setCursor] = useState<string | undefined>()
   const [loading, setLoading] = useState(true)
@@ -72,7 +74,7 @@ export default function TagPage() {
           <div className={styles.empty}>No posts with images or videos for this tag.</div>
         ) : (
           <>
-            <div className={styles.grid}>
+            <div className={`${styles.grid} ${viewMode === 'large' ? styles.gridLarge : ''}`}>
               {mediaItems.map((item) => (
                 <PostCard key={item.post.uri} item={item} />
               ))}

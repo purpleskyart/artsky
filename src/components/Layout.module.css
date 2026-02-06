@@ -64,6 +64,21 @@
   white-space: nowrap;
 }
 
+.viewModeBtn {
+  flex-shrink: 0;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  cursor: pointer;
+}
+
+.viewModeBtn:hover {
+  color: var(--text);
+}
+
 .accountWrap {
   position: relative;
   flex-shrink: 0;

@@ -37,6 +37,32 @@
   }
 }
 
+/* Large view: fewer columns, bigger previews */
+.masonryLarge {
+  --card-media-height: 420px;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+}
+
+@media (min-width: 500px) {
+  .masonryLarge {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 900px) {
+  .masonryLarge {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+  }
+}
+
+@media (min-width: 1200px) {
+  .masonryLarge {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
 .more {
   display: block;
   width: 100%;
