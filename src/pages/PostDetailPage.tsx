@@ -153,9 +153,11 @@ function findReplyByUri(
 function MediaGallery({
   items,
   autoPlayFirstVideo = false,
+  onFocusItem,
 }: {
   items: Array<{ url: string; type: 'image' | 'video'; videoPlaylist?: string }>
   autoPlayFirstVideo?: boolean
+  onFocusItem?: (index: number) => void
 }) {
   const [fullscreenIndex, setFullscreenIndex] = useState<number | null>(null)
   const imageIndices = useMemo(
@@ -200,6 +202,7 @@ function MediaGallery({
                 className={styles.galleryVideoWrap}
                 data-media-item={i}
                 tabIndex={0}
+                onFocus={() => onFocusItem?.(i)}
               >
                 <VideoWithHls
                   playlistUrl={m.videoPlaylist}
@@ -216,6 +219,7 @@ function MediaGallery({
               type="button"
               className={styles.galleryImageBtn}
               onClick={() => setFullscreenIndex(i)}
+              onFocus={() => onFocusItem?.(i)}
               aria-label="View full screen"
               data-media-item={i}
             >
@@ -541,6 +545,8 @@ export default function PostDetailPage() {
   const commentsSectionRef = useRef<HTMLDivElement>(null)
   const [focusedCommentIndex, setFocusedCommentIndex] = useState(0)
   const [commentFormFocused, setCommentFormFocused] = useState(false)
+  const [keyboardFocusIndex, setKeyboardFocusIndex] = useState(0)
+  const keyboardFocusIndexRef = useRef(0)
   const prevSectionIndexRef = useRef(0)
   const boards = getArtboards()
   const session = getSession()
@@ -770,6 +776,17 @@ export default function PostDetailPage() {
   )
   const threadRepliesFlatRef = useRef(threadRepliesFlat)
   threadRepliesFlatRef.current = threadRepliesFlat
+  keyboardFocusIndexRef.current = keyboardFocusIndex
+
+  const navTotalItems = rootMediaForNav.length + 1 + threadRepliesFlat.length + 1
+  const postUri = thread && isThreadViewPost(thread) ? thread.post.uri : null
+  useEffect(() => {
+    if (postUri) setKeyboardFocusIndex(0)
+  }, [postUri])
+  useEffect(() => {
+    if (navTotalItems <= 0) return
+    setKeyboardFocusIndex((i) => Math.min(Math.max(0, i), navTotalItems - 1))
+  }, [navTotalItems])
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -822,34 +839,12 @@ export default function PostDetailPage() {
       }
 
       if (key !== 'w' && key !== 'a' && key !== 's') return
+      if (!thread || !isThreadViewPost(thread)) return
 
       const mediaCount = rootMediaForNav.length
       const commentCount = threadRepliesFlat.length
       const totalItems = mediaCount + 1 + commentCount + 1
-
-      const getCurrentFocusIndex = (): number => {
-        if (commentFormWrapRef.current?.contains(target)) return totalItems - 1
-        if (inMediaSection && mediaCount > 0) {
-          let el: HTMLElement | null = target
-          while (el && el !== mediaSectionRef.current) {
-            const idx = el.getAttribute?.('data-media-item')
-            if (idx != null) return parseInt(idx, 10)
-            el = el.parentElement
-          }
-        }
-        if (inDescriptionSection) return mediaCount
-        if (hasRepliesSection && commentsSectionRef.current?.contains(target)) {
-          const commentEl = target.closest?.('[data-comment-uri]') as HTMLElement | null
-          if (commentEl) {
-            const uri = commentEl.getAttribute('data-comment-uri')
-            if (uri) {
-              const idx = threadRepliesFlat.findIndex((f) => f.uri === uri)
-              if (idx >= 0) return mediaCount + 1 + idx
-            }
-          }
-        }
-        return -1
-      }
+      if (totalItems <= 0) return
 
       const focusItemAtIndex = (idx: number) => {
         setCommentFormFocused(idx === totalItems - 1)
@@ -894,13 +889,12 @@ export default function PostDetailPage() {
         }
       }
 
-      if (key === 'w' || key === 's' || key === 'a') {
-        const current = getCurrentFocusIndex()
-        if (current < 0) return
+      const current = keyboardFocusIndexRef.current
+      const next = key === 'w' ? Math.max(0, current - 1) : Math.min(totalItems - 1, current + 1)
+      if (next !== current) {
         e.preventDefault()
-        const next = key === 'w' ? Math.max(0, current - 1) : Math.min(totalItems - 1, current + 1)
-        if (next !== current) focusItemAtIndex(next)
-        return
+        setKeyboardFocusIndex(next)
+        focusItemAtIndex(next)
       }
     }
     window.addEventListener('keydown', onKeyDown)
@@ -960,10 +954,18 @@ export default function PostDetailPage() {
             <article className={`${styles.postBlock} ${styles.rootPostBlock}`}>
               {rootMedia.length > 0 && (
                 <div ref={mediaSectionRef}>
-                  <MediaGallery items={rootMedia} autoPlayFirstVideo />
+                  <MediaGallery
+                    items={rootMedia}
+                    autoPlayFirstVideo
+                    onFocusItem={(i) => setKeyboardFocusIndex(i)}
+                  />
                 </div>
               )}
-              <div ref={descriptionSectionRef} tabIndex={-1}>
+              <div
+                ref={descriptionSectionRef}
+                tabIndex={-1}
+                onFocus={() => setKeyboardFocusIndex(rootMediaForNav.length)}
+              >
                 <div className={styles.postHead}>
                   {thread.post.author.avatar && (
                     <img src={thread.post.author.avatar} alt="" className={styles.avatar} />
@@ -1122,6 +1124,7 @@ export default function PostDetailPage() {
                         tabIndex={-1}
                         className={`${styles.collapsedCommentWrap} ${isFocusedCollapsed ? styles.commentFocused : ''}`}
                         style={{ marginLeft: 0 }}
+                        onFocus={() => setKeyboardFocusIndex(rootMediaForNav.length + 1 + flatIndex)}
                       >
                         <button type="button" className={styles.collapsedCommentBtn} onClick={() => toggleCollapse(r.post.uri)}>
                           <span className={styles.collapsedCommentExpandIcon} aria-hidden>+</span>
@@ -1141,6 +1144,7 @@ export default function PostDetailPage() {
                       key={r.post.uri}
                       data-comment-uri={r.post.uri}
                       tabIndex={-1}
+                      onFocus={() => setKeyboardFocusIndex(rootMediaForNav.length + 1 + flatIndex)}
                     >
                       <PostBlock
                         node={r}
@@ -1174,6 +1178,7 @@ export default function PostDetailPage() {
                   ref={commentFormWrapRef}
                   tabIndex={-1}
                   className={commentFormFocused ? styles.commentFormWrapFocused : undefined}
+                  onFocus={() => setKeyboardFocusIndex(rootMediaForNav.length + 1 + threadRepliesFlat.length)}
                   onBlur={() => {
                     requestAnimationFrame(() => {
                       if (!commentFormRef.current?.contains(document.activeElement)) setCommentFormFocused(false)
