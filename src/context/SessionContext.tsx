@@ -20,13 +20,23 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let cancelled = false
+    const timeout = window.setTimeout(() => {
+      if (cancelled) return
+      setLoading(false)
+    }, 8000)
     bsky.resumeSession().then((ok) => {
       if (cancelled) return
+      window.clearTimeout(timeout)
       setSession(ok ? bsky.getSession() : null)
+      setLoading(false)
+    }).catch(() => {
+      if (cancelled) return
+      window.clearTimeout(timeout)
       setLoading(false)
     })
     return () => {
       cancelled = true
+      window.clearTimeout(timeout)
     }
   }, [])
 
