@@ -234,7 +234,7 @@ export default function Layout({ title, children, showNav, showColumnView = true
   const [accountMenuOpen, setAccountMenuOpen] = useState(false)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [notificationFilter, setNotificationFilter] = useState<'all' | 'reply' | 'follow' | 'like'>('all')
-  const [notifications, setNotifications] = useState<{ uri: string; author: { handle?: string; did: string; avatar?: string; displayName?: string }; reason: string; reasonSubject?: string; isRead: boolean; indexedAt: string }[]>([])
+  const [notifications, setNotifications] = useState<{ uri: string; author: { handle?: string; did: string; avatar?: string; displayName?: string }; reason: string; reasonSubject?: string; isRead: boolean; indexedAt: string; replyPreview?: string }[]>([])
   const [notificationsLoading, setNotificationsLoading] = useState(false)
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false)
   const [composeOpen, setComposeOpen] = useState(false)
@@ -536,6 +536,28 @@ export default function Layout({ title, children, showNav, showColumnView = true
 
   const accountPanelContent = (
     <>
+      <section className={styles.menuSection}>
+        <div className={styles.menuTopRow}>
+          <span className={styles.menuSectionTitle}>Columns</span>
+          {themeSwitchControl}
+        </div>
+        <div className={styles.menuRow}>
+          {viewOptions.map((m) => (
+            <button
+              key={m}
+              type="button"
+              className={viewMode === m ? styles.menuOptionActive : styles.menuOption}
+              onClick={() => setViewMode(m)}
+              title={VIEW_LABELS[m]}
+              aria-label={VIEW_LABELS[m]}
+            >
+              {m === '1' && <Column1Icon />}
+              {m === '2' && <Column2Icon />}
+              {m === '3' && <Column3Icon />}
+            </button>
+          ))}
+        </div>
+      </section>
       {session && (
         <section className={styles.menuSection}>
           <span className={styles.menuSectionTitle}>Accounts</span>
@@ -584,29 +606,6 @@ export default function Layout({ title, children, showNav, showColumnView = true
           </button>
         </section>
       )}
-      <section className={styles.menuSection}>
-        <span className={styles.menuSectionTitle}>Appearance</span>
-        {themeSwitchControl}
-      </section>
-      <section className={styles.menuSection}>
-        <span className={styles.menuSectionTitle}>Columns</span>
-        <div className={styles.menuRow}>
-          {viewOptions.map((m) => (
-            <button
-              key={m}
-              type="button"
-              className={viewMode === m ? styles.menuOptionActive : styles.menuOption}
-              onClick={() => setViewMode(m)}
-              title={VIEW_LABELS[m]}
-              aria-label={VIEW_LABELS[m]}
-            >
-              {m === '1' && <Column1Icon />}
-              {m === '2' && <Column2Icon />}
-              {m === '3' && <Column3Icon />}
-            </button>
-          ))}
-        </div>
-      </section>
     </>
   )
 
@@ -746,12 +745,13 @@ export default function Layout({ title, children, showNav, showColumnView = true
               {isDesktop && (
                 <button
                   type="button"
-                  className={styles.headerBtn}
+                  className={styles.headerBtnWithLabel}
                   onClick={openCompose}
                   aria-label="New post"
                   title="New post"
                 >
                   <PlusIcon />
+                  <span className={styles.headerBtnLabel}>New</span>
                 </button>
               )}
               {showColumnView && (
@@ -836,8 +836,13 @@ export default function Layout({ title, children, showNav, showColumnView = true
                                   ) : (
                                     <span className={styles.notificationAvatarPlaceholder} aria-hidden>{handle.slice(0, 1).toUpperCase()}</span>
                                   )}
-                                  <span className={styles.notificationText}>
-                                    <strong>@{handle}</strong> {reasonLabel}
+                                  <span className={styles.notificationTextWrap}>
+                                    <span className={styles.notificationText}>
+                                      <strong>@{handle}</strong> {reasonLabel}
+                                    </span>
+                                    {n.replyPreview && (
+                                      <span className={styles.notificationReplyPreview}>{n.replyPreview}</span>
+                                    )}
                                   </span>
                                 </Link>
                               </li>
@@ -863,7 +868,6 @@ export default function Layout({ title, children, showNav, showColumnView = true
                 </button>
                 {accountMenuOpen && (
                   <div ref={accountMenuRef} className={styles.accountMenu} role="menu" aria-label="Accounts and settings">
-                    <h2 className={styles.menuTitle}>Accounts</h2>
                     {accountPanelContent}
                   </div>
                 )}

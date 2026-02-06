@@ -445,18 +445,25 @@ export async function createPost(
 
 /** List notifications for the current account. */
 export async function getNotifications(limit = 30, cursor?: string): Promise<{
-  notifications: { uri: string; author: { handle?: string; did: string; avatar?: string; displayName?: string }; reason: string; reasonSubject?: string; isRead: boolean; indexedAt: string }[]
+  notifications: { uri: string; author: { handle?: string; did: string; avatar?: string; displayName?: string }; reason: string; reasonSubject?: string; isRead: boolean; indexedAt: string; replyPreview?: string }[]
   cursor?: string
 }> {
   const res = await agent.listNotifications({ limit, cursor })
-  const notifications = (res.data.notifications || []).map((n) => ({
-    uri: n.uri,
-    author: n.author as { handle?: string; did: string; avatar?: string; displayName?: string },
-    reason: n.reason,
-    reasonSubject: (n as { reasonSubject?: string }).reasonSubject,
-    isRead: n.isRead,
-    indexedAt: n.indexedAt,
-  }))
+  const notifications = (res.data.notifications || []).map((n) => {
+    const record = (n as { record?: { text?: string } }).record
+    const replyPreview = (n.reason === 'reply' || n.reason === 'quote') && record?.text
+      ? record.text.slice(0, 120).replace(/\s+/g, ' ').trim() + (record.text.length > 120 ? '…' : '')
+      : undefined
+    return {
+      uri: n.uri,
+      author: n.author as { handle?: string; did: string; avatar?: string; displayName?: string },
+      reason: n.reason,
+      reasonSubject: (n as { reasonSubject?: string }).reasonSubject,
+      isRead: n.isRead,
+      indexedAt: n.indexedAt,
+      replyPreview,
+    }
+  })
   return { notifications, cursor: res.data.cursor }
 }
 

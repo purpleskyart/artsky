@@ -251,6 +251,29 @@
     color: var(--text);
     background: var(--glass-highlight);
   }
+  .headerBtnWithLabel {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    height: 36px;
+    padding: 0 0.5rem;
+    border: none;
+    border-radius: var(--glass-radius-sm);
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 500;
+    font-family: inherit;
+  }
+  .headerBtnWithLabel:hover {
+    color: var(--text);
+    background: var(--glass-highlight);
+  }
+  .headerBtnLabel {
+    white-space: nowrap;
+  }
   .headerBtn svg {
     width: 20px;
     height: 20px;
@@ -328,7 +351,7 @@
   }
   .notificationItem {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 0.5rem;
     padding: 0.5rem 0.4rem;
     border-radius: 0.35rem;
@@ -358,6 +381,12 @@
     color: var(--muted);
     flex-shrink: 0;
   }
+  .notificationTextWrap {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    min-width: 0;
+  }
   .notificationText {
     font-size: 0.875rem;
     line-height: 1.3;
@@ -366,6 +395,15 @@
   .notificationText strong {
     font-weight: 600;
     color: var(--accent);
+  }
+  .notificationReplyPreview {
+    font-size: 0.8rem;
+    color: var(--muted);
+    line-height: 1.3;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
   }
   .notificationsLoading,
   .notificationsEmpty {
@@ -394,6 +432,16 @@
     color: var(--muted);
     text-transform: uppercase;
     letter-spacing: 0.04em;
+  }
+  .menuTopRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 0.35rem;
+  }
+  .menuTopRow .menuSectionTitle {
+    margin-bottom: 0;
   }
   .menuRow {
     display: flex;
