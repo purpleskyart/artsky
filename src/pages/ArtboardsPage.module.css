@@ -46,17 +46,18 @@
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 0.75rem;
-  overflow: hidden;
-  min-height: 280px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .bentoLink {
-  display: block;
-  position: absolute;
-  inset: 0;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
   text-decoration: none;
   color: inherit;
-  padding-bottom: 2.5rem;
 }
 
 .bentoLink:hover .bentoName {
@@ -68,8 +69,10 @@
   grid-template-columns: repeat(2, 1fr);
   grid-template-rows: repeat(2, 1fr);
   gap: 0.35rem;
-  height: 220px;
-  padding: 0.35rem;
+  min-height: 140px;
+  height: 180px;
+  padding: 0.5rem;
+  flex-shrink: 0;
 }
 
 .bentoThumb {
@@ -91,13 +94,15 @@
 }
 
 .bentoEmpty {
-  height: 220px;
-  padding: 0.35rem;
+  min-height: 140px;
+  height: 180px;
+  padding: 0.5rem;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 0.9rem;
   color: var(--muted);
+  flex-shrink: 0;
 }
 
 .bentoInfo {
@@ -105,11 +110,15 @@
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
+  flex-shrink: 0;
 }
 
 .bentoName {
   font-weight: 600;
   font-size: 0.95rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .bentoCount {

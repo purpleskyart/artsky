@@ -26,11 +26,11 @@
   flex: 1;
 }
 
-.profileTitleRow {
+.handleRow {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 0.75rem;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
   margin-bottom: 0.25rem;
 }
 
@@ -86,7 +86,7 @@
 }
 
 .handle {
-  margin: 0 0 0.5rem;
+  margin: 0;
   font-size: 0.9rem;
   color: var(--muted);
 }
@@ -100,6 +100,70 @@
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+.tabs {
+  display: flex;
+  gap: 0.25rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.tab {
+  padding: 0.4rem 0.75rem;
+  font-size: 0.9rem;
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  cursor: pointer;
+}
+
+.tab:hover {
+  color: var(--text);
+}
+
+.tabActive {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.feedsList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.feedLink {
+  display: block;
+  padding: 0.75rem 1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.feedLink:hover {
+  border-color: var(--accent);
+}
+
+.feedName {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.2rem;
+}
+
+.feedDesc {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .error {

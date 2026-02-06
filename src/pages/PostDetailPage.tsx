@@ -301,15 +301,25 @@ export default function PostDetailPage() {
   const [collapsedThreads, setCollapsedThreads] = useState<Set<string>>(() => new Set())
   const [followLoading, setFollowLoading] = useState(false)
   const [authorFollowed, setAuthorFollowed] = useState(false)
+  const [likeLoading, setLikeLoading] = useState(false)
+  const [repostLoading, setRepostLoading] = useState(false)
+  const [likeUriOverride, setLikeUriOverride] = useState<string | null>(null)
+  const [repostUriOverride, setRepostUriOverride] = useState<string | null>(null)
   const [replyingTo, setReplyingTo] = useState<{ uri: string; cid: string; handle: string } | null>(null)
   const [newBoardName, setNewBoardName] = useState('')
   const [showNewBoardForm, setShowNewBoardForm] = useState(false)
+  const [showBoardDropdown, setShowBoardDropdown] = useState(false)
   const commentFormRef = useRef<HTMLFormElement>(null)
   const boards = getArtboards()
   const session = getSession()
   const isOwnPost = thread && isThreadViewPost(thread) && session?.did === thread.post.author.did
   const alreadyFollowing =
     (thread && isThreadViewPost(thread) && !!thread.post.author.viewer?.following) || authorFollowed
+  const postViewer = thread && isThreadViewPost(thread) ? (thread.post as { viewer?: { like?: string; repost?: string } }).viewer : undefined
+  const likedUri = postViewer?.like ?? likeUriOverride
+  const repostedUri = postViewer?.repost ?? repostUriOverride
+  const isLiked = !!likedUri
+  const isReposted = !!repostedUri
 
   function toggleCollapse(uri: string) {
     setCollapsedThreads((prev) => {
@@ -330,6 +340,44 @@ export default function PostDetailPage() {
       // leave button state unchanged so user can retry
     } finally {
       setFollowLoading(false)
+    }
+  }
+
+  async function handleLike() {
+    if (!thread || !isThreadViewPost(thread) || likeLoading) return
+    const { uri, cid } = thread.post
+    setLikeLoading(true)
+    try {
+      if (isLiked) {
+        await agent.deleteLike(likedUri!)
+        setLikeUriOverride(null)
+      } else {
+        const res = await agent.like(uri, cid)
+        setLikeUriOverride(res.uri)
+      }
+    } catch {
+      // leave state unchanged
+    } finally {
+      setLikeLoading(false)
+    }
+  }
+
+  async function handleRepost() {
+    if (!thread || !isThreadViewPost(thread) || repostLoading) return
+    const { uri, cid } = thread.post
+    setRepostLoading(true)
+    try {
+      if (isReposted) {
+        await agent.deleteRepost(repostedUri!)
+        setRepostUriOverride(null)
+      } else {
+        const res = await agent.repost(uri, cid)
+        setRepostUriOverride(res.uri)
+      }
+    } catch {
+      // leave state unchanged
+    } finally {
+      setRepostLoading(false)
     }
   }
 
@@ -472,50 +520,88 @@ export default function PostDetailPage() {
                 </p>
               )}
             </article>
-            <section className={styles.actions} aria-label="Add to artboard">
-              <div className={styles.addToBoard}>
-                <span className={styles.addToBoardLabel}>Add to artboard:</span>
-                <div className={styles.boardCheckboxes}>
-                  {boards.map((b) => {
-                    const alreadyIn = isPostInArtboard(b.id, thread.post.uri)
-                    const selected = addToBoardIds.has(b.id)
-                    return (
-                      <label key={b.id} className={styles.boardCheckLabel}>
-                        <input
-                          type="checkbox"
-                          checked={selected}
-                          onChange={() => !alreadyIn && toggleBoardSelection(b.id)}
-                          disabled={alreadyIn}
-                          className={styles.boardCheckbox}
-                        />
-                        <span className={styles.boardCheckText}>
-                          {alreadyIn ? (
-                            <>
-                              <span className={styles.boardCheckIcon} aria-hidden>✓</span> {b.name}
-                            </>
-                          ) : (
-                            b.name
-                          )}
-                        </span>
-                      </label>
-                    )
-                  })}
+            <section className={styles.actions} aria-label="Post actions">
+              <div className={styles.actionRow}>
+                <button
+                  type="button"
+                  className={`${styles.likeRepostBtn} ${isLiked ? styles.likeRepostBtnActive : ''}`}
+                  onClick={handleLike}
+                  disabled={likeLoading}
+                  title={isLiked ? 'Unlike' : 'Like'}
+                >
+                  {likeLoading ? '…' : isLiked ? '♥' : '♡'} Like
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.likeRepostBtn} ${isReposted ? styles.likeRepostBtnActive : ''}`}
+                  onClick={handleRepost}
+                  disabled={repostLoading}
+                  title={isReposted ? 'Remove repost' : 'Repost'}
+                >
+                  {repostLoading ? '…' : 'Repost'}
+                </button>
+                <div className={styles.addToBoardWrap}>
+                  <button
+                    type="button"
+                    className={styles.addToBoardTrigger}
+                    onClick={() => setShowBoardDropdown((v) => !v)}
+                    aria-expanded={showBoardDropdown}
+                    aria-haspopup="true"
+                  >
+                    Add to artboard {showBoardDropdown ? '▾' : '▸'}
+                  </button>
+                  {showBoardDropdown && (
+                    <div className={styles.boardDropdown}>
+                      {boards.length === 0 ? (
+                        <p className={styles.boardDropdownEmpty}>No artboards yet.</p>
+                      ) : (
+                        <>
+                          {boards.map((b) => {
+                            const alreadyIn = isPostInArtboard(b.id, thread.post.uri)
+                            const selected = addToBoardIds.has(b.id)
+                            return (
+                              <label key={b.id} className={styles.boardCheckLabel}>
+                                <input
+                                  type="checkbox"
+                                  checked={selected}
+                                  onChange={() => !alreadyIn && toggleBoardSelection(b.id)}
+                                  disabled={alreadyIn}
+                                  className={styles.boardCheckbox}
+                                />
+                                <span className={styles.boardCheckText}>
+                                  {alreadyIn ? (
+                                    <>
+                                      <span className={styles.boardCheckIcon} aria-hidden>✓</span> {b.name}
+                                    </>
+                                  ) : (
+                                    b.name
+                                  )}
+                                </span>
+                              </label>
+                            )
+                          })}
+                          <div className={styles.boardDropdownActions}>
+                            <button
+                              type="button"
+                              className={styles.addBtn}
+                              onClick={() => { handleAddToArtboard(); setShowBoardDropdown(false); }}
+                              disabled={addToBoardIds.size === 0}
+                            >
+                              Add to selected
+                            </button>
+                            <button
+                              type="button"
+                              className={styles.newBoardTrigger}
+                              onClick={() => { setShowBoardDropdown(false); setShowNewBoardForm(true); }}
+                            >
+                              + New artboard…
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
                 </div>
-                <button
-                  type="button"
-                  className={styles.addBtn}
-                  onClick={handleAddToArtboard}
-                  disabled={addToBoardIds.size === 0}
-                >
-                  Add to selected
-                </button>
-                <button
-                  type="button"
-                  className={styles.newBoardTrigger}
-                  onClick={() => setShowNewBoardForm(true)}
-                >
-                  + New artboard…
-                </button>
               </div>
               {showNewBoardForm && (
                 <div className={styles.newBoardForm}>
@@ -531,7 +617,7 @@ export default function PostDetailPage() {
                     <button type="button" className={styles.addBtn} onClick={handleCreateArtboardAndAdd} disabled={!newBoardName.trim()}>
                       Create &amp; add
                     </button>
-                    <button type="button" className={styles.cancelBtn} onClick={() => { setShowNewBoardForm(false); setNewBoardName('') }}>
+                    <button type="button" className={styles.cancelBtn} onClick={() => { setShowNewBoardForm(false); setNewBoardName(''); }}>
                       Cancel
                     </button>
                   </div>
