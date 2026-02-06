@@ -70,9 +70,28 @@ export default function Layout({ title, children, showNav }: Props) {
   const path = loc.pathname
   const isDesktop = useSyncExternalStore(subscribeDesktop, getDesktopSnapshot, () => false)
   const [accountSheetOpen, setAccountSheetOpen] = useState(false)
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false)
+  const [keyboardOffset, setKeyboardOffset] = useState(0)
   const [navVisible, setNavVisible] = useState(true)
   const lastScrollY = useRef(0)
   const searchInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    document.title = title ? `${title} · ArtSky` : 'ArtSky'
+  }, [title])
+
+  useEffect(() => {
+    if (!mobileSearchOpen || typeof window === 'undefined' || !window.visualViewport) return
+    const vv = window.visualViewport
+    const update = () => setKeyboardOffset(Math.max(0, window.innerHeight - vv.height))
+    update()
+    vv.addEventListener('resize', update)
+    vv.addEventListener('scroll', update)
+    return () => {
+      vv.removeEventListener('resize', update)
+      vv.removeEventListener('scroll', update)
+    }
+  }, [mobileSearchOpen])
 
   const scrollThreshold = 8
   useEffect(() => {
@@ -93,8 +112,20 @@ export default function Layout({ title, children, showNav }: Props) {
   }, [showNav])
 
   function focusSearch() {
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-    setTimeout(() => searchInputRef.current?.focus(), 300)
+    if (isDesktop) {
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+      setTimeout(() => searchInputRef.current?.focus(), 300)
+    } else {
+      setMobileSearchOpen(true)
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => searchInputRef.current?.focus())
+      })
+    }
+  }
+
+  function closeMobileSearch() {
+    setMobileSearchOpen(false)
+    searchInputRef.current?.blur()
   }
 
   async function handleSelectAccount(did: string) {
@@ -160,13 +191,11 @@ export default function Layout({ title, children, showNav }: Props) {
             <div className={styles.navTray} aria-label="Main">
               {navItems}
             </div>
-            <h1 className={styles.title}>{title}</h1>
             <div className={styles.searchSlot}>
               <SearchBar inputRef={searchInputRef} compact={isDesktop} />
             </div>
           </>
         )}
-        {!showNav && <h1 className={styles.title}>{title}</h1>}
       </header>
       <main className={styles.main}>
         {children}
@@ -185,6 +214,23 @@ export default function Layout({ title, children, showNav }: Props) {
               onClick={() => setAccountSheetOpen(false)}
               aria-hidden
             />
+          )}
+          {mobileSearchOpen && !isDesktop && (
+            <>
+              <div
+                className={styles.searchOverlayBackdrop}
+                onClick={closeMobileSearch}
+                aria-hidden
+              />
+              <div
+                className={styles.searchOverlay}
+                role="dialog"
+                aria-label="Search"
+                style={{ '--keyboard-offset': `${keyboardOffset}px` } as React.CSSProperties}
+              >
+                <SearchBar inputRef={searchInputRef} onClose={closeMobileSearch} />
+              </div>
+            </>
           )}
           <div className={`${styles.sheet} ${accountSheetOpen ? styles.sheetOpen : ''}`} role="dialog" aria-label="Account and settings">
             <div className={styles.sheetHandle} />

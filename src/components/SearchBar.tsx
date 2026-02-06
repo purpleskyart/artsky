@@ -23,9 +23,11 @@ interface Props {
   inputRef?: React.RefObject<HTMLInputElement | null>
   /** Compact height for desktop header */
   compact?: boolean
+  /** Optional close callback (e.g. for mobile overlay) */
+  onClose?: () => void
 }
 
-export default function SearchBar({ onSelectFeed, inputRef: externalInputRef, compact }: Props) {
+export default function SearchBar({ onSelectFeed, inputRef: externalInputRef, compact, onClose }: Props) {
   const navigate = useNavigate()
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<SearchFilter>('all')
@@ -109,9 +111,11 @@ export default function SearchBar({ onSelectFeed, inputRef: externalInputRef, co
     if (opt.type === 'tag') {
       navigate(`/tag/${encodeURIComponent(opt.tag)}`)
       inputRef.current?.blur()
+      onClose?.()
     } else if (opt.type === 'actor') {
       navigate(`/profile/${encodeURIComponent(opt.handle)}`)
       inputRef.current?.blur()
+      onClose?.()
     } else if (opt.type === 'feed') {
       const v = opt.view
       const source: FeedSource = { kind: 'custom', label: v.displayName ?? v.uri, uri: v.uri }
@@ -121,6 +125,7 @@ export default function SearchBar({ onSelectFeed, inputRef: externalInputRef, co
         navigate('/feed', { state: { feedSource: source } })
       }
       inputRef.current?.blur()
+      onClose?.()
     }
   }
 
@@ -128,10 +133,12 @@ export default function SearchBar({ onSelectFeed, inputRef: externalInputRef, co
     filter === 'users' ? 'Search users, #hashtags…' : filter === 'feeds' ? 'Browse feeds…' : 'Search users, feeds, #hashtags…'
 
   function onKeyDown(e: React.KeyboardEvent) {
-    if (!open || options.length === 0) {
-      if (e.key === 'Escape') setOpen(false)
+    if (e.key === 'Escape') {
+      setOpen(false)
+      onClose?.()
       return
     }
+    if (!open || options.length === 0) return
     if (e.key === 'ArrowDown') {
       e.preventDefault()
       setActiveIndex((i) => (i + 1) % options.length)
@@ -141,8 +148,6 @@ export default function SearchBar({ onSelectFeed, inputRef: externalInputRef, co
     } else if (e.key === 'Enter') {
       e.preventDefault()
       handleSelect(activeIndex)
-    } else if (e.key === 'Escape') {
-      setOpen(false)
     }
   }
 
