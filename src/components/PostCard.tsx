@@ -1,10 +1,12 @@
-import { useRef, useEffect, useState } from 'react'
+import { useRef, useEffect, useState, useCallback } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import Hls from 'hls.js'
-import { getPostMediaInfo, getPostAllMedia, getPostMediaUrl, type TimelineItem } from '../lib/bsky'
+import { getPostMediaInfo, getPostAllMedia, getPostMediaUrl, agent, type TimelineItem } from '../lib/bsky'
 import { getArtboards, createArtboard, addPostToArtboard, isPostInArtboard } from '../lib/artboards'
 import PostText from './PostText'
 import styles from './PostCard.module.css'
+
+const LONG_PRESS_MS = 2000
 
 interface Props {
   item: TimelineItem
@@ -34,6 +36,22 @@ function RepostIcon() {
   )
 }
 
+function HeartIcon({ filled }: { filled?: boolean }) {
+  return (
+    <svg className={styles.longPressIcon} viewBox="0 0 24 24" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" aria-hidden>
+      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+    </svg>
+  )
+}
+
+function CollectionIcon() {
+  return (
+    <svg className={styles.longPressIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <path d="M19 11H5v-2h14v2zm0 4H5v-2h14v2zm0-8H5V5h14v2z" />
+    </svg>
+  )
+}
+
 function isHlsUrl(url: string): boolean {
   return /\.m3u8(\?|$)/i.test(url) || url.includes('m3u8')
 }
@@ -53,7 +71,31 @@ export default function PostCard({ item }: Props) {
   const [addOpen, setAddOpen] = useState(false)
   const [addToBoardIds, setAddToBoardIds] = useState<Set<string>>(new Set())
   const [newBoardName, setNewBoardName] = useState('')
+  const [showLongPressMenu, setShowLongPressMenu] = useState(false)
   const addRef = useRef<HTMLDivElement>(null)
+  const longPressMenuRef = useRef<HTMLDivElement>(null)
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const didLongPressRef = useRef(false)
+
+  const clearLongPressTimer = useCallback(() => {
+    if (longPressTimerRef.current !== null) {
+      clearTimeout(longPressTimerRef.current)
+      longPressTimerRef.current = null
+    }
+  }, [])
+
+  const startLongPressTimer = useCallback(() => {
+    clearLongPressTimer()
+    longPressTimerRef.current = setTimeout(() => {
+      longPressTimerRef.current = null
+      didLongPressRef.current = true
+      setShowLongPressMenu(true)
+    }, LONG_PRESS_MS)
+  }, [clearLongPressTimer])
+
+  useEffect(() => {
+    return clearLongPressTimer
+  }, [clearLongPressTimer])
 
   useEffect(() => {
     if (!addOpen) return
@@ -63,6 +105,18 @@ export default function PostCard({ item }: Props) {
     document.addEventListener('click', onDocClick)
     return () => document.removeEventListener('click', onDocClick)
   }, [addOpen])
+
+  useEffect(() => {
+    if (!showLongPressMenu) return
+    function onDocClick(e: MouseEvent) {
+      if (longPressMenuRef.current && !longPressMenuRef.current.contains(e.target as Node)) {
+        setShowLongPressMenu(false)
+        didLongPressRef.current = false
+      }
+    }
+    document.addEventListener('click', onDocClick)
+    return () => document.removeEventListener('click', onDocClick)
+  }, [showLongPressMenu])
 
   if (!media) return null
 
@@ -141,14 +195,62 @@ export default function PostCard({ item }: Props) {
     }
   }
 
+  function handleCardClick(e: React.MouseEvent) {
+    if (didLongPressRef.current) {
+      e.preventDefault()
+      e.stopPropagation()
+      didLongPressRef.current = false
+      return
+    }
+    navigate(`/post/${encodeURIComponent(post.uri)}`)
+  }
+
+  async function handleLongPressLike(e: React.MouseEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    setShowLongPressMenu(false)
+    didLongPressRef.current = false
+    try {
+      await agent.like(post.uri, post.cid)
+    } catch {
+      // ignore
+    }
+  }
+
+  async function handleLongPressRepost(e: React.MouseEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    setShowLongPressMenu(false)
+    didLongPressRef.current = false
+    try {
+      await agent.repost(post.uri, post.cid)
+    } catch {
+      // ignore
+    }
+  }
+
+  function handleLongPressAddToCollection(e: React.MouseEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    setShowLongPressMenu(false)
+    didLongPressRef.current = false
+    setAddOpen(true)
+  }
+
   return (
     <div className={styles.card}>
       <div
         role="button"
         tabIndex={0}
         className={styles.cardLink}
-        onClick={() => navigate(`/post/${encodeURIComponent(post.uri)}`)}
+        onClick={handleCardClick}
         onKeyDown={(e) => e.key === 'Enter' && navigate(`/post/${encodeURIComponent(post.uri)}`)}
+        onMouseDown={startLongPressTimer}
+        onMouseUp={clearLongPressTimer}
+        onMouseLeave={clearLongPressTimer}
+        onTouchStart={startLongPressTimer}
+        onTouchEnd={clearLongPressTimer}
+        onTouchCancel={clearLongPressTimer}
       >
         <div
           className={styles.mediaWrap}
@@ -315,6 +417,42 @@ export default function PostCard({ item }: Props) {
           ) : null}
         </div>
       </div>
+      {showLongPressMenu && (
+        <div
+          ref={longPressMenuRef}
+          className={styles.longPressOverlay}
+          role="menu"
+          aria-label="Post actions"
+        >
+          <button
+            type="button"
+            className={styles.longPressBtn}
+            onClick={handleLongPressLike}
+            title="Like"
+            aria-label="Like"
+          >
+            <HeartIcon />
+          </button>
+          <button
+            type="button"
+            className={styles.longPressBtn}
+            onClick={handleLongPressRepost}
+            title="Repost"
+            aria-label="Repost"
+          >
+            <RepostIcon />
+          </button>
+          <button
+            type="button"
+            className={styles.longPressBtn}
+            onClick={handleLongPressAddToCollection}
+            title="Add to collection"
+            aria-label="Add to collection"
+          >
+            <CollectionIcon />
+          </button>
+        </div>
+      )}
     </div>
   )
 }
