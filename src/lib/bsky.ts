@@ -55,6 +55,21 @@ export async function login(identifier: string, password: string) {
   return res
 }
 
+export async function createAccount(opts: {
+  email: string
+  password: string
+  handle: string
+  inviteCode?: string
+}) {
+  const res = await agent.createAccount({
+    email: opts.email.trim(),
+    password: opts.password,
+    handle: opts.handle.trim().toLowerCase().replace(/^@/, ''),
+    inviteCode: opts.inviteCode?.trim() || undefined,
+  })
+  return res
+}
+
 export function logout() {
   try {
     localStorage.removeItem(SESSION_KEY)

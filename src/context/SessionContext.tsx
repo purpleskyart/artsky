@@ -7,6 +7,7 @@ interface SessionContextValue {
   loading: boolean
   login: (identifier: string, password: string) => Promise<void>
   logout: () => void
+  refreshSession: () => void
 }
 
 const SessionContext = createContext<SessionContextValue | null>(null)
@@ -37,11 +38,16 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     setSession(null)
   }, [])
 
+  const refreshSession = useCallback(() => {
+    setSession(bsky.getSession())
+  }, [])
+
   const value: SessionContextValue = {
     session,
     loading,
     login,
     logout,
+    refreshSession,
   }
 
   return (
