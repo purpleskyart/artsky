@@ -41,6 +41,11 @@ export default function FeedPage() {
   const [followedGuestHandles, setFollowedGuestHandles] = useState<string[]>([])
   const loadMoreSentinelRef = useRef<HTMLDivElement>(null)
   const loadingMoreRef = useRef(false)
+  const [keyboardFocusIndex, setKeyboardFocusIndex] = useState(0)
+  const [keyboardAddOpen, setKeyboardAddOpen] = useState(false)
+  const cardRefsRef = useRef<(HTMLDivElement | null)[]>([])
+  const mediaItemsRef = useRef<TimelineItem[]>([])
+  const keyboardFocusIndexRef = useRef(0)
 
   const allSources = [...PRESET_SOURCES, ...savedFeedSources]
 
@@ -174,6 +179,69 @@ export default function FeedPage() {
   }, [cursor, load])
 
   const mediaItems = items.filter((item) => getPostMediaInfo(item.post))
+  const cols = viewMode === '1' ? 1 : viewMode === '2' ? 2 : 3
+  mediaItemsRef.current = mediaItems
+  keyboardFocusIndexRef.current = keyboardFocusIndex
+
+  useEffect(() => {
+    setKeyboardFocusIndex((i) => (mediaItems.length ? Math.min(i, mediaItems.length - 1) : 0))
+  }, [mediaItems.length])
+
+  useEffect(() => {
+    const el = cardRefsRef.current[keyboardFocusIndex]
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' })
+  }, [keyboardFocusIndex])
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable) return
+      if (location.pathname !== '/feed') return
+
+      const items = mediaItemsRef.current
+      const i = keyboardFocusIndexRef.current
+      if (items.length === 0) return
+
+      const key = e.key.toLowerCase()
+      if (key === 'w' || key === 's' || key === 'a' || key === 'd' || key === 'e' || key === 'x' || key === 'q' || key === 'c') e.preventDefault()
+
+      if (key === 'w') {
+        setKeyboardFocusIndex((idx) => Math.max(0, idx - cols))
+        return
+      }
+      if (key === 's') {
+        setKeyboardFocusIndex((idx) => Math.min(items.length - 1, idx + cols))
+        return
+      }
+      if (key === 'a' || e.key === 'ArrowLeft') {
+        setKeyboardFocusIndex((idx) => Math.max(0, idx - 1))
+        return
+      }
+      if (key === 'd' || e.key === 'ArrowRight') {
+        setKeyboardFocusIndex((idx) => Math.min(items.length - 1, idx + 1))
+        return
+      }
+      if (key === 'e') {
+        const item = items[i]
+        if (item) navigate(`/post/${encodeURIComponent(item.post.uri)}`)
+        return
+      }
+      if (key === 'x') {
+        const item = items[i]
+        if (item?.post?.uri && item?.post?.cid) agent.like(item.post.uri, item.post.cid).catch(() => {})
+        return
+      }
+      if (key === 'q') {
+        navigate(-1)
+        return
+      }
+      if (key === 'c') {
+        setKeyboardAddOpen(true)
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [location.pathname, cols, navigate])
 
   return (
     <Layout title="Feed" showNav>
@@ -272,8 +340,15 @@ export default function FeedPage() {
         ) : (
           <>
             <div className={`${styles.grid} ${styles[`gridView${viewMode}`]}`}>
-              {mediaItems.map((item) => (
-                <PostCard key={item.post.uri} item={item} />
+              {mediaItems.map((item, index) => (
+                <PostCard
+                  key={item.post.uri}
+                  item={item}
+                  isSelected={index === keyboardFocusIndex}
+                  cardRef={(el) => { cardRefsRef.current[index] = el }}
+                  openAddDropdown={index === keyboardFocusIndex && keyboardAddOpen}
+                  onAddClose={() => setKeyboardAddOpen(false)}
+                />
               ))}
             </div>
             {cursor && (

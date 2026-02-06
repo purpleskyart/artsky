@@ -15,6 +15,16 @@ const LONG_PRESS_MOVE_THRESHOLD = 14
 
 interface Props {
   item: TimelineItem
+  /** When true, show keyboard-focus ring and parent can use cardRef/addButtonRef */
+  isSelected?: boolean
+  /** Optional ref (object or callback) to the card root (for scroll-into-view) */
+  cardRef?: React.Ref<HTMLDivElement | null>
+  /** Optional ref to the add-to-artboard button (for C key) */
+  addButtonRef?: React.RefObject<HTMLButtonElement | null>
+  /** When true, open the add-to-artboard dropdown (e.g. from C key) */
+  openAddDropdown?: boolean
+  /** Called when the add-to-artboard dropdown is closed */
+  onAddClose?: () => void
 }
 
 function RepostIcon() {
@@ -45,7 +55,7 @@ function isHlsUrl(url: string): boolean {
   return /\.m3u8(\?|$)/i.test(url) || url.includes('m3u8')
 }
 
-export default function PostCard({ item }: Props) {
+export default function PostCard({ item, isSelected, cardRef: cardRefProp, addButtonRef: _addButtonRef, openAddDropdown, onAddClose }: Props) {
   const navigate = useNavigate()
   const { session } = useSession()
   const { artOnly } = useArtOnly()
@@ -118,6 +128,16 @@ export default function PostCard({ item }: Props) {
   useEffect(() => {
     return clearLongPressTimer
   }, [clearLongPressTimer])
+
+  useEffect(() => {
+    if (openAddDropdown) setAddOpen(true)
+  }, [openAddDropdown])
+
+  const prevAddOpenRef = useRef(addOpen)
+  useEffect(() => {
+    if (prevAddOpenRef.current && !addOpen) onAddClose?.()
+    prevAddOpenRef.current = addOpen
+  }, [addOpen, onAddClose])
 
   useEffect(() => {
     if (!addOpen) return
@@ -320,8 +340,19 @@ export default function PostCard({ item }: Props) {
     setAddOpen(true)
   }
 
+  const setCardRef = useCallback(
+    (el: HTMLDivElement | null) => {
+      (cardRef as React.MutableRefObject<HTMLDivElement | null>).current = el
+      if (cardRefProp) {
+        if (typeof cardRefProp === 'function') cardRefProp(el)
+        else (cardRefProp as React.MutableRefObject<HTMLDivElement | null>).current = el
+      }
+    },
+    [cardRefProp],
+  )
+
   return (
-    <div ref={cardRef} className={styles.card}>
+    <div ref={setCardRef} className={`${styles.card} ${isSelected ? styles.cardSelected : ''}`}>
       <div
         role="button"
         tabIndex={0}
