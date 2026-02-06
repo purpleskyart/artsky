@@ -298,36 +298,6 @@ export default function Layout({ title, children, showNav }: Props) {
 
   const accountPanelContent = (
     <>
-      <section className={styles.menuSection}>
-        <span className={styles.menuSectionTitle}>Appearance</span>
-        <div className={styles.menuRow}>
-          {(['light', 'dark', 'system'] as const).map((t) => (
-            <button
-              key={t}
-              type="button"
-              className={theme === t ? styles.menuOptionActive : styles.menuOption}
-              onClick={() => setTheme(t)}
-            >
-              {t === 'light' ? 'Light' : t === 'dark' ? 'Dark' : 'System'}
-            </button>
-          ))}
-        </div>
-      </section>
-      <section className={styles.menuSection}>
-        <span className={styles.menuSectionTitle}>Columns</span>
-        <div className={styles.menuRow}>
-          {viewOptions.map((m) => (
-            <button
-              key={m}
-              type="button"
-              className={viewMode === m ? styles.menuOptionActive : styles.menuOption}
-              onClick={() => setViewMode(m)}
-            >
-              {VIEW_LABELS[m]}
-            </button>
-          ))}
-        </div>
-      </section>
       {session && (
         <section className={styles.menuSection}>
           <span className={styles.menuSectionTitle}>Accounts</span>
@@ -367,42 +337,48 @@ export default function Layout({ title, children, showNav }: Props) {
           </button>
         </section>
       )}
+      <section className={styles.menuSection}>
+        <span className={styles.menuSectionTitle}>Appearance</span>
+        <div className={styles.menuRow}>
+          {(['light', 'dark', 'system'] as const).map((t) => (
+            <button
+              key={t}
+              type="button"
+              className={theme === t ? styles.menuOptionActive : styles.menuOption}
+              onClick={() => setTheme(t)}
+              title={t === 'light' ? 'Light' : t === 'dark' ? 'Dark' : 'System'}
+              aria-label={t === 'light' ? 'Light' : t === 'dark' ? 'Dark' : 'System'}
+            >
+              {t === 'light' ? <SunIcon /> : t === 'dark' ? <MoonIcon /> : <SystemIcon />}
+            </button>
+          ))}
+        </div>
+      </section>
+      <section className={styles.menuSection}>
+        <span className={styles.menuSectionTitle}>Columns</span>
+        <div className={styles.menuRow}>
+          {viewOptions.map((m) => (
+            <button
+              key={m}
+              type="button"
+              className={viewMode === m ? styles.menuOptionActive : styles.menuOption}
+              onClick={() => setViewMode(m)}
+              title={VIEW_LABELS[m]}
+              aria-label={VIEW_LABELS[m]}
+            >
+              <span className={styles.menuIconWithNum}>
+                <GridSmallIcon />
+                <span className={styles.menuColNum}>{m}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+      </section>
     </>
   )
 
   const accountPanelContentCompact = (
     <>
-      <div className={styles.menuCompactRow}>
-        {(['light', 'dark', 'system'] as const).map((t) => (
-          <button
-            key={t}
-            type="button"
-            className={theme === t ? styles.menuCompactBtnActive : styles.menuCompactBtn}
-            onClick={() => setTheme(t)}
-            title={t === 'light' ? 'Light' : t === 'dark' ? 'Dark' : 'System'}
-            aria-label={t === 'light' ? 'Light' : t === 'dark' ? 'Dark' : 'System'}
-          >
-            {t === 'light' ? <SunIcon /> : t === 'dark' ? <MoonIcon /> : <SystemIcon />}
-          </button>
-        ))}
-      </div>
-      <div className={styles.menuCompactRow}>
-        {viewOptions.map((m) => (
-          <button
-            key={m}
-            type="button"
-            className={viewMode === m ? styles.menuCompactBtnActive : styles.menuCompactBtn}
-            onClick={() => setViewMode(m)}
-            title={VIEW_LABELS[m]}
-            aria-label={VIEW_LABELS[m]}
-          >
-            <span className={styles.menuCompactColWrap}>
-              <GridSmallIcon />
-              <span className={styles.menuCompactNum}>{m}</span>
-            </span>
-          </button>
-        ))}
-      </div>
       {session && (
         <>
           <div className={styles.menuCompactAccounts}>
@@ -440,11 +416,42 @@ export default function Layout({ title, children, showNav }: Props) {
           <LogInIcon />
         </button>
       )}
+      <div className={styles.menuCompactRow}>
+        {(['light', 'dark', 'system'] as const).map((t) => (
+          <button
+            key={t}
+            type="button"
+            className={theme === t ? styles.menuCompactBtnActive : styles.menuCompactBtn}
+            onClick={() => setTheme(t)}
+            title={t === 'light' ? 'Light' : t === 'dark' ? 'Dark' : 'System'}
+            aria-label={t === 'light' ? 'Light' : t === 'dark' ? 'Dark' : 'System'}
+          >
+            {t === 'light' ? <SunIcon /> : t === 'dark' ? <MoonIcon /> : <SystemIcon />}
+          </button>
+        ))}
+      </div>
+      <div className={styles.menuCompactRow}>
+        {viewOptions.map((m) => (
+          <button
+            key={m}
+            type="button"
+            className={viewMode === m ? styles.menuCompactBtnActive : styles.menuCompactBtn}
+            onClick={() => setViewMode(m)}
+            title={VIEW_LABELS[m]}
+            aria-label={VIEW_LABELS[m]}
+          >
+            <span className={styles.menuCompactColWrap}>
+              <GridSmallIcon />
+              <span className={styles.menuCompactNum}>{m}</span>
+            </span>
+          </button>
+        ))}
+      </div>
     </>
   )
 
   return (
-    <div className={styles.wrap}>
+    <div className={`${styles.wrap} ${showNav ? styles.wrapWithHeader : ''}`}>
       <header className={styles.header}>
         {showNav && (
           <>

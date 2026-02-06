@@ -11,10 +11,23 @@
   }
 }
 
-/* Liquid glass header */
+/* Top bar follows viewport when scrolling */
+.wrapWithHeader {
+  padding-top: 3.25rem;
+}
+
+@media (min-width: 768px) {
+  .wrapWithHeader {
+    padding-top: 3.5rem;
+  }
+}
+
+/* Liquid glass header – fixed so it stays at top while scrolling */
 .header {
-  position: sticky;
+  position: fixed;
   top: 0;
+  left: 0;
+  right: 0;
   z-index: 10;
   background: var(--glass-bg);
   -webkit-backdrop-filter: blur(var(--glass-blur));
@@ -205,6 +218,21 @@
     background: rgba(124, 58, 237, 0.18);
     color: var(--accent);
     font-weight: 600;
+  }
+  .menuIconWithNum {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.15rem;
+  }
+  .menuIconWithNum svg {
+    width: 18px;
+    height: 18px;
+  }
+  .menuColNum {
+    font-size: 0.65rem;
+    font-weight: 600;
+    line-height: 1;
   }
   .menuItem,
   .menuItemActive {
