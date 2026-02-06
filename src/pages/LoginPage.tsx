@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { useSession } from '../context/SessionContext'
 import * as bsky from '../lib/bsky'
 import type { AppBskyActorDefs } from '@atproto/api'
@@ -14,7 +14,12 @@ type Mode = 'signin' | 'create'
 export default function LoginPage() {
   const { login, refreshSession } = useSession()
   const navigate = useNavigate()
-  const [mode, setMode] = useState<Mode>('signin')
+  const location = useLocation()
+  const locationMode = (location.state as { mode?: Mode })?.mode
+  const [mode, setMode] = useState<Mode>(locationMode ?? 'signin')
+  useEffect(() => {
+    if (locationMode === 'signin' || locationMode === 'create') setMode(locationMode)
+  }, [locationMode])
 
   const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')

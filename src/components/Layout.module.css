@@ -22,13 +22,15 @@
   }
 }
 
-/* Liquid glass header – fixed so it stays at top while scrolling */
+/* Liquid glass header – fixed so it never scrolls with the page (mobile and desktop) */
 .header {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   z-index: 10;
+  transform: translateZ(0);
+  -webkit-backface-visibility: hidden;
   background: var(--glass-bg);
   -webkit-backdrop-filter: blur(var(--glass-blur));
   backdrop-filter: blur(var(--glass-blur));
@@ -40,6 +42,45 @@
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
+}
+
+/* Logged-out: show Log in + Create account in header on mobile and desktop */
+.headerLoggedOut .headerRight {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.headerAuthLink,
+.headerAuthLinkPrimary {
+  padding: 0.4rem 0.65rem;
+  border-radius: var(--glass-radius-sm);
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.headerAuthLink {
+  color: var(--muted);
+  background: transparent;
+}
+
+.headerAuthLink:hover {
+  color: var(--text);
+  background: var(--glass-highlight);
+}
+
+.headerAuthLinkPrimary {
+  color: white;
+  background: var(--accent);
+}
+
+.headerAuthLinkPrimary:hover {
+  background: color-mix(in srgb, var(--accent) 90%, black);
+  color: white;
 }
 
 @media (min-width: 768px) {

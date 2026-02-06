@@ -456,7 +456,7 @@ export default function Layout({ title, children, showNav }: Props) {
 
   return (
     <div className={`${styles.wrap} ${showNav ? styles.wrapWithHeader : ''}`}>
-      <header className={styles.header}>
+      <header className={`${styles.header} ${showNav && !session ? styles.headerLoggedOut : ''}`}>
         {showNav && (
           <>
             <div className={styles.headerLeft}>
@@ -474,6 +474,17 @@ export default function Layout({ title, children, showNav }: Props) {
               <SearchBar inputRef={searchInputRef} compact={isDesktop} />
             </div>
             <div className={styles.headerRight}>
+              {!session ? (
+                <>
+                  <Link to="/login" className={styles.headerAuthLink}>
+                    Log in
+                  </Link>
+                  <Link to="/login" state={{ mode: 'create' }} className={styles.headerAuthLinkPrimary}>
+                    Create account
+                  </Link>
+                </>
+              ) : (
+                <>
               <button
                 type="button"
                 className={styles.headerBtn}
@@ -512,6 +523,8 @@ export default function Layout({ title, children, showNav }: Props) {
                   </div>
                 )}
               </div>
+                </>
+              )}
             </div>
           </>
         )}
