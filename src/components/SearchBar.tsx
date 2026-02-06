@@ -9,6 +9,14 @@ const DEBOUNCE_MS = 200
 
 export type SearchFilter = 'all' | 'users' | 'feeds'
 
+function FilterIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M4 6h16M4 12h10M4 18h6" />
+    </svg>
+  )
+}
+
 interface Props {
   onSelectFeed?: (source: FeedSource) => void
 }
@@ -22,6 +30,7 @@ export default function SearchBar({ onSelectFeed }: Props) {
   const [actors, setActors] = useState<AppBskyActorDefs.ProfileViewBasic[]>([])
   const [suggestedFeeds, setSuggestedFeeds] = useState<AppBskyFeedDefs.GeneratorView[]>([])
   const [activeIndex, setActiveIndex] = useState(0)
+  const [filterOpen, setFilterOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -65,7 +74,10 @@ export default function SearchBar({ onSelectFeed }: Props) {
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false)
+      if (!containerRef.current?.contains(e.target as Node)) {
+        setOpen(false)
+        setFilterOpen(false)
+      }
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
@@ -131,34 +143,50 @@ export default function SearchBar({ onSelectFeed }: Props) {
 
   return (
     <div className={styles.wrap} ref={containerRef}>
-      <div className={styles.filters}>
-        {(['all', 'users', 'feeds'] as const).map((f) => (
-          <button
-            key={f}
-            type="button"
-            className={filter === f ? styles.filterActive : styles.filterBtn}
-            onClick={() => setFilter(f)}
-          >
-            {f === 'all' ? 'All' : f === 'users' ? 'Users' : 'Feeds'}
-          </button>
-        ))}
+      <div className={styles.searchRow}>
+        <button
+          type="button"
+          className={`${styles.filterIconBtn} ${filterOpen ? styles.filterIconActive : ''}`}
+          onClick={() => setFilterOpen((v) => !v)}
+          aria-label="Search filter"
+          aria-expanded={filterOpen}
+        >
+          <FilterIcon />
+        </button>
+        <input
+          ref={inputRef}
+          type="search"
+          placeholder={placeholder}
+          value={query}
+          onChange={(e) => {
+            setQuery(e.target.value)
+            setOpen(true)
+          }}
+          onFocus={() => setOpen(true)}
+          onKeyDown={onKeyDown}
+          className={styles.input}
+          aria-label="Search"
+          aria-autocomplete="list"
+          aria-expanded={open && options.length > 0}
+        />
+        {filterOpen && (
+          <div className={styles.filterDropdown}>
+            {(['all', 'users', 'feeds'] as const).map((f) => (
+              <button
+                key={f}
+                type="button"
+                className={filter === f ? styles.filterActive : styles.filterBtn}
+                onClick={() => {
+                  setFilter(f)
+                  setFilterOpen(false)
+                }}
+              >
+                {f === 'all' ? 'All' : f === 'users' ? 'Users' : 'Feeds'}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
-      <input
-        ref={inputRef}
-        type="search"
-        placeholder={placeholder}
-        value={query}
-        onChange={(e) => {
-          setQuery(e.target.value)
-          setOpen(true)
-        }}
-        onFocus={() => setOpen(true)}
-        onKeyDown={onKeyDown}
-        className={styles.input}
-        aria-label="Search"
-        aria-autocomplete="list"
-        aria-expanded={open && options.length > 0}
-      />
       {open && (options.length > 0 || loading) && (
         <div className={styles.dropdown} role="listbox">
           {loading && options.length === 0 && (

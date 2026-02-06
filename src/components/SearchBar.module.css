@@ -3,10 +3,70 @@
   width: 100%;
 }
 
-.filters {
+.searchRow {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  position: relative;
+}
+
+.searchRow:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.2);
+}
+
+.filterIconBtn {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  border-radius: 0.5rem 0 0 0.5rem;
+}
+
+.filterIconBtn:hover {
+  color: var(--text);
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.filterIconActive {
+  color: var(--accent);
+  background: rgba(124, 58, 237, 0.12);
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.9rem;
+  color: var(--text);
+  background: transparent;
+  border: none;
+  border-radius: 0 0.5rem 0.5rem 0;
+  outline: none;
+}
+
+.filterDropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 2px;
   display: flex;
   gap: 0.25rem;
-  margin-bottom: 0.35rem;
+  padding: 0.35rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 101;
 }
 
 .filterBtn,
@@ -28,22 +88,6 @@
   background: rgba(124, 58, 237, 0.15);
   border-color: var(--accent);
   color: var(--accent);
-}
-
-.input {
-  width: 100%;
-  padding: 0.5rem 0.75rem;
-  font-size: 0.9rem;
-  color: var(--text);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 0.5rem;
-  outline: none;
-}
-
-.input:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.2);
 }
 
 .input::placeholder {
