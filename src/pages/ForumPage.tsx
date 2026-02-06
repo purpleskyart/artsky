@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { listStandardSiteDocumentsAll, type StandardSiteDocumentView } from '../lib/bsky'
+import { listStandardSiteDocumentsAll, listStandardSiteDocumentsForForum, getSession, type StandardSiteDocumentView } from '../lib/bsky'
 import { FORUM_DISCOVERY_URLS } from '../config/forumDiscovery'
 import { formatRelativeTime, formatExactDateTime } from '../lib/date'
 import Layout from '../components/Layout'
@@ -23,24 +23,37 @@ function matchesSearch(doc: StandardSiteDocumentView, q: string): boolean {
   return title.includes(lower) || handle.includes(lower) || path.includes(lower)
 }
 
+type ForumTab = 'all' | 'followed' | 'mine'
+
 export default function ForumPage() {
+  const [tab, setTab] = useState<ForumTab>('all')
   const [documents, setDocuments] = useState<StandardSiteDocumentView[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const session = getSession()
 
   const load = useCallback(async () => {
     try {
       setLoading(true)
       setError(null)
-      const list = await listStandardSiteDocumentsAll(FORUM_DISCOVERY_URLS)
-      setDocuments(list)
+      if (tab === 'all') {
+        const list = await listStandardSiteDocumentsAll(FORUM_DISCOVERY_URLS)
+        setDocuments(list)
+      } else {
+        const list = await listStandardSiteDocumentsForForum()
+        if (tab === 'followed') {
+          setDocuments(session?.did ? list.filter((doc) => doc.did !== session.did) : [])
+        } else {
+          setDocuments(session?.did ? list.filter((doc) => doc.did === session.did) : [])
+        }
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to load forum')
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [tab, session?.did])
 
   useEffect(() => {
     setDocuments([])
@@ -52,6 +65,8 @@ export default function ForumPage() {
     [documents, searchQuery]
   )
 
+  const showSignInForTab = (tab === 'followed' || tab === 'mine') && !session
+
   return (
     <Layout title="Forum" showNav>
       <div className={styles.wrap}>
@@ -60,6 +75,32 @@ export default function ForumPage() {
           <p className={styles.subtitle}>
             Posts from the ATmosphere using the <a href="https://standard.site" target="_blank" rel="noopener noreferrer" className={styles.standardLink}>standard.site</a> lexicon
           </p>
+          <div className={styles.tabs}>
+            <button
+              type="button"
+              className={tab === 'all' ? styles.tabActive : styles.tab}
+              onClick={() => setTab('all')}
+              aria-pressed={tab === 'all'}
+            >
+              All Posts
+            </button>
+            <button
+              type="button"
+              className={tab === 'followed' ? styles.tabActive : styles.tab}
+              onClick={() => setTab('followed')}
+              aria-pressed={tab === 'followed'}
+            >
+              Followed
+            </button>
+            <button
+              type="button"
+              className={tab === 'mine' ? styles.tabActive : styles.tab}
+              onClick={() => setTab('mine')}
+              aria-pressed={tab === 'mine'}
+            >
+              My Posts
+            </button>
+          </div>
           <div className={styles.searchRow}>
             <input
               type="search"
@@ -72,12 +113,20 @@ export default function ForumPage() {
           </div>
         </header>
         {error && <p className={styles.error}>{error}</p>}
-        {loading ? (
-          <div className={styles.loading}>Loading discovered posts…</div>
+        {showSignInForTab ? (
+          <div className={styles.empty}>Sign in to see {tab === 'followed' ? 'posts from people you follow' : 'your posts'}.</div>
+        ) : loading ? (
+          <div className={styles.loading}>
+            {tab === 'all' ? 'Loading discovered posts…' : tab === 'followed' ? 'Loading followed posts…' : 'Loading your posts…'}
+          </div>
         ) : filteredDocuments.length === 0 ? (
           <div className={styles.empty}>
             {documents.length === 0
-              ? 'No standard.site posts discovered yet. Add more publication URLs in forum discovery config.'
+              ? tab === 'all'
+                ? 'No standard.site posts discovered yet. Add more publication URLs in forum discovery config.'
+                : tab === 'followed'
+                  ? 'No posts yet from people you follow.'
+                  : 'You haven\'t posted in the forum yet.'
               : 'No posts match your search.'}
           </div>
         ) : (

@@ -20,6 +20,35 @@
   color: var(--muted);
 }
 
+.tabs {
+  display: flex;
+  gap: 0.25rem;
+  margin-top: 0.75rem;
+}
+
+.tab,
+.tabActive {
+  padding: 0.4rem 0.75rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.tab:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.tabActive {
+  border-color: var(--accent);
+  background: rgba(124, 58, 237, 0.15);
+  color: var(--accent);
+}
+
 .searchRow {
   margin-top: 0.75rem;
 }

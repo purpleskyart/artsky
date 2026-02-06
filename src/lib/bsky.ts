@@ -372,11 +372,17 @@ export const STANDARD_SITE_DOMAIN = 'standard.site'
 export const STANDARD_SITE_DOCUMENT_COLLECTION = 'site.standard.document'
 export const STANDARD_SITE_PUBLICATION_COLLECTION = 'site.standard.publication'
 
+/** Blob ref as returned from uploadBlob (CID reference). */
+export type StandardSiteDocumentBlobRef = { $link: string }
+
 /** A document record from the standard.site lexicon (metadata about a blog post). */
 export type StandardSiteDocumentRecord = {
   path?: string
   title?: string
+  body?: string
   createdAt?: string
+  /** Optional media: array of { image: BlobRef, mimeType: string } for compatibility with uploadBlob shape. */
+  media?: Array<{ image: StandardSiteDocumentBlobRef; mimeType?: string }>
   [k: string]: unknown
 }
 
@@ -388,10 +394,15 @@ export type StandardSiteDocumentView = {
   rkey: string
   path: string
   title?: string
+  body?: string
   createdAt?: string
   baseUrl?: string
   authorHandle?: string
   authorAvatar?: string
+  /** Resolved media URLs for display (built from blob refs). */
+  media?: Array<{ url: string; mimeType?: string }>
+  /** Raw media refs from the record (for editing: preserve when saving). */
+  mediaRefs?: Array<{ image: StandardSiteDocumentBlobRef; mimeType?: string }>
 }
 
 /** List site.standard.document records from a repo. Does not require the lexicon to be installed. */
@@ -459,6 +470,13 @@ export async function getStandardSiteDocument(uri: string): Promise<StandardSite
       getStandardSitePublicationBaseUrl(client, parsed.did),
       client.getProfile({ actor: parsed.did }).then((p) => p.data as { handle?: string; avatar?: string }).catch(() => null),
     ])
+    const pds = (client as { service?: { host?: string } }).service?.host ?? BSKY_SERVICE.replace(/^https?:\/\//, '')
+    const base = pds.startsWith('http') ? pds : `https://${pds}`
+    const mediaUrls: Array<{ url: string; mimeType?: string }> = []
+    for (const m of value.media ?? []) {
+      const cid = typeof m.image === 'object' && m.image && '$link' in m.image ? (m.image as StandardSiteDocumentBlobRef).$link : undefined
+      if (cid) mediaUrls.push({ url: `${base}/xrpc/com.atproto.sync.getBlob?did=${parsed.did}&cid=${encodeURIComponent(cid)}`, mimeType: m.mimeType })
+    }
     return {
       uri: res.data.uri as string,
       cid: res.data.cid as string,
@@ -466,10 +484,13 @@ export async function getStandardSiteDocument(uri: string): Promise<StandardSite
       rkey: parsed.rkey,
       path: value.path ?? parsed.rkey,
       title: value.title,
+      body: value.body,
       createdAt: value.createdAt,
       baseUrl: baseUrl ?? undefined,
       authorHandle: profile?.handle,
       authorAvatar: profile?.avatar,
+      media: mediaUrls.length > 0 ? mediaUrls : undefined,
+      mediaRefs: value.media,
     }
   } catch {
     return null
@@ -490,10 +511,25 @@ export async function deleteStandardSiteDocument(uri: string): Promise<void> {
   })
 }
 
-/** Update a standard.site document (title, path). Requires session; only the author can update. */
+/** Upload a blob for use in a standard.site document media array. Requires session. */
+export async function uploadStandardSiteDocumentBlob(
+  file: File
+): Promise<{ image: StandardSiteDocumentBlobRef; mimeType: string }> {
+  const session = getSession()
+  if (!session?.did) throw new Error('Not logged in')
+  const allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+  if (!allowed.includes(file.type)) throw new Error('Only JPEG, PNG, GIF, and WebP images are supported')
+  const { data } = await agent.uploadBlob(file, { encoding: file.type })
+  const blob = data.blob as { $link?: string }
+  const link = blob?.$link ?? (data as { blob?: { $link?: string } }).blob?.$link
+  if (!link) throw new Error('Upload did not return a blob reference')
+  return { image: { $link: link }, mimeType: file.type }
+}
+
+/** Update a standard.site document (title, body, media). Requires session; only the author can update. Path is preserved. */
 export async function updateStandardSiteDocument(
   uri: string,
-  updates: { title?: string; path?: string }
+  updates: { title?: string; body?: string; media?: Array<{ image: StandardSiteDocumentBlobRef; mimeType?: string }> }
 ): Promise<StandardSiteDocumentView> {
   const session = getSession()
   if (!session?.did) throw new Error('Not logged in')
@@ -508,8 +544,10 @@ export async function updateStandardSiteDocument(
   const current = (existing.data?.value ?? {}) as StandardSiteDocumentRecord
   const record = {
     ...current,
-    path: updates.path ?? current.path,
-    title: updates.title ?? current.title,
+    path: current.path ?? parsed.rkey,
+    title: updates.title !== undefined ? updates.title : current.title,
+    body: updates.body !== undefined ? updates.body : current.body,
+    media: updates.media !== undefined ? updates.media : current.media,
     createdAt: current.createdAt,
   }
   const res = await agent.com.atproto.repo.putRecord({

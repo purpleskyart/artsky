@@ -1,14 +1,16 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
 import {
   getStandardSiteDocument,
   deleteStandardSiteDocument,
   updateStandardSiteDocument,
+  uploadStandardSiteDocumentBlob,
   searchPostsByDomain,
   createPost,
   getSession,
   agent,
   type StandardSiteDocumentView,
+  type StandardSiteDocumentBlobRef,
 } from '../lib/bsky'
 import { formatRelativeTime, formatExactDateTime } from '../lib/date'
 import Layout from '../components/Layout'
@@ -53,16 +55,26 @@ export default function ForumPostDetailPage() {
   const [posting, setPosting] = useState(false)
   const [editMode, setEditMode] = useState(false)
   const [editTitle, setEditTitle] = useState('')
-  const [editPath, setEditPath] = useState('')
+  const [editBody, setEditBody] = useState('')
+  const [editMediaRefs, setEditMediaRefs] = useState<Array<{ image: StandardSiteDocumentBlobRef; mimeType?: string }>>([])
+  const [editMediaNewFiles, setEditMediaNewFiles] = useState<File[]>([])
   const [editSaving, setEditSaving] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
   const [deleteLoading, setDeleteLoading] = useState(false)
   const [likeLoadingMap, setLikeLoadingMap] = useState<Record<string, boolean>>({})
   const [likeUriOverrideMap, setLikeUriOverrideMap] = useState<Record<string, string>>({})
   const session = getSession()
-  const isOwn = session?.did && doc?.did === session.did;
+  const isOwn = session?.did && doc?.did === session.did
   const docUrl = doc ? documentUrl(doc) : null
   const domain = doc?.baseUrl ? domainFromBaseUrl(doc.baseUrl) : ''
+  const editNewPreviewUrls = useMemo(
+    () => editMediaNewFiles.map((f) => URL.createObjectURL(f)),
+    [editMediaNewFiles]
+  )
+  useEffect(() => {
+    return () => editNewPreviewUrls.forEach((u) => URL.revokeObjectURL(u))
+  }, [editNewPreviewUrls])
 
   const loadDoc = useCallback(async () => {
     if (!decodedUri) return
@@ -73,7 +85,9 @@ export default function ForumPostDetailPage() {
       setDoc(d)
       if (d) {
         setEditTitle(d.title ?? '')
-        setEditPath(d.path ?? '')
+        setEditBody(d.body ?? '')
+        setEditMediaRefs(d.mediaRefs ?? [])
+        setEditMediaNewFiles([])
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to load post')
@@ -132,14 +146,62 @@ export default function ForumPostDetailPage() {
     if (!doc || !decodedUri || editSaving) return
     setEditSaving(true)
     try {
-      const updated = await updateStandardSiteDocument(decodedUri, { title: editTitle || undefined, path: editPath || undefined })
+      let media = [...editMediaRefs]
+      if (editMediaNewFiles.length > 0) {
+        const uploaded = await Promise.all(
+          editMediaNewFiles.map((file) => uploadStandardSiteDocumentBlob(file))
+        )
+        media = [...media, ...uploaded]
+      }
+      const updated = await updateStandardSiteDocument(decodedUri, {
+        title: editTitle || undefined,
+        body: editBody.trim() || undefined,
+        media,
+      })
       setDoc(updated)
+      setEditMediaRefs(updated.mediaRefs ?? [])
+      setEditMediaNewFiles([])
       setEditMode(false)
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : 'Failed to save')
     } finally {
       setEditSaving(false)
     }
+  }
+
+  function handleAddMediaClick() {
+    fileInputRef.current?.click()
+  }
+
+  function handleMediaFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = e.target.files
+    if (!files?.length) return
+    const allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+    const toAdd = Array.from(files).filter((f) => allowed.includes(f.type)).slice(0, 4 - editMediaRefs.length - editMediaNewFiles.length)
+    setEditMediaNewFiles((prev) => [...prev, ...toAdd].slice(0, 4 - editMediaRefs.length))
+    e.target.value = ''
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault()
+    const files = e.dataTransfer.files
+    if (!files?.length) return
+    const allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+    const toAdd = Array.from(files).filter((f) => allowed.includes(f.type)).slice(0, 4 - editMediaRefs.length - editMediaNewFiles.length)
+    setEditMediaNewFiles((prev) => [...prev, ...toAdd].slice(0, 4 - editMediaRefs.length))
+  }
+
+  function handleDragOver(e: React.DragEvent) {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'copy'
+  }
+
+  function removeEditMediaRef(index: number) {
+    setEditMediaRefs((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  function removeEditMediaNewFile(index: number) {
+    setEditMediaNewFiles((prev) => prev.filter((_, i) => i !== index))
   }
 
   async function handleDelete() {
@@ -212,7 +274,19 @@ export default function ForumPostDetailPage() {
                 </div>
                 {!editMode ? (
                   <>
-                    <h1 className={styles.docTitle}>{doc.title || doc.path || 'Untitled'}</h1>
+                    <h1 className={styles.docTitle}>{doc.title || 'Untitled'}</h1>
+                    {doc.body && (
+                      <div className={styles.docBody}>
+                        <PostText text={doc.body} />
+                      </div>
+                    )}
+                    {doc.media && doc.media.length > 0 && (
+                      <div className={styles.docMedia}>
+                        {doc.media.map((m, i) => (
+                          <img key={i} src={m.url} alt="" className={styles.docMediaImg} />
+                        ))}
+                      </div>
+                    )}
                     {docUrl && (
                       <p className={styles.docLink}>
                         <a href={docUrl} target="_blank" rel="noopener noreferrer" className={styles.externalLink}>
@@ -256,15 +330,53 @@ export default function ForumPostDetailPage() {
                       />
                     </label>
                     <label className={styles.editLabel}>
-                      Path
-                      <input
-                        type="text"
-                        className={styles.editInput}
-                        value={editPath}
-                        onChange={(e) => setEditPath(e.target.value)}
-                        placeholder="path-slug"
+                      Body
+                      <textarea
+                        className={styles.editTextarea}
+                        value={editBody}
+                        onChange={(e) => setEditBody(e.target.value)}
+                        placeholder="Write your post…"
+                        rows={8}
                       />
                     </label>
+                    <div className={styles.editLabel}>
+                      Media
+                      <div
+                        className={styles.mediaDropZone}
+                        onDrop={handleDrop}
+                        onDragOver={handleDragOver}
+                      >
+                        <input
+                          ref={fileInputRef}
+                          id="forum-edit-media-input"
+                          type="file"
+                          accept="image/jpeg,image/png,image/gif,image/webp"
+                          multiple
+                          className={styles.mediaInputHidden}
+                          onChange={handleMediaFileChange}
+                        />
+                        <button type="button" className={styles.addMediaBtn} onClick={handleAddMediaClick}>
+                          Add image
+                        </button>
+                        <span className={styles.mediaDropHint}>or drag and drop images here</span>
+                        {(editMediaRefs.length + editMediaNewFiles.length) > 0 && (
+                          <div className={styles.mediaPreviews}>
+                            {doc.media?.slice(0, editMediaRefs.length).map((m, i) => (
+                              <div key={`existing-${i}`} className={styles.mediaPreviewWrap}>
+                                <img src={m.url} alt="" className={styles.mediaPreviewImg} />
+                                <button type="button" className={styles.mediaPreviewRemove} onClick={() => removeEditMediaRef(i)} aria-label="Remove">×</button>
+                              </div>
+                            ))}
+                            {editMediaNewFiles.map((_, i) => (
+                              <div key={`new-${i}`} className={styles.mediaPreviewWrap}>
+                                <img src={editNewPreviewUrls[i]} alt="" className={styles.mediaPreviewImg} />
+                                <button type="button" className={styles.mediaPreviewRemove} onClick={() => removeEditMediaNewFile(i)} aria-label="Remove">×</button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
                     <div className={styles.editActions}>
                       <button type="button" className={styles.actionBtn} onClick={() => setEditMode(false)} disabled={editSaving}>
                         Cancel
