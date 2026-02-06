@@ -72,32 +72,15 @@ export default function ArtboardsPage() {
                 <Link to={`/artboard/${board.id}`} className={styles.bentoLink}>
                   {board.posts.length > 0 ? (
                     <div className={styles.bentoThumbs}>
-                      {board.posts.length === 1 ? (
-                        <div className={styles.bentoMain}>
-                          {board.posts[0].thumb ? (
-                            <img src={board.posts[0].thumb} alt="" />
+                      {board.posts.slice(0, 4).map((p) => (
+                        <div key={p.uri} className={styles.bentoThumb}>
+                          {p.thumb ? (
+                            <img src={p.thumb} alt="" />
                           ) : (
                             <span className={styles.thumbPlaceholder}>📌</span>
                           )}
                         </div>
-                      ) : (
-                        <>
-                          <div className={styles.bentoMain}>
-                            {board.posts[0].thumb ? (
-                              <img src={board.posts[0].thumb} alt="" />
-                            ) : (
-                              <span className={styles.thumbPlaceholder}>📌</span>
-                            )}
-                          </div>
-                          <div className={styles.bentoSide}>
-                            {board.posts.slice(1, 4).map((p) => (
-                              <div key={p.uri} className={styles.bentoSideThumb}>
-                                {p.thumb ? <img src={p.thumb} alt="" /> : <span className={styles.thumbPlaceholder}>📌</span>}
-                              </div>
-                            ))}
-                          </div>
-                        </>
-                      )}
+                      ))}
                     </div>
                   ) : (
                     <div className={styles.bentoEmpty}>No posts yet</div>

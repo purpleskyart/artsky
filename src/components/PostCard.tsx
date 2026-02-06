@@ -26,6 +26,14 @@ function ImagesIcon() {
   )
 }
 
+function RepostIcon() {
+  return (
+    <svg className={styles.repostIcon} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z" />
+    </svg>
+  )
+}
+
 function isHlsUrl(url: string): boolean {
   return /\.m3u8(\?|$)/i.test(url) || url.includes('m3u8')
 }
@@ -33,10 +41,12 @@ function isHlsUrl(url: string): boolean {
 export default function PostCard({ item }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const hlsRef = useRef<Hls | null>(null)
-  const { post } = item
+  const { post, reason } = item as { post: typeof item.post; reason?: { $type?: string; by?: { handle?: string; did?: string } } }
   const media = getPostMediaInfo(post)
   const text = (post.record as { text?: string })?.text ?? ''
   const handle = post.author.handle ?? post.author.did
+  const isRepost = reason?.$type === 'app.bsky.feed.defs#reasonRepost' && reason?.by
+  const repostedByHandle = reason?.by ? (reason.by.handle ?? reason.by.did) : null
 
   if (!media) return null
 
@@ -101,25 +111,44 @@ export default function PostCard({ item }: Props) {
         )}
       </div>
       <div className={styles.meta}>
-        <span className={styles.handleRow}>
-          <Link
-            to={`/profile/${encodeURIComponent(handle)}`}
-            className={styles.handleLink}
-            onClick={(e) => e.stopPropagation()}
-          >
-            @{handle}
-          </Link>
-          {isVideo && (
-            <span className={styles.mediaBadge} title="Video – hover to play, click to open post">
-              <VideoIcon />
+        <div className={styles.handleBlock}>
+          <span className={styles.handleRow}>
+            {isRepost && (
+              <span className={styles.repostBadge} title="Repost">
+                <RepostIcon />
+              </span>
+            )}
+            <Link
+              to={`/profile/${encodeURIComponent(handle)}`}
+              className={styles.handleLink}
+              onClick={(e) => e.stopPropagation()}
+            >
+              @{handle}
+            </Link>
+            {isVideo && (
+              <span className={styles.mediaBadge} title="Video – hover to play, click to open post">
+                <VideoIcon />
+              </span>
+            )}
+            {isMultipleImages && (
+              <span className={styles.mediaBadge} title={`${media.imageCount} images`}>
+                <ImagesIcon />
+              </span>
+            )}
+          </span>
+          {repostedByHandle && (
+            <span className={styles.repostedBy}>
+              Reposted by{' '}
+              <Link
+                to={`/profile/${encodeURIComponent(repostedByHandle)}`}
+                className={styles.handleLink}
+                onClick={(e) => e.stopPropagation()}
+              >
+                @{repostedByHandle}
+              </Link>
             </span>
           )}
-          {isMultipleImages && (
-            <span className={styles.mediaBadge} title={`${media.imageCount} images`}>
-              <ImagesIcon />
-            </span>
-          )}
-        </span>
+        </div>
         {text ? (
           <p className={styles.text}>
             <PostText text={text} maxLength={80} stopPropagation />

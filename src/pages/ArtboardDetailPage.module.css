@@ -43,15 +43,16 @@
 
 .thumb {
   width: 100%;
-  aspect-ratio: 1;
-  object-fit: cover;
+  max-height: 280px;
+  object-fit: contain;
   border-radius: 0.5rem;
   display: block;
+  background: var(--bg);
 }
 
 .placeholder {
   width: 100%;
-  aspect-ratio: 1;
+  height: 160px;
   display: flex;
   align-items: center;
   justify-content: center;
