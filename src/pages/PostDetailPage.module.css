@@ -333,30 +333,6 @@
 
 .repliesContainer {
   margin-top: 0.75rem;
-  display: flex;
-  align-items: stretch;
-  gap: 0;
-}
-
-.repliesBar {
-  width: 14px;
-  min-width: 14px;
-  flex-shrink: 0;
-  background: var(--border);
-  border: none;
-  border-radius: 3px 0 0 3px;
-  cursor: pointer;
-  padding: 0;
-}
-
-.repliesBar:hover {
-  background: var(--accent);
-  opacity: 0.8;
-}
-
-.repliesBar:focus {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
 }
 
 .repliesCollapsed {
@@ -367,27 +343,73 @@
   cursor: pointer;
   font-size: 0.9rem;
   text-align: left;
-  flex: 1;
+  width: 100%;
 }
 
 .repliesCollapsed:hover {
   color: var(--accent);
 }
 
+.replies {
+  padding-left: 0.5rem;
+  border-left: 2px solid var(--border);
+}
+
 .collapsedCommentWrap {
   margin-bottom: 0.5rem;
 }
 
-.collapsedCommentWrap .repliesCollapsed {
-  display: block;
+.collapsedCommentBtn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   width: 100%;
+  padding: 0.35rem 0.5rem;
+  background: none;
+  border: none;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 0.9rem;
+  text-align: left;
+  border-radius: 0.35rem;
 }
 
-.replies {
-  flex: 1;
-  min-width: 0;
-  padding-left: 0.5rem;
-  border-left: 2px solid var(--border);
+.collapsedCommentBtn:hover {
+  background: var(--glass-highlight);
+  color: var(--accent);
+}
+
+.collapsedCommentAvatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.collapsedCommentAvatarPlaceholder {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--border);
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.collapsedCommentHandle {
+  font-weight: 500;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.collapsedCommentLabel {
+  color: var(--muted);
+  margin-left: 0.25rem;
 }
 
 .actions {

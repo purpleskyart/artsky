@@ -279,13 +279,6 @@ function PostBlock({
       )}
       {hasReplies && (
         <div className={styles.repliesContainer}>
-          <button
-            type="button"
-            className={styles.repliesBar}
-            onClick={() => canCollapse && onToggleCollapse(post.uri)}
-            aria-label={isCollapsed ? 'Expand replies' : 'Collapse replies'}
-            title={isCollapsed ? 'Expand replies' : 'Collapse replies'}
-          />
           {isCollapsed ? (
             <button
               type="button"
@@ -302,10 +295,17 @@ function PostBlock({
                 if (collapsedThreads?.has(r.post.uri)) {
                   const replyCount = 'replies' in r && Array.isArray(r.replies) ? (r.replies as unknown[]).length : 0
                   const label = replyCount === 0 ? 'Comment' : `${replyCount} reply${replyCount !== 1 ? 's' : ''}`
+                  const replyHandle = r.post.author?.handle ?? r.post.author?.did ?? ''
                   return (
                     <div key={r.post.uri} className={styles.collapsedCommentWrap} style={{ marginLeft: replyDepth * 12 }}>
-                      <button type="button" className={styles.repliesCollapsed} onClick={() => onToggleCollapse?.(r.post.uri)}>
-                        {label}
+                      <button type="button" className={styles.collapsedCommentBtn} onClick={() => onToggleCollapse?.(r.post.uri)}>
+                        {r.post.author?.avatar ? (
+                          <img src={r.post.author.avatar} alt="" className={styles.collapsedCommentAvatar} />
+                        ) : (
+                          <span className={styles.collapsedCommentAvatarPlaceholder} aria-hidden>{replyHandle.slice(0, 1).toUpperCase()}</span>
+                        )}
+                        <span className={styles.collapsedCommentHandle}>@{replyHandle}</span>
+                        <span className={styles.collapsedCommentLabel}>{label}</span>
                       </button>
                     </div>
                   )
@@ -714,10 +714,17 @@ export default function PostDetailPage() {
                   if (collapsedThreads.has(r.post.uri)) {
                     const replyCount = 'replies' in r && Array.isArray(r.replies) ? (r.replies as unknown[]).length : 0
                     const label = replyCount === 0 ? 'Comment' : `${replyCount} reply${replyCount !== 1 ? 's' : ''}`
+                    const replyHandle = r.post.author?.handle ?? r.post.author?.did ?? ''
                     return (
                       <div key={r.post.uri} className={styles.collapsedCommentWrap} style={{ marginLeft: 0 }}>
-                        <button type="button" className={styles.repliesCollapsed} onClick={() => toggleCollapse(r.post.uri)}>
-                          {label}
+                        <button type="button" className={styles.collapsedCommentBtn} onClick={() => toggleCollapse(r.post.uri)}>
+                          {r.post.author?.avatar ? (
+                            <img src={r.post.author.avatar} alt="" className={styles.collapsedCommentAvatar} />
+                          ) : (
+                            <span className={styles.collapsedCommentAvatarPlaceholder} aria-hidden>{replyHandle.slice(0, 1).toUpperCase()}</span>
+                          )}
+                          <span className={styles.collapsedCommentHandle}>@{replyHandle}</span>
+                          <span className={styles.collapsedCommentLabel}>{label}</span>
                         </button>
                       </div>
                     )
