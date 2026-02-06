@@ -132,6 +132,49 @@ export function getPostMediaInfo(post: PostView): PostMediaInfo | null {
   return null
 }
 
+/** Returns all media items in a post (all images + video if any) for gallery view. */
+export function getPostAllMedia(post: PostView): Array<{ url: string; type: 'image' | 'video'; videoPlaylist?: string }> {
+  const out: Array<{ url: string; type: 'image' | 'video'; videoPlaylist?: string }> = []
+  const embed = post.embed as Record<string, unknown> | undefined
+  if (!embed) return out
+  const e = embed as {
+    $type?: string
+    images?: { thumb: string; fullsize: string }[]
+    thumbnail?: string
+    playlist?: string
+    media?: { $type?: string; images?: { fullsize?: string; thumb?: string }[]; thumbnail?: string; playlist?: string }
+  }
+  if (e.$type === 'app.bsky.embed.images#view' && e.images?.length) {
+    for (const img of e.images) {
+      out.push({ url: img.fullsize ?? img.thumb ?? '', type: 'image' })
+    }
+    return out
+  }
+  if (e.$type === 'app.bsky.embed.video#view') {
+    out.push({
+      url: e.thumbnail ?? '',
+      type: 'video',
+      videoPlaylist: e.playlist ?? undefined,
+    })
+    return out
+  }
+  const media = e.media
+  if (media?.$type === 'app.bsky.embed.images#view' && media.images?.length) {
+    for (const img of media.images) {
+      out.push({ url: img.fullsize ?? img.thumb ?? '', type: 'image' })
+    }
+    return out
+  }
+  if (media?.$type === 'app.bsky.embed.video#view') {
+    out.push({
+      url: media.thumbnail ?? '',
+      type: 'video',
+      videoPlaylist: media.playlist,
+    })
+  }
+  return out
+}
+
 /** @deprecated Use getPostMediaInfo. Returns first image or video thumbnail for card display. */
 export function getPostMediaUrl(post: PostView): { url: string; type: 'image' | 'video' } | null {
   const info = getPostMediaInfo(post)

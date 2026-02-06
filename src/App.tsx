@@ -5,6 +5,7 @@ import FeedPage from './pages/FeedPage'
 import ArtboardsPage from './pages/ArtboardsPage'
 import ArtboardDetailPage from './pages/ArtboardDetailPage'
 import PostDetailPage from './pages/PostDetailPage'
+import ProfilePage from './pages/ProfilePage'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { session, loading } = useSession()
@@ -54,6 +55,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <PostDetailPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/profile/:handle"
+        element={
+          <ProtectedRoute>
+            <ProfilePage />
           </ProtectedRoute>
         }
       />

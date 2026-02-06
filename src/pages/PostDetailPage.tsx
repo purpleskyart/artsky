@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import type { AppBskyFeedDefs } from '@atproto/api'
-import { agent, postReply, getPostMediaUrl } from '../lib/bsky'
+import { agent, postReply, getPostAllMedia, getPostMediaUrl } from '../lib/bsky'
 import { getArtboards, addPostToArtboard } from '../lib/artboards'
 import Layout from '../components/Layout'
 import styles from './PostDetailPage.module.css'
@@ -12,16 +12,43 @@ function isThreadViewPost(
   return node && typeof node === 'object' && 'post' in node && !!(node as AppBskyFeedDefs.ThreadViewPost).post
 }
 
+function MediaGallery({
+  items,
+}: {
+  items: Array<{ url: string; type: 'image' | 'video'; videoPlaylist?: string }>
+}) {
+  if (items.length === 0) return null
+  return (
+    <div className={styles.gallery}>
+      {items.map((m, i) =>
+        m.type === 'video' && m.videoPlaylist ? (
+          <video
+            key={i}
+            className={styles.galleryMedia}
+            src={m.videoPlaylist}
+            poster={m.url || undefined}
+            controls
+            playsInline
+            preload="metadata"
+          />
+        ) : (
+          <img key={i} src={m.url} alt="" className={styles.galleryMedia} />
+        )
+      )}
+    </div>
+  )
+}
+
 function PostBlock({
   node,
   depth = 0,
 }: {
-  node: AppBskyFeedDefs.ThreadViewPost | AppBskyFeedDefs.NotFoundPost | AppBskyFeedDefs.BlockedPost | { $type: string };
-  depth?: number;
+  node: AppBskyFeedDefs.ThreadViewPost | AppBskyFeedDefs.NotFoundPost | AppBskyFeedDefs.BlockedPost | { $type: string }
+  depth?: number
 }) {
   if (!isThreadViewPost(node)) return null
   const { post } = node
-  const media = getPostMediaUrl(post)
+  const allMedia = getPostAllMedia(post)
   const text = (post.record as { text?: string })?.text ?? ''
   const handle = post.author.handle ?? post.author.did
   const avatar = post.author.avatar ?? undefined
@@ -30,18 +57,23 @@ function PostBlock({
     <article className={styles.postBlock} style={{ marginLeft: depth * 12 }}>
       <div className={styles.postHead}>
         {avatar && <img src={avatar} alt="" className={styles.avatar} />}
-        <span className={styles.handle}>@{handle}</span>
+        <Link
+          to={`/profile/${encodeURIComponent(handle)}`}
+          className={styles.handleLink}
+        >
+          @{handle}
+        </Link>
       </div>
       {text && <p className={styles.postText}>{text}</p>}
-      {media && (
-        <div className={styles.postMedia}>
-          <img src={media.url} alt="" />
-        </div>
-      )}
+      {allMedia.length > 0 && <MediaGallery items={allMedia} />}
       {'replies' in node && Array.isArray(node.replies) && node.replies.length > 0 && (
         <div className={styles.replies}>
           {(node.replies as (typeof node)[]).map((r) => (
-            <PostBlock key={isThreadViewPost(r) ? r.post.uri : Math.random()} node={r} depth={depth + 1} />
+            <PostBlock
+              key={isThreadViewPost(r) ? r.post.uri : Math.random()}
+              node={r}
+              depth={depth + 1}
+            />
           ))}
         </div>
       )}
@@ -127,7 +159,7 @@ export default function PostDetailPage() {
         {thread && isThreadViewPost(thread) && (
           <>
             <PostBlock node={thread} />
-            <section className={styles.actions}>
+            <section className={styles.actions} aria-label="Add to artboard">
               <div className={styles.addToBoard}>
                 <label htmlFor="board-select">Add to artboard:</label>
                 <select
@@ -138,7 +170,9 @@ export default function PostDetailPage() {
                 >
                   <option value="">Choose…</option>
                   {boards.map((b) => (
-                    <option key={b.id} value={b.id}>{b.name}</option>
+                    <option key={b.id} value={b.id}>
+                      {b.name}
+                    </option>
                   ))}
                 </select>
                 {addToBoardId && (
@@ -148,7 +182,9 @@ export default function PostDetailPage() {
                 )}
               </div>
               {addedToBoard && (
-                <p className={styles.added}>Added to {boards.find((b) => b.id === addedToBoard)?.name}</p>
+                <p className={styles.added}>
+                  Added to {boards.find((b) => b.id === addedToBoard)?.name}
+                </p>
               )}
             </section>
             <form onSubmit={handlePostReply} className={styles.commentForm}>

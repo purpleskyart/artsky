@@ -40,6 +40,52 @@
   color: var(--muted);
 }
 
+.handleLink {
+  font-size: 0.9rem;
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.handleLink:hover {
+  text-decoration: underline;
+}
+
+.gallery {
+  margin-top: 0.5rem;
+  border-radius: 0.5rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+  display: flex;
+  flex-direction: row;
+  gap: 0.5rem;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+
+.galleryMedia {
+  width: 100%;
+  min-width: 100%;
+  max-height: 85vh;
+  object-fit: contain;
+  background: var(--bg);
+  display: block;
+  border-radius: 0.25rem;
+  scroll-snap-align: start;
+}
+
+@media (min-width: 600px) {
+  .gallery {
+    flex-wrap: wrap;
+    overflow: visible;
+    scroll-snap-type: none;
+  }
+  .galleryMedia {
+    min-width: 0;
+    flex: 1 1 45%;
+    max-width: 50%;
+  }
+}
+
 .postText {
   margin: 0 0 0.5rem;
   white-space: pre-wrap;

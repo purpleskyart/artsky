@@ -1,5 +1,6 @@
-import { useRef } from 'react'
+import { useRef, useEffect } from 'react'
 import { Link } from 'react-router-dom'
+import Hls from 'hls.js'
 import { getPostMediaInfo, type TimelineItem } from '../lib/bsky'
 import styles from './PostCard.module.css'
 
@@ -23,8 +24,13 @@ function ImagesIcon() {
   )
 }
 
+function isHlsUrl(url: string): boolean {
+  return /\.m3u8(\?|$)/i.test(url) || url.includes('m3u8')
+}
+
 export default function PostCard({ item }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null)
+  const hlsRef = useRef<Hls | null>(null)
   const { post } = item
   const media = getPostMediaInfo(post)
   const text = (post.record as { text?: string })?.text ?? ''
@@ -34,6 +40,29 @@ export default function PostCard({ item }: Props) {
 
   const isVideo = media.type === 'video' && media.videoPlaylist
   const isMultipleImages = media.type === 'image' && (media.imageCount ?? 0) > 1
+
+  useEffect(() => {
+    if (!isVideo || !media.videoPlaylist || !videoRef.current) return
+    const video = videoRef.current
+    const src = media.videoPlaylist
+    if (Hls.isSupported() && isHlsUrl(src)) {
+      const hls = new Hls()
+      hlsRef.current = hls
+      hls.loadSource(src)
+      hls.attachMedia(video)
+      hls.on(Hls.Events.ERROR, () => {})
+      return () => {
+        hls.destroy()
+        hlsRef.current = null
+      }
+    }
+    if (video.canPlayType('application/vnd.apple.mpegurl') || !isHlsUrl(src)) {
+      video.src = src
+      return () => {
+        video.removeAttribute('src')
+      }
+    }
+  }, [isVideo, media.videoPlaylist])
 
   function onMediaEnter() {
     if (videoRef.current) {
@@ -48,18 +77,29 @@ export default function PostCard({ item }: Props) {
     }
   }
 
+  function onMediaClick(e: React.MouseEvent) {
+    if (!isVideo || !videoRef.current) return
+    e.preventDefault()
+    e.stopPropagation()
+    const v = videoRef.current
+    if (v.paused) v.play().catch(() => {})
+    else v.pause()
+  }
+
   return (
     <Link to={`/post/${encodeURIComponent(post.uri)}`} className={styles.card}>
       <div
         className={styles.mediaWrap}
         onMouseEnter={onMediaEnter}
         onMouseLeave={onMediaLeave}
+        onClick={onMediaClick}
+        role={isVideo ? 'button' : undefined}
+        aria-label={isVideo ? 'Play video' : undefined}
       >
         {isVideo ? (
           <video
             ref={videoRef}
             className={styles.media}
-            src={media.videoPlaylist}
             poster={media.url || undefined}
             muted
             playsInline
@@ -72,9 +112,15 @@ export default function PostCard({ item }: Props) {
       </div>
       <div className={styles.meta}>
         <span className={styles.handleRow}>
-          <span className={styles.handle}>@{handle}</span>
+          <Link
+            to={`/profile/${encodeURIComponent(handle)}`}
+            className={styles.handleLink}
+            onClick={(e) => e.stopPropagation()}
+          >
+            @{handle}
+          </Link>
           {isVideo && (
-            <span className={styles.mediaBadge} title="Video – hover to play">
+            <span className={styles.mediaBadge} title="Video – hover or tap to play">
               <VideoIcon />
             </span>
           )}

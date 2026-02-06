@@ -41,6 +41,17 @@
   color: var(--muted);
 }
 
+.handleLink {
+  font-size: 0.8rem;
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.handleLink:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
 .mediaBadge {
   display: inline-flex;
   align-items: center;
