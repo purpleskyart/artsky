@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, useMemo } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import type { AppBskyFeedDefs } from '@atproto/api'
 import { agent, postReply, getPostAllMedia, getPostMediaUrl } from '../lib/bsky'
@@ -20,26 +20,119 @@ function MediaGallery({
   items: Array<{ url: string; type: 'image' | 'video'; videoPlaylist?: string }>
   autoPlayFirstVideo?: boolean
 }) {
+  const [fullscreenIndex, setFullscreenIndex] = useState<number | null>(null)
+  const imageIndices = useMemo(
+    () => items.map((m, i) => (m.type === 'image' ? i : -1)).filter((i) => i >= 0),
+    [items]
+  )
+
+  useEffect(() => {
+    if (fullscreenIndex === null) return
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') setFullscreenIndex(null)
+      if (e.key === 'ArrowLeft') {
+        const idx = imageIndices.indexOf(fullscreenIndex!)
+        if (idx > 0) setFullscreenIndex(imageIndices[idx - 1])
+      }
+      if (e.key === 'ArrowRight') {
+        const idx = imageIndices.indexOf(fullscreenIndex!)
+        if (idx >= 0 && idx < imageIndices.length - 1)
+          setFullscreenIndex(imageIndices[idx + 1])
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [fullscreenIndex, imageIndices])
+
   if (items.length === 0) return null
   const firstVideoIndex = autoPlayFirstVideo
     ? items.findIndex((m) => m.type === 'video' && m.videoPlaylist)
     : -1
+
+  const currentFullscreenItem =
+    fullscreenIndex != null ? items[fullscreenIndex] : null
+
   return (
-    <div className={styles.gallery}>
-      {items.map((m, i) => {
-        if (m.type === 'video' && m.videoPlaylist) {
+    <div className={styles.galleryWrap}>
+      <div className={styles.gallery}>
+        {items.map((m, i) => {
+          if (m.type === 'video' && m.videoPlaylist) {
+            return (
+              <VideoWithHls
+                key={i}
+                playlistUrl={m.videoPlaylist}
+                poster={m.url || undefined}
+                className={styles.galleryMedia}
+                autoPlay={i === firstVideoIndex}
+              />
+            )
+          }
           return (
-            <VideoWithHls
+            <button
               key={i}
-              playlistUrl={m.videoPlaylist}
-              poster={m.url || undefined}
-              className={styles.galleryMedia}
-              autoPlay={i === firstVideoIndex}
-            />
+              type="button"
+              className={styles.galleryImageBtn}
+              onClick={() => setFullscreenIndex(i)}
+              aria-label="View full screen"
+            >
+              <img src={m.url} alt="" className={styles.galleryMedia} />
+            </button>
           )
-        }
-        return <img key={i} src={m.url} alt="" className={styles.galleryMedia} />
-      })}
+        })}
+      </div>
+      {currentFullscreenItem?.type === 'image' && (
+        <div
+          className={styles.fullscreenOverlay}
+          onClick={() => setFullscreenIndex(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Image full screen"
+        >
+          <button
+            type="button"
+            className={styles.fullscreenClose}
+            onClick={() => setFullscreenIndex(null)}
+            aria-label="Close"
+          >
+            ×
+          </button>
+          {imageIndices.length > 1 && (
+            <>
+              <button
+                type="button"
+                className={styles.fullscreenPrev}
+                aria-label="Previous image"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  const idx = imageIndices.indexOf(fullscreenIndex!)
+                  if (idx > 0) setFullscreenIndex(imageIndices[idx - 1])
+                }}
+              >
+                ‹
+              </button>
+              <button
+                type="button"
+                className={styles.fullscreenNext}
+                aria-label="Next image"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  const idx = imageIndices.indexOf(fullscreenIndex!)
+                  if (idx < imageIndices.length - 1)
+                    setFullscreenIndex(imageIndices[idx + 1])
+                }}
+              >
+                ›
+              </button>
+            </>
+          )}
+          <img
+            src={currentFullscreenItem.url}
+            alt=""
+            className={styles.fullscreenImage}
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </div>
   )
 }
