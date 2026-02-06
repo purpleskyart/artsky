@@ -1,7 +1,5 @@
 .card {
   display: block;
-  break-inside: avoid;
-  margin-bottom: 0.5rem;
   border-radius: 0.75rem;
   overflow: hidden;
   background: var(--surface);

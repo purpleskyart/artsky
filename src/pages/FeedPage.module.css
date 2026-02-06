@@ -17,22 +17,23 @@
   padding: 2rem 1rem;
 }
 
+/* Grid: items flow left-to-right, row by row. "Load more" adds new rows at the bottom. */
 .masonry {
-  column-count: 2;
-  column-gap: 0.5rem;
-  /* Fill columns top-to-bottom so "Load more" appends below existing posts */
-  column-fill: auto;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  grid-auto-rows: auto;
+  gap: 0.5rem;
 }
 
 @media (min-width: 600px) {
   .masonry {
-    column-count: 3;
+    grid-template-columns: repeat(3, 1fr);
   }
 }
 
 @media (min-width: 900px) {
   .masonry {
-    column-count: 4;
+    grid-template-columns: repeat(4, 1fr);
   }
 }
 
