@@ -305,6 +305,7 @@ function PostBlock({
   switchAccount,
   currentDid,
   focusedCommentUri,
+  onCommentMediaFocus,
 }: {
   node: AppBskyFeedDefs.ThreadViewPost | AppBskyFeedDefs.NotFoundPost | AppBskyFeedDefs.BlockedPost | { $type: string }
   depth?: number
@@ -325,6 +326,7 @@ function PostBlock({
   switchAccount?: (did: string) => Promise<boolean>
   currentDid?: string
   focusedCommentUri?: string
+  onCommentMediaFocus?: (commentUri: string, mediaIndex: number) => void
 }) {
   if (!isThreadViewPost(node)) return null
   const { post } = node
@@ -382,7 +384,7 @@ function PostBlock({
           )}
         </div>
       </div>
-      {allMedia.length > 0 && <MediaGallery items={allMedia} />}
+      {allMedia.length > 0 && <MediaGallery items={allMedia} onFocusItem={(i) => onCommentMediaFocus?.(post.uri, i)} />}
       {text && (
         <p className={styles.postText}>
           <PostText text={text} facets={(post.record as { facets?: unknown[] })?.facets} />
@@ -500,6 +502,7 @@ function PostBlock({
                     switchAccount={switchAccount}
                     currentDid={currentDid}
                     focusedCommentUri={focusedCommentUri}
+                    onCommentMediaFocus={onCommentMediaFocus}
                   />
                 )
               })}
@@ -778,7 +781,30 @@ export default function PostDetailPage() {
   threadRepliesFlatRef.current = threadRepliesFlat
   keyboardFocusIndexRef.current = keyboardFocusIndex
 
-  const navTotalItems = rootMediaForNav.length + 1 + threadRepliesFlat.length + 1
+  type FocusItem = { type: 'rootMedia'; index: number } | { type: 'description' } | { type: 'commentMedia'; commentUri: string; mediaIndex: number } | { type: 'comment'; commentUri: string } | { type: 'replyForm' }
+  const focusItems = useMemo((): FocusItem[] => {
+    const items: FocusItem[] = []
+    for (let i = 0; i < rootMediaForNav.length; i++) items.push({ type: 'rootMedia', index: i })
+    items.push({ type: 'description' })
+    for (const flat of threadRepliesFlat) {
+      const node = findReplyByUri(threadReplies, flat.uri)
+      const media = node ? getPostAllMedia(node.post) : []
+      for (let i = 0; i < media.length; i++) items.push({ type: 'commentMedia', commentUri: flat.uri, mediaIndex: i })
+      items.push({ type: 'comment', commentUri: flat.uri })
+    }
+    items.push({ type: 'replyForm' })
+    return items
+  }, [rootMediaForNav.length, threadRepliesFlat, threadReplies])
+
+  const navTotalItems = focusItems.length
+  const handleCommentMediaFocus = useCallback((commentUri: string, mediaIndex: number) => {
+    const idx = focusItems.findIndex((it) => it.type === 'commentMedia' && it.commentUri === commentUri && it.mediaIndex === mediaIndex)
+    if (idx >= 0) {
+      setKeyboardFocusIndex(idx)
+      const commentIdx = threadRepliesFlat.findIndex((f) => f.uri === commentUri)
+      if (commentIdx >= 0) setFocusedCommentIndex(commentIdx)
+    }
+  }, [focusItems, threadRepliesFlat])
   const postUri = thread && isThreadViewPost(thread) ? thread.post.uri : null
   useEffect(() => {
     if (postUri) setKeyboardFocusIndex(0)
@@ -841,41 +867,53 @@ export default function PostDetailPage() {
       if (key !== 'w' && key !== 'a' && key !== 's') return
       if (!thread || !isThreadViewPost(thread)) return
 
-      const mediaCount = rootMediaForNav.length
-      const commentCount = threadRepliesFlat.length
-      const totalItems = mediaCount + 1 + commentCount + 1
+      const totalItems = focusItems.length
       if (totalItems <= 0) return
 
       const focusItemAtIndex = (idx: number) => {
-        setCommentFormFocused(idx === totalItems - 1)
-        if (idx < mediaCount) {
+        const item = focusItems[idx]
+        if (!item) return
+        setCommentFormFocused(item.type === 'replyForm')
+        if (item.type === 'rootMedia') {
           setPostSectionIndex(0)
           setFocusedCommentIndex(0)
           const items = mediaSectionRef.current?.querySelectorAll<HTMLElement>('[data-media-item]')
-          const el = items?.[idx]
+          const el = items?.[item.index]
           if (el) {
             requestAnimationFrame(() => {
               el.focus()
               el.scrollIntoView({ behavior: 'smooth', block: 'start' })
             })
           }
-        } else if (idx === mediaCount) {
+        } else if (item.type === 'description') {
           setPostSectionIndex(hasMediaSection ? 1 : 0)
           setFocusedCommentIndex(0)
           requestAnimationFrame(() => {
             descriptionSectionRef.current?.focus()
             descriptionSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
           })
-        } else if (idx < mediaCount + 1 + commentCount) {
-          const commentIdx = idx - (mediaCount + 1)
+        } else if (item.type === 'commentMedia') {
           setPostSectionIndex(postSectionCount - 1)
-          setFocusedCommentIndex(commentIdx)
-          const uri = threadRepliesFlat[commentIdx]?.uri
+          const commentIdx = threadRepliesFlat.findIndex((f) => f.uri === item.commentUri)
+          setFocusedCommentIndex(commentIdx >= 0 ? commentIdx : 0)
           requestAnimationFrame(() => {
-            if (!uri) return
             const commentsSection = commentsSectionRef.current
-            const nodes = commentsSection?.querySelectorAll<HTMLElement>('[data-comment-uri]')
-            const el = nodes ? Array.from(nodes).find((n) => n.getAttribute('data-comment-uri') === uri) : null
+            if (!commentsSection) return
+            const commentEl = Array.from(commentsSection.querySelectorAll<HTMLElement>('[data-comment-uri]')).find((n) => n.getAttribute('data-comment-uri') === item.commentUri)
+            const mediaEl = commentEl?.querySelectorAll<HTMLElement>('[data-media-item]')?.[item.mediaIndex]
+            if (mediaEl) {
+              mediaEl.focus()
+              mediaEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+            }
+          })
+        } else if (item.type === 'comment') {
+          setPostSectionIndex(postSectionCount - 1)
+          const commentIdx = threadRepliesFlat.findIndex((f) => f.uri === item.commentUri)
+          setFocusedCommentIndex(commentIdx >= 0 ? commentIdx : 0)
+          requestAnimationFrame(() => {
+            const commentsSection = commentsSectionRef.current
+            if (!commentsSection) return
+            const el = Array.from(commentsSection.querySelectorAll<HTMLElement>('[data-comment-uri]')).find((n) => n.getAttribute('data-comment-uri') === item.commentUri)
             if (el) {
               el.focus()
               el.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
@@ -883,7 +921,7 @@ export default function PostDetailPage() {
           })
         } else {
           setPostSectionIndex(postSectionCount - 1)
-          setFocusedCommentIndex(commentCount - 1)
+          setFocusedCommentIndex(threadRepliesFlat.length - 1)
           requestAnimationFrame(() => {
             commentFormWrapRef.current?.focus()
             commentFormWrapRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
@@ -901,7 +939,7 @@ export default function PostDetailPage() {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [postSectionCount, postSectionIndex, hasRepliesSection, threadRepliesFlat, focusedCommentIndex, commentFormFocused, thread, hasMediaSection, handleReplyTo, rootMediaForNav.length, navigate])
+  }, [postSectionCount, postSectionIndex, hasRepliesSection, threadRepliesFlat, focusedCommentIndex, commentFormFocused, thread, hasMediaSection, handleReplyTo, rootMediaForNav.length, navigate, focusItems])
 
   useEffect(() => {
     if (postSectionCount <= 1) return
@@ -1117,19 +1155,33 @@ export default function PostDetailPage() {
                 ref={commentsSectionRef}
                 className={styles.replies}
                 onFocusCapture={(e) => {
-                  const commentEl = (e.target as HTMLElement).closest?.('[data-comment-uri]') as HTMLElement | null
+                  const target = e.target as HTMLElement
+                  const commentEl = target.closest?.('[data-comment-uri]') as HTMLElement | null
                   if (!commentEl) return
                   const uri = commentEl.getAttribute('data-comment-uri')
                   if (!uri) return
-                  const idx = threadRepliesFlat.findIndex((f) => f.uri === uri)
-                  if (idx >= 0) setKeyboardFocusIndex(rootMediaForNav.length + 1 + idx)
+                  const mediaEl = target.closest?.('[data-media-item]') as HTMLElement | null
+                  if (mediaEl) {
+                    const mi = mediaEl.getAttribute('data-media-item')
+                    if (mi != null) {
+                      const idx = focusItems.findIndex((it) => it.type === 'commentMedia' && it.commentUri === uri && it.mediaIndex === parseInt(mi, 10))
+                      if (idx >= 0) setKeyboardFocusIndex(idx)
+                    }
+                    return
+                  }
+                  const idx = focusItems.findIndex((it) => it.type === 'comment' && it.commentUri === uri)
+                  if (idx >= 0) {
+                    setKeyboardFocusIndex(idx)
+                    const commentIdx = threadRepliesFlat.findIndex((f) => f.uri === uri)
+                    if (commentIdx >= 0) setFocusedCommentIndex(commentIdx)
+                  }
                 }}
               >
                 {threadReplies.map((r) => {
-                  const commentFocusIndex = keyboardFocusIndex - (rootMediaForNav.length + 1)
-                  const focusedCommentUri = commentFocusIndex >= 0 && commentFocusIndex < threadRepliesFlat.length ? threadRepliesFlat[commentFocusIndex]?.uri : undefined
-                  const flatIndex = threadRepliesFlat.findIndex((f) => f.uri === r.post.uri)
-                  const isFocusedCollapsed = hasRepliesSection && flatIndex >= 0 && flatIndex === commentFocusIndex
+                  const currentItem = focusItems[keyboardFocusIndex]
+                  const focusedCommentUri = (currentItem?.type === 'comment' || currentItem?.type === 'commentMedia') ? currentItem.commentUri : undefined
+                  const commentContentFocusIndex = focusItems.findIndex((it) => it.type === 'comment' && it.commentUri === r.post.uri)
+                  const isFocusedCollapsed = hasRepliesSection && currentItem?.type === 'comment' && currentItem.commentUri === r.post.uri
                   if (collapsedThreads.has(r.post.uri)) {
                     const replyCount = 'replies' in r && Array.isArray(r.replies) ? (r.replies as unknown[]).length : 0
                     const label = replyCount === 0 ? 'Comment' : `${replyCount} reply${replyCount !== 1 ? 's' : ''}`
@@ -1141,7 +1193,7 @@ export default function PostDetailPage() {
                         tabIndex={-1}
                         className={`${styles.collapsedCommentWrap} ${isFocusedCollapsed ? styles.commentFocused : ''}`}
                         style={{ marginLeft: 0 }}
-                        onFocus={() => setKeyboardFocusIndex(rootMediaForNav.length + 1 + flatIndex)}
+                        onFocus={() => commentContentFocusIndex >= 0 && setKeyboardFocusIndex(commentContentFocusIndex)}
                       >
                         <button type="button" className={styles.collapsedCommentBtn} onClick={() => toggleCollapse(r.post.uri)}>
                           <span className={styles.collapsedCommentExpandIcon} aria-hidden>+</span>
@@ -1178,6 +1230,7 @@ export default function PostDetailPage() {
                         switchAccount={switchAccount}
                         currentDid={sessionFromContext?.did ?? undefined}
                         focusedCommentUri={focusedCommentUri}
+                        onCommentMediaFocus={handleCommentMediaFocus}
                       />
                     </div>
                   )
@@ -1190,7 +1243,7 @@ export default function PostDetailPage() {
                   ref={commentFormWrapRef}
                   tabIndex={-1}
                   className={commentFormFocused ? styles.commentFormWrapFocused : undefined}
-                  onFocus={() => setKeyboardFocusIndex(rootMediaForNav.length + 1 + threadRepliesFlat.length)}
+                  onFocus={() => setKeyboardFocusIndex(focusItems.length - 1)}
                   onBlur={() => {
                     requestAnimationFrame(() => {
                       if (!commentFormRef.current?.contains(document.activeElement)) setCommentFormFocused(false)
