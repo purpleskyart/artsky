@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, Link } from 'react-router-dom'
 import { agent, getPostMediaInfo, getSession, type TimelineItem } from '../lib/bsky'
 import PostCard from '../components/PostCard'
 import Layout from '../components/Layout'
@@ -7,7 +7,7 @@ import styles from './ProfilePage.module.css'
 
 const REASON_REPOST = 'app.bsky.feed.defs#reasonRepost'
 
-type ProfileTab = 'posts' | 'reposts' | 'liked' | 'feeds'
+type ProfileTab = 'posts' | 'reposts' | 'liked' | 'text' | 'feeds'
 
 type ProfileState = {
   displayName?: string
@@ -139,6 +139,8 @@ export default function ProfilePage() {
   const authorFeedItems = tab === 'posts' ? items.filter((i) => !isRepost(i)) : tab === 'reposts' ? items.filter(isRepost) : items
   const mediaItems = authorFeedItems.filter((item) => getPostMediaInfo(item.post))
   const likedMediaItems = likedItems.filter((item) => getPostMediaInfo(item.post))
+  const postText = (post: TimelineItem['post']) => (post.record as { text?: string })?.text?.trim() ?? ''
+  const textItems = authorFeedItems.filter((item) => postText(item.post).length > 0)
 
   async function handleFollow() {
     if (!profile || followLoading || isFollowing) return
@@ -246,6 +248,13 @@ export default function ProfilePage() {
           )}
           <button
             type="button"
+            className={`${styles.tab} ${tab === 'text' ? styles.tabActive : ''}`}
+            onClick={() => setTab('text')}
+          >
+            Text
+          </button>
+          <button
+            type="button"
             className={`${styles.tab} ${tab === 'feeds' ? styles.tabActive : ''}`}
             onClick={() => setTab('feeds')}
           >
@@ -255,6 +264,32 @@ export default function ProfilePage() {
         {error && <p className={styles.error}>{error}</p>}
         {loading ? (
           <div className={styles.loading}>Loading…</div>
+        ) : tab === 'text' ? (
+          textItems.length === 0 ? (
+            <div className={styles.empty}>No posts with text.</div>
+          ) : (
+            <>
+              <ul className={styles.textList}>
+                {textItems.map((item) => (
+                  <li key={item.post.uri}>
+                    <Link to={`/post/${encodeURIComponent(item.post.uri)}`} className={styles.textLink}>
+                      <span className={styles.textSnippet}>{postText(item.post).slice(0, 200)}{postText(item.post).length > 200 ? '…' : ''}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+              {cursor && (
+                <button
+                  type="button"
+                  className={styles.more}
+                  onClick={() => load(cursor)}
+                  disabled={loadingMore}
+                >
+                  {loadingMore ? 'Loading…' : 'Load more'}
+                </button>
+              )}
+            </>
+          )
         ) : tab === 'feeds' ? (
           feeds.length === 0 ? (
             <div className={styles.empty}>No feeds.</div>
