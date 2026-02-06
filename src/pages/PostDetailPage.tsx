@@ -4,6 +4,7 @@ import type { AppBskyFeedDefs } from '@atproto/api'
 import { agent, postReply, getPostAllMedia, getPostMediaUrl } from '../lib/bsky'
 import { getArtboards, addPostToArtboard } from '../lib/artboards'
 import Layout from '../components/Layout'
+import VideoWithHls from '../components/VideoWithHls'
 import styles from './PostDetailPage.module.css'
 
 function isThreadViewPost(
@@ -22,14 +23,11 @@ function MediaGallery({
     <div className={styles.gallery}>
       {items.map((m, i) =>
         m.type === 'video' && m.videoPlaylist ? (
-          <video
+          <VideoWithHls
             key={i}
-            className={styles.galleryMedia}
-            src={m.videoPlaylist}
+            playlistUrl={m.videoPlaylist}
             poster={m.url || undefined}
-            controls
-            playsInline
-            preload="metadata"
+            className={styles.galleryMedia}
           />
         ) : (
           <img key={i} src={m.url} alt="" className={styles.galleryMedia} />
@@ -151,6 +149,9 @@ export default function PostDetailPage() {
     return null
   }
 
+  const rootMedia =
+    thread && isThreadViewPost(thread) ? getPostAllMedia(thread.post) : []
+
   return (
     <Layout title="Post" showNav>
       <div className={styles.wrap}>
@@ -158,7 +159,25 @@ export default function PostDetailPage() {
         {error && <p className={styles.error}>{error}</p>}
         {thread && isThreadViewPost(thread) && (
           <>
-            <PostBlock node={thread} />
+            <article className={styles.postBlock}>
+              <div className={styles.postHead}>
+                {thread.post.author.avatar && (
+                  <img src={thread.post.author.avatar} alt="" className={styles.avatar} />
+                )}
+                <Link
+                  to={`/profile/${encodeURIComponent(thread.post.author.handle ?? thread.post.author.did)}`}
+                  className={styles.handleLink}
+                >
+                  @{thread.post.author.handle ?? thread.post.author.did}
+                </Link>
+              </div>
+              {(thread.post.record as { text?: string })?.text && (
+                <p className={styles.postText}>
+                  {(thread.post.record as { text?: string }).text}
+                </p>
+              )}
+              {rootMedia.length > 0 && <MediaGallery items={rootMedia} />}
+            </article>
             <section className={styles.actions} aria-label="Add to artboard">
               <div className={styles.addToBoard}>
                 <label htmlFor="board-select">Add to artboard:</label>
@@ -187,6 +206,17 @@ export default function PostDetailPage() {
                 </p>
               )}
             </section>
+            {'replies' in thread && Array.isArray(thread.replies) && thread.replies.length > 0 && (
+              <div className={styles.replies}>
+                {(thread.replies as (typeof thread)[]).map((r) => (
+                  <PostBlock
+                    key={isThreadViewPost(r) ? r.post.uri : Math.random()}
+                    node={r}
+                    depth={0}
+                  />
+                ))}
+              </div>
+            )}
             <form onSubmit={handlePostReply} className={styles.commentForm}>
               <textarea
                 placeholder="Write a comment…"
