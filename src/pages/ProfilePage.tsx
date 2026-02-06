@@ -49,7 +49,7 @@ export default function ProfilePage() {
   const [tabsBarVisible, setTabsBarVisible] = useState(true)
   const lastScrollYRef = useRef(0)
   const touchStartXRef = useRef(0)
-  const SWIPE_THRESHOLD = 50
+  const SWIPE_THRESHOLD = 100
   const SCROLL_THRESHOLD = 8
 
   useEffect(() => {

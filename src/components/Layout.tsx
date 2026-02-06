@@ -238,6 +238,7 @@ export default function Layout({ title, children, showNav, showColumnView = true
   const [notificationsLoading, setNotificationsLoading] = useState(false)
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false)
   const [composeOpen, setComposeOpen] = useState(false)
+  const [composeOverlayBottom, setComposeOverlayBottom] = useState(0)
   const [composeText, setComposeText] = useState('')
   const [composeImages, setComposeImages] = useState<File[]>([])
   const [composePosting, setComposePosting] = useState(false)
@@ -338,6 +339,23 @@ export default function Layout({ title, children, showNav, showColumnView = true
     }
   }, [mobileSearchOpen])
 
+  useEffect(() => {
+    if (!composeOpen || isDesktop || typeof window === 'undefined') return
+    const vv = window.visualViewport
+    if (!vv) return
+    const viewport = vv
+    function update() {
+      setComposeOverlayBottom(window.innerHeight - (viewport.offsetTop + viewport.height))
+    }
+    update()
+    viewport.addEventListener('resize', update)
+    viewport.addEventListener('scroll', update)
+    return () => {
+      viewport.removeEventListener('resize', update)
+      viewport.removeEventListener('scroll', update)
+    }
+  }, [composeOpen, isDesktop])
+
   function closeMobileSearch() {
     setMobileSearchOpen(false)
     searchInputRef.current?.blur()
@@ -385,6 +403,7 @@ export default function Layout({ title, children, showNav, showColumnView = true
     setComposeOpen(true)
     setComposeText('')
     setComposeError(null)
+    setComposeOverlayBottom(0)
   }
 
   function closeCompose() {
@@ -659,7 +678,7 @@ export default function Layout({ title, children, showNav, showColumnView = true
 
   return (
     <div className={`${styles.wrap} ${showNav ? styles.wrapWithHeader : ''}`}>
-      <header className={`${styles.header} ${showNav && !session ? styles.headerLoggedOut : ''}`}>
+      <header className={`${styles.header} ${showNav && !session ? styles.headerLoggedOut : ''} ${showNav && !isDesktop && !navVisible ? styles.headerHidden : ''}`}>
         {showNav && (
           <>
             <div className={styles.headerLeft}>
@@ -894,12 +913,13 @@ export default function Layout({ title, children, showNav, showColumnView = true
                 aria-hidden
               />
               <div
-                className={styles.composeOverlay}
+                className={`${styles.composeOverlay} ${!isDesktop ? styles.composeOverlayMobile : ''}`}
                 role="dialog"
                 aria-label="New post"
                 onClick={closeCompose}
                 onDragOver={handleComposeDragOver}
                 onDrop={handleComposeDrop}
+                style={!isDesktop ? { bottom: composeOverlayBottom } : undefined}
               >
                 <div className={styles.composeCard} onClick={(e) => e.stopPropagation()}>
                   <h2 className={styles.composeTitle}>New post</h2>
@@ -918,7 +938,7 @@ export default function Layout({ title, children, showNav, showColumnView = true
                         rows={4}
                         maxLength={POST_MAX_LENGTH}
                         disabled={composePosting}
-                        autoFocus
+                        autoFocus={isDesktop}
                       />
                       {composeImages.length > 0 && (
                         <div className={styles.composePreviews}>

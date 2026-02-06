@@ -26,6 +26,12 @@
   z-index: 1;
 }
 
+@media (max-width: 767px) {
+  .cardSelected {
+    outline: none;
+  }
+}
+
 .cardLink:hover {
   text-decoration: none;
 }
@@ -37,6 +43,12 @@
 .cardLink:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+@media (max-width: 767px) {
+  .cardLink:focus-visible {
+    outline: none;
+  }
 }
 
 .addWrap {

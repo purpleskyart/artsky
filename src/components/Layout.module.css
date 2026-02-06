@@ -43,6 +43,19 @@
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
+  transition: transform 0.25s ease;
+}
+
+@media (max-width: 767px) {
+  .headerHidden {
+    transform: translateY(-100%);
+  }
+  .headerRight {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    flex-shrink: 0;
+  }
 }
 
 /* Logged-out: show Log in + Create account in header on mobile and desktop */
@@ -618,6 +631,15 @@
   padding-left: max(1rem, env(safe-area-inset-left));
   padding-right: max(1rem, env(safe-area-inset-right));
   pointer-events: auto;
+}
+
+@media (max-width: 767px) {
+  .composeOverlayMobile {
+    align-items: flex-end;
+    justify-content: center;
+    padding-bottom: 1rem;
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+  }
 }
 
 .composeCard {

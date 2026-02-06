@@ -160,6 +160,13 @@
   gap: 0.5rem;
   --feed-card-media-max-height: min(calc(100vh - 10rem), 85vh);
 }
+
+@media (max-width: 767px) {
+  /* Allow vertical videos to show fully on mobile (taller max-height) */
+  .gridView1 {
+    --feed-card-media-max-height: min(100dvh - 4rem, 92dvh);
+  }
+}
 .gridView2 { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.5rem; }
 .gridView3 { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.5rem; }
 
