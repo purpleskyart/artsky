@@ -6,7 +6,7 @@ import { getArtboards, createArtboard, addPostToArtboard, isPostInArtboard } fro
 import PostText from './PostText'
 import styles from './PostCard.module.css'
 
-const LONG_PRESS_MS = 2000
+const LONG_PRESS_MS = 350
 
 interface Props {
   item: TimelineItem
@@ -72,10 +72,13 @@ export default function PostCard({ item }: Props) {
   const [addToBoardIds, setAddToBoardIds] = useState<Set<string>>(new Set())
   const [newBoardName, setNewBoardName] = useState('')
   const [showLongPressMenu, setShowLongPressMenu] = useState(false)
+  const [longPressPosition, setLongPressPosition] = useState({ x: 0, y: 0 })
   const addRef = useRef<HTMLDivElement>(null)
+  const cardRef = useRef<HTMLDivElement>(null)
   const longPressMenuRef = useRef<HTMLDivElement>(null)
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const didLongPressRef = useRef(false)
+  const longPressPositionRef = useRef({ x: 0, y: 0 })
 
   const clearLongPressTimer = useCallback(() => {
     if (longPressTimerRef.current !== null) {
@@ -84,11 +87,18 @@ export default function PostCard({ item }: Props) {
     }
   }, [])
 
-  const startLongPressTimer = useCallback(() => {
+  const startLongPressTimer = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY
+    if (cardRef.current) {
+      const rect = cardRef.current.getBoundingClientRect()
+      longPressPositionRef.current = { x: clientX - rect.left, y: clientY - rect.top }
+    }
     clearLongPressTimer()
     longPressTimerRef.current = setTimeout(() => {
       longPressTimerRef.current = null
       didLongPressRef.current = true
+      setLongPressPosition(longPressPositionRef.current)
       setShowLongPressMenu(true)
     }, LONG_PRESS_MS)
   }, [clearLongPressTimer])
@@ -238,17 +248,17 @@ export default function PostCard({ item }: Props) {
   }
 
   return (
-    <div className={styles.card}>
+    <div ref={cardRef} className={styles.card}>
       <div
         role="button"
         tabIndex={0}
         className={styles.cardLink}
         onClick={handleCardClick}
         onKeyDown={(e) => e.key === 'Enter' && navigate(`/post/${encodeURIComponent(post.uri)}`)}
-        onMouseDown={startLongPressTimer}
+        onMouseDown={(e) => startLongPressTimer(e)}
         onMouseUp={clearLongPressTimer}
         onMouseLeave={clearLongPressTimer}
-        onTouchStart={startLongPressTimer}
+        onTouchStart={(e) => startLongPressTimer(e)}
         onTouchEnd={clearLongPressTimer}
         onTouchCancel={clearLongPressTimer}
       >
@@ -423,6 +433,10 @@ export default function PostCard({ item }: Props) {
           className={styles.longPressOverlay}
           role="menu"
           aria-label="Post actions"
+          style={{
+            left: longPressPosition.x,
+            top: longPressPosition.y,
+          }}
         >
           <button
             type="button"
