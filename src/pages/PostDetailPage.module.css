@@ -14,11 +14,41 @@
 }
 
 .postBlock {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 0.75rem;
   padding: 1rem;
   margin-bottom: 0.75rem;
+}
+
+.collapseStrip {
+  width: 14px;
+  min-width: 14px;
+  flex-shrink: 0;
+  margin: -1rem 0.5rem -1rem -1rem;
+  background: var(--border);
+  border: none;
+  border-radius: 0.75rem 0 0 0.75rem;
+  cursor: pointer;
+  padding: 0;
+}
+
+.collapseStrip:hover {
+  background: var(--accent);
+  opacity: 0.8;
+}
+
+.collapseStrip:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.postBlockContent {
+  flex: 1;
+  min-width: 0;
 }
 
 .postHead {
@@ -566,8 +596,25 @@
   gap: 0.5rem;
 }
 
-.inlineReplyForm {
+.inlineReplyFormWrap {
   margin-top: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: var(--bg);
+  border: 1px solid var(--accent);
+  border-radius: 0.5rem;
+  border-left-width: 3px;
+}
+
+.inlineReplyFormLabel {
+  margin: 0 0 0.5rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.inlineReplyForm {
   display: flex;
   flex-direction: column;
   gap: 0.4rem;

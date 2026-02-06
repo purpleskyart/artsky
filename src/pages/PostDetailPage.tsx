@@ -189,6 +189,16 @@ function PostBlock({
 
   return (
     <article className={styles.postBlock} style={{ marginLeft: depth * 12 }}>
+      {canCollapse && (
+        <button
+          type="button"
+          className={styles.collapseStrip}
+          onClick={() => onToggleCollapse?.(post.uri)}
+          aria-label={isCollapsed ? 'Expand this comment' : 'Collapse this comment'}
+          title={isCollapsed ? 'Expand this comment' : 'Collapse this comment'}
+        />
+      )}
+      <div className={styles.postBlockContent}>
       <div className={styles.postHead}>
         {avatar && <img src={avatar} alt="" className={styles.avatar} />}
         <div className={styles.authorRow}>
@@ -226,43 +236,46 @@ function PostBlock({
         </div>
       )}
       {isReplyTarget && replyingTo && setReplyComment && onReplySubmit && clearReplyingTo && commentFormRef && (
-        <form ref={commentFormRef} onSubmit={onReplySubmit} className={styles.inlineReplyForm}>
-          {replyAs && (
-            <p className={styles.replyAs}>
-              {replyAs.avatar ? (
-                <img src={replyAs.avatar} alt="" className={styles.replyAsAvatar} />
-              ) : (
-                <span className={styles.replyAsAvatarPlaceholder} aria-hidden>{replyAs.handle.slice(0, 1).toUpperCase()}</span>
-              )}
-              <span className={styles.replyAsHandle}>@{replyAs.handle}</span>
+        <div className={styles.inlineReplyFormWrap}>
+          <p className={styles.inlineReplyFormLabel}>Your reply</p>
+          <form ref={commentFormRef} onSubmit={onReplySubmit} className={styles.inlineReplyForm}>
+            {replyAs && (
+              <p className={styles.replyAs}>
+                {replyAs.avatar ? (
+                  <img src={replyAs.avatar} alt="" className={styles.replyAsAvatar} />
+                ) : (
+                  <span className={styles.replyAsAvatarPlaceholder} aria-hidden>{replyAs.handle.slice(0, 1).toUpperCase()}</span>
+                )}
+                <span className={styles.replyAsHandle}>Replying as @{replyAs.handle}</span>
+              </p>
+            )}
+            <p className={styles.replyingTo}>
+              Replying to @{replyingTo.handle}
+              <button type="button" className={styles.cancelReply} onClick={clearReplyingTo} aria-label="Cancel reply">
+                ×
+              </button>
             </p>
-          )}
-          <p className={styles.replyingTo}>
-            Replying to @{replyingTo.handle}
-            <button type="button" className={styles.cancelReply} onClick={clearReplyingTo} aria-label="Cancel reply">
-              ×
+            <textarea
+              placeholder={`Reply to @${replyingTo.handle}…`}
+              value={replyComment ?? ''}
+              onChange={(e) => setReplyComment(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && e.metaKey) {
+                  e.preventDefault()
+                  if ((replyComment ?? '').trim() && !replyPosting) commentFormRef.current?.requestSubmit()
+                }
+              }}
+              className={styles.textarea}
+              rows={2}
+              maxLength={300}
+              autoFocus
+            />
+            <p className={styles.hint}>⌘ Enter to post</p>
+            <button type="submit" className={styles.submit} disabled={replyPosting || !(replyComment ?? '').trim()}>
+              {replyPosting ? 'Posting…' : 'Post reply'}
             </button>
-          </p>
-          <textarea
-            placeholder={`Reply to @${replyingTo.handle}…`}
-            value={replyComment ?? ''}
-            onChange={(e) => setReplyComment(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && e.metaKey) {
-                e.preventDefault()
-                if ((replyComment ?? '').trim() && !replyPosting) commentFormRef.current?.requestSubmit()
-              }
-            }}
-            className={styles.textarea}
-            rows={2}
-            maxLength={300}
-            autoFocus
-          />
-          <p className={styles.hint}>⌘ Enter to post</p>
-          <button type="submit" className={styles.submit} disabled={replyPosting || !(replyComment ?? '').trim()}>
-            {replyPosting ? 'Posting…' : 'Post reply'}
-          </button>
-        </form>
+          </form>
+        </div>
       )}
       {hasReplies && (
         <div className={styles.repliesContainer}>
@@ -307,6 +320,7 @@ function PostBlock({
           )}
         </div>
       )}
+      </div>
     </article>
   )
 }
@@ -703,18 +717,20 @@ export default function PostDetailPage() {
               </div>
             )}
             {!replyingTo && (
-              <form ref={commentFormRef} onSubmit={handlePostReply} className={styles.commentForm}>
-                {replyAs && (
-                  <p className={styles.replyAs}>
-                    {replyAs.avatar ? (
-                      <img src={replyAs.avatar} alt="" className={styles.replyAsAvatar} />
-                    ) : (
-                      <span className={styles.replyAsAvatarPlaceholder} aria-hidden>{replyAs.handle.slice(0, 1).toUpperCase()}</span>
-                    )}
-                    <span className={styles.replyAsHandle}>@{replyAs.handle}</span>
-                  </p>
-                )}
-                <textarea
+              <div className={styles.inlineReplyFormWrap}>
+                <p className={styles.inlineReplyFormLabel}>Your reply</p>
+                <form ref={commentFormRef} onSubmit={handlePostReply} className={styles.commentForm}>
+                  {replyAs && (
+                    <p className={styles.replyAs}>
+                      {replyAs.avatar ? (
+                        <img src={replyAs.avatar} alt="" className={styles.replyAsAvatar} />
+                      ) : (
+                        <span className={styles.replyAsAvatarPlaceholder} aria-hidden>{replyAs.handle.slice(0, 1).toUpperCase()}</span>
+                      )}
+                      <span className={styles.replyAsHandle}>Replying as @{replyAs.handle}</span>
+                    </p>
+                  )}
+                  <textarea
                   placeholder="Write a comment…"
                   value={comment}
                   onChange={(e) => setComment(e.target.value)}
@@ -733,6 +749,7 @@ export default function PostDetailPage() {
                   {posting ? 'Posting…' : 'Post comment'}
                 </button>
               </form>
+              </div>
             )}
           </>
         )}
