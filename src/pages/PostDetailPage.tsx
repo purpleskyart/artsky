@@ -271,19 +271,19 @@ function PostBlock({
 
   return (
     <article className={styles.postBlock} style={{ marginLeft: depth * 12 }}>
-      {canCollapse && (
-        <button
-          type="button"
-          className={styles.collapseStrip}
-          onClick={() => onToggleCollapse?.(post.uri)}
-          aria-label={isCollapsed ? 'Expand this comment' : 'Collapse this comment'}
-          title={isCollapsed ? 'Expand this comment' : 'Collapse this comment'}
-        >
-          <span className={styles.collapseStripIcon} aria-hidden>−</span>
-        </button>
-      )}
       <div className={styles.postBlockContent}>
       <div className={styles.postHead}>
+        {canCollapse && (
+          <button
+            type="button"
+            className={styles.collapseBtn}
+            onClick={() => onToggleCollapse?.(post.uri)}
+            aria-label={isCollapsed ? 'Expand this comment' : 'Collapse this comment'}
+            title={isCollapsed ? 'Expand this comment' : 'Collapse this comment'}
+          >
+            <span className={styles.collapseIcon} aria-hidden>−</span>
+          </button>
+        )}
         {avatar && <img src={avatar} alt="" className={styles.avatar} />}
         <div className={styles.authorRow}>
           <Link
@@ -658,12 +658,30 @@ export default function PostDetailPage() {
   const threadReplies = thread && isThreadViewPost(thread) && 'replies' in thread && Array.isArray(thread.replies)
     ? (thread.replies as (typeof thread)[]).filter((r): r is AppBskyFeedDefs.ThreadViewPost => isThreadViewPost(r))
     : []
+  const threadRepliesRef = useRef<(typeof threadReplies)[number][]>([])
+  threadRepliesRef.current = threadReplies
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable) return
       const key = e.key.toLowerCase()
+      if (key === 'r') {
+        const t = thread
+        if (!t || !isThreadViewPost(t)) return
+        e.preventDefault()
+        const inCommentsSection = hasRepliesSection && postSectionIndex === postSectionCount - 1
+        const replies = threadRepliesRef.current
+        if (inCommentsSection && replies.length > 0 && focusedCommentIndex >= 0 && focusedCommentIndex < replies.length) {
+          const reply = replies[focusedCommentIndex]
+          const handle = reply.post.author?.handle ?? reply.post.author?.did ?? ''
+          handleReplyTo(reply.post.uri, reply.post.cid, handle)
+        } else if (postSectionIndex === (hasMediaSection ? 1 : 0)) {
+          const handle = t.post.author?.handle ?? t.post.author?.did ?? ''
+          handleReplyTo(t.post.uri, t.post.cid, handle)
+        }
+        return
+      }
       if (key !== 'w' && key !== 'a' && key !== 's') return
       if (postSectionCount <= 1) return
       e.preventDefault()
@@ -686,7 +704,7 @@ export default function PostDetailPage() {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [postSectionCount, postSectionIndex, hasRepliesSection, threadReplies.length])
+  }, [postSectionCount, postSectionIndex, hasRepliesSection, threadReplies.length, focusedCommentIndex, thread, hasMediaSection, handleReplyTo])
 
   useEffect(() => {
     if (postSectionCount <= 1) return
@@ -737,7 +755,10 @@ export default function PostDetailPage() {
                   <MediaGallery items={rootMedia} autoPlayFirstVideo />
                 </div>
               )}
-              <div ref={descriptionSectionRef}>
+              <div
+                ref={descriptionSectionRef}
+                className={postSectionIndex === (hasMediaSection ? 1 : 0) ? styles.sectionFocused : undefined}
+              >
                 <div className={styles.postHead}>
                   {thread.post.author.avatar && (
                     <img src={thread.post.author.avatar} alt="" className={styles.avatar} />
@@ -887,7 +908,12 @@ export default function PostDetailPage() {
                     const label = replyCount === 0 ? 'Comment' : `${replyCount} reply${replyCount !== 1 ? 's' : ''}`
                     const replyHandle = r.post.author?.handle ?? r.post.author?.did ?? ''
                     return (
-                      <div key={r.post.uri} ref={(el) => { commentRefsRef.current[idx] = el }} className={styles.collapsedCommentWrap} style={{ marginLeft: 0 }}>
+                      <div
+                        key={r.post.uri}
+                        ref={(el) => { commentRefsRef.current[idx] = el }}
+                        className={`${styles.collapsedCommentWrap} ${hasRepliesSection && postSectionIndex === postSectionCount - 1 && idx === focusedCommentIndex ? styles.commentFocused : ''}`}
+                        style={{ marginLeft: 0 }}
+                      >
                         <button type="button" className={styles.collapsedCommentBtn} onClick={() => toggleCollapse(r.post.uri)}>
                           <span className={styles.collapsedCommentExpandIcon} aria-hidden>+</span>
                           {r.post.author?.avatar ? (
@@ -902,7 +928,11 @@ export default function PostDetailPage() {
                     )
                   }
                   return (
-                    <div key={r.post.uri} ref={(el) => { commentRefsRef.current[idx] = el }}>
+                    <div
+                      key={r.post.uri}
+                      ref={(el) => { commentRefsRef.current[idx] = el }}
+                      className={hasRepliesSection && postSectionIndex === postSectionCount - 1 && idx === focusedCommentIndex ? styles.commentFocused : undefined}
+                    >
                       <PostBlock
                         node={r}
                         depth={0}

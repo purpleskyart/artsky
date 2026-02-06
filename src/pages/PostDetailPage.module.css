@@ -29,47 +29,46 @@
   flex-direction: column;
 }
 
-.collapseStrip {
-  width: 20px;
-  min-width: 20px;
-  flex-shrink: 0;
-  margin: -1rem 0.5rem -1rem -1rem;
-  background: var(--border);
-  border: none;
-  border-radius: 0.75rem 0 0 0.75rem;
-  cursor: pointer;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding-top: 0.35rem;
-}
-
-.collapseStripIcon {
-  display: flex;
+.collapseBtn {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.1rem;
-  height: 1.1rem;
-  font-size: 1rem;
-  line-height: 1;
-  font-weight: 600;
+  width: 1.25rem;
+  height: 1.25rem;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: 0.35rem;
+  cursor: pointer;
   color: var(--muted);
   flex-shrink: 0;
 }
 
-.collapseStrip:hover {
-  background: var(--accent);
-  opacity: 0.8;
+.collapseBtn:hover {
+  color: var(--accent);
+  background: var(--glass-highlight);
 }
 
-.collapseStrip:hover .collapseStripIcon {
-  color: white;
-}
-
-.collapseStrip:focus {
+.collapseBtn:focus {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
+}
+
+.collapseIcon {
+  font-size: 1rem;
+  line-height: 1;
+  font-weight: 600;
+}
+
+.sectionFocused,
+.commentFocused {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 0.75rem;
+}
+
+.commentFocused {
+  border-radius: 0.5rem;
 }
 
 .postBlockContent {

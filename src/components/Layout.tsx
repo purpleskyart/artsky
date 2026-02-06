@@ -538,7 +538,6 @@ export default function Layout({ title, children, showNav, showColumnView = true
     <>
       <section className={styles.menuSection}>
         <div className={styles.menuTopRow}>
-          <span className={styles.menuSectionTitle}>Columns</span>
           {themeSwitchControl}
         </div>
         <div className={styles.menuRow}>
