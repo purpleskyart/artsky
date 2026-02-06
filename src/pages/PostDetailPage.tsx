@@ -15,24 +15,31 @@ function isThreadViewPost(
 
 function MediaGallery({
   items,
+  autoPlayFirstVideo = false,
 }: {
   items: Array<{ url: string; type: 'image' | 'video'; videoPlaylist?: string }>
+  autoPlayFirstVideo?: boolean
 }) {
   if (items.length === 0) return null
+  const firstVideoIndex = autoPlayFirstVideo
+    ? items.findIndex((m) => m.type === 'video' && m.videoPlaylist)
+    : -1
   return (
     <div className={styles.gallery}>
-      {items.map((m, i) =>
-        m.type === 'video' && m.videoPlaylist ? (
-          <VideoWithHls
-            key={i}
-            playlistUrl={m.videoPlaylist}
-            poster={m.url || undefined}
-            className={styles.galleryMedia}
-          />
-        ) : (
-          <img key={i} src={m.url} alt="" className={styles.galleryMedia} />
-        )
-      )}
+      {items.map((m, i) => {
+        if (m.type === 'video' && m.videoPlaylist) {
+          return (
+            <VideoWithHls
+              key={i}
+              playlistUrl={m.videoPlaylist}
+              poster={m.url || undefined}
+              className={styles.galleryMedia}
+              autoPlay={i === firstVideoIndex}
+            />
+          )
+        }
+        return <img key={i} src={m.url} alt="" className={styles.galleryMedia} />
+      })}
     </div>
   )
 }
@@ -176,7 +183,7 @@ export default function PostDetailPage() {
                   {(thread.post.record as { text?: string }).text}
                 </p>
               )}
-              {rootMedia.length > 0 && <MediaGallery items={rootMedia} />}
+              {rootMedia.length > 0 && <MediaGallery items={rootMedia} autoPlayFirstVideo />}
             </article>
             <section className={styles.actions} aria-label="Add to artboard">
               <div className={styles.addToBoard}>

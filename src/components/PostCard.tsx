@@ -77,24 +77,12 @@ export default function PostCard({ item }: Props) {
     }
   }
 
-  function onMediaClick(e: React.MouseEvent) {
-    if (!isVideo || !videoRef.current) return
-    e.preventDefault()
-    e.stopPropagation()
-    const v = videoRef.current
-    if (v.paused) v.play().catch(() => {})
-    else v.pause()
-  }
-
   return (
     <Link to={`/post/${encodeURIComponent(post.uri)}`} className={styles.card}>
       <div
         className={styles.mediaWrap}
         onMouseEnter={onMediaEnter}
         onMouseLeave={onMediaLeave}
-        onClick={onMediaClick}
-        role={isVideo ? 'button' : undefined}
-        aria-label={isVideo ? 'Play video' : undefined}
       >
         {isVideo ? (
           <video
@@ -120,7 +108,7 @@ export default function PostCard({ item }: Props) {
             @{handle}
           </Link>
           {isVideo && (
-            <span className={styles.mediaBadge} title="Video – hover or tap to play">
+            <span className={styles.mediaBadge} title="Video – hover to play, click to open post">
               <VideoIcon />
             </span>
           )}

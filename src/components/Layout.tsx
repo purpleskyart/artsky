@@ -23,6 +23,12 @@ export default function Layout({ title, children, showNav }: Props) {
   return (
     <div className={styles.wrap}>
       <header className={styles.header}>
+        {showNav && (
+          <Link to="/feed" className={styles.logoLink} aria-label="artsky – back to feed">
+            <img src={`${import.meta.env.BASE_URL || '/'}icon.svg`} alt="" className={styles.logoIcon} />
+            <span className={styles.logoText}>artsky</span>
+          </Link>
+        )}
         <h1 className={styles.title}>{title}</h1>
         {showNav && session && (
           <button type="button" className={styles.logout} onClick={handleLogout} title="Sign out">

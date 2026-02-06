@@ -12,6 +12,7 @@ interface Props {
   controls?: boolean
   playsInline?: boolean
   preload?: string
+  autoPlay?: boolean
 }
 
 export default function VideoWithHls({
@@ -21,6 +22,7 @@ export default function VideoWithHls({
   controls = true,
   playsInline = true,
   preload = 'metadata',
+  autoPlay = false,
 }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null)
 
@@ -44,6 +46,17 @@ export default function VideoWithHls({
     }
   }, [playlistUrl])
 
+  useEffect(() => {
+    if (!autoPlay || !videoRef.current) return
+    const video = videoRef.current
+    function playWhenReady() {
+      video.play().catch(() => {})
+    }
+    if (video.readyState >= 2) playWhenReady()
+    else video.addEventListener('loadeddata', playWhenReady, { once: true })
+    return () => video.removeEventListener('loadeddata', playWhenReady)
+  }, [autoPlay, playlistUrl])
+
   return (
     <video
       ref={videoRef}
@@ -52,6 +65,8 @@ export default function VideoWithHls({
       controls={controls}
       playsInline={playsInline}
       preload={preload}
+      autoPlay={autoPlay}
+      muted={autoPlay}
     />
   )
 }
