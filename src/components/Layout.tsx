@@ -1,3 +1,4 @@
+import { useState, useRef, useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useSession } from '../context/SessionContext'
 import SearchBar from './SearchBar'
@@ -14,8 +15,22 @@ export default function Layout({ title, children, showNav }: Props) {
   const navigate = useNavigate()
   const { session, logout } = useSession()
   const path = loc.pathname
+  const [accountOpen, setAccountOpen] = useState(false)
+  const accountRef = useRef<HTMLDivElement>(null)
 
-  function handleLogout() {
+  useEffect(() => {
+    if (!accountOpen) return
+    function onDocClick(e: MouseEvent) {
+      if (accountRef.current && !accountRef.current.contains(e.target as Node)) {
+        setAccountOpen(false)
+      }
+    }
+    document.addEventListener('click', onDocClick)
+    return () => document.removeEventListener('click', onDocClick)
+  }, [accountOpen])
+
+  function handleSwitchAccount() {
+    setAccountOpen(false)
     logout()
     navigate('/login', { replace: true })
     window.location.reload()
@@ -37,9 +52,26 @@ export default function Layout({ title, children, showNav }: Props) {
         )}
         <h1 className={styles.title}>{title}</h1>
         {showNav && session && (
-          <button type="button" className={styles.logout} onClick={handleLogout} title="Sign out">
-            Sign out
-          </button>
+          <div className={styles.accountWrap} ref={accountRef}>
+            <button
+              type="button"
+              className={styles.accountBtn}
+              onClick={() => setAccountOpen((o) => !o)}
+              aria-expanded={accountOpen}
+              aria-haspopup="true"
+              title="Account"
+            >
+              Account
+            </button>
+            {accountOpen && (
+              <div className={styles.accountDropdown}>
+                <p className={styles.accountUser}>@{session.handle}</p>
+                <button type="button" className={styles.accountSwitch} onClick={handleSwitchAccount}>
+                  Switch account
+                </button>
+              </div>
+            )}
+          </div>
         )}
       </header>
       <main className={styles.main}>

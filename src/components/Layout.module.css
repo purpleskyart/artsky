@@ -64,8 +64,12 @@
   white-space: nowrap;
 }
 
-.logout {
+.accountWrap {
+  position: relative;
   flex-shrink: 0;
+}
+
+.accountBtn {
   padding: 0.4rem 0.6rem;
   font-size: 0.85rem;
   color: var(--muted);
@@ -75,8 +79,46 @@
   cursor: pointer;
 }
 
-.logout:hover {
+.accountBtn:hover {
   color: var(--text);
+}
+
+.accountDropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 0.25rem;
+  min-width: 180px;
+  padding: 0.5rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  z-index: 20;
+}
+
+.accountUser {
+  margin: 0 0 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text);
+  word-break: break-all;
+}
+
+.accountSwitch {
+  display: block;
+  width: 100%;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.85rem;
+  color: var(--accent);
+  background: transparent;
+  border: 1px solid var(--accent);
+  border-radius: 0.4rem;
+  cursor: pointer;
+}
+
+.accountSwitch:hover {
+  background: rgba(124, 58, 237, 0.12);
 }
 
 .main {
