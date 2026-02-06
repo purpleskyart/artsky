@@ -104,6 +104,7 @@
 /* Stack media vertically so user scrolls through each image/video */
 .galleryWrap {
   margin-top: 0.5rem;
+  margin-bottom: 0.75rem;
   width: 100%;
 }
 

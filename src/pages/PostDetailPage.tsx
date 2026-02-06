@@ -477,6 +477,7 @@ export default function PostDetailPage() {
         {thread && isThreadViewPost(thread) && (
           <>
             <article className={styles.postBlock}>
+              {rootMedia.length > 0 && <MediaGallery items={rootMedia} autoPlayFirstVideo />}
               <div className={styles.postHead}>
                 {thread.post.author.avatar && (
                   <img src={thread.post.author.avatar} alt="" className={styles.avatar} />
@@ -504,7 +505,6 @@ export default function PostDetailPage() {
                   )}
                 </div>
               </div>
-              {rootMedia.length > 0 && <MediaGallery items={rootMedia} autoPlayFirstVideo />}
               {(thread.post.record as { text?: string })?.text && (
                 <p className={styles.postText}>
                   <PostText text={(thread.post.record as { text?: string }).text!} />
