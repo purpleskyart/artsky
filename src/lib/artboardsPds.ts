@@ -14,7 +14,7 @@ export type ArtboardRecord = {
   createdAt: string
 }
 
-function recordToArtboard(rkey: string, value: ArtboardRecord, uri: string): Artboard {
+function recordToArtboard(rkey: string, value: ArtboardRecord): Artboard {
   return {
     id: rkey,
     name: value.name ?? 'Untitled',
@@ -51,7 +51,7 @@ export async function listArtboardsFromPds(
   for (const r of res.data.records) {
     const rkey = r.uri.split('/').pop() ?? r.uri
     const value = r.value as ArtboardRecord
-    boards.push(recordToArtboard(rkey, value, r.uri))
+    boards.push(recordToArtboard(rkey, value))
   }
   boards.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
   return boards
@@ -77,7 +77,7 @@ export async function createArtboardOnPds(
     record,
     validate: false,
   })
-  return recordToArtboard(rkey, record, `at://${did}/${COLLECTION}/${rkey}`)
+  return recordToArtboard(rkey, record)
 }
 
 /** Update an artboard record on the PDS (full replace). */
