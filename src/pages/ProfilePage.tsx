@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useProfileModal } from '../context/ProfileModalContext'
 import { useEditProfile } from '../context/EditProfileContext'
@@ -13,6 +13,17 @@ import postBlockStyles from './PostDetailPage.module.css'
 
 const REASON_REPOST = 'app.bsky.feed.defs#reasonRepost'
 const REASON_PIN = 'app.bsky.feed.defs#reasonPin'
+
+const DESKTOP_BREAKPOINT = 768
+function getDesktopSnapshot() {
+  return typeof window !== 'undefined' ? window.innerWidth >= DESKTOP_BREAKPOINT : false
+}
+function subscribeDesktop(cb: () => void) {
+  if (typeof window === 'undefined') return () => {}
+  const mq = window.matchMedia(`(min-width: ${DESKTOP_BREAKPOINT}px)`)
+  mq.addEventListener('change', cb)
+  return () => mq.removeEventListener('change', cb)
+}
 
 type ProfileTab = 'posts' | 'reposts' | 'liked' | 'blog' | 'text' | 'feeds'
 
@@ -54,6 +65,7 @@ export function ProfileContent({
   const [followUriOverride, setFollowUriOverride] = useState<string | null>(null)
   const session = getSession()
   const { viewMode } = useViewMode()
+  const isDesktop = useSyncExternalStore(subscribeDesktop, getDesktopSnapshot, () => false)
   const readAgent = session ? agent : publicAgent
   const loadMoreSentinelRef = useRef<HTMLDivElement>(null)
   const loadingMoreRef = useRef(false)
@@ -485,8 +497,7 @@ export function ProfileContent({
         {error && <p className={styles.error}>{error}</p>}
         <div
           className={styles.profileContent}
-          onTouchStart={onSwipeStart}
-          onTouchEnd={onSwipeEnd}
+          {...(isDesktop ? { onTouchStart: onSwipeStart, onTouchEnd: onSwipeEnd } : {})}
         >
         {loading ? (
           <div className={styles.loading}>Loading…</div>

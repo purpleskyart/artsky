@@ -526,6 +526,7 @@ export default function Layout({ title, children, showNav }: Props) {
     return () => composePreviewUrls.forEach((u) => URL.revokeObjectURL(u))
   }, [composePreviewUrls])
 
+  /* Mobile nav: Feed, Forum, New, Search, Accounts (right). Desktop: Feed, Artboards, New, Search, Forum, Accounts */
   const navTrayItems = (
     <>
       <Link
@@ -536,14 +537,16 @@ export default function Layout({ title, children, showNav }: Props) {
         <span className={styles.navIcon}><FeedIcon /></span>
         <span className={styles.navLabel}>Feed</span>
       </Link>
-      <Link
-        to="/artboards"
-        className={path === '/artboards' ? styles.navActive : ''}
-        aria-current={path === '/artboards' ? 'page' : undefined}
-      >
-        <span className={styles.navIcon}><ArtboardsIcon /></span>
-        <span className={styles.navLabel}>Artboards</span>
-      </Link>
+      {isDesktop && (
+        <Link
+          to="/artboards"
+          className={path === '/artboards' ? styles.navActive : ''}
+          aria-current={path === '/artboards' ? 'page' : undefined}
+        >
+          <span className={styles.navIcon}><ArtboardsIcon /></span>
+          <span className={styles.navLabel}>Artboards</span>
+        </Link>
+      )}
       <button
         type="button"
         className={styles.navBtn}
@@ -570,30 +573,76 @@ export default function Layout({ title, children, showNav }: Props) {
 
   const navItems = (
     <>
-      {navTrayItems}
-      {isDesktop && (
-        <button
-          type="button"
-          className={styles.navBtn}
-          onClick={() => openAccountPanel()}
-          aria-label="Accounts and settings"
-          aria-expanded={accountSheetOpen || accountMenuOpen}
-        >
-          <span className={styles.navIcon}>
-            {currentAccountAvatar ? (
-              <img src={currentAccountAvatar} alt="" className={styles.headerAccountAvatar} />
-            ) : (
-              <AccountIcon />
-            )}
-          </span>
-          <span className={styles.navLabel}>Accounts</span>
-        </button>
+      {isDesktop ? (
+        /* Desktop: Feed, Artboards, New, Search, Forum */
+        navTrayItems
+      ) : (
+        /* Mobile: Feed, Forum, New, Search (Artboards is in account menu) */
+        <>
+          <Link
+            to="/feed"
+            className={path === '/feed' ? styles.navActive : ''}
+            aria-current={path === '/feed' ? 'page' : undefined}
+          >
+            <span className={styles.navIcon}><FeedIcon /></span>
+            <span className={styles.navLabel}>Feed</span>
+          </Link>
+          <Link
+            to="/forum"
+            className={path === '/forum' ? styles.navActive : ''}
+            aria-current={path === '/forum' ? 'page' : undefined}
+          >
+            <span className={styles.navIcon}><ForumIcon /></span>
+            <span className={styles.navLabel}>Forum</span>
+          </Link>
+          <button type="button" className={styles.navBtn} onClick={openCompose} aria-label="New post">
+            <span className={styles.navIcon}><PlusIcon /></span>
+            <span className={styles.navLabel}>New</span>
+          </button>
+          <button type="button" className={styles.navBtn} onClick={focusSearch} aria-label="Search">
+            <span className={styles.navIcon}><SearchIcon /></span>
+            <span className={styles.navLabel}>Search</span>
+          </button>
+        </>
       )}
+      <button
+        type="button"
+        className={styles.navBtn}
+        onClick={() => openAccountPanel()}
+        aria-label="Accounts and settings"
+        aria-expanded={accountSheetOpen || accountMenuOpen}
+      >
+        <span className={styles.navIcon}>
+          {currentAccountAvatar ? (
+            <img src={currentAccountAvatar} alt="" className={styles.headerAccountAvatar} />
+          ) : (
+            <AccountIcon />
+          )}
+        </span>
+        <span className={styles.navLabel}>Accounts</span>
+      </button>
     </>
   )
 
+  const closeAccountPanel = () => {
+    setAccountMenuOpen(false)
+    setAccountSheetOpen(false)
+  }
+
   const accountPanelContent = (
     <>
+      <section className={styles.menuSection}>
+        <span className={styles.menuSectionTitle}>App</span>
+        <Link
+          to="/artboards"
+          className={path === '/artboards' ? styles.menuItemActive : styles.menuItem}
+          onClick={closeAccountPanel}
+          aria-current={path === '/artboards' ? 'page' : undefined}
+        >
+          <span className={styles.navIcon}><ArtboardsIcon /></span>
+          <span>Artboards</span>
+        </Link>
+      </section>
       <section className={styles.menuSection}>
         <div className={styles.menuTopRow}>
           {themeButtons}
@@ -701,6 +750,15 @@ export default function Layout({ title, children, showNav }: Props) {
 
   const accountPanelContentCompact = (
     <>
+      <Link
+        to="/artboards"
+        className={path === '/artboards' ? styles.menuCompactItemActive : styles.menuCompactItem}
+        onClick={closeAccountPanel}
+        aria-current={path === '/artboards' ? 'page' : undefined}
+      >
+        <span className={styles.navIcon}><ArtboardsIcon /></span>
+        <span className={styles.menuCompactHandle}>Artboards</span>
+      </Link>
       {session && (
         <>
           <div className={styles.menuCompactAccounts}>
@@ -953,33 +1011,31 @@ export default function Layout({ title, children, showNav }: Props) {
                   )}
                 </div>
               )}
-              <div className={styles.headerBtnWrap}>
-                <button
-                  ref={accountBtnRef}
-                  type="button"
-                  className={!isDesktop ? styles.headerAccountNavBtn : styles.headerBtn}
-                  onClick={() => {
-                    if (isDesktop) setAccountMenuOpen((o) => !o)
-                    else setAccountSheetOpen(true)
-                  }}
-                  aria-label="Accounts and settings"
-                  aria-expanded={isDesktop ? accountMenuOpen : accountSheetOpen}
-                >
-                  <span className={styles.navIcon}>
-                    {currentAccountAvatar ? (
-                      <img src={currentAccountAvatar} alt="" className={styles.headerAccountAvatar} />
-                    ) : (
-                      <AccountIcon />
-                    )}
-                  </span>
-                  {!isDesktop && <span className={styles.navLabel}>Accounts</span>}
-                </button>
-                {accountMenuOpen && isDesktop && (
-                  <div ref={accountMenuRef} className={styles.accountMenu} role="menu" aria-label="Accounts and settings">
-                    {accountPanelContent}
-                  </div>
-                )}
-              </div>
+              {isDesktop && (
+                <div className={styles.headerBtnWrap}>
+                  <button
+                    ref={accountBtnRef}
+                    type="button"
+                    className={styles.headerBtn}
+                    onClick={() => setAccountMenuOpen((o) => !o)}
+                    aria-label="Accounts and settings"
+                    aria-expanded={accountMenuOpen}
+                  >
+                    <span className={styles.navIcon}>
+                      {currentAccountAvatar ? (
+                        <img src={currentAccountAvatar} alt="" className={styles.headerAccountAvatar} />
+                      ) : (
+                        <AccountIcon />
+                      )}
+                    </span>
+                  </button>
+                  {accountMenuOpen && (
+                    <div ref={accountMenuRef} className={styles.accountMenu} role="menu" aria-label="Accounts and settings">
+                      {accountPanelContent}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </>
         )}

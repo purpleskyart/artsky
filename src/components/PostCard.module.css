@@ -341,23 +341,22 @@
   cursor: default;
 }
 
+/* Never crop art: fill container and fit content inside with contain */
 .media {
+  width: 100%;
+  height: 100%;
   max-width: 100%;
   max-height: 100%;
-  width: auto;
-  height: auto;
   object-fit: contain;
   object-position: center;
   display: block;
 }
 
-/* Video: same scaling as post detail – width 100%, height auto so aspect ratio is preserved, capped by container */
 .mediaWrap video.media {
-  display: block;
   width: 100%;
-  height: auto;
-  max-height: 100%;
+  height: 100%;
   object-fit: contain;
+  object-position: center;
 }
 
 .meta {
@@ -635,7 +634,7 @@
     max-height: none;
     overflow: hidden;
     display: -webkit-box;
-    -webkit-line-clamp: 5;
+    -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
   }
   .card .addWrap {

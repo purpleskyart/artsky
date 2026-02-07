@@ -3,6 +3,22 @@
   padding-bottom: 5rem;
 }
 
+/* In modal on mobile: media takes full width of popup */
+@media (max-width: 767px) {
+  .wrapInModal.wrap {
+    padding-left: 0;
+    padding-right: 0;
+  }
+  .wrapInModal .rootPostBlock {
+    padding-left: 0;
+    padding-right: 0;
+  }
+  .wrapInModal .rootPostDescription {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+}
+
 .loading {
   color: var(--muted);
   padding: 2rem 0;

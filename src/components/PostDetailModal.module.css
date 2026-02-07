@@ -83,3 +83,14 @@
 .closeBtn:active {
   transform: scale(0.96);
 }
+
+/* Mobile: pin close/back bar to bottom of popup */
+@media (max-width: 767px) {
+  .pane {
+    flex-direction: column-reverse;
+  }
+  .modalTopBar {
+    border-bottom: none;
+    border-top: 1px solid var(--border);
+  }
+}

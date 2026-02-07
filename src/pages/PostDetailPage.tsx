@@ -1111,7 +1111,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, onClose }: P
     thread && isThreadViewPost(thread) ? getPostAllMedia(thread.post) : []
 
   const content = (
-      <div className={styles.wrap}>
+      <div className={`${styles.wrap}${onClose ? ` ${styles.wrapInModal}` : ''}`}>
         {loading && <div className={styles.loading}>Loading…</div>}
         {error && <p className={styles.error}>{error}</p>}
         {thread && isThreadViewPost(thread) && (
