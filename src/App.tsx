@@ -92,7 +92,9 @@ function ScrollRestoration() {
     return () => {
       window.removeEventListener('scroll', onScroll)
       if (raf) cancelAnimationFrame(raf)
-      save()
+      // Do not save() here: cleanup runs after the new page has rendered, so
+      // window.scrollY would be 0 (or the new page's scroll) and we'd overwrite
+      // the correct position for the path we're leaving. We already save on scroll.
     }
   }, [location.pathname])
 
