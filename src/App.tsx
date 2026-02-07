@@ -1,5 +1,6 @@
-import { Component, type ErrorInfo, type ReactNode } from 'react'
-import { HashRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { Component, useEffect } from 'react'
+import type { ErrorInfo, ReactNode } from 'react'
+import { HashRouter, Navigate, Route, Routes, useLocation, useNavigationType } from 'react-router-dom'
 import { SessionProvider } from './context/SessionContext'
 import { ThemeProvider } from './context/ThemeContext'
 import { ViewModeProvider } from './context/ViewModeContext'
@@ -51,6 +52,67 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
   }
 }
 
+const SCROLL_KEY_PREFIX = 'artsky-scroll-'
+const SCROLL_THROTTLE_MS = 150
+
+function ScrollRestoration() {
+  const location = useLocation()
+  const navigationType = useNavigationType()
+
+  useEffect(() => {
+    const pathname = location.pathname
+    const save = () => {
+      try {
+        const y = window.scrollY ?? document.documentElement.scrollTop
+        sessionStorage.setItem(SCROLL_KEY_PREFIX + pathname, String(y))
+      } catch {
+        // ignore
+      }
+    }
+    let raf = 0
+    let last = 0
+    const onScroll = () => {
+      const now = Date.now()
+      if (now - last >= SCROLL_THROTTLE_MS) {
+        last = now
+        save()
+      } else {
+        if (raf) cancelAnimationFrame(raf)
+        raf = requestAnimationFrame(() => {
+          raf = 0
+          save()
+        })
+      }
+    }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => {
+      window.removeEventListener('scroll', onScroll)
+      if (raf) cancelAnimationFrame(raf)
+      save()
+    }
+  }, [location.pathname])
+
+  useEffect(() => {
+    if (navigationType !== 'POP') return
+    try {
+      const raw = sessionStorage.getItem(SCROLL_KEY_PREFIX + location.pathname)
+      if (raw === null) return
+      const y = parseInt(raw, 10)
+      if (!Number.isFinite(y) || y < 0) return
+      const restore = () => {
+        window.scrollTo(0, y)
+      }
+      requestAnimationFrame(restore)
+      const t = setTimeout(restore, 50)
+      return () => clearTimeout(t)
+    } catch {
+      // ignore
+    }
+  }, [location.pathname, navigationType])
+
+  return null
+}
+
 function AppRoutes() {
   return (
     <Routes>
@@ -73,6 +135,7 @@ export default function App() {
   return (
     <ErrorBoundary>
       <HashRouter>
+        <ScrollRestoration />
         <ThemeProvider>
           <ViewModeProvider>
             <ArtOnlyProvider>
