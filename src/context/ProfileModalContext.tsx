@@ -11,10 +11,14 @@ type ProfileModalContextValue = {
   closeProfileModal: () => void
   openPostModal: (uri: string, openReply?: boolean) => void
   closePostModal: () => void
-  /** Go back to previous modal (Q) or close if only one open. */
+  /** Go back to previous modal (Q or back button). */
   closeModal: () => void
+  /** Close all modals (ESC, backdrop click, or X). */
+  closeAllModals: () => void
   /** True if any modal (post or profile) is open. */
   isModalOpen: boolean
+  /** True if more than one modal is open (show back button). */
+  canGoBack: boolean
 }
 
 const ProfileModalContext = createContext<ProfileModalContextValue | null>(null)
@@ -31,12 +35,18 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
     setModalStack((prev) => [...prev, { type: 'post', uri, openReply }])
   }, [])
 
-  /** Q / Escape / close button: go back to previous popup or close if none. */
+  /** Q or back button: go back to previous popup or close if only one. */
   const closeModal = useCallback(() => {
     setModalStack((prev) => (prev.length > 1 ? prev.slice(0, -1) : []))
   }, [])
 
+  /** ESC, backdrop click, or X: close all popups. */
+  const closeAllModals = useCallback(() => {
+    setModalStack([])
+  }, [])
+
   const isModalOpen = modalStack.length > 0
+  const canGoBack = modalStack.length > 1
   const currentModal = modalStack[modalStack.length - 1] ?? null
 
   const value: ProfileModalContextValue = {
@@ -45,7 +55,9 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
     closePostModal: closeModal,
     openPostModal,
     closeModal,
+    closeAllModals,
     isModalOpen,
+    canGoBack,
   }
 
   return (
@@ -55,13 +67,17 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
         <PostDetailModal
           uri={currentModal.uri}
           openReply={currentModal.openReply}
-          onClose={closeModal}
+          onClose={closeAllModals}
+          onBack={closeModal}
+          canGoBack={canGoBack}
         />
       )}
       {currentModal?.type === 'profile' && (
         <ProfileModal
           handle={currentModal.handle}
-          onClose={closeModal}
+          onClose={closeAllModals}
+          onBack={closeModal}
+          canGoBack={canGoBack}
         />
       )}
     </ProfileModalContext.Provider>
@@ -77,7 +93,9 @@ export function useProfileModal() {
       openPostModal: () => {},
       closePostModal: () => {},
       closeModal: () => {},
+      closeAllModals: () => {},
       isModalOpen: false,
+      canGoBack: false,
     }
   }
   return ctx

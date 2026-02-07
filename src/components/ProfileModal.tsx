@@ -7,23 +7,31 @@ import styles from './PostDetailModal.module.css'
 interface ProfileModalProps {
   handle: string
   onClose: () => void
+  onBack: () => void
+  canGoBack: boolean
 }
 
-export default function ProfileModal({ handle, onClose }: ProfileModalProps) {
+export default function ProfileModal({ handle, onClose, onBack, canGoBack }: ProfileModalProps) {
   const overlayRef = useRef<HTMLDivElement>(null)
   const { openProfileModal } = useProfileModal()
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' || e.key.toLowerCase() === 'q') {
+      if (e.key === 'Escape') {
         e.preventDefault()
         e.stopImmediatePropagation()
         onClose()
+        return
+      }
+      if (e.key.toLowerCase() === 'q') {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        onBack()
       }
     }
     window.addEventListener('keydown', onKeyDown, true)
     return () => window.removeEventListener('keydown', onKeyDown, true)
-  }, [onClose])
+  }, [onClose, onBack])
 
   function handleBackdropClick(e: React.MouseEvent) {
     if (e.target === overlayRef.current) onClose()
@@ -38,17 +46,29 @@ export default function ProfileModal({ handle, onClose }: ProfileModalProps) {
       aria-modal="true"
       aria-label="Profile"
     >
-      <div className={styles.closeWrap}>
-        <button
-          type="button"
-          className={styles.closeBtn}
-          onClick={onClose}
-          aria-label="Close"
-        >
-          ×
-        </button>
-      </div>
       <div className={styles.pane}>
+        <div className={styles.modalTopBar}>
+          {canGoBack ? (
+            <button
+              type="button"
+              className={styles.backBtn}
+              onClick={onBack}
+              aria-label="Back to previous"
+            >
+              ←
+            </button>
+          ) : (
+            <span className={styles.backBtnPlaceholder} aria-hidden />
+          )}
+          <button
+            type="button"
+            className={styles.closeBtn}
+            onClick={onClose}
+            aria-label="Close all"
+          >
+            ×
+          </button>
+        </div>
         <div className={styles.scroll}>
           <ProfileContent handle={handle} openProfileModal={openProfileModal} />
         </div>
