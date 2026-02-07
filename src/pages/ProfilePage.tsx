@@ -457,7 +457,7 @@ export function ProfileContent({
             className={`${styles.tab} ${tab === 'liked' ? styles.tabActive : ''}`}
             onClick={() => setTab('liked')}
           >
-            Respected
+            Liked
           </button>
           <button
             type="button"
@@ -660,9 +660,9 @@ export function ProfileContent({
           )
         ) : tab === 'liked' ? (
             !isOwnProfile ? (
-            <div className={styles.empty}>Respected posts are only visible to the account owner.</div>
+            <div className={styles.empty}>Liked posts are only visible to the account owner.</div>
           ) : likedMediaItems.length === 0 ? (
-            <div className={styles.empty}>No respected posts with images or videos.</div>
+            <div className={styles.empty}>No liked posts with images or videos.</div>
           ) : (
             <>
               <div className={`${styles.grid} ${styles[`gridView${viewMode}`]}`}>

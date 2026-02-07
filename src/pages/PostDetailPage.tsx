@@ -1253,9 +1253,9 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, onClose }: P
                   className={`${styles.likeRepostBtn} ${isLiked ? styles.likeRepostBtnActive : ''}`}
                   onClick={handleLike}
                   disabled={likeLoading}
-                  title={isLiked ? 'Remove respect' : 'Respect'}
+                  title={isLiked ? 'Remove like' : 'Like'}
                 >
-                  {likeLoading ? '…' : isLiked ? '♥' : '♡'} Respect
+                  {likeLoading ? '…' : isLiked ? '♥' : '♡'} Like
                 </button>
                 <button
                   type="button"

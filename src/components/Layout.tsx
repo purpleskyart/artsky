@@ -890,7 +890,7 @@ export default function Layout({ title, children, showNav }: Props) {
                         <button type="button" className={notificationFilter === 'all' ? styles.notificationFilterActive : styles.notificationFilter} onClick={() => setNotificationFilter('all')}>All</button>
                         <button type="button" className={notificationFilter === 'reply' ? styles.notificationFilterActive : styles.notificationFilter} onClick={() => setNotificationFilter('reply')}>Replies</button>
                         <button type="button" className={notificationFilter === 'follow' ? styles.notificationFilterActive : styles.notificationFilter} onClick={() => setNotificationFilter('follow')}>Follows</button>
-                        <button type="button" className={notificationFilter === 'like' ? styles.notificationFilterActive : styles.notificationFilter} onClick={() => setNotificationFilter('like')}>Respects & reposts</button>
+                        <button type="button" className={notificationFilter === 'like' ? styles.notificationFilterActive : styles.notificationFilter} onClick={() => setNotificationFilter('like')}>Likes & reposts</button>
                       </div>
                       {notificationsLoading ? (
                         <p className={styles.notificationsLoading}>Loading…</p>
@@ -909,7 +909,7 @@ export default function Layout({ title, children, showNav }: Props) {
                             const isFollow = n.reason === 'follow'
                             const href = isFollow ? `/profile/${encodeURIComponent(handle)}` : `/post/${encodeURIComponent(n.reasonSubject ?? n.uri)}`
                             const reasonLabel =
-                              n.reason === 'like' ? 'respected your post' :
+                              n.reason === 'like' ? 'liked your post' :
                               n.reason === 'repost' ? 'reposted your post' :
                               n.reason === 'follow' ? 'followed you' :
                               n.reason === 'mention' ? 'mentioned you' :

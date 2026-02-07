@@ -656,7 +656,7 @@ export default function ForumPostDetailPage() {
                               className={isLiked ? styles.likeBtnLiked : styles.likeBtn}
                               onClick={() => handleLikePost(p)}
                               disabled={likeLoading}
-                              title={isLiked ? 'Remove respect' : 'Respect'}
+                              title={isLiked ? 'Remove like' : 'Like'}
                             >
                               ♥ {p.likeCount ?? 0}
                             </button>
