@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useProfileModal } from '../context/ProfileModalContext'
 import { useEditProfile } from '../context/EditProfileContext'
@@ -13,17 +13,6 @@ import postBlockStyles from './PostDetailPage.module.css'
 
 const REASON_REPOST = 'app.bsky.feed.defs#reasonRepost'
 const REASON_PIN = 'app.bsky.feed.defs#reasonPin'
-
-const DESKTOP_BREAKPOINT = 768
-function getDesktopSnapshot() {
-  return typeof window !== 'undefined' ? window.innerWidth >= DESKTOP_BREAKPOINT : false
-}
-function subscribeDesktop(cb: () => void) {
-  if (typeof window === 'undefined') return () => {}
-  const mq = window.matchMedia(`(min-width: ${DESKTOP_BREAKPOINT}px)`)
-  mq.addEventListener('change', cb)
-  return () => mq.removeEventListener('change', cb)
-}
 
 type ProfileTab = 'posts' | 'reposts' | 'liked' | 'blog' | 'text' | 'feeds'
 
@@ -65,7 +54,6 @@ export function ProfileContent({
   const [followUriOverride, setFollowUriOverride] = useState<string | null>(null)
   const session = getSession()
   const { viewMode } = useViewMode()
-  const isDesktop = useSyncExternalStore(subscribeDesktop, getDesktopSnapshot, () => false)
   const readAgent = session ? agent : publicAgent
   const loadMoreSentinelRef = useRef<HTMLDivElement>(null)
   const loadingMoreRef = useRef(false)
@@ -77,14 +65,12 @@ export function ProfileContent({
   const openEditProfile = editProfileCtx?.openEditProfile ?? (() => {})
   const editSavedVersion = editProfileCtx?.editSavedVersion ?? 0
   const lastScrollYRef = useRef(0)
-  const touchStartXRef = useRef(0)
   const cardRefsRef = useRef<(HTMLDivElement | null)[]>([])
   const keyboardFocusIndexRef = useRef(0)
   const profileGridItemsRef = useRef<TimelineItem[]>([])
   const scrollIntoViewFromKeyboardRef = useRef(false)
   const lastScrollIntoViewIndexRef = useRef(-1)
   const mouseMovedRef = useRef(false)
-  const SWIPE_THRESHOLD = 100
   const SCROLL_THRESHOLD = 8
 
   useEffect(() => {
@@ -218,16 +204,6 @@ export function ProfileContent({
     const idx = PROFILE_TABS.indexOf(tab)
     const next = (idx + direction + PROFILE_TABS.length) % PROFILE_TABS.length
     setTab(PROFILE_TABS[next])
-  }
-
-  function onSwipeStart(e: React.TouchEvent) {
-    touchStartXRef.current = e.touches[0].clientX
-  }
-
-  function onSwipeEnd(e: React.TouchEvent) {
-    const dx = e.changedTouches[0].clientX - touchStartXRef.current
-    if (dx < -SWIPE_THRESHOLD) goTab(1)
-    else if (dx > SWIPE_THRESHOLD) goTab(-1)
   }
 
   // Infinite scroll: load more when sentinel enters view (posts, reposts, liked, text tabs)
@@ -495,10 +471,7 @@ export function ProfileContent({
           </nav>
         </div>
         {error && <p className={styles.error}>{error}</p>}
-        <div
-          className={styles.profileContent}
-          {...(isDesktop ? { onTouchStart: onSwipeStart, onTouchEnd: onSwipeEnd } : {})}
-        >
+        <div className={styles.profileContent}>
         {loading ? (
           <div className={styles.loading}>Loading…</div>
         ) : tab === 'blog' ? (
