@@ -115,10 +115,12 @@ function ScrollRestoration() {
         if (document.documentElement.scrollHeight >= y) restore()
       })
       ro.observe(document.documentElement)
+      const stopRo = setTimeout(() => ro.disconnect(), 2000)
       return () => {
         clearTimeout(t1)
         clearTimeout(t2)
         clearTimeout(t3)
+        clearTimeout(stopRo)
         ro.disconnect()
       }
     } catch {

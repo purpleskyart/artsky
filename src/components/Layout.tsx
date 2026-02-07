@@ -753,56 +753,17 @@ export default function Layout({ title, children, showNav }: Props) {
               <SearchBar inputRef={searchInputRef} compact={isDesktop} />
             </div>
             <div className={styles.headerRight}>
-              {!session ? (
+              {!session && isDesktop && (
                 <>
-                  {isDesktop && (
-                    <>
-                      <div className={styles.headerBtnWrap}>
-                        <button
-                          ref={accountBtnRef}
-                          type="button"
-                          className={styles.headerBtn}
-                          onClick={() => openAccountPanel()}
-                          aria-label="Accounts and settings"
-                          aria-expanded={accountMenuOpen}
-                        >
-                          <AccountIcon />
-                          <span className={styles.navLabel}>Accounts</span>
-                        </button>
-                      </div>
-                      <Link to="/login" className={styles.headerAuthLink}>
-                        Log in
-                      </Link>
-                      <Link to="/login" state={{ mode: 'create' }} className={styles.headerAuthLinkPrimary}>
-                        Create account
-                      </Link>
-                    </>
-                  )}
-                  {!isDesktop && (
-                    <div className={styles.headerBtnWrap}>
-                      <button
-                        ref={accountBtnRef}
-                        type="button"
-                        className={styles.headerAccountNavBtn}
-                        onClick={() => openAccountPanel()}
-                        aria-label="Accounts and settings"
-                        aria-expanded={accountSheetOpen}
-                      >
-                        <span className={styles.navIcon}>
-                          {currentAccountAvatar ? (
-                            <img src={currentAccountAvatar} alt="" className={styles.headerAccountAvatar} />
-                          ) : (
-                            <AccountIcon />
-                          )}
-                        </span>
-                        <span className={styles.navLabel}>Accounts</span>
-                      </button>
-                    </div>
-                  )}
+                  <Link to="/login" className={styles.headerAuthLink}>
+                    Log in
+                  </Link>
+                  <Link to="/login" state={{ mode: 'create' }} className={styles.headerAuthLinkPrimary}>
+                    Create account
+                  </Link>
                 </>
-              ) : (
-                <>
-              {isDesktop && (
+              )}
+              {session && isDesktop && (
                 <button
                   type="button"
                   className={styles.headerBtnWithLabel}
@@ -814,7 +775,7 @@ export default function Layout({ title, children, showNav }: Props) {
                   <span className={styles.headerBtnLabel}>New</span>
                 </button>
               )}
-              {!isDesktop && (
+              {session && !isDesktop && (
                 <button
                   type="button"
                   className={`${styles.headerBtn} ${artOnly ? styles.headerBtnActive : ''}`}
@@ -926,8 +887,6 @@ export default function Layout({ title, children, showNav }: Props) {
                   </div>
                 )}
               </div>
-                </>
-              )}
             </div>
           </>
         )}
