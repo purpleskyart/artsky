@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom'
 import { agent, publicAgent, getPostMediaInfo, getSession, listStandardSiteDocumentsForAuthor, type TimelineItem, type StandardSiteDocumentView } from '../lib/bsky'
 import { formatRelativeTime, formatExactDateTime } from '../lib/date'
 import PostCard from '../components/PostCard'
+import PostDetailModal from '../components/PostDetailModal'
 import PostText from '../components/PostText'
 import Layout from '../components/Layout'
 import { useViewMode } from '../context/ViewModeContext'
@@ -51,6 +52,7 @@ export default function ProfilePage() {
   const [tabsBarVisible, setTabsBarVisible] = useState(true)
   const [keyboardFocusIndex, setKeyboardFocusIndex] = useState(0)
   const [keyboardAddOpen, setKeyboardAddOpen] = useState(false)
+  const [postModalState, setPostModalState] = useState<{ uri: string; openReply?: boolean } | null>(null)
   const lastScrollYRef = useRef(0)
   const touchStartXRef = useRef(0)
   const cardRefsRef = useRef<(HTMLDivElement | null)[]>([])
@@ -260,6 +262,7 @@ export default function ProfilePage() {
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      if (postModalState) return
       const target = e.target as HTMLElement
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable) return
       if (e.ctrlKey || e.metaKey) return
@@ -290,7 +293,7 @@ export default function ProfilePage() {
       }
       if (key === 'e' || key === 'enter') {
         const item = items[i]
-        if (item) navigate(`/post/${encodeURIComponent(item.post.uri)}`)
+        if (item) setPostModalState({ uri: item.post.uri })
         return
       }
       if (key === 'f') {
@@ -304,7 +307,7 @@ export default function ProfilePage() {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [tab, cols, navigate])
+  }, [tab, cols, postModalState])
 
   const postText = (post: TimelineItem['post']) => (post.record as { text?: string })?.text?.trim() ?? ''
   const isReply = (post: TimelineItem['post']) => !!(post.record as { reply?: unknown })?.reply
@@ -356,6 +359,13 @@ export default function ProfilePage() {
 
   return (
     <Layout title={`@${handle}`} showNav>
+      {postModalState && (
+        <PostDetailModal
+          uri={postModalState.uri}
+          openReply={postModalState.openReply}
+          onClose={() => setPostModalState(null)}
+        />
+      )}
       <div className={styles.wrap}>
         <header className={styles.profileHeader}>
           {profile?.avatar && (
@@ -626,6 +636,7 @@ export default function ProfilePage() {
                       cardRef={(el) => { cardRefsRef.current[index] = el }}
                       openAddDropdown={tab === 'liked' && index === keyboardFocusIndex && keyboardAddOpen}
                       onAddClose={() => setKeyboardAddOpen(false)}
+                      onPostClick={(uri, opts) => setPostModalState({ uri, openReply: opts?.openReply })}
                     />
                   </div>
                 ))}
@@ -652,6 +663,7 @@ export default function ProfilePage() {
                     cardRef={(el) => { cardRefsRef.current[index] = el }}
                     openAddDropdown={(tab === 'posts' || tab === 'reposts') && index === keyboardFocusIndex && keyboardAddOpen}
                     onAddClose={() => setKeyboardAddOpen(false)}
+                    onPostClick={(uri, opts) => setPostModalState({ uri, openReply: opts?.openReply })}
                   />
                 </div>
               ))}
