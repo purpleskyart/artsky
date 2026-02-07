@@ -28,6 +28,8 @@ export function TagContent({ tag, inModal = false }: { tag: string; inModal?: bo
   const cardRefsRef = useRef<(HTMLDivElement | null)[]>([])
   const keyboardFocusIndexRef = useRef(0)
   const mediaItemsRef = useRef<TimelineItem[]>([])
+  const scrollIntoViewFromKeyboardRef = useRef(false)
+  const lastScrollIntoViewIndexRef = useRef(-1)
 
   const load = useCallback(async (nextCursor?: string) => {
     if (!tag) return
@@ -65,8 +67,16 @@ export function TagContent({ tag, inModal = false }: { tag: string; inModal?: bo
   }, [mediaItems.length])
 
   useEffect(() => {
-    const el = cardRefsRef.current[keyboardFocusIndex]
-    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' })
+    if (!scrollIntoViewFromKeyboardRef.current) return
+    scrollIntoViewFromKeyboardRef.current = false
+    if (keyboardFocusIndex === lastScrollIntoViewIndexRef.current) return
+    lastScrollIntoViewIndexRef.current = keyboardFocusIndex
+    const index = keyboardFocusIndex
+    const raf = requestAnimationFrame(() => {
+      const el = cardRefsRef.current[index]
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' })
+    })
+    return () => cancelAnimationFrame(raf)
   }, [keyboardFocusIndex])
 
   useEffect(() => {
@@ -83,18 +93,22 @@ export function TagContent({ tag, inModal = false }: { tag: string; inModal?: bo
       if (key === 'w' || key === 's' || key === 'a' || key === 'd' || key === 'e' || key === 'enter' || key === 'f' || key === 'c') e.preventDefault()
 
       if (key === 'w') {
+        scrollIntoViewFromKeyboardRef.current = true
         setKeyboardFocusIndex((idx) => Math.max(0, idx - cols))
         return
       }
       if (key === 's') {
+        scrollIntoViewFromKeyboardRef.current = true
         setKeyboardFocusIndex((idx) => Math.min(items.length - 1, idx + cols))
         return
       }
       if (key === 'a' || e.key === 'ArrowLeft') {
+        scrollIntoViewFromKeyboardRef.current = true
         setKeyboardFocusIndex((idx) => Math.max(0, idx - 1))
         return
       }
       if (key === 'd' || e.key === 'ArrowRight') {
+        scrollIntoViewFromKeyboardRef.current = true
         setKeyboardFocusIndex((idx) => Math.min(items.length - 1, idx + 1))
         return
       }

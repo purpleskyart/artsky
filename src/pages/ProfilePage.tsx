@@ -65,6 +65,8 @@ export function ProfileContent({
   const cardRefsRef = useRef<(HTMLDivElement | null)[]>([])
   const keyboardFocusIndexRef = useRef(0)
   const profileGridItemsRef = useRef<TimelineItem[]>([])
+  const scrollIntoViewFromKeyboardRef = useRef(false)
+  const lastScrollIntoViewIndexRef = useRef(-1)
   const SWIPE_THRESHOLD = 100
   const SCROLL_THRESHOLD = 8
 
@@ -262,8 +264,16 @@ export function ProfileContent({
   }, [profileGridItems.length])
 
   useEffect(() => {
-    const el = cardRefsRef.current[keyboardFocusIndex]
-    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' })
+    if (!scrollIntoViewFromKeyboardRef.current) return
+    scrollIntoViewFromKeyboardRef.current = false
+    if (keyboardFocusIndex === lastScrollIntoViewIndexRef.current) return
+    lastScrollIntoViewIndexRef.current = keyboardFocusIndex
+    const index = keyboardFocusIndex
+    const raf = requestAnimationFrame(() => {
+      const el = cardRefsRef.current[index]
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' })
+    })
+    return () => cancelAnimationFrame(raf)
   }, [keyboardFocusIndex])
 
   useEffect(() => {
@@ -283,18 +293,22 @@ export function ProfileContent({
       if (key === 'w' || key === 's' || key === 'a' || key === 'd' || key === 'e' || key === 'enter' || key === 'f' || key === 'c') e.preventDefault()
 
       if (key === 'w') {
+        scrollIntoViewFromKeyboardRef.current = true
         setKeyboardFocusIndex((idx) => Math.max(0, idx - cols))
         return
       }
       if (key === 's') {
+        scrollIntoViewFromKeyboardRef.current = true
         setKeyboardFocusIndex((idx) => Math.min(items.length - 1, idx + cols))
         return
       }
       if (key === 'a' || e.key === 'ArrowLeft') {
+        scrollIntoViewFromKeyboardRef.current = true
         setKeyboardFocusIndex((idx) => Math.max(0, idx - 1))
         return
       }
       if (key === 'd' || e.key === 'ArrowRight') {
+        scrollIntoViewFromKeyboardRef.current = true
         setKeyboardFocusIndex((idx) => Math.min(items.length - 1, idx + 1))
         return
       }

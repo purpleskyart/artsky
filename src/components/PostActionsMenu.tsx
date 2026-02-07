@@ -37,6 +37,11 @@ export default function PostActionsMenu({
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState<string | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    if (!open) triggerRef.current?.blur()
+  }, [open])
 
   useEffect(() => {
     if (!open) return
@@ -107,6 +112,7 @@ export default function PostActionsMenu({
   return (
     <div ref={menuRef} className={`${styles.wrap} ${compact ? styles.wrapCompact : ''} ${className ?? ''}`}>
       <button
+        ref={triggerRef}
         type="button"
         className={styles.trigger}
         onClick={(e) => {
