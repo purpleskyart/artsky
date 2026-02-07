@@ -672,6 +672,45 @@
   padding-right: env(safe-area-inset-right);
 }
 
+/* Adult content toggle (account menu) - base styles for both popup and sheet */
+.menuNsfwRow {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.menuNsfwLabel {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+.menuNsfwBtns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+.menuNsfwBtn,
+.menuNsfwBtnActive {
+  padding: 0.35rem 0.6rem;
+  font-size: 0.8rem;
+  font-family: inherit;
+  border-radius: var(--glass-radius-sm);
+  border: 1px solid var(--border);
+  background: var(--glass-bg);
+  color: var(--text);
+  cursor: pointer;
+}
+.menuNsfwBtn:hover {
+  background: var(--glass-highlight);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.menuNsfwBtnActive {
+  background: var(--accent-subtle);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 500;
+}
+
 /* iOS-style tab bar with icons; hides on scroll down; hidden on desktop; compact height */
 .nav {
   position: fixed;
@@ -900,11 +939,62 @@
   color: var(--muted);
 }
 
+.composeMediaSection {
+  margin-bottom: 0.75rem;
+}
+
 .composePreviews {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.composeAltPrompt {
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.composeAltFields {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.composeAltRow {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.composeAltLabel {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.composeAltInput {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.4rem 0.5rem;
+  font-size: 0.9rem;
+  font-family: inherit;
+  border: 1px solid var(--border);
+  border-radius: var(--glass-radius-sm);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.composeAltInput::placeholder {
+  color: var(--muted);
+}
+
+.composeAltInput:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-subtle);
 }
 
 .composePreviewWrap {
@@ -1231,6 +1321,51 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.menuCompactNsfwRow {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--glass-border);
+}
+
+.menuCompactNsfwRow .menuNsfwLabel {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.menuCompactNsfwRow .menuNsfwBtns {
+  display: flex;
+  gap: 0.2rem;
+}
+
+.menuCompactNsfwRow .menuNsfwBtn,
+.menuCompactNsfwRow .menuNsfwBtnActive {
+  flex: 1;
+  padding: 0.35rem 0.4rem;
+  font-size: 0.75rem;
+  font-family: inherit;
+  border-radius: var(--glass-radius-sm);
+  border: 1px solid var(--border);
+  background: var(--glass-bg);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.menuCompactNsfwRow .menuNsfwBtn:hover {
+  background: var(--glass-highlight);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.menuCompactNsfwRow .menuNsfwBtnActive {
+  background: var(--accent-subtle);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 500;
 }
 
 .menuCompactActions {

@@ -1281,20 +1281,22 @@ export async function getFeedDisplayName(uri: string): Promise<string> {
 const COMPOSE_IMAGE_MAX = 4
 const COMPOSE_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
 
-/** Create a new post (no reply). Optional image files (max 4, jpeg/png/gif/webp). */
+/** Create a new post (no reply). Optional image files (max 4, jpeg/png/gif/webp). Optional alt text per image (max 1000 chars each). */
 export async function createPost(
   text: string,
   imageFiles?: File[],
+  altTexts?: string[],
 ): Promise<{ uri: string; cid: string }> {
   const t = text.trim()
   const images = (imageFiles ?? []).filter((f) => COMPOSE_IMAGE_TYPES.includes(f.type)).slice(0, COMPOSE_IMAGE_MAX)
   if (!t && images.length === 0) throw new Error('Post text or at least one image is required')
   let embed: { $type: 'app.bsky.embed.images'; images: { image: unknown; alt: string }[] } | undefined
   if (images.length > 0) {
+    const alts = (altTexts ?? []).slice(0, images.length).map((a) => (a ?? '').trim().slice(0, 1000))
     const uploaded = await Promise.all(
-      images.map(async (file) => {
+      images.map(async (file, i) => {
         const { data } = await agent.uploadBlob(file, { encoding: file.type })
-        return { image: data.blob, alt: '' }
+        return { image: data.blob, alt: alts[i] ?? '' }
       }),
     )
     embed = { $type: 'app.bsky.embed.images', images: uploaded }

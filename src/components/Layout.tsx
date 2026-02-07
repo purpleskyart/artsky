@@ -6,6 +6,7 @@ import { useViewMode, VIEW_LABELS } from '../context/ViewModeContext'
 import { useArtOnly } from '../context/ArtOnlyContext'
 import { useProfileModal } from '../context/ProfileModalContext'
 import { useEditProfile } from '../context/EditProfileContext'
+import { useModeration } from '../context/ModerationContext'
 import { publicAgent, createPost, getNotifications } from '../lib/bsky'
 import SearchBar from './SearchBar'
 import styles from './Layout.module.css'
@@ -163,14 +164,6 @@ function PencilIcon() {
 }
 
 
-function ShieldIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-    </svg>
-  )
-}
-
 function ThemeSunIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -278,6 +271,7 @@ export default function Layout({ title, children, showNav }: Props) {
   )
   const { viewMode, setViewMode, viewOptions } = useViewMode()
   const { artOnly, toggleArtOnly } = useArtOnly()
+  const { nsfwPreference, setNsfwPreference } = useModeration()
   const path = loc.pathname
   const isDesktop = useSyncExternalStore(subscribeDesktop, getDesktopSnapshot, () => false)
   const [accountSheetOpen, setAccountSheetOpen] = useState(false)
@@ -291,6 +285,7 @@ export default function Layout({ title, children, showNav }: Props) {
   const [composeOverlayBottom, setComposeOverlayBottom] = useState(0)
   const [composeText, setComposeText] = useState('')
   const [composeImages, setComposeImages] = useState<File[]>([])
+  const [composeImageAlts, setComposeImageAlts] = useState<string[]>([])
   const [composePosting, setComposePosting] = useState(false)
   const [composeError, setComposeError] = useState<string | null>(null)
   const composeFileInputRef = useRef<HTMLInputElement>(null)
@@ -470,11 +465,16 @@ export default function Layout({ title, children, showNav }: Props) {
 
   function addComposeImages(files: FileList | File[]) {
     const list = Array.from(files).filter((f) => COMPOSE_IMAGE_TYPES.includes(f.type))
-    setComposeImages((prev) => [...prev, ...list].slice(0, COMPOSE_IMAGE_MAX))
+    const take = Math.min(list.length, COMPOSE_IMAGE_MAX - composeImages.length)
+    if (take <= 0) return
+    const added = list.slice(0, take)
+    setComposeImages((prev) => [...prev, ...added])
+    setComposeImageAlts((prev) => [...prev, ...added.map(() => '')])
   }
 
   function removeComposeImage(index: number) {
     setComposeImages((prev) => prev.filter((_, i) => i !== index))
+    setComposeImageAlts((prev) => prev.filter((_, i) => i !== index))
   }
 
   async function handleComposeSubmit(e: React.FormEvent) {
@@ -485,9 +485,10 @@ export default function Layout({ title, children, showNav }: Props) {
     setComposeError(null)
     setComposePosting(true)
     try {
-      await createPost(composeText, composeImages.length > 0 ? composeImages : undefined)
+      await createPost(composeText, composeImages.length > 0 ? composeImages : undefined, composeImageAlts.length > 0 ? composeImageAlts : undefined)
       setComposeText('')
       setComposeImages([])
+      setComposeImageAlts([])
       closeCompose()
       navigate('/feed')
     } catch (err) {
@@ -708,16 +709,21 @@ export default function Layout({ title, children, showNav }: Props) {
             >
               Edit profile
             </button>
-            <Link
-              to="/settings/moderation"
-              className={styles.menuActionBtn}
-              onClick={() => {
-                setAccountMenuOpen(false)
-                setAccountSheetOpen(false)
-              }}
-            >
-              Moderation
-            </Link>
+            <div className={styles.menuNsfwRow}>
+              <span className={styles.menuNsfwLabel}>Adult content</span>
+              <div className={styles.menuNsfwBtns} role="group" aria-label="Adult content preference">
+                {(['nsfw', 'sfw', 'blurred'] as const).map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    className={nsfwPreference === p ? styles.menuNsfwBtnActive : styles.menuNsfwBtn}
+                    onClick={() => setNsfwPreference(p)}
+                  >
+                    {p === 'nsfw' ? 'NSFW' : p === 'sfw' ? 'SFW' : 'Blurred'}
+                  </button>
+                ))}
+              </div>
+            </div>
             <button type="button" className={styles.menuActionBtn} onClick={handleAddAccount}>
               Add account
             </button>
@@ -788,19 +794,25 @@ export default function Layout({ title, children, showNav }: Props) {
               )
             })}
           </div>
+          <div className={styles.menuCompactNsfwRow}>
+            <span className={styles.menuNsfwLabel}>Adult content</span>
+            <div className={styles.menuNsfwBtns} role="group" aria-label="Adult content preference">
+              {(['nsfw', 'sfw', 'blurred'] as const).map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  className={nsfwPreference === p ? styles.menuNsfwBtnActive : styles.menuNsfwBtn}
+                  onClick={() => setNsfwPreference(p)}
+                >
+                  {p === 'nsfw' ? 'NSFW' : p === 'sfw' ? 'SFW' : 'Blurred'}
+                </button>
+              ))}
+            </div>
+          </div>
           <div className={styles.menuCompactActions}>
             <button type="button" className={styles.menuCompactActionBtn} onClick={() => { setAccountSheetOpen(false); openEditProfile() }} title="Edit profile" aria-label="Edit profile">
               <PencilIcon />
             </button>
-            <Link
-              to="/settings/moderation"
-              className={styles.menuCompactActionBtn}
-              onClick={() => setAccountSheetOpen(false)}
-              title="Moderation"
-              aria-label="Moderation"
-            >
-              <ShieldIcon />
-            </Link>
             <button type="button" className={styles.menuCompactActionBtn} onClick={handleAddAccount} title="Add account" aria-label="Add account">
               <PlusIcon />
             </button>
@@ -1115,25 +1127,56 @@ export default function Layout({ title, children, showNav }: Props) {
                         autoFocus={isDesktop}
                       />
                       {composeImages.length > 0 && (
-                        <div className={styles.composePreviews}>
-                          {composeImages.map((_, i) => (
-                            <div key={i} className={styles.composePreviewWrap}>
-                              <img
-                                src={composePreviewUrls[i]}
-                                alt=""
-                                className={styles.composePreviewImg}
-                              />
-                              <button
-                                type="button"
-                                className={styles.composePreviewRemove}
-                                onClick={() => removeComposeImage(i)}
-                                aria-label="Remove image"
-                                disabled={composePosting}
-                              >
-                                ×
-                              </button>
-                            </div>
-                          ))}
+                        <div className={styles.composeMediaSection}>
+                          <div className={styles.composePreviews}>
+                            {composeImages.map((_, i) => (
+                              <div key={i} className={styles.composePreviewWrap}>
+                                <img
+                                  src={composePreviewUrls[i]}
+                                  alt=""
+                                  className={styles.composePreviewImg}
+                                />
+                                <button
+                                  type="button"
+                                  className={styles.composePreviewRemove}
+                                  onClick={() => removeComposeImage(i)}
+                                  aria-label="Remove image"
+                                  disabled={composePosting}
+                                >
+                                  ×
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                          <p className={styles.composeAltPrompt}>Describe each image for accessibility (alt text).</p>
+                          <div className={styles.composeAltFields}>
+                            {composeImages.map((_, i) => (
+                              <div key={i} className={styles.composeAltRow}>
+                                <label htmlFor={`compose-alt-${i}`} className={styles.composeAltLabel}>
+                                  Image {i + 1}
+                                </label>
+                                <input
+                                  id={`compose-alt-${i}`}
+                                  type="text"
+                                  className={styles.composeAltInput}
+                                  placeholder="Describe this image for people using screen readers"
+                                  value={composeImageAlts[i] ?? ''}
+                                  onChange={(e) => {
+                                    const val = e.target.value.slice(0, 1000)
+                                    setComposeImageAlts((prev) => {
+                                      const next = [...prev]
+                                      while (next.length < composeImages.length) next.push('')
+                                      next[i] = val
+                                      return next
+                                    })
+                                  }}
+                                  maxLength={1000}
+                                  disabled={composePosting}
+                                  aria-label={`Alt text for image ${i + 1}`}
+                                />
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       )}
                       <div className={styles.composeFooter}>
