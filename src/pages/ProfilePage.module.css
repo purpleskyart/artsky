@@ -114,9 +114,21 @@
   transition: transform 0.25s ease;
 }
 
+/* In profile popup: pin tabs to top of scroll (just below the X/back bar) */
+.wrapInModal .tabsSticky {
+  top: 0;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 0.5rem;
+  padding: 0.25rem 0 0.5rem;
+}
+
 @media (max-width: 767px) {
   .tabsSticky {
     top: 3.25rem;
+  }
+  .wrapInModal .tabsSticky {
+    top: 0;
   }
   .tabsBarHidden {
     transform: translateY(-100%);

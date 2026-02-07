@@ -1,6 +1,6 @@
-import { Component, useEffect, useRef } from 'react'
+import { Component } from 'react'
 import type { ErrorInfo, ReactNode } from 'react'
-import { HashRouter, Navigate, Route, Routes, useLocation, useNavigationType } from 'react-router-dom'
+import { HashRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { SessionProvider } from './context/SessionContext'
 import { ThemeProvider } from './context/ThemeContext'
 import { ViewModeProvider } from './context/ViewModeContext'
@@ -53,90 +53,6 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
   }
 }
 
-const SCROLL_KEY_PREFIX = 'artsky-scroll-'
-const SCROLL_THROTTLE_MS = 150
-
-const SKIP_SAVE_AFTER_POP_MS = 1500
-
-function ScrollRestoration() {
-  const location = useLocation()
-  const navigationType = useNavigationType()
-  const skipSaveUntilRef = useRef(0)
-
-  useEffect(() => {
-    const pathname = location.pathname
-    const save = () => {
-      try {
-        if (Date.now() < skipSaveUntilRef.current) return
-        const y = window.scrollY ?? document.documentElement.scrollTop
-        sessionStorage.setItem(SCROLL_KEY_PREFIX + pathname, String(y))
-      } catch {
-        // ignore
-      }
-    }
-    let raf = 0
-    let last = 0
-    const onScroll = () => {
-      const now = Date.now()
-      if (now - last >= SCROLL_THROTTLE_MS) {
-        last = now
-        save()
-      } else {
-        if (raf) cancelAnimationFrame(raf)
-        raf = requestAnimationFrame(() => {
-          raf = 0
-          save()
-        })
-      }
-    }
-    window.addEventListener('scroll', onScroll, { passive: true })
-    return () => {
-      window.removeEventListener('scroll', onScroll)
-      if (raf) cancelAnimationFrame(raf)
-      // Do not save() here: cleanup runs after the new page has rendered, so
-      // window.scrollY would be 0 (or the new page's scroll) and we'd overwrite
-      // the correct position for the path we're leaving. We already save on scroll.
-    }
-  }, [location.pathname])
-
-  useEffect(() => {
-    if (navigationType !== 'POP') return
-    try {
-      const raw = sessionStorage.getItem(SCROLL_KEY_PREFIX + location.pathname)
-      if (raw === null) return
-      const y = parseInt(raw, 10)
-      if (!Number.isFinite(y) || y < 0) return
-      skipSaveUntilRef.current = Date.now() + SKIP_SAVE_AFTER_POP_MS
-      let restored = false
-      const restoreOnce = () => {
-        if (restored) return
-        if (document.documentElement.scrollHeight < y) return
-        restored = true
-        window.scrollTo(0, y)
-      }
-      // ResizeObserver fires when layout changes (e.g. images load); restore as soon as height is enough
-      const ro = new ResizeObserver(restoreOnce)
-      ro.observe(document.documentElement)
-      // Interval keeps trying until doc is tall enough (back navigation: feed + images load late)
-      const interval = setInterval(restoreOnce, 250)
-      const maxWaitMs = 10000
-      const stop = setTimeout(() => {
-        clearInterval(interval)
-        ro.disconnect()
-      }, maxWaitMs)
-      return () => {
-        clearInterval(interval)
-        clearTimeout(stop)
-        ro.disconnect()
-      }
-    } catch {
-      // ignore
-    }
-  }, [location.pathname, navigationType])
-
-  return null
-}
-
 function AppRoutes() {
   return (
     <Routes>
@@ -159,7 +75,6 @@ export default function App() {
   return (
     <ErrorBoundary>
       <HashRouter>
-        <ScrollRestoration />
         <ThemeProvider>
           <SessionProvider>
             <ViewModeProvider>

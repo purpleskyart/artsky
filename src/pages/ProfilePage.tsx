@@ -356,7 +356,7 @@ export function ProfileContent({
 
   return (
     <>
-      <div className={styles.wrap}>
+      <div className={`${styles.wrap} ${inModal ? styles.wrapInModal : ''}`}>
         <header className={styles.profileHeader}>
           {profile?.avatar && (
             <img src={profile.avatar} alt="" className={styles.avatar} />
