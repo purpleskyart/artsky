@@ -387,7 +387,7 @@ export default function FeedPage() {
           const postUri = item.post.uri
           agent.follow(author.did).then((res) => {
             setItems((prev) =>
-              prev.map((it) => {
+              prev.map((it): TimelineItem => {
                 if (it.post.uri !== postUri) return it
                 const post = it.post
                 const auth = post.author as { did: string; handle?: string; viewer?: { following?: string } }
@@ -399,7 +399,7 @@ export default function FeedPage() {
                       ...auth,
                       viewer: { ...auth.viewer, following: res.uri },
                     },
-                  },
+                  } as TimelineItem['post'],
                 }
               })
             )
