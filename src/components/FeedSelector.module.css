@@ -61,12 +61,6 @@
   text-shadow: 0 0 1px rgba(0, 0, 0, 0.3);
 }
 
-.mixTotal {
-  margin: 0.25rem 0 0;
-  font-size: 0.8rem;
-  color: var(--muted);
-}
-
 .tabs button {
   padding: 0.5rem 0.75rem;
   min-height: var(--touch-min);

@@ -11,7 +11,6 @@ interface Props {
   /** When mix is empty, this is the current single feed (for showing active state) */
   fallbackSource: FeedSource
   mixEntries: FeedMixEntry[]
-  mixTotalPercent: number
   onToggle: (source: FeedSource) => void
   setEntryPercent: (index: number, percent: number) => void
   onAddCustom: (input: string) => void | Promise<void>
@@ -21,7 +20,6 @@ export default function FeedSelector({
   sources,
   fallbackSource,
   mixEntries,
-  mixTotalPercent,
   onToggle,
   setEntryPercent,
   onAddCustom,
@@ -105,9 +103,6 @@ export default function FeedSelector({
           )
         })}
       </div>
-      {mixEntries.length >= 2 && (
-        <p className={styles.mixTotal}>Total: {mixTotalPercent}%</p>
-      )}
       {showCustom ? (
         <form onSubmit={handleAddCustom} className={styles.customForm}>
           <input

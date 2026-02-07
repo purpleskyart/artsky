@@ -400,7 +400,6 @@ export default function FeedPage() {
             sources={allSources}
             fallbackSource={source}
             mixEntries={mixEntries}
-            mixTotalPercent={mixTotalPercent}
             onToggle={toggleSource}
             setEntryPercent={setEntryPercent}
             onAddCustom={async (input) => {
