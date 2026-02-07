@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, useMemo } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import type { AppBskyFeedDefs } from '@atproto/api'
 import type { AtpSessionData } from '@atproto/api'
-import { agent, publicAgent, postReply, getPostAllMedia, getPostMediaUrl, getSession } from '../lib/bsky'
+import { agent, publicAgent, postReply, getPostAllMedia, getPostMediaUrl, getSession, createDownvote, deleteDownvote, listMyDownvotes } from '../lib/bsky'
 import { useSession } from '../context/SessionContext'
 import { getArtboards, createArtboard, addPostToArtboard, isPostInArtboard } from '../lib/artboards'
 import { formatRelativeTime, formatExactDateTime } from '../lib/date'
@@ -308,6 +308,12 @@ function PostBlock({
   currentDid,
   focusedCommentUri,
   onCommentMediaFocus,
+  onLike,
+  onDownvote,
+  likeOverrides,
+  myDownvotes,
+  likeLoadingUri,
+  downvoteLoadingUri,
 }: {
   node: AppBskyFeedDefs.ThreadViewPost | AppBskyFeedDefs.NotFoundPost | AppBskyFeedDefs.BlockedPost | { $type: string }
   depth?: number
@@ -329,9 +335,19 @@ function PostBlock({
   currentDid?: string
   focusedCommentUri?: string
   onCommentMediaFocus?: (commentUri: string, mediaIndex: number) => void
+  onLike?: (uri: string, cid: string, currentLikeUri: string | null) => Promise<void>
+  onDownvote?: (uri: string, cid: string, currentDownvoteUri: string | null) => Promise<void>
+  likeOverrides?: Record<string, string | null>
+  myDownvotes?: Record<string, string>
+  likeLoadingUri?: string | null
+  downvoteLoadingUri?: string | null
 }) {
   if (!isThreadViewPost(node)) return null
   const { post } = node
+  const postViewer = post as { viewer?: { like?: string }; likeCount?: number }
+  const likedUri = likeOverrides?.[post.uri] !== undefined ? likeOverrides[post.uri] : postViewer.viewer?.like
+  const downvotedUri = myDownvotes?.[post.uri]
+  const likeCount = postViewer.likeCount ?? 0
   const allMedia = getPostAllMedia(post)
   const text = (post.record as { text?: string })?.text ?? ''
   const handle = post.author.handle ?? post.author.did
@@ -343,6 +359,8 @@ function PostBlock({
   const canCollapse = !!onToggleCollapse
   const isReplyTarget = replyingTo?.uri === post.uri
   const isFocused = focusedCommentUri === post.uri
+  const likeLoading = likeLoadingUri === post.uri
+  const downvoteLoading = downvoteLoadingUri === post.uri
 
   return (
     <article className={`${styles.postBlock} ${isFocused ? styles.commentFocused : ''}`} style={{ marginLeft: depth * 12 }} data-comment-uri={post.uri} tabIndex={-1}>
@@ -389,15 +407,41 @@ function PostBlock({
           <PostText text={text} facets={(post.record as { facets?: unknown[] })?.facets} />
         </p>
       )}
-      {onReply && (
+      {(onReply || onLike || onDownvote) && (
         <div className={styles.replyBtnRow}>
-          <button
-            type="button"
-            className={styles.replyBtn}
-            onClick={() => onReply(post.uri, post.cid, handle)}
-          >
-            Reply
-          </button>
+          {onReply && (
+            <button
+              type="button"
+              className={styles.replyBtn}
+              onClick={() => onReply(post.uri, post.cid, handle)}
+            >
+              Reply
+            </button>
+          )}
+          {onLike && (
+            <button
+              type="button"
+              className={likedUri ? styles.commentLikeBtnLiked : styles.commentLikeBtn}
+              onClick={() => onLike(post.uri, post.cid, likedUri ?? null)}
+              disabled={likeLoading}
+              title={likedUri ? 'Remove like' : 'Like'}
+              aria-label={likedUri ? 'Remove like' : 'Like'}
+            >
+              ↑ {likeCount}
+            </button>
+          )}
+          {onDownvote && (
+            <button
+              type="button"
+              className={downvotedUri ? styles.commentDownvoteBtnActive : styles.commentDownvoteBtn}
+              onClick={() => onDownvote(post.uri, post.cid, downvotedUri ?? null)}
+              disabled={downvoteLoading}
+              title={downvotedUri ? 'Remove downvote' : 'Downvote (syncs across AT Protocol)'}
+              aria-label={downvotedUri ? 'Remove downvote' : 'Downvote'}
+            >
+              ↓
+            </button>
+          )}
         </div>
       )}
       {isReplyTarget && replyingTo && setReplyComment && onReplySubmit && clearReplyingTo && commentFormRef && (
@@ -502,6 +546,12 @@ function PostBlock({
                     currentDid={currentDid}
                     focusedCommentUri={focusedCommentUri}
                     onCommentMediaFocus={onCommentMediaFocus}
+                    onLike={onLike}
+                    onDownvote={onDownvote}
+                    likeOverrides={likeOverrides}
+                    myDownvotes={myDownvotes}
+                    likeLoadingUri={likeLoadingUri}
+                    downvoteLoadingUri={downvoteLoadingUri}
                   />
                 )
               })}
@@ -544,6 +594,10 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, onClose }: P
   const [likeUriOverride, setLikeUriOverride] = useState<string | null>(null)
   const [repostUriOverride, setRepostUriOverride] = useState<string | null>(null)
   const [replyingTo, setReplyingTo] = useState<{ uri: string; cid: string; handle: string } | null>(null)
+  const [commentLikeOverrides, setCommentLikeOverrides] = useState<Record<string, string | null>>({})
+  const [myDownvotes, setMyDownvotes] = useState<Record<string, string>>({})
+  const [commentLikeLoadingUri, setCommentLikeLoadingUri] = useState<string | null>(null)
+  const [commentDownvoteLoadingUri, setCommentDownvoteLoadingUri] = useState<string | null>(null)
   const [newBoardName, setNewBoardName] = useState('')
   const [showBoardDropdown, setShowBoardDropdown] = useState(false)
   const [postSectionIndex, setPostSectionIndex] = useState(0)
@@ -666,9 +720,12 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, onClose }: P
     setError(null)
     const api = getSession() ? agent : publicAgent
     try {
-      const res = await api.app.bsky.feed.getPostThread({ uri: decodedUri, depth: 10 })
-      const th = res.data.thread
-      setThread(th)
+      const [threadRes, downvotes] = await Promise.all([
+        api.app.bsky.feed.getPostThread({ uri: decodedUri, depth: 10 }),
+        getSession() ? listMyDownvotes().catch(() => ({})) : Promise.resolve({}),
+      ])
+      setThread(threadRes.data.thread)
+      setMyDownvotes(downvotes)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to load post')
     } finally {
@@ -726,6 +783,44 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, onClose }: P
     setReplyingTo({ uri: parentUri, cid: parentCid, handle })
     const form = document.querySelector(`.${styles.commentForm} textarea`) as HTMLTextAreaElement | null
     form?.focus()
+  }
+
+  async function handleCommentLike(uri: string, cid: string, currentLikeUri: string | null) {
+    setCommentLikeLoadingUri(uri)
+    try {
+      if (currentLikeUri) {
+        await agent.deleteLike(currentLikeUri)
+        setCommentLikeOverrides((m) => ({ ...m, [uri]: null }))
+      } else {
+        const res = await agent.like(uri, cid)
+        setCommentLikeOverrides((m) => ({ ...m, [uri]: res.uri }))
+      }
+    } catch {
+      // leave state unchanged
+    } finally {
+      setCommentLikeLoadingUri(null)
+    }
+  }
+
+  async function handleCommentDownvote(uri: string, cid: string, currentDownvoteUri: string | null) {
+    setCommentDownvoteLoadingUri(uri)
+    try {
+      if (currentDownvoteUri) {
+        await deleteDownvote(currentDownvoteUri)
+        setMyDownvotes((m) => {
+          const next = { ...m }
+          delete next[uri]
+          return next
+        })
+      } else {
+        const recordUri = await createDownvote(uri, cid)
+        setMyDownvotes((m) => ({ ...m, [uri]: recordUri }))
+      }
+    } catch {
+      // leave state unchanged
+    } finally {
+      setCommentDownvoteLoadingUri(null)
+    }
   }
 
   function handleAddToArtboard() {
@@ -1237,6 +1332,12 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, onClose }: P
                         currentDid={sessionFromContext?.did ?? undefined}
                         focusedCommentUri={focusedCommentUri}
                         onCommentMediaFocus={handleCommentMediaFocus}
+                        onLike={sessionFromContext ? handleCommentLike : undefined}
+                        onDownvote={sessionFromContext ? handleCommentDownvote : undefined}
+                        likeOverrides={commentLikeOverrides}
+                        myDownvotes={myDownvotes}
+                        likeLoadingUri={commentLikeLoadingUri}
+                        downvoteLoadingUri={commentDownvoteLoadingUri}
                       />
                     </div>
                   )

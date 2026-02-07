@@ -513,6 +513,62 @@ export async function deleteStandardSiteDocument(uri: string): Promise<void> {
   })
 }
 
+/** Custom downvote collection: stored in user repo so it syncs across the AT Protocol. */
+const DOWNVOTE_COLLECTION = 'app.artsky.feed.downvote'
+
+/** Create a downvote record for a post. Returns the new record URI. Requires session. */
+export async function createDownvote(subjectUri: string, subjectCid: string): Promise<string> {
+  const session = getSession()
+  if (!session?.did) throw new Error('Not logged in')
+  const res = await agent.com.atproto.repo.createRecord({
+    repo: session.did,
+    collection: DOWNVOTE_COLLECTION,
+    record: {
+      $type: DOWNVOTE_COLLECTION,
+      subject: { uri: subjectUri, cid: subjectCid },
+      createdAt: new Date().toISOString(),
+    },
+  })
+  return res.data.uri
+}
+
+/** Remove a downvote. Requires session. */
+export async function deleteDownvote(downvoteRecordUri: string): Promise<void> {
+  const session = getSession()
+  if (!session?.did) throw new Error('Not logged in')
+  const parsed = parseAtUri(downvoteRecordUri)
+  if (!parsed || parsed.collection !== DOWNVOTE_COLLECTION) throw new Error('Invalid downvote URI')
+  if (parsed.did !== session.did) throw new Error('You can only remove your own downvotes')
+  await agent.com.atproto.repo.deleteRecord({
+    repo: session.did,
+    collection: DOWNVOTE_COLLECTION,
+    rkey: parsed.rkey,
+  })
+}
+
+/** List current user's downvotes: subject post URI -> downvote record URI. Requires session. */
+export async function listMyDownvotes(): Promise<Record<string, string>> {
+  const session = getSession()
+  if (!session?.did) return {}
+  const out: Record<string, string> = {}
+  let cursor: string | undefined
+  do {
+    const res = await agent.com.atproto.repo.listRecords({
+      repo: session.did,
+      collection: DOWNVOTE_COLLECTION,
+      limit: 100,
+      cursor,
+    })
+    for (const r of res.data.records ?? []) {
+      const value = r.value as { subject?: { uri?: string } }
+      const subjectUri = value?.subject?.uri
+      if (subjectUri && r.uri) out[subjectUri] = r.uri
+    }
+    cursor = res.data.cursor
+  } while (cursor)
+  return out
+}
+
 /** Upload a blob for use in a standard.site document media array. Requires session. */
 export async function uploadStandardSiteDocumentBlob(
   file: File
