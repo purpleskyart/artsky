@@ -313,22 +313,14 @@ export default function FeedPage() {
       }
       if (key === 'a' || e.key === 'ArrowLeft') {
         scrollIntoViewFromKeyboardRef.current = true
-        // Same row, previous column (never skip columns)
-        setKeyboardFocusIndex((idx) => {
-          const col = idx % cols
-          if (col <= 0) return idx
-          return idx - 1
-        })
+        // Move to the item to the left (previous index = same row previous column in grid)
+        setKeyboardFocusIndex((idx) => Math.max(0, idx - 1))
         return
       }
       if (key === 'd' || e.key === 'ArrowRight') {
         scrollIntoViewFromKeyboardRef.current = true
-        // Same row, next column only (left → middle → right, never skip)
-        setKeyboardFocusIndex((idx) => {
-          const col = idx % cols
-          if (col >= cols - 1) return idx
-          return Math.min(items.length - 1, idx + 1)
-        })
+        // Move to the item to the right (next index = same row next column in grid)
+        setKeyboardFocusIndex((idx) => Math.min(items.length - 1, idx + 1))
         return
       }
       if (key === 'e' || key === 'enter') {
