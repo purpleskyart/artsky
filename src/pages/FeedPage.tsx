@@ -196,10 +196,12 @@ export default function FeedPage() {
     setKeyboardFocusIndex((i) => (mediaItems.length ? Math.min(i, mediaItems.length - 1) : 0))
   }, [mediaItems.length])
 
+  // Scroll focused card into view when user changes focus (WASD etc.); skip when returning via back so we don't override scroll restoration
   useEffect(() => {
+    if (navigationType === 'POP') return
     const el = cardRefsRef.current[keyboardFocusIndex]
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' })
-  }, [keyboardFocusIndex])
+  }, [keyboardFocusIndex, navigationType])
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {

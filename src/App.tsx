@@ -104,10 +104,17 @@ function ScrollRestoration() {
       }
       requestAnimationFrame(restore)
       const t1 = setTimeout(restore, 50)
-      const t2 = setTimeout(restore, 200) // re-apply after content (e.g. feed) has rendered
+      const t2 = setTimeout(restore, 200)
+      const t3 = setTimeout(restore, 600) // feed/content may still be loading
+      const ro = new ResizeObserver(() => {
+        if (document.documentElement.scrollHeight >= y) restore()
+      })
+      ro.observe(document.documentElement)
       return () => {
         clearTimeout(t1)
         clearTimeout(t2)
+        clearTimeout(t3)
+        ro.disconnect()
       }
     } catch {
       // ignore
