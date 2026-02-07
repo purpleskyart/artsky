@@ -225,7 +225,7 @@
   justify-content: center;
 }
 
-/* Bento: media wrap fills available space, media crops to cover */
+/* Bento: media wrap fills available space; show full image/video (no crop) */
 .mediaWrapFillCell {
   flex: 1;
   min-height: 0;
@@ -235,12 +235,14 @@
 .mediaWrapFillCell .media {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+  object-position: center;
 }
 .mediaWrapFillCell video.media {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+  object-position: center;
 }
 
 .textOnlyPlaceholder {
