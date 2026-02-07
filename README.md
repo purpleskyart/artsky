@@ -21,26 +21,24 @@ Use your **Bluesky handle** (or email) and an **App Password**.
 
 1. Push this repo to GitHub (e.g. `https://github.com/YOUR_USERNAME/artsky`).
 
-2. **Build and deploy**:
-   - **Option A – GitHub Actions**  
-     - Ensure the repo has **Settings → Pages → Source**: “GitHub Actions”.
-   - **Option B – Manual**  
-     - Run `npm run build`, then push the contents of the `dist/` folder to a branch (e.g. `gh-pages`) and set that branch as the Pages source.
+2. **Use GitHub Actions for Pages (required)**  
+   In the repo go to **Settings → Pages → Build and deployment → Source** and set it to **GitHub Actions**.  
+   If you use “Deploy from a branch”, the site will serve the repo’s raw files and the app will not load (you’ll see “Loading failed for the module with source …/src/main.tsx”).
 
-3. The app will be at: **`https://YOUR_USERNAME.github.io/artsky/`**  
+3. Push to `main` (or re-run the “Deploy to GitHub Pages” workflow). The workflow builds the app and deploys the built files from `dist/`.
+
+4. The app will be at: **`https://YOUR_USERNAME.github.io/artsky/`**  
    Open this exact URL (including the `/artsky/` path). Do not open the repo root or a raw file.
 
-4. On your phone, open that URL in Safari/Chrome and use “Add to Home Screen” to install the PWA.
+5. On your phone, open that URL in Safari/Chrome and use “Add to Home Screen” to install the PWA.
 
-### “Disallowed MIME type (text/html)” when loading the app
+### “Loading failed for the module” or “Disallowed MIME type (text/html)”
 
-This usually means the **built** app is not being served:
+The **built** app is not being served; the server is sending the repo’s raw `index.html`, which points at `src/main.tsx` (source, not a built bundle).
 
-- **Use GitHub Actions for Pages**  
-  In the repo go to **Settings → Pages → Build and deployment → Source** and set it to **GitHub Actions**. That way the workflow deploys the contents of `dist/` (the built app). If the source is “Deploy from a branch”, the server may serve the repo’s raw `index.html`, which points at `/src/main.tsx`; the server then returns a 404 HTML page for that path, and the browser blocks it.
+- **Fix:** In the repo go to **Settings → Pages → Build and deployment → Source** and set it to **GitHub Actions**. Then trigger a deploy (push to `main` or re-run the workflow). The workflow deploys the contents of `dist/` (the built app).
 
-- **Use the correct URL**  
-  Open **`https://YOUR_USERNAME.github.io/artsky/`** (with the trailing slash). The app’s `base` is `/artsky/`, so it will not work at `https://YOUR_USERNAME.github.io/` alone.
+- **URL:** Open **`https://YOUR_USERNAME.github.io/artsky/`** (with the trailing slash). The app’s `base` is `./`, so use the full path; it will not work at `https://YOUR_USERNAME.github.io/` alone.
 
 ## Local development
 
