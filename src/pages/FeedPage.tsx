@@ -62,7 +62,6 @@ export default function FeedPage() {
   const blockCancelRef = useRef<HTMLButtonElement>(null)
   const blockConfirmRef = useRef<HTMLButtonElement>(null)
   const [openMenuIndex, setOpenMenuIndex] = useState<number | null>(null)
-  const [aspectRatios, setAspectRatios] = useState<(number | null)[]>([])
 
   const presetUris = new Set((PRESET_SOURCES.map((s) => s.uri).filter(Boolean) as string[]))
   const savedDeduped = savedFeedSources.filter((s) => !s.uri || !presetUris.has(s.uri))
@@ -251,23 +250,6 @@ export default function FeedPage() {
   useEffect(() => {
     setKeyboardFocusIndex((i) => (displayItems.length ? Math.min(i, displayItems.length - 1) : 0))
   }, [displayItems.length])
-
-  useEffect(() => {
-    setAspectRatios((prev) => {
-      if (prev.length === displayItems.length) return prev
-      if (displayItems.length < prev.length) return prev.slice(0, displayItems.length)
-      return [...prev, ...Array(displayItems.length - prev.length).fill(null)]
-    })
-  }, [displayItems.length])
-
-  const setAspectRatio = useCallback((index: number, aspect: number) => {
-    setAspectRatios((prev) => {
-      if (prev[index] === aspect) return prev
-      const next = [...prev]
-      next[index] = aspect
-      return next
-    })
-  }, [])
 
   // When focus moves (keyboard or hover) and a menu is open, open the menu on the newly focused card
   useEffect(() => {
@@ -531,7 +513,7 @@ export default function FeedPage() {
                     feedLabel={(item as { _feedSource?: { label?: string } })._feedSource?.label ?? feedLabel}
                     openActionsMenu={openMenuIndex === index}
                     onActionsMenuClose={() => setOpenMenuIndex(null)}
-                    onAspectRatio={cols >= 2 ? (aspect) => setAspectRatio(index, aspect) : undefined}
+                    onAspectRatio={undefined}
                     fillCell={false}
                   />
                 </div>

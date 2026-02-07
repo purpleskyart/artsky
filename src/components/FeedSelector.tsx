@@ -51,7 +51,8 @@ export default function FeedSelector({
           const entryIndex = mixEntries.findIndex((e) => sameSource(e.source, s))
           const isInMix = entryIndex >= 0 || (mixEntries.length === 0 && sameSource(s, fallbackSource))
           const entry = isInMix ? mixEntries[entryIndex] : null
-          const showPercent = isInMix && mixEntries.length >= 2
+          const showRatio = isInMix && mixEntries.length >= 2 && entry
+          const in10 = entry ? Math.max(1, Math.min(10, Math.round(entry.percent / 10))) : 1
           return (
             <div key={s.uri ?? s.label} className={styles.feedPillWrap}>
               <button
@@ -61,32 +62,32 @@ export default function FeedSelector({
               >
                 {s.label}
               </button>
-              {showPercent && entry && (
-                <div className={styles.percentRow}>
+              {showRatio && (
+                <div className={styles.ratioRow}>
                   <button
                     type="button"
-                    className={styles.percentArrow}
+                    className={styles.ratioBtn}
                     onClick={(e) => {
                       e.stopPropagation()
-                      const next = Math.max(0, Math.min(100, entry.percent - 1))
-                      setEntryPercent(entryIndex, next)
+                      const next = Math.max(1, in10 - 1)
+                      setEntryPercent(entryIndex, next * 10)
                     }}
-                    aria-label="Decrease percent"
+                    aria-label="Fewer posts from this feed"
                   >
-                    ↓
+                    −
                   </button>
-                  <span className={styles.percentValue}>{entry.percent}%</span>
+                  <span className={styles.ratioValue}>{in10} in 10 posts</span>
                   <button
                     type="button"
-                    className={styles.percentArrow}
+                    className={styles.ratioBtn}
                     onClick={(e) => {
                       e.stopPropagation()
-                      const next = Math.max(0, Math.min(100, entry.percent + 1))
-                      setEntryPercent(entryIndex, next)
+                      const next = Math.min(10, in10 + 1)
+                      setEntryPercent(entryIndex, next * 10)
                     }}
-                    aria-label="Increase percent"
+                    aria-label="More posts from this feed"
                   >
-                    ↑
+                    +
                   </button>
                 </div>
               )}
@@ -97,34 +98,30 @@ export default function FeedSelector({
       {mixEntries.length >= 2 && (
         <p className={styles.mixTotal}>Total: {mixTotalPercent}%</p>
       )}
-      <div className={styles.customSection}>
-        <span className={styles.customSectionLabel}>Custom feeds</span>
-        {showCustom ? (
-          <form onSubmit={handleAddCustom} className={styles.customForm}>
-            <input
-              type="text"
-              placeholder="Feed URL or handle/feed (e.g. handle.bsky.social/feed/name)"
-              value={customInput}
-              onChange={(e) => setCustomInput(e.target.value)}
-              className={styles.input}
-              disabled={adding}
-              aria-label="Custom feed URL"
-            />
-            <div className={styles.customActions}>
-              <button type="submit" className={styles.btn} disabled={adding}>
-                {adding ? 'Adding…' : 'Add feed'}
-              </button>
-              <button type="button" className={styles.btnSecondary} onClick={() => setShowCustom(false)} disabled={adding}>
-                Cancel
-              </button>
-            </div>
-          </form>
-        ) : (
-          <button type="button" className={styles.addFeed} onClick={() => setShowCustom(true)}>
-            + Add custom feed
-          </button>
-        )}
-      </div>
+      {showCustom ? (
+        <form onSubmit={handleAddCustom} className={styles.customForm}>
+          <input
+            type="text"
+            placeholder="https://bsky.app/profile/handle.bsky.social/feed/feed-name"
+            value={customInput}
+            onChange={(e) => setCustomInput(e.target.value)}
+            className={styles.input}
+            disabled={adding}
+          />
+          <div className={styles.customActions}>
+            <button type="submit" className={styles.btn} disabled={adding}>
+              {adding ? 'Adding…' : 'Add'}
+            </button>
+            <button type="button" className={styles.btnSecondary} onClick={() => setShowCustom(false)} disabled={adding}>
+              Cancel
+            </button>
+          </div>
+        </form>
+      ) : (
+        <button type="button" className={styles.addFeed} onClick={() => setShowCustom(true)}>
+          + Add custom feed
+        </button>
+      )}
     </div>
   )
 }
