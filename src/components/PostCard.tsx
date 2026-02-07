@@ -34,8 +34,10 @@ interface Props {
   feedLabel?: string
   /** When this changes, open the ... menu (e.g. M key). Unused if openActionsMenu is provided. */
   openActionsMenuTrigger?: number
-  /** Controlled: when true, menu is open; use with onActionsMenuClose */
+  /** Controlled: when true, menu is open; use with onActionsMenuClose and onActionsMenuOpen */
   openActionsMenu?: boolean
+  /** Called when the ... menu is opened (so parent can set which card's menu is open) */
+  onActionsMenuOpen?: () => void
   /** Called when the ... menu closes (so parent can clear open state) */
   onActionsMenuClose?: () => void
   /** Called when media aspect ratio is known (for bento layout) */
@@ -72,7 +74,7 @@ function isHlsUrl(url: string): boolean {
   return /\.m3u8(\?|$)/i.test(url) || url.includes('m3u8')
 }
 
-export default function PostCard({ item, isSelected, cardRef: cardRefProp, addButtonRef: _addButtonRef, openAddDropdown, onAddClose, onPostClick, feedLabel, openActionsMenuTrigger, openActionsMenu, onActionsMenuClose, onAspectRatio, fillCell }: Props) {
+export default function PostCard({ item, isSelected, cardRef: cardRefProp, addButtonRef: _addButtonRef, openAddDropdown, onAddClose, onPostClick, feedLabel, openActionsMenuTrigger, openActionsMenu, onActionsMenuOpen, onActionsMenuClose, onAspectRatio, fillCell }: Props) {
   const navigate = useNavigate()
   const { session } = useSession()
   const { artOnly } = useArtOnly()
@@ -681,7 +683,7 @@ export default function PostCard({ item, isSelected, cardRef: cardRefProp, addBu
                     feedLabel={feedLabel}
                     openTrigger={openActionsMenu === undefined && isSelected ? openActionsMenuTrigger : undefined}
                     open={openActionsMenu}
-                    onOpenChange={onActionsMenuClose !== undefined ? (o) => { if (!o) onActionsMenuClose() } : undefined}
+                    onOpenChange={onActionsMenuClose !== undefined ? (o) => { if (o) onActionsMenuOpen?.(); else onActionsMenuClose() } : undefined}
                   />
                 </div>
             </span>

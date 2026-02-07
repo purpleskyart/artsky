@@ -511,8 +511,9 @@ export default function FeedPage() {
                     onAddClose={() => setKeyboardAddOpen(false)}
                     onPostClick={(uri, opts) => openPostModal(uri, opts?.openReply)}
                     feedLabel={(item as { _feedSource?: { label?: string } })._feedSource?.label ?? feedLabel}
-                    openActionsMenu={openMenuIndex === index}
-                    onActionsMenuClose={() => setOpenMenuIndex(null)}
+openActionsMenu={openMenuIndex === index}
+                      onActionsMenuOpen={() => setOpenMenuIndex(index)}
+                      onActionsMenuClose={() => setOpenMenuIndex(null)}
                     onAspectRatio={undefined}
                     fillCell={false}
                   />
