@@ -20,23 +20,30 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let cancelled = false
-    const timeout = window.setTimeout(() => {
+    const maxWaitMs = 5000
+
+    const timeoutId = window.setTimeout(() => {
       if (cancelled) return
       setLoading(false)
-    }, 8000)
-    bsky.resumeSession().then((ok) => {
+    }, maxWaitMs)
+
+    const finish = (ok: boolean) => {
       if (cancelled) return
-      window.clearTimeout(timeout)
+      window.clearTimeout(timeoutId)
       setSession(ok ? bsky.getSession() : null)
       setLoading(false)
-    }).catch(() => {
-      if (cancelled) return
-      window.clearTimeout(timeout)
-      setLoading(false)
-    })
+    }
+
+    Promise.race([
+      bsky.resumeSession(),
+      new Promise<boolean>((resolve) => setTimeout(() => resolve(false), maxWaitMs - 500)),
+    ])
+      .then((ok) => finish(ok))
+      .catch(() => finish(false))
+
     return () => {
       cancelled = true
-      window.clearTimeout(timeout)
+      window.clearTimeout(timeoutId)
     }
   }, [])
 
