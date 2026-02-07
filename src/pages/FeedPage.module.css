@@ -170,6 +170,22 @@
 .gridView2 { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.5rem; }
 .gridView3 { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.5rem; }
 
+/* Column-based layout for 2/3 cols: items flow vertically per column to avoid big gaps between vertical and horizontal posts */
+.gridColumns {
+  display: flex;
+  flex-direction: row;
+  gap: 0.5rem;
+  align-items: flex-start;
+}
+
+.gridColumn {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
 /* Invisible sentinel for infinite scroll (IntersectionObserver target) */
 .loadMoreSentinel {
   height: 1px;

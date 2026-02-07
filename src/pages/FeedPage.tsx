@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   agent,
@@ -183,6 +183,14 @@ export default function FeedPage() {
   mediaItemsRef.current = mediaItems
   keyboardFocusIndexRef.current = keyboardFocusIndex
 
+  /** Column-based layout for 2/3 cols so vertical and horizontal posts don't create big row gaps */
+  const columns = useMemo(() => {
+    if (cols <= 1) return null
+    return Array.from({ length: cols }, (_, c) =>
+      mediaItems.filter((_, i) => i % cols === c)
+    )
+  }, [mediaItems, cols])
+
   useEffect(() => {
     setKeyboardFocusIndex((i) => (mediaItems.length ? Math.min(i, mediaItems.length - 1) : 0))
   }, [mediaItems.length])
@@ -339,6 +347,40 @@ export default function FeedPage() {
           <div className={styles.loading}>Loading…</div>
         ) : mediaItems.length === 0 ? (
           <div className={styles.empty}>No posts with images or videos in this feed.</div>
+        ) : columns ? (
+          <>
+            <div className={`${styles.grid} ${styles.gridColumns}`}>
+              {columns.map((columnItems, c) => (
+                <div key={c} className={styles.gridColumn}>
+                  {columnItems.map((item, i) => {
+                    const index = c + i * cols
+                    return (
+                      <div
+                        key={item.post.uri}
+                        onMouseEnter={() => setKeyboardFocusIndex(index)}
+                      >
+                        <PostCard
+                          item={item}
+                          isSelected={index === keyboardFocusIndex}
+                          cardRef={(el) => { cardRefsRef.current[index] = el }}
+                          openAddDropdown={index === keyboardFocusIndex && keyboardAddOpen}
+                          onAddClose={() => setKeyboardAddOpen(false)}
+                        />
+                      </div>
+                    )
+                  })}
+                </div>
+              ))}
+            </div>
+            {cursor && (
+              <>
+                <div ref={loadMoreSentinelRef} className={styles.loadMoreSentinel} aria-hidden />
+                {loadingMore && (
+                  <p className={styles.loadingMore} role="status">Loading more…</p>
+                )}
+              </>
+            )}
+          </>
         ) : (
           <>
             <div className={`${styles.grid} ${styles[`gridView${viewMode}`]}`}>
