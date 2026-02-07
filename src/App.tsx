@@ -85,13 +85,13 @@ export default function App() {
               <ArtOnlyProvider>
                 <MediaOnlyProvider>
                   <FeedMixProvider>
-                    <ProfileModalProvider>
                       <EditProfileProvider>
+                    <ProfileModalProvider>
                   <HiddenPostsProvider>
                     <AppRoutes />
                   </HiddenPostsProvider>
-                      </EditProfileProvider>
                     </ProfileModalProvider>
+                      </EditProfileProvider>
                   </FeedMixProvider>
                 </MediaOnlyProvider>
               </ArtOnlyProvider>
