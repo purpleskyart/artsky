@@ -6,6 +6,13 @@
   padding-bottom: calc(4rem + env(safe-area-inset-bottom));
 }
 
+@media (max-width: 767px) {
+  .wrap {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+}
+
 .filterRow {
   margin-bottom: 0.75rem;
 }
