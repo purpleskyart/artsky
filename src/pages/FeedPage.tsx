@@ -199,9 +199,8 @@ export default function FeedPage() {
     setKeyboardFocusIndex((i) => (mediaItems.length ? Math.min(i, mediaItems.length - 1) : 0))
   }, [mediaItems.length])
 
-  // Scroll focused card into view when changing focus with WASD (match popup behavior)
+  // Scroll focused card into view when changing focus with WASD (match post detail behavior)
   useEffect(() => {
-    if (navigationType === 'POP') return
     if (keyboardFocusIndex === lastScrollIntoViewIndexRef.current) return
     lastScrollIntoViewIndexRef.current = keyboardFocusIndex
     const index = keyboardFocusIndex
@@ -212,7 +211,7 @@ export default function FeedPage() {
       }
     })
     return () => cancelAnimationFrame(raf)
-  }, [keyboardFocusIndex, navigationType])
+  }, [keyboardFocusIndex])
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -227,7 +226,7 @@ export default function FeedPage() {
       if (items.length === 0) return
 
       const key = e.key.toLowerCase()
-      if (key === 'w' || key === 's' || key === 'a' || key === 'd' || key === 'e' || key === 'enter' || key === 'r' || key === 'x' || key === 'c') e.preventDefault()
+      if (key === 'w' || key === 's' || key === 'a' || key === 'd' || key === 'e' || key === 'enter' || key === 'r' || key === 'f' || key === 'c') e.preventDefault()
 
       if (key === 'w') {
         setKeyboardFocusIndex((idx) => Math.max(0, idx - cols))
@@ -255,7 +254,7 @@ export default function FeedPage() {
         if (item) setPostModalState({ uri: item.post.uri, openReply: true })
         return
       }
-      if (key === 'x') {
+      if (key === 'f') {
         const item = items[i]
         if (item?.post?.uri && item?.post?.cid) agent.like(item.post.uri, item.post.cid).catch(() => {})
         return

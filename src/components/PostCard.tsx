@@ -653,8 +653,8 @@ export default function PostCard({ item, isSelected, cardRef: cardRefProp, addBu
                 className={likedUri ? styles.mobileLikeBtnLiked : styles.mobileLikeBtn}
                 onClick={handleLikeClick}
                 disabled={likeLoading}
-                aria-label={likedUri ? 'Unlike' : 'Like'}
-                title={likedUri ? 'Unlike' : 'Like'}
+                aria-label={likedUri ? 'Remove respect' : 'Respect'}
+                title={likedUri ? 'Remove respect' : 'Respect'}
               >
                 <HeartIcon filled={!!likedUri} />
                 {likeCount > 0 && <span className={styles.mobileLikeCount}>{likeCount}</span>}
@@ -744,8 +744,8 @@ export default function PostCard({ item, isSelected, cardRef: cardRefProp, addBu
             type="button"
             className={styles.longPressBtnTop}
             onClick={handleLongPressLike}
-            title="Like"
-            aria-label="Like"
+            title="Respect"
+            aria-label="Respect"
           >
             <HeartIcon />
           </button>

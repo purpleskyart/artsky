@@ -79,7 +79,7 @@ export default function TagPage() {
       const items = mediaItemsRef.current
       const i = keyboardFocusIndexRef.current
       const key = e.key.toLowerCase()
-      if (key === 'w' || key === 's' || key === 'a' || key === 'd' || key === 'e' || key === 'enter' || key === 'x' || key === 'c') e.preventDefault()
+      if (key === 'w' || key === 's' || key === 'a' || key === 'd' || key === 'e' || key === 'enter' || key === 'f' || key === 'c') e.preventDefault()
 
       if (key === 'w') {
         setKeyboardFocusIndex((idx) => Math.max(0, idx - cols))
@@ -102,7 +102,7 @@ export default function TagPage() {
         if (item) navigate(`/post/${encodeURIComponent(item.post.uri)}`)
         return
       }
-      if (key === 'x') {
+      if (key === 'f') {
         const item = items[i]
         if (item?.post?.uri && item?.post?.cid) agent.like(item.post.uri, item.post.cid).catch(() => {})
         return

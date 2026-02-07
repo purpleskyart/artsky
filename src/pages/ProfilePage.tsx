@@ -270,7 +270,7 @@ export default function ProfilePage() {
       if (items.length === 0) return
       const i = keyboardFocusIndexRef.current
       const key = e.key.toLowerCase()
-      if (key === 'w' || key === 's' || key === 'a' || key === 'd' || key === 'e' || key === 'enter' || key === 'x' || key === 'c') e.preventDefault()
+      if (key === 'w' || key === 's' || key === 'a' || key === 'd' || key === 'e' || key === 'enter' || key === 'f' || key === 'c') e.preventDefault()
 
       if (key === 'w') {
         setKeyboardFocusIndex((idx) => Math.max(0, idx - cols))
@@ -293,7 +293,7 @@ export default function ProfilePage() {
         if (item) navigate(`/post/${encodeURIComponent(item.post.uri)}`)
         return
       }
-      if (key === 'x') {
+      if (key === 'f') {
         const item = items[i]
         if (item?.post?.uri && item?.post?.cid) agent.like(item.post.uri, item.post.cid).catch(() => {})
         return
@@ -418,7 +418,7 @@ export default function ProfilePage() {
             className={`${styles.tab} ${tab === 'liked' ? styles.tabActive : ''}`}
             onClick={() => setTab('liked')}
           >
-            Liked
+            Respected
           </button>
           <button
             type="button"
@@ -609,9 +609,9 @@ export default function ProfilePage() {
           )
         ) : tab === 'liked' ? (
             !isOwnProfile ? (
-            <div className={styles.empty}>Liked posts are only visible to the account owner.</div>
+            <div className={styles.empty}>Respected posts are only visible to the account owner.</div>
           ) : likedMediaItems.length === 0 ? (
-            <div className={styles.empty}>No liked posts with images or videos.</div>
+            <div className={styles.empty}>No respected posts with images or videos.</div>
           ) : (
             <>
               <div className={`${styles.grid} ${styles[`gridView${viewMode}`]}`}>
