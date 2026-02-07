@@ -190,6 +190,10 @@
 
 .replyBtnRow {
   margin-top: 0.35rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
 }
 
 .replyBtn {
@@ -205,6 +209,48 @@
 .replyBtn:hover {
   color: var(--accent);
   border-color: var(--accent);
+}
+
+.commentLikeBtn,
+.commentLikeBtnLiked {
+  padding: 0.2rem 0.5rem;
+  font-size: 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 0.35rem;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.commentLikeBtn:hover:not(:disabled) {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.commentLikeBtnLiked {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.commentDownvoteBtn,
+.commentDownvoteBtnActive {
+  padding: 0.2rem 0.5rem;
+  font-size: 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 0.35rem;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.commentDownvoteBtn:hover:not(:disabled) {
+  color: var(--muted);
+  border-color: var(--muted);
+}
+
+.commentDownvoteBtnActive {
+  color: var(--text);
+  border-color: var(--muted);
 }
 
 .avatar {
