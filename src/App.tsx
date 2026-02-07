@@ -1,4 +1,4 @@
-import { Component, useEffect } from 'react'
+import { Component, useEffect, useRef } from 'react'
 import type { ErrorInfo, ReactNode } from 'react'
 import { HashRouter, Navigate, Route, Routes, useLocation, useNavigationType } from 'react-router-dom'
 import { SessionProvider } from './context/SessionContext'
@@ -55,14 +55,18 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
 const SCROLL_KEY_PREFIX = 'artsky-scroll-'
 const SCROLL_THROTTLE_MS = 150
 
+const SKIP_SAVE_AFTER_POP_MS = 1500
+
 function ScrollRestoration() {
   const location = useLocation()
   const navigationType = useNavigationType()
+  const skipSaveUntilRef = useRef(0)
 
   useEffect(() => {
     const pathname = location.pathname
     const save = () => {
       try {
+        if (Date.now() < skipSaveUntilRef.current) return
         const y = window.scrollY ?? document.documentElement.scrollTop
         sessionStorage.setItem(SCROLL_KEY_PREFIX + pathname, String(y))
       } catch {
@@ -99,6 +103,7 @@ function ScrollRestoration() {
       if (raw === null) return
       const y = parseInt(raw, 10)
       if (!Number.isFinite(y) || y < 0) return
+      skipSaveUntilRef.current = Date.now() + SKIP_SAVE_AFTER_POP_MS
       const restore = () => {
         window.scrollTo(0, y)
       }

@@ -47,6 +47,7 @@ export default function FeedPage() {
   const cardRefsRef = useRef<(HTMLDivElement | null)[]>([])
   const mediaItemsRef = useRef<TimelineItem[]>([])
   const keyboardFocusIndexRef = useRef(0)
+  const lastScrollIntoViewIndexRef = useRef<number>(-1)
 
   const allSources = [...PRESET_SOURCES, ...savedFeedSources]
 
@@ -196,9 +197,11 @@ export default function FeedPage() {
     setKeyboardFocusIndex((i) => (mediaItems.length ? Math.min(i, mediaItems.length - 1) : 0))
   }, [mediaItems.length])
 
-  // Scroll focused card into view when user changes focus (WASD etc.); skip when returning via back so we don't override scroll restoration
+  // Scroll focused card into view only when user changes focus (WASD etc.); skip on POP and when index was only clamped after load more
   useEffect(() => {
     if (navigationType === 'POP') return
+    if (keyboardFocusIndex === lastScrollIntoViewIndexRef.current) return
+    lastScrollIntoViewIndexRef.current = keyboardFocusIndex
     const el = cardRefsRef.current[keyboardFocusIndex]
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' })
   }, [keyboardFocusIndex, navigationType])
