@@ -71,6 +71,7 @@ export function ProfileContent({
   const profileGridItemsRef = useRef<TimelineItem[]>([])
   const scrollIntoViewFromKeyboardRef = useRef(false)
   const lastScrollIntoViewIndexRef = useRef(-1)
+  const mouseMovedRef = useRef(false)
   const SWIPE_THRESHOLD = 100
   const SCROLL_THRESHOLD = 8
 
@@ -333,6 +334,12 @@ export function ProfileContent({
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [tab, cols, isModalOpen, openPostModal, inModal])
+
+  useEffect(() => {
+    const onMouseMove = () => { mouseMovedRef.current = true }
+    window.addEventListener('mousemove', onMouseMove)
+    return () => window.removeEventListener('mousemove', onMouseMove)
+  }, [])
 
   const postText = (post: TimelineItem['post']) => (post.record as { text?: string })?.text?.trim() ?? ''
   const isReply = (post: TimelineItem['post']) => !!(post.record as { reply?: unknown })?.reply
@@ -658,7 +665,12 @@ export function ProfileContent({
                 {likedMediaItems.map((item, index) => (
                   <div
                     key={item.post.uri}
-                    onMouseEnter={() => setKeyboardFocusIndex(index)}
+                    onMouseEnter={() => {
+                      if (mouseMovedRef.current) {
+                        mouseMovedRef.current = false
+                        setKeyboardFocusIndex(index)
+                      }
+                    }}
                   >
                     <PostCard
                       item={item}
@@ -685,7 +697,12 @@ export function ProfileContent({
               {mediaItems.map((item, index) => (
                 <div
                   key={item.post.uri}
-                  onMouseEnter={() => setKeyboardFocusIndex(index)}
+                  onMouseEnter={() => {
+                    if (mouseMovedRef.current) {
+                      mouseMovedRef.current = false
+                      setKeyboardFocusIndex(index)
+                    }
+                  }}
                 >
                   <PostCard
                     item={item}

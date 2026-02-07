@@ -58,6 +58,8 @@ export default function FeedPage() {
   const lastScrollIntoViewIndexRef = useRef<number>(-1)
   /** Only scroll into view when focus was changed by keyboard (W/S/A/D), not by mouse hover */
   const scrollIntoViewFromKeyboardRef = useRef(false)
+  /** Only update focus on mouse enter when the user has actually moved the mouse (not when scroll moved content under cursor) */
+  const mouseMovedRef = useRef(false)
   const [blockConfirm, setBlockConfirm] = useState<{ did: string; handle: string; avatar?: string } | null>(null)
   const blockCancelRef = useRef<HTMLButtonElement>(null)
   const blockConfirmRef = useRef<HTMLButtonElement>(null)
@@ -250,6 +252,12 @@ export default function FeedPage() {
   useEffect(() => {
     setKeyboardFocusIndex((i) => (displayItems.length ? Math.min(i, displayItems.length - 1) : 0))
   }, [displayItems.length])
+
+  useEffect(() => {
+    const onMouseMove = () => { mouseMovedRef.current = true }
+    window.addEventListener('mousemove', onMouseMove)
+    return () => window.removeEventListener('mousemove', onMouseMove)
+  }, [])
 
   // When focus moves (keyboard or hover) and a menu is open, open the menu on the newly focused card
   useEffect(() => {
@@ -501,7 +509,12 @@ export default function FeedPage() {
                 <div
                   key={item.post.uri}
                   className={cols >= 2 ? styles.gridItem : ''}
-                  onMouseEnter={() => setKeyboardFocusIndex(index)}
+                  onMouseEnter={() => {
+                  if (mouseMovedRef.current) {
+                    mouseMovedRef.current = false
+                    setKeyboardFocusIndex(index)
+                  }
+                }}
                 >
                   <PostCard
                     item={item}
