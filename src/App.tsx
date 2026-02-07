@@ -107,20 +107,37 @@ function ScrollRestoration() {
       const restore = () => {
         window.scrollTo(0, y)
       }
+      const done = () => {
+        const current = window.scrollY ?? document.documentElement.scrollTop
+        return Math.abs(current - y) < 10
+      }
       requestAnimationFrame(restore)
       const t1 = setTimeout(restore, 50)
       const t2 = setTimeout(restore, 200)
-      const t3 = setTimeout(restore, 600) // feed/content may still be loading
+      const t3 = setTimeout(restore, 600)
+      const t4 = setTimeout(restore, 1500) // content may load late when coming back
       const ro = new ResizeObserver(() => {
-        if (document.documentElement.scrollHeight >= y) restore()
+        if (document.documentElement.scrollHeight >= y && !done()) restore()
       })
       ro.observe(document.documentElement)
-      const stopRo = setTimeout(() => ro.disconnect(), 2000)
+      const maxWaitMs = 8000
+      const stopRo = setTimeout(() => ro.disconnect(), maxWaitMs)
+      const interval = setInterval(() => {
+        if (done()) {
+          clearInterval(interval)
+          return
+        }
+        if (document.documentElement.scrollHeight >= y) restore()
+      }, 400)
+      const stopInterval = setTimeout(() => clearInterval(interval), maxWaitMs)
       return () => {
         clearTimeout(t1)
         clearTimeout(t2)
         clearTimeout(t3)
+        clearTimeout(t4)
         clearTimeout(stopRo)
+        clearTimeout(stopInterval)
+        clearInterval(interval)
         ro.disconnect()
       }
     } catch {
