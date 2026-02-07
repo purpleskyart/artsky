@@ -222,57 +222,6 @@ export default function FeedPage() {
     return () => cancelAnimationFrame(raf)
   }, [keyboardFocusIndex])
 
-  /** Find the card index that is spatially to the left or right of the current card (by on-screen position). */
-  function findSpatialNeighbor(
-    currentIndex: number,
-    direction: 'left' | 'right',
-    refs: (HTMLDivElement | null)[],
-    count: number
-  ): number {
-    const current = refs[currentIndex]
-    if (!current) return currentIndex
-    const rect = current.getBoundingClientRect()
-    const midX = rect.left + rect.width / 2
-    const midY = rect.top + rect.height / 2
-    const ROW_WEIGHT = 1e6
-    let best: number | null = null
-    let bestScore = Infinity
-    for (let i = 0; i < count; i++) {
-      if (i === currentIndex) continue
-      const el = refs[i]
-      if (!el) continue
-      const r = el.getBoundingClientRect()
-      const otherMidX = r.left + r.width / 2
-      const otherMidY = r.top + r.height / 2
-      if (direction === 'right') {
-        if (otherMidX <= midX) continue
-        const dx = otherMidX - midX
-        const dy = Math.abs(otherMidY - midY)
-        const score = dy * ROW_WEIGHT + dx
-        if (score < bestScore) {
-          bestScore = score
-          best = i
-        }
-      } else {
-        if (otherMidX >= midX) continue
-        const dx = midX - otherMidX
-        const dy = Math.abs(otherMidY - midY)
-        const score = dy * ROW_WEIGHT + dx
-        if (score < bestScore) {
-          bestScore = score
-          best = i
-        }
-      }
-    }
-    if (best !== null) return best
-    if (direction === 'right') {
-      const fallback = currentIndex + 1
-      return Math.min(count - 1, fallback)
-    }
-    const fallback = currentIndex - 1
-    return Math.max(0, fallback)
-  }
-
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (isModalOpen) return
@@ -300,12 +249,22 @@ export default function FeedPage() {
       }
       if (key === 'a' || e.key === 'ArrowLeft') {
         scrollIntoViewFromKeyboardRef.current = true
-        setKeyboardFocusIndex((idx) => findSpatialNeighbor(idx, 'left', cardRefsRef.current, items.length))
+        // Same row, previous column (never skip columns)
+        setKeyboardFocusIndex((idx) => {
+          const col = idx % cols
+          if (col <= 0) return idx
+          return idx - 1
+        })
         return
       }
       if (key === 'd' || e.key === 'ArrowRight') {
         scrollIntoViewFromKeyboardRef.current = true
-        setKeyboardFocusIndex((idx) => findSpatialNeighbor(idx, 'right', cardRefsRef.current, items.length))
+        // Same row, next column only (left → middle → right, never skip)
+        setKeyboardFocusIndex((idx) => {
+          const col = idx % cols
+          if (col >= cols - 1) return idx
+          return Math.min(items.length - 1, idx + 1)
+        })
         return
       }
       if (key === 'e' || key === 'enter') {
