@@ -3,9 +3,10 @@ import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vite.dev/config/
-// Use relative base so the app works on GitHub Pages whether deployed at / or /artsky/
+// GitHub project pages are served at https://<user>.github.io/<repo>/
+const isProd = process.env.NODE_ENV === 'production'
 export default defineConfig({
-  base: './',
+  base: isProd ? '/artsky/' : '/',
   plugins: [
     react(),
     VitePWA({

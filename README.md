@@ -46,7 +46,7 @@ The **built** app is not being served; the server is sending the repo’s raw `i
 
 - **Fix:** In the repo go to **Settings → Pages → Build and deployment → Source** and set it to **GitHub Actions**. Then trigger a deploy (push to `main` or re-run the workflow). The workflow deploys the contents of `dist/` (the built app).
 
-- **URL:** Open **`https://YOUR_USERNAME.github.io/artsky/`** (with the trailing slash). The app’s `base` is `./`, so use the full path; it will not work at `https://YOUR_USERNAME.github.io/` alone.
+- **URL:** Open **`https://YOUR_USERNAME.github.io/artsky/`** (with the trailing slash). The app’s `base` is `/artsky/`; it will not work at `https://YOUR_USERNAME.github.io/` alone.
 
 ## Local development
 

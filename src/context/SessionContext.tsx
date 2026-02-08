@@ -35,7 +35,7 @@ function getInitialSession(): AtpSessionData | null {
 export function SessionProvider({ children }: { children: React.ReactNode }) {
   // Show the app immediately; never block on a loading screen so localhost always loads
   const [session, setSession] = useState<AtpSessionData | null>(getInitialSession)
-  const [loading, setLoading] = useState(false)
+  const [loading] = useState(false)
 
   useEffect(() => {
     let cancelled = false
