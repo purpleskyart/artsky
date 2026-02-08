@@ -97,7 +97,7 @@ function indexBelow(
 }
 
 /** Same row, column to the left; stays put if already in leftmost column. */
-function indexLeft(
+function indexLeftByRow(
   columns: Array<Array<{ item: TimelineItem; originalIndex: number }>>,
   currentIndex: number
 ): number {
@@ -113,7 +113,7 @@ function indexLeft(
 }
 
 /** Same row, column to the right; stays put if already in rightmost column. */
-function indexRight(
+function indexRightByRow(
   columns: Array<Array<{ item: TimelineItem; originalIndex: number }>>,
   currentIndex: number
 ): number {
@@ -124,6 +124,73 @@ function indexRight(
     const rightCol = columns[c + 1]
     if (row < rightCol.length) return rightCol[row].originalIndex
     return currentIndex
+  }
+  return currentIndex
+}
+
+/** Vertical overlap (shared space) between two rects in px. */
+function verticalOverlap(a: DOMRect, b: DOMRect): number {
+  const top = Math.max(a.top, b.top)
+  const bottom = Math.min(a.bottom, b.bottom)
+  return Math.max(0, bottom - top)
+}
+
+/**
+ * Left/right nav by shared vertical space: pick the card in the adjacent column that
+ * shares the most vertical overlap with the currently focused card.
+ */
+function indexLeftClosest(
+  columns: Array<Array<{ item: TimelineItem; originalIndex: number }>>,
+  currentIndex: number,
+  getRect: (index: number) => DOMRect | undefined
+): number {
+  for (let c = 0; c < columns.length; c++) {
+    const row = columns[c].findIndex((e) => e.originalIndex === currentIndex)
+    if (row < 0) continue
+    if (c === 0) return currentIndex
+    const leftCol = columns[c - 1]
+    const currentRect = getRect(currentIndex)
+    if (!currentRect) return indexLeftByRow(columns, currentIndex)
+    let bestIndex = leftCol[0].originalIndex
+    let bestOverlap = -1
+    for (const { originalIndex } of leftCol) {
+      const r = getRect(originalIndex)
+      if (!r) continue
+      const overlap = verticalOverlap(currentRect, r)
+      if (overlap > bestOverlap) {
+        bestOverlap = overlap
+        bestIndex = originalIndex
+      }
+    }
+    return bestIndex
+  }
+  return currentIndex
+}
+
+function indexRightClosest(
+  columns: Array<Array<{ item: TimelineItem; originalIndex: number }>>,
+  currentIndex: number,
+  getRect: (index: number) => DOMRect | undefined
+): number {
+  for (let c = 0; c < columns.length; c++) {
+    const row = columns[c].findIndex((e) => e.originalIndex === currentIndex)
+    if (row < 0) continue
+    if (c === columns.length - 1) return currentIndex
+    const rightCol = columns[c + 1]
+    const currentRect = getRect(currentIndex)
+    if (!currentRect) return indexRightByRow(columns, currentIndex)
+    let bestIndex = rightCol[0].originalIndex
+    let bestOverlap = -1
+    for (const { originalIndex } of rightCol) {
+      const r = getRect(originalIndex)
+      if (!r) continue
+      const overlap = verticalOverlap(currentRect, r)
+      if (overlap > bestOverlap) {
+        bestOverlap = overlap
+        bestIndex = originalIndex
+      }
+    }
+    return bestIndex
   }
   return currentIndex
 }
@@ -428,18 +495,24 @@ export default function FeedPage() {
       if (key === 'a' || e.key === 'ArrowLeft') {
         mouseMovedRef.current = false
         scrollIntoViewFromKeyboardRef.current = true
-        const next = cols >= 2
-          ? indexLeft(distributeByHeight(items, cols), i)
-          : Math.max(0, i - 1)
+        const columns = cols >= 2 ? distributeByHeight(items, cols) : null
+        const getRect = (idx: number) => cardRefsRef.current[idx]?.getBoundingClientRect()
+        const next =
+          cols >= 2 && columns
+            ? indexLeftClosest(columns, i, getRect)
+            : Math.max(0, i - 1)
         setKeyboardFocusIndex(next)
         return
       }
       if (key === 'd' || e.key === 'ArrowRight') {
         mouseMovedRef.current = false
         scrollIntoViewFromKeyboardRef.current = true
-        const next = cols >= 2
-          ? indexRight(distributeByHeight(items, cols), i)
-          : Math.min(items.length - 1, i + 1)
+        const columns = cols >= 2 ? distributeByHeight(items, cols) : null
+        const getRect = (idx: number) => cardRefsRef.current[idx]?.getBoundingClientRect()
+        const next =
+          cols >= 2 && columns
+            ? indexRightClosest(columns, i, getRect)
+            : Math.min(items.length - 1, i + 1)
         setKeyboardFocusIndex(next)
         return
       }
