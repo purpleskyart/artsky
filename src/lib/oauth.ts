@@ -38,9 +38,11 @@ export async function getOAuthClient(): Promise<BrowserOAuthClient> {
   }
   if (client) return client
   const clientId = isLoopback() ? getLoopbackClientId() : `${getAppBaseUrl()}/client-metadata.json`
+  // Use query so callback lands in ?code=...&state=... and doesn't conflict with HashRouter's hash.
   client = await BrowserOAuthClient.load({
     clientId,
     handleResolver: 'https://bsky.social/',
+    responseMode: 'query',
   })
   return client
 }

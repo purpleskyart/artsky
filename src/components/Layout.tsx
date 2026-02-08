@@ -575,7 +575,7 @@ export default function Layout({ title, children, showNav }: Props) {
         /* Desktop: Feed, Artboards, New, Search, Forum */
         navTrayItems
       ) : (
-        /* Mobile: Feed, Forum, New, Search (Artboards is in account menu) */
+        /* Mobile: Feed, Forum, New, Search, Artboards (Accounts is in header) */
         <>
           <Link
             to="/feed"
@@ -601,24 +601,16 @@ export default function Layout({ title, children, showNav }: Props) {
             <span className={styles.navIcon}><SearchIcon /></span>
             <span className={styles.navLabel}>Search</span>
           </button>
+          <Link
+            to="/artboards"
+            className={path === '/artboards' ? styles.navActive : ''}
+            aria-current={path === '/artboards' ? 'page' : undefined}
+          >
+            <span className={styles.navIcon}><ArtboardsIcon /></span>
+            <span className={styles.navLabel}>Artboards</span>
+          </Link>
         </>
       )}
-      <button
-        type="button"
-        className={styles.navBtn}
-        onClick={() => openAccountPanel()}
-        aria-label="Accounts and settings"
-        aria-expanded={accountSheetOpen || accountMenuOpen}
-      >
-        <span className={styles.navIcon}>
-          {currentAccountAvatar ? (
-            <img src={currentAccountAvatar} alt="" className={styles.headerAccountAvatar} loading="lazy" />
-          ) : (
-            <AccountIcon />
-          )}
-        </span>
-        <span className={styles.navLabel}>Accounts</span>
-      </button>
     </>
   )
 
@@ -1064,6 +1056,25 @@ export default function Layout({ title, children, showNav }: Props) {
                     </div>
                   )}
                 </div>
+              )}
+              {/* Mobile: account button in header (right of Log in when logged out, same spot when logged in) */}
+              {!isDesktop && (
+                <button
+                  type="button"
+                  className={styles.headerAccountNavBtn}
+                  onClick={() => openAccountPanel()}
+                  aria-label="Accounts and settings"
+                  aria-expanded={accountSheetOpen || accountMenuOpen}
+                >
+                  <span className={styles.navIcon}>
+                    {currentAccountAvatar ? (
+                      <img src={currentAccountAvatar} alt="" className={styles.headerAccountAvatar} loading="lazy" />
+                    ) : (
+                      <AccountIcon />
+                    )}
+                  </span>
+                  <span className={styles.navLabel}>Accounts</span>
+                </button>
               )}
             </div>
           </>

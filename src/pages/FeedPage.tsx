@@ -352,7 +352,7 @@ export default function FeedPage() {
       setLoading(false)
       setLoadingMore(false)
     }
-  }, [source, session, mixEntries, mixTotalPercent, viewMode])
+  }, [source, session, mixEntries, mixTotalPercent])
 
   useEffect(() => {
     load()

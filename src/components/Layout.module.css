@@ -89,6 +89,10 @@
     gap: 0.25rem;
     flex-shrink: 0;
   }
+  /* Log in in top right on mobile when logged out (same as desktop) */
+  .headerLoggedOut .headerRight {
+    display: flex;
+  }
   /* Mobile: account button – larger touch target, opens popup */
   .headerAccountNavBtn {
     display: flex;
@@ -296,6 +300,7 @@
 }
 
 .logoLink {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 0.4rem;
@@ -324,11 +329,19 @@
   letter-spacing: -0.02em;
 }
 
+/* Dev-only label: out of flow so layout is identical to production; can be overlapped */
 .logoDev {
-  font-size: 0.85rem;
+  position: absolute;
+  left: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  margin-left: 0.15rem;
+  font-size: 0.75rem;
   font-weight: 600;
   color: var(--muted);
   letter-spacing: 0.02em;
+  white-space: nowrap;
+  pointer-events: none;
 }
 
 /* Theme switch: same shape/size as column view buttons in account menu (compact pill) */

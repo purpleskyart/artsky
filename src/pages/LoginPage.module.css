@@ -15,7 +15,7 @@
 .card {
   position: relative;
   width: 100%;
-  min-width: 280px;
+  min-width: 320px;
   max-width: 280px;
   background: var(--glass-bg-strong);
   -webkit-backdrop-filter: blur(var(--glass-blur-strong));
@@ -153,13 +153,15 @@
 
 .inputWrap {
   position: relative;
+  margin-bottom: .5rem;
+}
+
+/* Portaled so dropdown doesn’t sit in card scroll area (avoids extra scrollbars) */
+.suggestionsPortal {
+  overflow: visible;
 }
 
 .suggestions {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
   margin: 0;
   padding: 0.25rem 0;
   list-style: none;
@@ -167,9 +169,9 @@
   border: 1px solid var(--glass-border);
   border-radius: var(--glass-radius-sm);
   box-shadow: var(--shadow-dropdown);
-  max-height: 220px;
+  max-height: min(280px, 50vh);
   overflow-y: auto;
-  z-index: 10;
+  overflow-x: hidden;
 }
 
 .suggestion,
@@ -199,15 +201,26 @@
   flex-shrink: 0;
 }
 
-.suggestionHandle {
-  color: var(--text);
-  font-weight: 500;
+.suggestionText {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+  overflow: hidden;
 }
 
-.suggestionName {
+.suggestionDisplayName {
+  color: var(--text);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.suggestionHandle {
   color: var(--muted);
-  margin-left: auto;
-  max-width: 45%;
+  font-size: 0.85rem;
+  font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

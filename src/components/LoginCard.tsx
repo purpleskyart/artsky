@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { useSession } from '../context/SessionContext'
 import * as bsky from '../lib/bsky'
 import * as oauth from '../lib/oauth'
@@ -66,6 +67,7 @@ export default function LoginCard({ initialMode = 'signin', onSuccess, onClose }
   const [suggestionsLoading, setSuggestionsLoading] = useState(false)
   const [activeIndex, setActiveIndex] = useState(0)
   const wrapperRef = useRef<HTMLDivElement>(null)
+  const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number; width: number } | null>(null)
 
   const [email, setEmail] = useState('')
   const [handle, setHandle] = useState('')
@@ -98,6 +100,21 @@ export default function LoginCard({ initialMode = 'signin', onSuccess, onClose }
     const t = setTimeout(() => fetchSuggestions(identifier), DEBOUNCE_MS)
     return () => clearTimeout(t)
   }, [identifier, fetchSuggestions])
+
+  useLayoutEffect(() => {
+    if (!suggestionsOpen || !(suggestions.length > 0 || suggestionsLoading)) {
+      setDropdownPosition(null)
+      return
+    }
+    const el = wrapperRef.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    setDropdownPosition({
+      top: rect.bottom + 2,
+      left: rect.left,
+      width: rect.width,
+    })
+  }, [suggestionsOpen, suggestions.length, suggestionsLoading])
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -243,38 +260,53 @@ export default function LoginCard({ initialMode = 'signin', onSuccess, onClose }
               required
               aria-describedby={error ? 'login-error' : undefined}
             />
-            {suggestionsOpen && (suggestions.length > 0 || suggestionsLoading) && (
-              <ul className={styles.suggestions} role="listbox">
-                {suggestionsLoading && suggestions.length === 0 ? (
-                  <li className={styles.suggestion} role="option" aria-disabled>
-                    <span className={styles.suggestionsLoading}>Searching…</span>
-                  </li>
-                ) : (
-                  suggestions.map((actor, i) => (
-                    <li
-                      key={actor.did}
-                      role="option"
-                      aria-selected={i === activeIndex}
-                      className={i === activeIndex ? styles.suggestionActive : styles.suggestion}
-                      onMouseDown={(e) => {
-                        e.preventDefault()
-                        setIdentifier(actor.handle ?? '')
-                        setSuggestionsOpen(false)
-                      }}
-                    >
-                      {actor.avatar && (
-                        <img src={actor.avatar} alt="" className={styles.suggestionAvatar} loading="lazy" />
-                      )}
-                      <span className={styles.suggestionHandle}>@{actor.handle}</span>
-                      {actor.displayName && (
-                        <span className={styles.suggestionName}>{actor.displayName}</span>
-                      )}
-                    </li>
-                  ))
-                )}
-              </ul>
-            )}
           </div>
+          {dropdownPosition &&
+            createPortal(
+              <div
+                className={styles.suggestionsPortal}
+                style={{
+                  position: 'fixed',
+                  top: dropdownPosition.top,
+                  left: dropdownPosition.left,
+                  width: dropdownPosition.width,
+                  zIndex: 202,
+                }}
+              >
+                <ul className={styles.suggestions} role="listbox">
+                  {suggestionsLoading && suggestions.length === 0 ? (
+                    <li className={styles.suggestion} role="option" aria-disabled>
+                      <span className={styles.suggestionsLoading}>Searching…</span>
+                    </li>
+                  ) : (
+                    suggestions.map((actor, i) => (
+                      <li
+                        key={actor.did}
+                        role="option"
+                        aria-selected={i === activeIndex}
+                        className={i === activeIndex ? styles.suggestionActive : styles.suggestion}
+                        onMouseDown={(e) => {
+                          e.preventDefault()
+                          setIdentifier(actor.handle ?? '')
+                          setSuggestionsOpen(false)
+                        }}
+                      >
+                        {actor.avatar && (
+                          <img src={actor.avatar} alt="" className={styles.suggestionAvatar} loading="lazy" />
+                        )}
+                        <div className={styles.suggestionText}>
+                          {actor.displayName && (
+                            <span className={styles.suggestionDisplayName}>{actor.displayName}</span>
+                          )}
+                          <span className={styles.suggestionHandle}>@{actor.handle}</span>
+                        </div>
+                      </li>
+                    ))
+                  )}
+                </ul>
+              </div>,
+              document.body
+            )}
           {showAppPassword && (
             <>
               <label htmlFor="login-password" className={styles.srOnly}>
