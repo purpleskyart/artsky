@@ -317,6 +317,8 @@ function PostBlock({
   likeLoadingUri,
   downvoteLoadingUri,
   isHidden,
+  openActionsMenuCommentUri,
+  onActionsMenuOpenChange,
 }: {
   node: AppBskyFeedDefs.ThreadViewPost | AppBskyFeedDefs.NotFoundPost | AppBskyFeedDefs.BlockedPost | { $type: string }
   depth?: number
@@ -345,14 +347,22 @@ function PostBlock({
   likeLoadingUri?: string | null
   downvoteLoadingUri?: string | null
   isHidden?: (uri: string) => boolean
+  /** When set, which comment's actions menu is open (used to show like/downvote counts on that comment) */
+  openActionsMenuCommentUri?: string | null
+  onActionsMenuOpenChange?: (uri: string, open: boolean) => void
 }) {
   if (!isThreadViewPost(node)) return null
   const { post } = node
   if (isHidden?.(post.uri)) return null
-  const postViewer = post as { viewer?: { like?: string }; likeCount?: number }
+  const postViewer = post as { viewer?: { like?: string }; likeCount?: number; downvoteCount?: number }
   const likedUri = likeOverrides?.[post.uri] !== undefined ? likeOverrides[post.uri] : postViewer.viewer?.like
   const downvotedUri = myDownvotes?.[post.uri]
-  const likeCount = postViewer.likeCount ?? 0
+  const baseLikeCount = postViewer.likeCount ?? 0
+  const wasLikedByApi = !!postViewer.viewer?.like
+  const isLikedNow = !!likedUri
+  const likeCountDelta = (isLikedNow ? 1 : 0) - (wasLikedByApi ? 1 : 0)
+  const likeCount = Math.max(0, baseLikeCount + likeCountDelta)
+  const downvoteCount = postViewer.downvoteCount ?? 0
   const allMedia = getPostAllMedia(post)
   const text = (post.record as { text?: string })?.text ?? ''
   const handle = post.author.handle ?? post.author.did
@@ -367,9 +377,10 @@ function PostBlock({
   const isFocused = focusedCommentUri === post.uri
   const likeLoading = likeLoadingUri === post.uri
   const downvoteLoading = downvoteLoadingUri === post.uri
+  const showCommentCounts = openActionsMenuCommentUri === post.uri
 
   return (
-    <article className={`${styles.postBlock} ${isFocused ? styles.commentFocused : ''}`} style={{ marginLeft: depth * 12 }} data-comment-uri={post.uri} tabIndex={-1}>
+    <article className={`${styles.postBlock} ${isFocused ? styles.commentFocused : ''}`} style={{ marginLeft: depth * 2 }} data-comment-uri={post.uri} tabIndex={-1}>
       {canCollapse && (
         <div className={styles.collapseColumn}>
           <button
@@ -433,7 +444,7 @@ function PostBlock({
               title={likedUri ? 'Remove like' : 'Like'}
               aria-label={likedUri ? 'Remove like' : 'Like'}
             >
-              ↑ {likeCount}
+              ↑{showCommentCounts ? ` ${likeCount}` : ''}
             </button>
           )}
           {onDownvote && (
@@ -445,7 +456,7 @@ function PostBlock({
               title={downvotedUri ? 'Remove downvote' : 'Downvote (syncs across AT Protocol)'}
               aria-label={downvotedUri ? 'Remove downvote' : 'Downvote'}
             >
-              ↓
+              ↓{showCommentCounts ? ` ${downvoteCount}` : ''}
             </button>
           )}
           <PostActionsMenu
@@ -456,6 +467,8 @@ function PostBlock({
             isOwnPost={currentDid === post.author.did}
             compact
             className={styles.commentActionsMenu}
+            open={onActionsMenuOpenChange ? openActionsMenuCommentUri === post.uri : undefined}
+            onOpenChange={onActionsMenuOpenChange ? (open) => onActionsMenuOpenChange(post.uri, open) : undefined}
           />
         </div>
       )}
@@ -568,6 +581,8 @@ function PostBlock({
                     likeLoadingUri={likeLoadingUri}
                     downvoteLoadingUri={downvoteLoadingUri}
                     isHidden={isHidden}
+                    openActionsMenuCommentUri={openActionsMenuCommentUri}
+                    onActionsMenuOpenChange={onActionsMenuOpenChange}
                   />
                 )
               })}
@@ -634,6 +649,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, onClose }: P
   const [myDownvotes, setMyDownvotes] = useState<Record<string, string>>({})
   const [commentLikeLoadingUri, setCommentLikeLoadingUri] = useState<string | null>(null)
   const [commentDownvoteLoadingUri, setCommentDownvoteLoadingUri] = useState<string | null>(null)
+  const [openActionsMenuCommentUri, setOpenActionsMenuCommentUri] = useState<string | null>(null)
   const [newBoardName, setNewBoardName] = useState('')
   const [showBoardDropdown, setShowBoardDropdown] = useState(false)
   const [postSectionIndex, setPostSectionIndex] = useState(0)
@@ -1461,6 +1477,8 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, onClose }: P
                         myDownvotes={myDownvotes}
                         likeLoadingUri={commentLikeLoadingUri}
                         downvoteLoadingUri={commentDownvoteLoadingUri}
+                        openActionsMenuCommentUri={openActionsMenuCommentUri}
+                        onActionsMenuOpenChange={(uri, open) => setOpenActionsMenuCommentUri(open ? uri : null)}
                       />
                     </div>
                   )

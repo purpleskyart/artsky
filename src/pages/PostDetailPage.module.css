@@ -155,7 +155,6 @@
 .postHead {
   display: flex;
   align-items: center;
-  justify-content: center;
   gap: 0.5rem;
   margin-bottom: 0.5rem;
 }
@@ -163,10 +162,15 @@
 /* Root post: smaller avatar and top spacing so it doesn’t touch the top border */
 .rootPostDescription .postHead {
   margin-top: 0.45rem;
+  justify-content: center;
 }
 .rootPostDescription .postHead .avatar {
   width: 28px;
   height: 28px;
+}
+
+.rootPostDescription .postText {
+  text-align: center;
 }
 
 .authorRow {
@@ -509,9 +513,14 @@
 }
 
 .replies {
-  margin-top: 0.25rem;
-  padding-left: 0.75rem;
-  padding-right: 0.75rem;
+  margin-top: 4px;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.replies .postBlock {
+  padding-left: 4px;
+  padding-right: 4px;
 }
 
 .collapsedCommentWrap {
@@ -810,8 +819,8 @@
 
 .inlineReplyFormWrap {
   margin-top: 0.75rem;
-  padding-left: 0.75rem;
-  padding-right: 0.75rem;
+  padding-left: 0.25rem;
+  padding-right: 0.25rem;
 }
 
 /* No outline by default; accent outline when form or any control inside has focus */
