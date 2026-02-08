@@ -526,21 +526,23 @@ export default function PostCard({ item, isSelected, cardRef: cardRefProp, addBu
               )}
             </div>
           ) : isVideo ? (
-            <video
-              ref={videoRef}
-              className={styles.media}
-              poster={media!.url || undefined}
-              muted
-              playsInline
-              loop
-              preload="none"
-              onLoadedMetadata={(e) => {
-                const v = e.currentTarget
-                if (v.videoWidth && v.videoHeight) {
-                  setMediaAspect(v.videoWidth / v.videoHeight)
-                }
-              }}
-            />
+            <div className={styles.mediaVideoWrap}>
+              <video
+                ref={videoRef}
+                className={styles.media}
+                poster={media!.url || undefined}
+                muted
+                playsInline
+                loop
+                preload="none"
+                onLoadedMetadata={(e) => {
+                  const v = e.currentTarget
+                  if (v.videoWidth && v.videoHeight) {
+                    setMediaAspect(v.videoWidth / v.videoHeight)
+                  }
+                }}
+              />
+            </div>
           ) : isMultipleImages && imageItems.length > 1 ? (
             multiImageExpanded ? (
               <>

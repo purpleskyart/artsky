@@ -248,7 +248,7 @@
 .mediaWrap {
   position: relative;
   width: 100%;
-  aspect-ratio: 3 / 4; /* fallback until image loads */
+  aspect-ratio: 1; /* fallback until image loads (was 3/4, made cards too tall for landscape/square images) */
   min-height: 100px;
   max-height: var(--feed-card-media-max-height, none); /* 1-col feed: fit viewport */
   overflow: hidden;
@@ -454,6 +454,26 @@
 .mediaWrap video.media {
   width: 100%;
   height: 100%;
+  object-fit: contain;
+  object-position: center;
+}
+
+/* Video wrapper: absolute fill so iOS Safari respects container size (video intrinsic size can break scaling) */
+.mediaVideoWrap {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 0;
+}
+
+.mediaVideoWrap .media {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
   object-fit: contain;
   object-position: center;
 }

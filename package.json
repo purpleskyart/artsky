@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:artsky-dev": "VITE_BASE_PATH=/artsky-dev/ VITE_APP_ENV=dev vite --port 5174",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview"
