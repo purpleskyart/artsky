@@ -8,6 +8,35 @@ import styles from '../pages/LoginPage.module.css'
 const BLUESKY_SIGNUP_URL = 'https://bsky.app'
 const DEBOUNCE_MS = 250
 
+/** Turn technical login/OAuth errors into messages users can understand. */
+function toFriendlyLoginError(err: unknown, context: 'app-password' | 'oauth'): string {
+  const raw =
+    err && typeof err === 'object' && 'message' in err
+      ? String((err as { message: string }).message)
+      : ''
+  const lower = raw.toLowerCase()
+  if (lower.includes('loopback') || lower.includes('path component') || lower.includes('client id')) {
+    return context === 'oauth'
+      ? "Sign-in with Bluesky isn't available from this page address. Try opening the app from its main URL, or use an App Password to log in instead."
+      : "We couldn't complete sign-in from this address. Try opening the app from its main URL."
+  }
+  if (lower.includes('network') || lower.includes('fetch') || lower.includes('failed to fetch')) {
+    return 'Connection problem. Check your internet and try again.'
+  }
+  if (lower.includes('invalid') && (lower.includes('password') || lower.includes('credentials'))) {
+    return 'Wrong handle or password. Check your Bluesky handle (or email) and App Password.'
+  }
+  if (lower.includes('invalid') || lower.includes('unauthorized')) {
+    return context === 'app-password'
+      ? 'Wrong handle or App Password. Get an App Password from Bluesky: Settings → App passwords.'
+      : "We couldn't verify your account. Check your handle and try again, or use an App Password to log in."
+  }
+  if (raw) return raw
+  return context === 'app-password'
+    ? 'Log in failed. Use your Bluesky handle (or email) and an App Password from Settings → App passwords.'
+    : "Could not start sign-in. Check your handle and try again, or use an App Password to log in."
+}
+
 export type LoginMode = 'signin' | 'create'
 
 export interface LoginCardProps {
@@ -92,27 +121,20 @@ export default function LoginCard({ initialMode = 'signin', onSuccess, onClose }
         await login(id, password)
         onSuccess?.()
       } catch (err: unknown) {
-        const message =
-          err && typeof err === 'object' && 'message' in err
-            ? String((err as { message: string }).message)
-            : 'Log in failed. Use your Bluesky handle (or email) and an App Password from Settings → App passwords.'
-        setError(message)
+        setError(toFriendlyLoginError(err, 'app-password'))
       } finally {
         setLoading(false)
       }
       return
     }
 
+    // No password: sign in with Bluesky (OAuth redirect)
     setLoading(true)
     try {
       await oauth.signInWithOAuthRedirect(id)
       onSuccess?.()
     } catch (err: unknown) {
-      const message =
-        err && typeof err === 'object' && 'message' in err
-          ? String((err as { message: string }).message)
-          : 'Could not start sign-in. Check your handle and try again.'
-      setError(message)
+      setError(toFriendlyLoginError(err, 'oauth'))
     } finally {
       setLoading(false)
     }
@@ -283,7 +305,7 @@ export default function LoginCard({ initialMode = 'signin', onSuccess, onClose }
               className={styles.buttonSecondary}
               onClick={() => setShowAppPassword(true)}
             >
-              Login with app password
+              or use your app password
             </button>
           ) : null}
           <a

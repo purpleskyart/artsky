@@ -23,6 +23,7 @@
   --accent-muted: rgba(124, 58, 237, 0.15);
   --accent-strong: rgba(124, 58, 237, 0.25);
   --accent-focus-ring: rgba(124, 58, 237, 0.5);
+  --accent-gradient: linear-gradient(165deg, color-mix(in srgb, var(--accent) 82%, white), var(--accent));
   --error-bg: rgba(239, 68, 68, 0.1);
 
   /* Liquid glass (frosted, translucent) */
@@ -32,6 +33,7 @@
   --glass-blur-strong: 40px;
   --glass-border: rgba(255, 255, 255, 0.08);
   --glass-highlight: rgba(255, 255, 255, 0.06);
+  --glass-hover: rgba(255, 255, 255, 0.12);
   --glass-radius: 16px;
   --glass-radius-sm: 12px;
   --touch-min: 44px; /* iOS HIG minimum touch target */
@@ -67,6 +69,7 @@
     --glass-blur-strong: 40px;
     --glass-border: rgba(0, 0, 0, 0.12);
     --glass-highlight: #eeedeb;
+    --glass-hover: #e0dfdd;
     --glass-radius: 16px;
     --glass-radius-sm: 12px;
     --shadow-subtle: 0 1px 2px rgba(0, 0, 0, 0.06);
@@ -99,6 +102,7 @@ html[data-theme="light"] {
   --glass-bg-strong: #ffffff;
   --glass-border: rgba(0, 0, 0, 0.12);
   --glass-highlight: #eeedeb;
+  --glass-hover: #e0dfdd;
   --shadow-subtle: 0 1px 2px rgba(0, 0, 0, 0.06);
   --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.05);
   --shadow-dropdown: 0 12px 40px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.08);
@@ -128,6 +132,7 @@ html[data-theme="dark"] {
   --glass-bg-strong: rgba(26, 26, 46, 0.88);
   --glass-border: rgba(255, 255, 255, 0.08);
   --glass-highlight: rgba(255, 255, 255, 0.06);
+  --glass-hover: rgba(255, 255, 255, 0.12);
   --shadow-subtle: none;
   --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.15);
   --shadow-dropdown: 0 8px 24px rgba(0, 0, 0, 0.2);

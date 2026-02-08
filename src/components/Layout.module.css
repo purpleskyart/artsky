@@ -182,19 +182,19 @@
 }
 
 .headerAuthLink {
-  color: var(--muted);
-  background: transparent;
+  color: var(--text-on-accent);
+  background: var(--accent-gradient);
 }
 
 .headerAuthLink:hover {
-  color: var(--text);
-  background: var(--glass-highlight);
+  background: color-mix(in srgb, var(--accent) 90%, black);
+  color: var(--text-on-accent);
   text-decoration: none;
 }
 
 .headerAuthLinkPrimary {
   color: var(--text-on-accent);
-  background: var(--accent);
+  background: var(--accent-gradient);
 }
 
 .headerAuthLinkPrimary:hover {
@@ -532,7 +532,7 @@
     background: var(--glass-highlight);
   }
   .notificationFilterActive {
-    background: var(--accent);
+    background: var(--accent-gradient);
     color: var(--text-on-accent);
     border-color: var(--accent);
   }
@@ -753,7 +753,7 @@
     font-size: 0.85rem;
     font-weight: 600;
     color: var(--text-on-accent);
-    background: var(--accent);
+    background: var(--accent-gradient);
     border: none;
     border-radius: var(--glass-radius-sm);
     cursor: pointer;
@@ -815,7 +815,7 @@
 }
 .menuNsfwRow .menuNsfwBtnActive {
   border-color: var(--accent);
-  background: var(--accent);
+  background: var(--accent-gradient);
   color: var(--text-on-accent);
   font-weight: 500;
 }
@@ -1244,7 +1244,7 @@
 
 .composeSubmit {
   color: var(--text-on-accent);
-  background: var(--accent);
+  background: var(--accent-gradient);
   border: none;
 }
 
@@ -1354,7 +1354,7 @@
 
 .menuCompactAuthBtnPrimary {
   color: var(--text-on-accent);
-  background: var(--accent);
+  background: var(--accent-gradient);
   border: 1px solid var(--accent);
 }
 
@@ -1518,7 +1518,7 @@
 
 .menuCompactNsfwRow .menuNsfwBtnActive {
   border-color: var(--accent);
-  background: var(--accent);
+  background: var(--accent-gradient);
   color: var(--text-on-accent);
   font-weight: 500;
 }
@@ -1562,7 +1562,7 @@
 }
 
 .menuCompactActionBtn {
-  background: var(--accent);
+  background: var(--accent-gradient);
   color: var(--text-on-accent);
 }
 .menuCompactActionBtn:hover {
@@ -1733,7 +1733,7 @@ a.menuCompactActionBtn {
   font-size: 0.95rem;
   font-weight: 600;
   color: var(--text-on-accent);
-  background: var(--accent);
+  background: var(--accent-gradient);
   border: none;
   border-radius: var(--glass-radius-sm);
   cursor: pointer;

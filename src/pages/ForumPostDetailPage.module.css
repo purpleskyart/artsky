@@ -100,7 +100,7 @@
 }
 
 .actionBtnPrimary {
-  background: var(--accent);
+  background: var(--accent-gradient);
   border-color: var(--accent);
   color: var(--text-on-accent);
 }
@@ -363,7 +363,7 @@
   font-size: 0.9rem;
   border: 1px solid var(--accent);
   border-radius: 0.5rem;
-  background: var(--accent);
+  background: var(--accent-gradient);
   color: var(--text-on-accent);
   cursor: pointer;
 }

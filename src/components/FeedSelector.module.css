@@ -181,7 +181,7 @@
 }
 
 .tabs button:not(.ratioBtnSide).active {
-  background: var(--accent);
+  background: var(--accent-gradient);
   border-color: var(--accent);
   color: var(--text-on-accent);
 }
@@ -214,7 +214,7 @@
 
 .btn {
   padding: 0.4rem 0.75rem;
-  background: var(--accent);
+  background: var(--accent-gradient);
   color: var(--text-on-accent);
   border: none;
   border-radius: 0.4rem;

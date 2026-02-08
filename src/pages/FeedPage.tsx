@@ -96,6 +96,38 @@ function indexBelow(
   return currentIndex
 }
 
+/** Same row, column to the left; stays put if already in leftmost column. */
+function indexLeft(
+  columns: Array<Array<{ item: TimelineItem; originalIndex: number }>>,
+  currentIndex: number
+): number {
+  for (let c = 0; c < columns.length; c++) {
+    const row = columns[c].findIndex((e) => e.originalIndex === currentIndex)
+    if (row < 0) continue
+    if (c === 0) return currentIndex
+    const leftCol = columns[c - 1]
+    if (row < leftCol.length) return leftCol[row].originalIndex
+    return currentIndex
+  }
+  return currentIndex
+}
+
+/** Same row, column to the right; stays put if already in rightmost column. */
+function indexRight(
+  columns: Array<Array<{ item: TimelineItem; originalIndex: number }>>,
+  currentIndex: number
+): number {
+  for (let c = 0; c < columns.length; c++) {
+    const row = columns[c].findIndex((e) => e.originalIndex === currentIndex)
+    if (row < 0) continue
+    if (c === columns.length - 1) return currentIndex
+    const rightCol = columns[c + 1]
+    if (row < rightCol.length) return rightCol[row].originalIndex
+    return currentIndex
+  }
+  return currentIndex
+}
+
 export default function FeedPage() {
   const location = useLocation()
   const navigate = useNavigate()
@@ -396,13 +428,19 @@ export default function FeedPage() {
       if (key === 'a' || e.key === 'ArrowLeft') {
         mouseMovedRef.current = false
         scrollIntoViewFromKeyboardRef.current = true
-        setKeyboardFocusIndex(Math.max(0, i - 1))
+        const next = cols >= 2
+          ? indexLeft(distributeByHeight(items, cols), i)
+          : Math.max(0, i - 1)
+        setKeyboardFocusIndex(next)
         return
       }
       if (key === 'd' || e.key === 'ArrowRight') {
         mouseMovedRef.current = false
         scrollIntoViewFromKeyboardRef.current = true
-        setKeyboardFocusIndex(Math.min(items.length - 1, i + 1))
+        const next = cols >= 2
+          ? indexRight(distributeByHeight(items, cols), i)
+          : Math.min(items.length - 1, i + 1)
+        setKeyboardFocusIndex(next)
         return
       }
       if (key === 'e' || key === 'enter') {

@@ -763,7 +763,7 @@
 
 .addBtn {
   padding: 0.5rem 0.75rem;
-  background: var(--accent);
+  background: var(--accent-gradient);
   color: var(--text-on-accent);
   border: none;
   border-radius: 0.5rem;
@@ -1069,7 +1069,7 @@
 
 .submit {
   padding: 0.75rem;
-  background: var(--accent);
+  background: var(--accent-gradient);
   color: var(--text-on-accent);
   border: none;
   border-radius: 0.5rem;

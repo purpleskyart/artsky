@@ -146,7 +146,7 @@
 }
 
 .avatarBtn {
-  background: var(--accent);
+  background: var(--accent-gradient);
   color: var(--text-on-accent);
   border: none;
 }
@@ -244,7 +244,7 @@
   font-size: 0.9rem;
   font-weight: 600;
   color: var(--surface);
-  background: var(--accent);
+  background: var(--accent-gradient);
   border: none;
   border-radius: 0.35rem;
   cursor: pointer;

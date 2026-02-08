@@ -916,23 +916,23 @@ export default function Layout({ title, children, showNav }: Props) {
             </div>
             <div className={styles.headerRight}>
               {!session && isDesktop && (
-                <>
-                  <button
-                    type="button"
-                    className={styles.headerAuthLink}
-                    onClick={() => openLoginModal()}
-                  >
-                    Log in
-                  </button>
-                  <a
-                    href="https://bsky.app"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className={styles.headerAuthLinkPrimary}
-                  >
-                    Create account
-                  </a>
-                </>
+                <button
+                  type="button"
+                  className={styles.headerAuthLink}
+                  onClick={() => openLoginModal()}
+                >
+                  Log in
+                </button>
+              )}
+              {!session && !isDesktop && (
+                <button
+                  type="button"
+                  className={styles.headerAuthLink}
+                  onClick={() => openLoginModal()}
+                  aria-label="Log in"
+                >
+                  Log in
+                </button>
               )}
               {session && isDesktop && (
                 <button

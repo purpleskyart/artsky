@@ -11,11 +11,12 @@
   background: var(--bg);
 }
 
-/* Liquid glass login card */
+/* Liquid glass login card – width matches expanded (app password) state so layout doesn’t shift */
 .card {
   position: relative;
   width: 100%;
-  max-width: 480px;
+  min-width: 280px;
+  max-width: 280px;
   background: var(--glass-bg-strong);
   -webkit-backdrop-filter: blur(var(--glass-blur-strong));
   backdrop-filter: blur(var(--glass-blur-strong));
@@ -38,8 +39,8 @@
   padding: 0;
   border: none;
   border-radius: var(--glass-radius-sm);
-  background: var(--glass-highlight);
-  color: var(--muted);
+  background: var(--glass-border);
+  color: var(--text);
   font-size: 1.35rem;
   line-height: 1;
   cursor: pointer;
@@ -47,8 +48,7 @@
 }
 
 .cardCloseBtn:hover {
-  color: var(--text);
-  background: var(--glass-border);
+  background: var(--glass-hover);
 }
 
 .cardContentWithClose {
@@ -80,10 +80,10 @@
   flex: 1;
   padding: 0.6rem 0.75rem;
   min-height: var(--touch-min);
-  border: 1px solid var(--glass-border);
+  border: 1px solid var(--muted);
   border-radius: var(--glass-radius-sm);
-  background: var(--glass-highlight);
-  color: var(--muted);
+  background: var(--glass-border);
+  color: var(--text);
   font-size: clamp(0.9rem, 2.2vw, 0.95rem);
   cursor: pointer;
   text-decoration: none;
@@ -92,8 +92,7 @@
 }
 
 .tab:hover {
-  color: var(--text);
-  border-color: var(--muted);
+  background: var(--glass-hover);
   text-decoration: none;
 }
 
@@ -246,7 +245,7 @@
 .button {
   padding: 0.75rem 1rem;
   min-height: var(--touch-min);
-  background: var(--accent);
+  background: var(--accent-gradient);
   color: var(--text-on-accent);
   border: none;
   border-radius: var(--glass-radius-sm);
@@ -272,9 +271,9 @@
   padding: 0.6rem 1rem;
   min-height: var(--touch-min);
   margin-top: 0.5rem;
-  background: var(--muted);
-  color: var(--text);
-  border: 1px solid var(--glass-border);
+  background: var(--glass-highlight);
+  color: color-mix(in srgb, var(--text) 88%, black);
+  border: none;
   border-radius: var(--glass-radius-sm);
   font-size: 0.95rem;
   font-weight: 500;
@@ -283,8 +282,7 @@
 }
 
 .buttonSecondary:hover {
-  background: var(--glass-highlight);
-  border-color: var(--muted);
+  background: var(--glass-hover);
 }
 
 .buttonSecondary:focus {

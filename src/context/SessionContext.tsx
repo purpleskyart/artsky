@@ -16,38 +16,59 @@ interface SessionContextValue {
 
 const SessionContext = createContext<SessionContextValue | null>(null)
 
+/** GitHub repo for the app (e.g. source of GitHub Pages build). */
+const GITHUB_REPO_URL = 'https://github.com/slrgt/artsky'
+
+function isLocalhost(): boolean {
+  if (typeof window === 'undefined') return false
+  return window.location.hostname === 'localhost'
+}
+
+function getInitialSession(): AtpSessionData | null {
+  try {
+    return bsky.getSession()
+  } catch {
+    return null
+  }
+}
+
 export function SessionProvider({ children }: { children: React.ReactNode }) {
-  const [session, setSession] = useState<AtpSessionData | null>(null)
-  const [loading, setLoading] = useState(true)
+  // Show the app immediately; never block on a loading screen so localhost always loads
+  const [session, setSession] = useState<AtpSessionData | null>(getInitialSession)
+  const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     let cancelled = false
-    const maxWaitMs = 5000
-
-    const timeoutId = window.setTimeout(() => {
-      if (cancelled) return
-      setLoading(false)
-    }, maxWaitMs)
+    const maxWaitMs = 2500
+    const oauthTimeoutMs = 1500
 
     const finish = (ok: boolean) => {
       if (cancelled) return
-      window.clearTimeout(timeoutId)
-      setSession(ok ? bsky.getSession() : null)
-      setLoading(false)
+      try {
+        setSession(ok ? bsky.getSession() : null)
+      } catch {
+        setSession(null)
+      }
     }
 
     async function init() {
-      try {
-        const oauthResult = await oauth.initOAuth()
-        if (cancelled) return
-        if (oauthResult?.session) {
-          const agent = new Agent(oauthResult.session)
-          bsky.setOAuthAgent(agent, oauthResult.session)
-          finish(true)
-          return
+      // On localhost, skip OAuth init so the app doesn't redirect to 127.0.0.1 (library behavior).
+      if (!isLocalhost()) {
+        try {
+          const oauthResult = await Promise.race([
+            oauth.initOAuth(),
+            new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), oauthTimeoutMs)),
+          ])
+          if (cancelled) return
+          if (oauthResult?.session) {
+            const agent = new Agent(oauthResult.session)
+            bsky.setOAuthAgent(agent, oauthResult.session)
+            finish(true)
+            return
+          }
+        } catch {
+          // OAuth init failed; fall back to credential
         }
-      } catch {
-        // OAuth init failed (e.g. no client metadata); fall back to credential
       }
       const ok = await Promise.race([
         bsky.resumeSession(),
@@ -59,7 +80,6 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       cancelled = true
-      window.clearTimeout(timeoutId)
     }
   }, [])
 
@@ -83,7 +103,12 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     setSession(bsky.getSession())
   }, [])
 
-  const sessionsList = bsky.getSessionsList()
+  let sessionsList: AtpSessionData[] = []
+  try {
+    sessionsList = bsky.getSessionsList()
+  } catch {
+    // localStorage or bsky not ready yet
+  }
 
   const value: SessionContextValue = {
     session,
@@ -105,8 +130,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
             textAlign: 'center',
             minHeight: '100dvh',
             display: 'flex',
+            flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
+            gap: '1rem',
             background: 'var(--bg, #0f0f1a)',
             color: 'var(--text, #e8e8f0)',
             fontFamily: 'system-ui, sans-serif',
@@ -116,6 +143,17 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           aria-busy="true"
         >
           Loading…
+          <a
+            href={GITHUB_REPO_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              color: 'var(--accent, #7c3aed)',
+              fontSize: '0.9rem',
+            }}
+          >
+            View on GitHub
+          </a>
         </div>
       ) : (
         children
