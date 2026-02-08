@@ -1,5 +1,5 @@
 import { AtpAgent, RichText, type AtpSessionData, type AtpSessionEvent } from '@atproto/api'
-import type { AppBskyFeedDefs } from '@atproto/api'
+import type { AppBskyActorDefs, AppBskyFeedDefs } from '@atproto/api'
 import { GUEST_FEED_ACCOUNTS } from '../config/guestFeed'
 
 const BSKY_SERVICE = 'https://bsky.social'
@@ -811,7 +811,7 @@ export async function putMutedWords(
   }
   if (idx >= 0) prefs[idx] = newPref
   else prefs.push(newPref)
-  await agent.app.bsky.actor.putPreferences({ preferences: prefs })
+  await agent.app.bsky.actor.putPreferences({ preferences: prefs as AppBskyActorDefs.Preferences })
 }
 
 /** Upload a blob for use in a standard.site document media array. Requires session. */
