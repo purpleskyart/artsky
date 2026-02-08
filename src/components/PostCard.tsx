@@ -48,6 +48,8 @@ interface Props {
   nsfwBlurred?: boolean
   /** Called when user taps to reveal NSFW content */
   onNsfwUnblur?: () => void
+  /** When true, media wrap uses fixed height from --feed-card-media-max-height (no aspect-ratio resize on load) */
+  constrainMediaHeight?: boolean
 }
 
 function RepostIcon() {
@@ -78,7 +80,7 @@ function isHlsUrl(url: string): boolean {
   return /\.m3u8(\?|$)/i.test(url) || url.includes('m3u8')
 }
 
-export default function PostCard({ item, isSelected, cardRef: cardRefProp, addButtonRef: _addButtonRef, openAddDropdown, onAddClose, onPostClick, feedLabel, openActionsMenuTrigger, openActionsMenu, onActionsMenuOpen, onActionsMenuClose, onAspectRatio, fillCell, nsfwBlurred, onNsfwUnblur }: Props) {
+export default function PostCard({ item, isSelected, cardRef: cardRefProp, addButtonRef: _addButtonRef, openAddDropdown, onAddClose, onPostClick, feedLabel, openActionsMenuTrigger, openActionsMenu, onActionsMenuOpen, onActionsMenuClose, onAspectRatio, fillCell, nsfwBlurred, onNsfwUnblur, constrainMediaHeight }: Props) {
   const navigate = useNavigate()
   const { session } = useSession()
   const { artOnly } = useArtOnly()
@@ -453,9 +455,9 @@ export default function PostCard({ item, isSelected, cardRef: cardRefProp, addBu
       >
         <div
           ref={mediaWrapRef}
-          className={`${styles.mediaWrap} ${fillCell ? styles.mediaWrapFillCell : ''}`}
+          className={`${styles.mediaWrap} ${fillCell ? styles.mediaWrapFillCell : ''} ${constrainMediaHeight ? styles.mediaWrapConstrained : ''}`}
           style={
-            fillCell
+            fillCell || constrainMediaHeight
               ? undefined
               : {
                   aspectRatio:

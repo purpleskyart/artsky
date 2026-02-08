@@ -60,6 +60,14 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   const setTheme = useCallback((mode: ThemeMode) => {
     setThemeState(mode)
+    try {
+      localStorage.setItem(STORAGE_KEY, mode)
+    } catch {
+      /* ignore */
+    }
+    const next = getResolved(mode)
+    setResolved(next)
+    document.documentElement.setAttribute('data-theme', next)
   }, [])
 
   const value: ThemeContextValue = { theme, setTheme, resolved }

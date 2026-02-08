@@ -741,7 +741,7 @@ export default function Layout({ title, children, showNav }: Props) {
               navigate('/login')
             }}
           >
-            Sign in
+            Log in
           </button>
         </section>
       )}
@@ -859,7 +859,10 @@ export default function Layout({ title, children, showNav }: Props) {
 
   return (
     <div className={`${styles.wrap} ${showNav ? styles.wrapWithHeader : ''}`}>
-      <header className={`${styles.header} ${showNav && !session ? styles.headerLoggedOut : ''} ${showNav && !isDesktop && !navVisible ? styles.headerHidden : ''}`}>
+      <a href="#main-content" className={styles.skipLink}>
+        Skip to main content
+      </a>
+      <header className={`${styles.header} ${showNav && !session ? styles.headerLoggedOut : ''} ${showNav && !isDesktop && !navVisible ? styles.headerHidden : ''}`} role="banner">
         {showNav && (
           <>
             <div className={styles.headerLeft}>
@@ -1041,14 +1044,14 @@ export default function Layout({ title, children, showNav }: Props) {
           </>
         )}
       </header>
-      <main className={styles.main}>
+      <main id="main-content" className={styles.main} aria-label="Main content">
         {children}
       </main>
       {showNav && (
         <>
           <nav
             className={`${styles.nav} ${navVisible ? '' : styles.navHidden}`}
-            aria-label="Main"
+            aria-label="Main navigation"
           >
             {navItems}
           </nav>
@@ -1105,7 +1108,7 @@ export default function Layout({ title, children, showNav }: Props) {
                   <h2 className={styles.composeTitle}>New post</h2>
                   {!session ? (
                     <p className={styles.composeSignIn}>
-                      <Link to="/login" onClick={closeCompose}>Sign in</Link> to post.
+                      <Link to="/login" onClick={closeCompose}>Log in</Link> to post.
                     </p>
                   ) : (
                     <form ref={composeFormRef} onSubmit={handleComposeSubmit}>

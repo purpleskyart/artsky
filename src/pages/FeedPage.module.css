@@ -205,7 +205,7 @@
 }
 
 .guestLink:hover {
-  text-decoration: underline;
+  text-decoration: none;
 }
 
 .guestPreview {
@@ -255,6 +255,7 @@
 .guestPreviewCard:hover {
   border-color: var(--accent);
   background: var(--accent-subtle);
+  text-decoration: none;
 }
 
 .guestPreviewText {
@@ -304,6 +305,7 @@
 .guestSignInBtn:hover {
   background: color-mix(in srgb, var(--accent) 90%, black);
   color: var(--text-on-accent);
+  text-decoration: none;
 }
 
 .guestSignInSuffix {

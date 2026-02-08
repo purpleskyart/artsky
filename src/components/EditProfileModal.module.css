@@ -147,7 +147,7 @@
 
 .avatarBtn {
   background: var(--accent);
-  color: var(--surface);
+  color: var(--text-on-accent);
   border: none;
 }
 

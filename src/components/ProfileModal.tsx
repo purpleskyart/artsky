@@ -1,8 +1,6 @@
-import { useEffect, useRef } from 'react'
-import { createPortal } from 'react-dom'
 import { useProfileModal } from '../context/ProfileModalContext'
 import { ProfileContent } from '../pages/ProfilePage'
-import styles from './PostDetailModal.module.css'
+import AppModal from './AppModal'
 
 interface ProfileModalProps {
   handle: string
@@ -12,67 +10,16 @@ interface ProfileModalProps {
 }
 
 export default function ProfileModal({ handle, onClose, onBack, canGoBack }: ProfileModalProps) {
-  const overlayRef = useRef<HTMLDivElement>(null)
   const { openProfileModal } = useProfileModal()
 
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault()
-        e.stopImmediatePropagation()
-        onClose()
-        return
-      }
-      if (e.key.toLowerCase() === 'q') {
-        e.preventDefault()
-        e.stopImmediatePropagation()
-        onBack()
-      }
-    }
-    window.addEventListener('keydown', onKeyDown, true)
-    return () => window.removeEventListener('keydown', onKeyDown, true)
-  }, [onClose, onBack])
-
-  function handleBackdropClick(e: React.MouseEvent) {
-    if (e.target === overlayRef.current) onClose()
-  }
-
-  const modal = (
-    <div
-      ref={overlayRef}
-      className={styles.overlay}
-      onClick={handleBackdropClick}
-      role="dialog"
-      aria-modal="true"
-      aria-label="Profile"
+  return (
+    <AppModal
+      ariaLabel="Profile"
+      onClose={onClose}
+      onBack={onBack}
+      canGoBack={canGoBack}
     >
-      <div className={styles.pane}>
-        <div className={styles.modalTopBar}>
-          <button
-            type="button"
-            className={styles.closeBtn}
-            onClick={onClose}
-            aria-label="Close all"
-          >
-            ×
-          </button>
-          {canGoBack ? (
-            <button
-              type="button"
-              className={styles.backBtn}
-              onClick={onBack}
-              aria-label="Back to previous"
-            >
-              ←
-            </button>
-          ) : null}
-        </div>
-        <div className={styles.scroll}>
-          <ProfileContent handle={handle} openProfileModal={openProfileModal} inModal />
-        </div>
-      </div>
-    </div>
+      <ProfileContent handle={handle} openProfileModal={openProfileModal} inModal />
+    </AppModal>
   )
-
-  return createPortal(modal, document.body)
 }

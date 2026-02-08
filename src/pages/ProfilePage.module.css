@@ -112,6 +112,9 @@
   background: var(--bg);
   padding-bottom: 0.25rem;
   transition: transform 0.25s ease;
+  display: flex;
+  justify-content: center;
+  width: 100%;
 }
 
 /* In profile popup: pin tabs to top of scroll (just below the X/back bar) */
@@ -148,10 +151,45 @@
   }
 }
 
+/* Buttons portaled into modal top bar right corner (column + NSFW) */
+.modalTopBarRightButtons {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.toggleBtn {
+  padding: 0.35rem 0.6rem;
+  font-size: 0.85rem;
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  cursor: pointer;
+}
+
+.toggleBtn:hover {
+  color: var(--text);
+}
+
+.toggleBtnActive {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.toggleBtnIcon {
+  padding: 0.4rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .tabs {
   display: flex;
   gap: 0.25rem;
   flex-wrap: wrap;
+  justify-content: center;
+  width: 100%;
 }
 
 .profileContent {
@@ -287,6 +325,7 @@
   gap: 0.5rem;
   width: 100%;
   min-width: 0;
+  transition: grid-template-columns 0.28s ease, gap 0.28s ease;
 }
 
 @media (max-width: 599px) {
@@ -297,7 +336,20 @@
   .gridView5 { --card-media-height: 100px; }
 }
 
-.gridView1 { --card-media-height: 280px; grid-template-columns: repeat(1, minmax(0, 1fr)); gap: 0.5rem; }
+/* 1-column: constrain card media so full post fits in viewport when scrolling */
+.gridView1 {
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+  gap: 0.5rem;
+  --card-media-height: 280px;
+  --feed-card-media-max-height: min(calc(100vh - 10rem), 85vh);
+}
+
+@media (max-width: 767px) {
+  .gridView1 {
+    --feed-card-media-max-height: min(100dvh - 4rem, 92dvh);
+  }
+}
+
 .gridView2 { --card-media-height: 260px; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.5rem; }
 .gridView3 { --card-media-height: 220px; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.5rem; }
 .gridView4 { --card-media-height: 200px; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.4rem; }

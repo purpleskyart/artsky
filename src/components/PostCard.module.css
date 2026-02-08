@@ -234,6 +234,13 @@
   border-radius: var(--glass-radius) var(--glass-radius) 0 0;
 }
 
+/* Single-col profile/feed: fixed height from the start so media doesn't resize when image loads */
+.mediaWrapConstrained {
+  height: var(--feed-card-media-max-height);
+  aspect-ratio: unset;
+  min-height: unset;
+}
+
 /* NSFW blurred mode: overlay with blur and "Tap to reveal" */
 .nsfwOverlay {
   position: absolute;
@@ -242,7 +249,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--overlay-bg);
   -webkit-backdrop-filter: blur(20px);
   backdrop-filter: blur(20px);
   border-radius: var(--glass-radius) var(--glass-radius) 0 0;
@@ -251,13 +258,13 @@
 }
 
 .nsfwOverlay:hover {
-  background: rgba(0, 0, 0, 0.4);
+  background: var(--overlay-bg);
 }
 
 .nsfwOverlayText {
   font-size: 0.95rem;
   font-weight: 500;
-  color: rgba(255, 255, 255, 0.95);
+  color: var(--text-on-accent);
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
   pointer-events: none;
 }

@@ -40,16 +40,16 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
           style={{
             minHeight: '100vh',
             padding: '1.5rem',
-            background: '#0f0f1a',
-            color: '#e8e8f0',
+            background: 'var(--bg)',
+            color: 'var(--text)',
             fontFamily: 'system-ui, sans-serif',
           }}
         >
           <h1 style={{ margin: '0 0 0.5rem', fontSize: '1.25rem' }}>Something went wrong</h1>
-          <pre style={{ margin: 0, fontSize: '0.85rem', color: '#f87171', overflow: 'auto' }}>
+          <pre style={{ margin: 0, fontSize: '0.85rem', color: 'var(--error)', overflow: 'auto' }}>
             {this.state.error.message}
           </pre>
-          <p style={{ margin: '1rem 0 0', fontSize: '0.9rem', color: '#8888a0' }}>
+          <p style={{ margin: '1rem 0 0', fontSize: '0.9rem', color: 'var(--muted)' }}>
             Check the browser console for details.
           </p>
         </div>
@@ -89,13 +89,13 @@ export default function App() {
                 <MediaOnlyProvider>
                   <FeedMixProvider>
                       <EditProfileProvider>
+                    <ModerationProvider>
                     <ProfileModalProvider>
                   <HiddenPostsProvider>
-                    <ModerationProvider>
                       <AppRoutes />
-                    </ModerationProvider>
                   </HiddenPostsProvider>
                     </ProfileModalProvider>
+                    </ModerationProvider>
                       </EditProfileProvider>
                   </FeedMixProvider>
                 </MediaOnlyProvider>

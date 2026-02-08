@@ -82,7 +82,7 @@ export default function LoginPage() {
 
     if (!password.trim()) {
       setError(
-        'Enter an App Password to sign in here (Bluesky Settings → App passwords), or use the link below to sign in on Bluesky.',
+        'Enter an App Password to log in here (Bluesky Settings → App passwords), or use the link below to log in on Bluesky.',
       )
       return
     }
@@ -95,7 +95,7 @@ export default function LoginPage() {
       const message =
         err && typeof err === 'object' && 'message' in err
           ? String((err as { message: string }).message)
-          : 'Sign in failed. Use your Bluesky handle (or email) and an App Password from Settings → App passwords.'
+          : 'Log in failed. Use your Bluesky handle (or email) and an App Password from Settings → App passwords.'
       setError(message)
     } finally {
       setLoading(false)
@@ -124,7 +124,7 @@ export default function LoginPage() {
         (message.toLowerCase().includes('verification') || message.toLowerCase().includes('latest version'))
       setError(
         isVerificationRequired
-          ? 'Account creation now requires verification on Bluesky. Please create your account on the Bluesky website or app, then sign in here with an App Password.'
+          ? 'Account creation now requires verification on Bluesky. Please create your account on the Bluesky website or app, then log in here with an App Password.'
           : message
       )
     } finally {
@@ -138,19 +138,27 @@ export default function LoginPage() {
         <h1 className={styles.title}>ArtSky</h1>
         <p className={styles.subtitle}>Bluesky feed & artboards</p>
 
-        <div className={styles.tabs}>
+        <div className={styles.tabs} role="tablist" aria-label="Log in or create account">
           <button
             type="button"
+            role="tab"
+            aria-selected={mode === 'signin'}
+            aria-controls="signin-panel"
+            id="tab-signin"
             className={mode === 'signin' ? styles.tabActive : styles.tab}
             onClick={() => {
               setMode('signin')
               setError('')
             }}
           >
-            Sign in
+            Log in
           </button>
           <button
             type="button"
+            role="tab"
+            aria-selected={mode === 'create'}
+            aria-controls="create-panel"
+            id="tab-create"
             className={mode === 'create' ? styles.tabActive : styles.tab}
             onClick={() => {
               setMode('create')
@@ -162,9 +170,13 @@ export default function LoginPage() {
         </div>
 
         {mode === 'signin' ? (
-          <form onSubmit={handleSignIn} className={styles.form}>
+          <form id="signin-panel" onSubmit={handleSignIn} className={styles.form} aria-label="Log in" role="tabpanel" aria-labelledby="tab-signin">
             <div ref={wrapperRef} className={styles.inputWrap}>
+              <label htmlFor="login-identifier" className={styles.srOnly}>
+                Handle or email
+              </label>
               <input
+                id="login-identifier"
                 type="text"
                 placeholder="Handle or email"
                 value={identifier}
@@ -193,6 +205,7 @@ export default function LoginPage() {
                 className={styles.input}
                 autoComplete="username"
                 required
+                aria-describedby={error ? 'login-error' : undefined}
               />
               {suggestionsOpen && (suggestions.length > 0 || suggestionsLoading) && (
                 <ul className={styles.suggestions} role="listbox">
@@ -226,17 +239,22 @@ export default function LoginPage() {
                 </ul>
               )}
             </div>
+            <label htmlFor="login-password" className={styles.srOnly}>
+              App password (optional)
+            </label>
             <input
+              id="login-password"
               type="password"
-              placeholder="App password (optional — leave blank to sign in with Bluesky)"
+              placeholder="App password (optional — leave blank to log in with Bluesky)"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className={styles.input}
               autoComplete="current-password"
+              aria-describedby={error ? 'login-error' : undefined}
             />
-            {error && <p className={styles.error}>{error}</p>}
+            {error && <p id="login-error" className={styles.error} role="alert">{error}</p>}
             <button type="submit" className={styles.button} disabled={loading}>
-              {password.trim() ? (loading ? 'Signing in…' : 'Sign in') : 'Sign in with Bluesky'}
+              {password.trim() ? (loading ? 'Logging in…' : 'Log in') : 'Log in with Bluesky'}
             </button>
             <p className={styles.hint}>
               Create an App Password in Bluesky: Settings → App passwords, then enter it above.
@@ -247,12 +265,14 @@ export default function LoginPage() {
               rel="noopener noreferrer"
               className={styles.signupLink}
             >
-              Sign in on Bluesky →
+              Log in on Bluesky →
             </a>
           </form>
         ) : (
-          <form onSubmit={handleCreateAccount} className={styles.form}>
+          <form id="create-panel" onSubmit={handleCreateAccount} className={styles.form} aria-label="Create account" role="tabpanel" aria-labelledby="tab-create">
+            <label htmlFor="create-email" className={styles.srOnly}>Email</label>
             <input
+              id="create-email"
               type="email"
               placeholder="Email"
               value={email}
@@ -261,7 +281,9 @@ export default function LoginPage() {
               autoComplete="email"
               required
             />
+            <label htmlFor="create-handle" className={styles.srOnly}>Handle (e.g. you.bsky.social)</label>
             <input
+              id="create-handle"
               type="text"
               placeholder="Handle (e.g. you.bsky.social)"
               value={handle}
@@ -270,7 +292,9 @@ export default function LoginPage() {
               autoComplete="username"
               required
             />
+            <label htmlFor="create-password" className={styles.srOnly}>Password</label>
             <input
+              id="create-password"
               type="password"
               placeholder="Password"
               value={createPassword}
@@ -279,14 +303,15 @@ export default function LoginPage() {
               autoComplete="new-password"
               required
               minLength={8}
+              aria-describedby={error ? 'create-error' : undefined}
             />
-            {error && <p className={styles.error}>{error}</p>}
+            {error && <p id="create-error" className={styles.error} role="alert">{error}</p>}
             <button type="submit" className={styles.button} disabled={loading}>
               {loading ? 'Creating account…' : 'Create account'}
             </button>
             <p className={styles.hint}>
               Bluesky now requires verification to create accounts. Create your account on the Bluesky website or app,
-              then return here to sign in with an App Password.
+              then return here to log in with an App Password.
             </p>
             <a
               href={BLUESKY_SIGNUP_URL}

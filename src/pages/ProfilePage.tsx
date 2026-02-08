@@ -1,19 +1,49 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useParams, Link } from 'react-router-dom'
 import { useProfileModal } from '../context/ProfileModalContext'
 import { useEditProfile } from '../context/EditProfileContext'
+import { useModalTopBarSlot } from '../context/ModalTopBarSlotContext'
 import { agent, publicAgent, getPostMediaInfo, getSession, listStandardSiteDocumentsForAuthor, isPostNsfw, type TimelineItem, type StandardSiteDocumentView } from '../lib/bsky'
 import { formatRelativeTime, formatRelativeTimeTitle } from '../lib/date'
 import PostCard from '../components/PostCard'
 import PostText from '../components/PostText'
 import Layout from '../components/Layout'
-import { useViewMode } from '../context/ViewModeContext'
-import { useModeration } from '../context/ModerationContext'
+import { useViewMode, type ViewMode } from '../context/ViewModeContext'
+import { useModeration, type NsfwPreference } from '../context/ModerationContext'
 import styles from './ProfilePage.module.css'
 import postBlockStyles from './PostDetailPage.module.css'
 
 const REASON_REPOST = 'app.bsky.feed.defs#reasonRepost'
 const REASON_PIN = 'app.bsky.feed.defs#reasonPin'
+
+const NSFW_CYCLE: NsfwPreference[] = ['sfw', 'blurred', 'nsfw']
+const VIEW_MODE_CYCLE: ViewMode[] = ['1', '2', '3']
+
+function ColumnIcon({ cols }: { cols: 1 | 2 | 3 }) {
+  const w = 14
+  const h = 12
+  const gap = 2
+  const barW = cols === 1 ? 4 : (w - (cols - 1) * gap) / cols
+  return (
+    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} fill="currentColor" aria-hidden>
+      {cols === 1 && <rect x={(w - barW) / 2} y={0} width={barW} height={h} rx={1} />}
+      {cols === 2 && (
+        <>
+          <rect x={0} y={0} width={barW} height={h} rx={1} />
+          <rect x={barW + gap} y={0} width={barW} height={h} rx={1} />
+        </>
+      )}
+      {cols === 3 && (
+        <>
+          <rect x={0} y={0} width={barW} height={h} rx={1} />
+          <rect x={barW + gap} y={0} width={barW} height={h} rx={1} />
+          <rect x={(barW + gap) * 2} y={0} width={barW} height={h} rx={1} />
+        </>
+      )}
+    </svg>
+  )
+}
 
 type ProfileTab = 'posts' | 'reposts' | 'blog' | 'text' | 'feeds'
 
@@ -50,7 +80,7 @@ export function ProfileContent({
   const [followLoading, setFollowLoading] = useState(false)
   const [followUriOverride, setFollowUriOverride] = useState<string | null>(null)
   const session = getSession()
-  const { viewMode } = useViewMode()
+  const { viewMode, setViewMode } = useViewMode()
   const readAgent = session ? agent : publicAgent
   const loadMoreSentinelRef = useRef<HTMLDivElement>(null)
   const loadingMoreRef = useRef(false)
@@ -59,6 +89,9 @@ export function ProfileContent({
   const [keyboardAddOpen, setKeyboardAddOpen] = useState(false)
   const { openPostModal, isModalOpen } = useProfileModal()
   const editProfileCtx = useEditProfile()
+  const topBarSlots = useModalTopBarSlot()
+  const centerSlot = topBarSlots?.centerSlot ?? null
+  const rightSlot = topBarSlots?.rightSlot ?? null
   const openEditProfile = editProfileCtx?.openEditProfile ?? (() => {})
   const editSavedVersion = editProfileCtx?.editSavedVersion ?? 0
   const lastScrollYRef = useRef(0)
@@ -209,7 +242,7 @@ export function ProfileContent({
     tab === 'posts'
       ? [...authorFeedItemsRaw].sort((a, b) => (isPinned(b) ? 1 : 0) - (isPinned(a) ? 1 : 0))
       : authorFeedItemsRaw
-  const { nsfwPreference, unblurredUris, setUnblurred } = useModeration()
+  const { nsfwPreference, setNsfwPreference, unblurredUris, setUnblurred } = useModeration()
   const mediaItems = authorFeedItems
     .filter((item) => getPostMediaInfo(item.post))
     .filter((item) => nsfwPreference !== 'sfw' || !isPostNsfw(item.post))
@@ -390,45 +423,60 @@ export function ProfileContent({
             )}
           </div>
         </header>
-        <div className={`${styles.tabsSticky} ${tabsBarVisible ? '' : styles.tabsBarHidden}`}>
-          <nav className={styles.tabs} aria-label="Profile sections">
-            <button
-            type="button"
-            className={`${styles.tab} ${tab === 'posts' ? styles.tabActive : ''}`}
-            onClick={() => setTab('posts')}
-          >
-            Posts
-          </button>
-          <button
-            type="button"
-            className={`${styles.tab} ${tab === 'reposts' ? styles.tabActive : ''}`}
-            onClick={() => setTab('reposts')}
-          >
-            Reposts
-          </button>
-          <button
-            type="button"
-            className={`${styles.tab} ${tab === 'blog' ? styles.tabActive : ''}`}
-            onClick={() => setTab('blog')}
-          >
-            Blog
-          </button>
-          <button
-            type="button"
-            className={`${styles.tab} ${tab === 'text' ? styles.tabActive : ''}`}
-            onClick={() => setTab('text')}
-          >
-            Text
-          </button>
-          <button
-            type="button"
-            className={`${styles.tab} ${tab === 'feeds' ? styles.tabActive : ''}`}
-            onClick={() => setTab('feeds')}
-          >
-            Feeds
-          </button>
-          </nav>
-        </div>
+        {inModal && centerSlot
+          ? createPortal(
+              <nav className={styles.tabs} aria-label="Profile sections">
+                <button type="button" className={`${styles.tab} ${tab === 'posts' ? styles.tabActive : ''}`} onClick={() => setTab('posts')}>Posts</button>
+                <button type="button" className={`${styles.tab} ${tab === 'reposts' ? styles.tabActive : ''}`} onClick={() => setTab('reposts')}>Reposts</button>
+                <button type="button" className={`${styles.tab} ${tab === 'blog' ? styles.tabActive : ''}`} onClick={() => setTab('blog')}>Blog</button>
+                <button type="button" className={`${styles.tab} ${tab === 'text' ? styles.tabActive : ''}`} onClick={() => setTab('text')}>Text</button>
+                <button type="button" className={`${styles.tab} ${tab === 'feeds' ? styles.tabActive : ''}`} onClick={() => setTab('feeds')}>Feeds</button>
+              </nav>,
+              centerSlot,
+            )
+          : null}
+        {inModal && rightSlot
+          ? createPortal(
+              <div className={styles.modalTopBarRightButtons}>
+                <button
+                  type="button"
+                  className={`${styles.toggleBtn} ${styles.toggleBtnIcon}`}
+                  onClick={() => {
+                    const i = VIEW_MODE_CYCLE.indexOf(viewMode)
+                    setViewMode(VIEW_MODE_CYCLE[(i + 1) % VIEW_MODE_CYCLE.length])
+                  }}
+                  title={`${viewMode} column(s). Click to cycle.`}
+                  aria-label={`${viewMode} columns`}
+                >
+                  <ColumnIcon cols={viewMode === '1' ? 1 : viewMode === '2' ? 2 : 3} />
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.toggleBtn} ${nsfwPreference !== 'sfw' ? styles.toggleBtnActive : ''}`}
+                  onClick={() => {
+                    const i = NSFW_CYCLE.indexOf(nsfwPreference)
+                    setNsfwPreference(NSFW_CYCLE[(i + 1) % NSFW_CYCLE.length])
+                  }}
+                  title={`${nsfwPreference}. Click to cycle: SFW → Blurred → NSFW`}
+                  aria-label={`NSFW filter: ${nsfwPreference}`}
+                >
+                  {nsfwPreference === 'sfw' ? 'SFW' : nsfwPreference === 'blurred' ? 'Blurred' : 'NSFW'}
+                </button>
+              </div>,
+              rightSlot,
+            )
+          : null}
+        {!inModal && (
+          <div className={`${styles.tabsSticky} ${tabsBarVisible ? '' : styles.tabsBarHidden}`}>
+            <nav className={styles.tabs} aria-label="Profile sections">
+              <button type="button" className={`${styles.tab} ${tab === 'posts' ? styles.tabActive : ''}`} onClick={() => setTab('posts')}>Posts</button>
+              <button type="button" className={`${styles.tab} ${tab === 'reposts' ? styles.tabActive : ''}`} onClick={() => setTab('reposts')}>Reposts</button>
+              <button type="button" className={`${styles.tab} ${tab === 'blog' ? styles.tabActive : ''}`} onClick={() => setTab('blog')}>Blog</button>
+              <button type="button" className={`${styles.tab} ${tab === 'text' ? styles.tabActive : ''}`} onClick={() => setTab('text')}>Text</button>
+              <button type="button" className={`${styles.tab} ${tab === 'feeds' ? styles.tabActive : ''}`} onClick={() => setTab('feeds')}>Feeds</button>
+            </nav>
+          </div>
+        )}
         {error && <p className={styles.error}>{error}</p>}
         <div className={styles.profileContent}>
         {loading ? (
@@ -627,6 +675,7 @@ export function ProfileContent({
                     onPostClick={(uri, opts) => openPostModal(uri, opts?.openReply)}
                     nsfwBlurred={nsfwPreference === 'blurred' && isPostNsfw(item.post) && !unblurredUris.has(item.post.uri)}
                     onNsfwUnblur={() => setUnblurred(item.post.uri, true)}
+                    constrainMediaHeight={cols === 1}
                   />
                 </div>
               ))}

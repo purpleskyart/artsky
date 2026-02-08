@@ -170,7 +170,7 @@ export default function ForumPage() {
         </header>
         {error && <p className={styles.error}>{error}</p>}
         {showSignInForTab ? (
-          <div className={styles.empty}>Sign in to see {tab === 'followed' ? 'posts from people you follow' : 'your posts'}.</div>
+          <div className={styles.empty}>Log in to see {tab === 'followed' ? 'posts from people you follow' : 'your posts'}.</div>
         ) : loading ? (
           <div className={styles.loading}>
             {tab === 'all' ? 'Loading discovered posts…' : tab === 'followed' ? 'Loading followed posts…' : 'Loading your posts…'}

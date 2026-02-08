@@ -514,7 +514,7 @@ export default function FeedPage() {
                 </div>
                 <div className={styles.guestSignInRow}>
                   <Link to="/login" className={styles.guestSignInBtn}>
-                    Sign in
+                    Log in
                   </Link>
                   <span className={styles.guestSignInSuffix}> to see your feed</span>
                 </div>

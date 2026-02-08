@@ -36,27 +36,73 @@
   -webkit-overflow-scrolling: touch;
   flex: 1;
   min-height: 0;
-  padding-top: 1.75rem;
 }
 
-/* Close/back float over content; no full-width bar covering scroll */
+/* Top bar: close/back on left, optional slot (e.g. profile tabs) centered – pins to top of pane */
 .modalTopBar {
-  position: absolute;
+  position: sticky;
   top: 0;
   left: 0;
   right: 0;
   display: flex;
   align-items: center;
-  gap: 0.25rem;
-  padding: 0.25rem 0.5rem;
-  background: transparent;
-  pointer-events: none;
+  gap: 0.5rem;
+  padding: 0.35rem 0.5rem;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  pointer-events: auto;
   z-index: 1;
+  flex-shrink: 0;
+}
+
+/* Transparent bar: overlay with no layout space so scroll content is full height and not covered */
+.modalTopBarTransparent {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: transparent;
+  border-bottom: none;
+  z-index: 2;
+}
+
+/* When bar is overlay, add padding so first content clears the X button */
+.scrollWithTransparentBar {
+  padding-top: 2.75rem;
+}
+
+/* Left: X + Back so we can match its width on the right for true center */
+.modalTopBarLeft {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+  width: 4.5rem; /* match modalTopBarRight so slot is visually centered */
+}
+
+.modalTopBarSlot {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-width: 0;
+  pointer-events: auto;
+}
+
+/* Right corner: same role as left (X/Back); holds column + NSFW in profile modal */
+.modalTopBarRight {
+  flex-shrink: 0;
+  width: 6.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.25rem;
 }
 
 .modalTopBar .closeBtn,
 .modalTopBar .backBtn {
   pointer-events: auto;
+  flex-shrink: 0;
 }
 
 .backBtn,
@@ -94,17 +140,21 @@
   transform: scale(0.96);
 }
 
-/* Mobile: pin close/back to bottom of popup, floating over content */
+/* Mobile: bar at bottom of popup (column-reverse), scroll above it */
 @media (max-width: 767px) {
   .pane {
     flex-direction: column-reverse;
   }
-  .modalTopBar {
+  .scroll {
+    padding-bottom: 0.5rem;
+  }
+  /* Transparent bar on mobile: pin to bottom so it matches other modals */
+  .modalTopBarTransparent {
     top: auto;
     bottom: 0;
   }
-  .scroll {
+  .scrollWithTransparentBar {
     padding-top: 0;
-    padding-bottom: 2.25rem;
+    padding-bottom: 2.75rem;
   }
 }
