@@ -40,19 +40,33 @@ git push -u origin dev
 
 ### One-time setup for the dev site
 
-So that pushes to `dev` can deploy to the separate dev URL, do this once:
+So that pushes to `dev` can deploy to the separate dev URL, do this once.
 
-1. **Create the dev repo**  
-   On GitHub, create a new repo **artsky-dev** (same account as artsky, e.g. `slrgt/artsky-dev`). It can be empty (no need to clone or add files).
+**1. Create the dev repo**  
+On GitHub, create a new repo **artsky-dev** (same account as artsky, e.g. `slrgt/artsky-dev`). It can be empty (no need to clone or add files).
 
-2. **Create a Personal Access Token**  
-   GitHub → **Settings** (your profile) → **Developer settings** → **Personal access tokens** → **Tokens (classic)** → **Generate new token**. Give it a name (e.g. "artsky dev deploy"), scope **repo**, then generate and **copy the token**.
+**2. Create a fine-grained Personal Access Token**
 
-3. **Add the token as a secret in the artsky repo**  
-   Open the **artsky** repo → **Settings** → **Secrets and variables** → **Actions** → **New repository secret**. Name: **DEV_DEPLOY_TOKEN**, value: the token you copied. Save.
+- Go to GitHub → your **profile picture** (top right) → **Settings**.
+- Left sidebar: **Developer settings** → **Personal access tokens** → **Fine-grained tokens**.
+- Click **Generate new token**.
+- **Token name:** e.g. `artsky dev deploy`.
+- **Expiration:** choose what you prefer (e.g. 90 days or no expiration).
+- **Repository access:** **Only select repositories** → select **artsky-dev** only.
+- **Repository permissions:** set **Contents** to **Read and write**.
+- Click **Generate token**, then **copy the token** (you won’t see it again).
 
-4. **Turn on GitHub Pages for artsky-dev**  
-   Open the **artsky-dev** repo → **Settings** → **Pages** → **Build and deployment** → **Source**: **Deploy from a branch**. Branch: **main** (or **master**), folder **/ (root)**. Save.
+**3. Add the token as a secret in the artsky repo**
+
+- Open the **artsky** repo (e.g. `https://github.com/YOUR_USERNAME/artsky`).
+- **Settings** → **Secrets and variables** → **Actions**.
+- **New repository secret**.
+- **Name:** exactly **`DEV_DEPLOY_TOKEN`** (the workflow expects this name).
+- **Secret:** paste the token you copied in step 2.
+- **Add secret**.
+
+**4. Turn on GitHub Pages for artsky-dev**  
+Open the **artsky-dev** repo → **Settings** → **Pages** → **Build and deployment** → **Source**: **Deploy from a branch**. Branch: **main** (or **master**), folder **/ (root)**. Save.
 
 After the first push to `dev`, the workflow will build and push the built app into **artsky-dev**; the dev site will be at **https://YOUR_USERNAME.github.io/artsky-dev/**.
 
