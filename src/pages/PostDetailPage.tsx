@@ -159,7 +159,7 @@ function MediaGallery({
   autoPlayFirstVideo = false,
   onFocusItem,
 }: {
-  items: Array<{ url: string; type: 'image' | 'video'; videoPlaylist?: string }>
+  items: Array<{ url: string; type: 'image' | 'video'; videoPlaylist?: string; aspectRatio?: number }>
   autoPlayFirstVideo?: boolean
   onFocusItem?: (index: number) => void
 }) {
@@ -218,7 +218,7 @@ function MediaGallery({
               </div>
             )
           }
-          const aspect = m.type === 'image' && 'aspectRatio' in m && m.aspectRatio != null ? m.aspectRatio : 1
+          const aspect = m.type === 'image' && m.aspectRatio != null ? m.aspectRatio : 1
           return (
             <button
               key={i}
