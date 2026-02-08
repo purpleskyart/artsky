@@ -50,6 +50,8 @@ interface Props {
   onNsfwUnblur?: () => void
   /** When true, media wrap uses fixed height from --feed-card-media-max-height (no aspect-ratio resize on load) */
   constrainMediaHeight?: boolean
+  /** Override liked state (e.g. from F key toggle); string = liked, null = unliked, undefined = use post.viewer.like */
+  likedUriOverride?: string | null
 }
 
 function RepostIcon() {
@@ -80,7 +82,7 @@ function isHlsUrl(url: string): boolean {
   return /\.m3u8(\?|$)/i.test(url) || url.includes('m3u8')
 }
 
-export default function PostCard({ item, isSelected, cardRef: cardRefProp, addButtonRef: _addButtonRef, openAddDropdown, onAddClose, onPostClick, feedLabel, openActionsMenuTrigger, openActionsMenu, onActionsMenuOpen, onActionsMenuClose, onAspectRatio, fillCell, nsfwBlurred, onNsfwUnblur, constrainMediaHeight }: Props) {
+export default function PostCard({ item, isSelected, cardRef: cardRefProp, addButtonRef: _addButtonRef, openAddDropdown, onAddClose, onPostClick, feedLabel, openActionsMenuTrigger, openActionsMenu, onActionsMenuOpen, onActionsMenuClose, onAspectRatio, fillCell, nsfwBlurred, onNsfwUnblur, constrainMediaHeight, likedUriOverride }: Props) {
   const navigate = useNavigate()
   const { session } = useSession()
   const { artOnly } = useArtOnly()
@@ -100,6 +102,7 @@ export default function PostCard({ item, isSelected, cardRef: cardRefProp, addBu
   const postViewer = (post as { viewer?: { like?: string } })
   const initialLikedUri = postViewer.viewer?.like
   const [likedUri, setLikedUri] = useState<string | undefined>(initialLikedUri)
+  const effectiveLikedUri = likedUriOverride !== undefined ? (likedUriOverride ?? undefined) : likedUri
 
   const [imageIndex, setImageIndex] = useState(0)
   const [multiImageExpanded, setMultiImageExpanded] = useState(false)
@@ -122,8 +125,12 @@ export default function PostCard({ item, isSelected, cardRef: cardRefProp, addBu
   const didDoubleTapRef = useRef(false)
 
   useEffect(() => {
-    setLikedUri(initialLikedUri)
-  }, [post.uri, initialLikedUri])
+    if (likedUriOverride !== undefined) {
+      setLikedUri(likedUriOverride ?? undefined)
+    } else {
+      setLikedUri(initialLikedUri)
+    }
+  }, [post.uri, initialLikedUri, likedUriOverride])
 
   const clearLongPressTimer = useCallback(() => {
     if (longPressTimerRef.current !== null) {
@@ -589,7 +596,7 @@ export default function PostCard({ item, isSelected, cardRef: cardRefProp, addBu
                 <img src={post.author.avatar} alt="" className={styles.authorAvatar} loading="lazy" />
               )}
               <span className={styles.handleRowMain}>
-                <span className={likedUri ? styles.handleLinkWrapLiked : showNotFollowingGreen ? styles.handleLinkWrapNotFollowing : styles.handleLinkWrap}>
+                <span className={effectiveLikedUri ? styles.handleLinkWrapLiked : showNotFollowingGreen ? styles.handleLinkWrapNotFollowing : styles.handleLinkWrap}>
                   <ProfileLink
                     handle={handle}
                     className={styles.handleLink}

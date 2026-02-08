@@ -70,6 +70,7 @@ export default function FeedPage() {
   const blockCancelRef = useRef<HTMLButtonElement>(null)
   const blockConfirmRef = useRef<HTMLButtonElement>(null)
   const [openMenuIndex, setOpenMenuIndex] = useState<number | null>(null)
+  const [likeOverrides, setLikeOverrides] = useState<Record<string, string | null>>({})
 
   const presetUris = new Set((PRESET_SOURCES.map((s) => s.uri).filter(Boolean) as string[]))
   const savedDeduped = savedFeedSources.filter((s) => !s.uri || !presetUris.has(s.uri))
@@ -307,7 +308,13 @@ export default function FeedPage() {
     const onKeyDown = (e: KeyboardEvent) => {
       if (isModalOpen) return
       const target = e.target as HTMLElement
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable) return
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable) {
+        if (e.key === 'Escape') {
+          e.preventDefault()
+          target.blur()
+        }
+        return
+      }
       if (e.ctrlKey || e.metaKey) return
       if (location.pathname !== '/feed') return
 
@@ -389,7 +396,18 @@ export default function FeedPage() {
       }
       if (key === 'f') {
         const item = items[i]
-        if (item?.post?.uri && item?.post?.cid) agent.like(item.post.uri, item.post.cid).catch(() => {})
+        if (!item?.post?.uri || !item?.post?.cid) return
+        const uri = item.post.uri
+        const currentLikeUri = likeOverrides[uri] ?? (item.post as { viewer?: { like?: string } }).viewer?.like
+        if (currentLikeUri) {
+          agent.deleteLike(currentLikeUri).then(() => {
+            setLikeOverrides((prev) => ({ ...prev, [uri]: null }))
+          }).catch(() => {})
+        } else {
+          agent.like(uri, item.post.cid).then((res) => {
+            setLikeOverrides((prev) => ({ ...prev, [uri]: res.uri }))
+          }).catch(() => {})
+        }
         return
       }
       if (key === 'c') {
@@ -456,7 +474,7 @@ export default function FeedPage() {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [location.pathname, cols, isModalOpen, openPostModal, blockConfirm, addHidden, session, openMenuIndex])
+  }, [location.pathname, cols, isModalOpen, openPostModal, blockConfirm, addHidden, session, openMenuIndex, likeOverrides])
 
   useEffect(() => {
     if (blockConfirm) blockCancelRef.current?.focus()
@@ -596,6 +614,7 @@ export default function FeedPage() {
                             fillCell={false}
                             nsfwBlurred={nsfwPreference === 'blurred' && isPostNsfw(item.post) && !unblurredUris.has(item.post.uri)}
                             onNsfwUnblur={() => setUnblurred(item.post.uri, true)}
+                            likedUriOverride={likeOverrides[item.post.uri]}
                           />
                         </div>
                       ))}
@@ -629,6 +648,7 @@ export default function FeedPage() {
                       fillCell={false}
                       nsfwBlurred={nsfwPreference === 'blurred' && isPostNsfw(item.post) && !unblurredUris.has(item.post.uri)}
                       onNsfwUnblur={() => setUnblurred(item.post.uri, true)}
+                      likedUriOverride={likeOverrides[item.post.uri]}
                     />
                   </div>
                 ))}

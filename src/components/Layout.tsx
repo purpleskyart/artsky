@@ -298,7 +298,13 @@ export default function Layout({ title, children, showNav }: Props) {
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable) return
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable) {
+        if (e.key === 'Escape') {
+          e.preventDefault()
+          target.blur()
+        }
+        return
+      }
       if (e.ctrlKey || e.metaKey) return
       if (e.key.toLowerCase() !== 'q') return
       e.preventDefault()

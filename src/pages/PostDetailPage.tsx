@@ -964,9 +964,22 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, onClose }: P
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable) return
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable) {
+        if (e.key === 'Escape') {
+          e.preventDefault()
+          target.blur()
+        }
+        return
+      }
       if (e.ctrlKey || e.metaKey) return
       const key = e.key.toLowerCase()
+      if (key === 'f') {
+        if (thread && isThreadViewPost(thread)) {
+          e.preventDefault()
+          handleLike()
+        }
+        return
+      }
       if (key === 'r') {
         const t = thread
         if (!t || !isThreadViewPost(t)) return
@@ -1086,7 +1099,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, onClose }: P
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [postSectionCount, postSectionIndex, hasRepliesSection, threadRepliesFlat, focusedCommentIndex, commentFormFocused, thread, hasMediaSection, handleReplyTo, rootMediaForNav.length, openProfileModal, focusItems])
+  }, [postSectionCount, postSectionIndex, hasRepliesSection, threadRepliesFlat, focusedCommentIndex, commentFormFocused, thread, hasMediaSection, handleReplyTo, rootMediaForNav.length, openProfileModal, focusItems, handleLike])
 
   useEffect(() => {
     if (postSectionCount <= 1) return

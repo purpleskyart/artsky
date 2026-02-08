@@ -97,7 +97,13 @@ export default function ForumPage() {
     const onKeyDown = (e: KeyboardEvent) => {
       if (isModalOpen) return
       const target = e.target as HTMLElement
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable) return
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable) {
+        if (e.key === 'Escape') {
+          e.preventDefault()
+          target.blur()
+        }
+        return
+      }
       if (e.ctrlKey || e.metaKey) return
       if (!listRef.current || filteredDocuments.length === 0) return
       const key = e.key.toLowerCase()

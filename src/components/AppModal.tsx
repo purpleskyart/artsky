@@ -36,6 +36,14 @@ export default function AppModal({
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable) {
+        if (e.key === 'Escape') {
+          e.preventDefault()
+          target.blur()
+        }
+        return
+      }
       if (e.key === 'Escape') {
         e.preventDefault()
         e.stopImmediatePropagation()

@@ -59,10 +59,10 @@
   flex-direction: column;
 }
 
-/* Description block is focusable for W/S nav; match comment focus ring */
+/* Description block is focusable for W/S nav; inset ring so it stays in view */
 .rootPostDescription:focus {
-  outline: 2px solid var(--accent);
-  outline-offset: 8px;
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--accent);
   border-radius: 0.75rem;
 }
 
@@ -155,8 +155,18 @@
 .postHead {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 0.5rem;
   margin-bottom: 0.5rem;
+}
+
+/* Root post: smaller avatar and top spacing so it doesn’t touch the top border */
+.rootPostDescription .postHead {
+  margin-top: 0.45rem;
+}
+.rootPostDescription .postHead .avatar {
+  width: 28px;
+  height: 28px;
 }
 
 .authorRow {

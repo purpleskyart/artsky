@@ -26,6 +26,7 @@ export function TagContent({ tag, inModal = false }: { tag: string; inModal?: bo
   const [error, setError] = useState<string | null>(null)
   const [keyboardFocusIndex, setKeyboardFocusIndex] = useState(0)
   const [keyboardAddOpen, setKeyboardAddOpen] = useState(false)
+  const [likeOverrides, setLikeOverrides] = useState<Record<string, string | null>>({})
   const cardRefsRef = useRef<(HTMLDivElement | null)[]>([])
   const keyboardFocusIndexRef = useRef(0)
   const mediaItemsRef = useRef<TimelineItem[]>([])
@@ -87,7 +88,13 @@ export function TagContent({ tag, inModal = false }: { tag: string; inModal?: bo
     const onKeyDown = (e: KeyboardEvent) => {
       if (!inModal && isModalOpen) return
       const target = e.target as HTMLElement
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable) return
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable) {
+        if (e.key === 'Escape') {
+          e.preventDefault()
+          target.blur()
+        }
+        return
+      }
       if (e.ctrlKey || e.metaKey) return
       if (mediaItems.length === 0) return
 
@@ -126,7 +133,18 @@ export function TagContent({ tag, inModal = false }: { tag: string; inModal?: bo
       }
       if (key === 'f') {
         const item = items[i]
-        if (item?.post?.uri && item?.post?.cid) agent.like(item.post.uri, item.post.cid).catch(() => {})
+        if (!item?.post?.uri || !item?.post?.cid) return
+        const uri = item.post.uri
+        const currentLikeUri = likeOverrides[uri] ?? (item.post as { viewer?: { like?: string } }).viewer?.like
+        if (currentLikeUri) {
+          agent.deleteLike(currentLikeUri).then(() => {
+            setLikeOverrides((prev) => ({ ...prev, [uri]: null }))
+          }).catch(() => {})
+        } else {
+          agent.like(uri, item.post.cid).then((res) => {
+            setLikeOverrides((prev) => ({ ...prev, [uri]: res.uri }))
+          }).catch(() => {})
+        }
         return
       }
       if (key === 'c') {
@@ -135,7 +153,7 @@ export function TagContent({ tag, inModal = false }: { tag: string; inModal?: bo
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [mediaItems.length, cols, navigate, isModalOpen, inModal, openPostModal])
+  }, [mediaItems.length, cols, navigate, isModalOpen, inModal, openPostModal, likeOverrides])
 
   if (!tag) return null
 
@@ -166,6 +184,7 @@ export function TagContent({ tag, inModal = false }: { tag: string; inModal?: bo
                   onPostClick={inModal ? (uri) => openPostModal(uri) : undefined}
                   nsfwBlurred={nsfwPreference === 'blurred' && isPostNsfw(item.post) && !unblurredUris.has(item.post.uri)}
                   onNsfwUnblur={() => setUnblurred(item.post.uri, true)}
+                  likedUriOverride={likeOverrides[item.post.uri]}
                 />
               </div>
             ))}
