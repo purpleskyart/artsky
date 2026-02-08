@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect } from 'react'
-import { blockAccount, reportPost, muteThread, deletePost } from '../lib/bsky'
+import { blockAccount, unblockAccount, reportPost, muteThread, deletePost, agent } from '../lib/bsky'
 import { getSession } from '../lib/bsky'
 import { useHiddenPosts } from '../context/HiddenPostsContext'
 import styles from './PostActionsMenu.module.css'
@@ -50,6 +50,9 @@ export default function PostActionsMenu({
   const [loading, setLoading] = useState<string | null>(null)
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   const [reportStep, setReportStep] = useState<'main' | 'reason'>('main')
+  const [blockStep, setBlockStep] = useState<'idle' | 'confirm'>('idle')
+  const [authorBlockingUri, setAuthorBlockingUri] = useState<string | null>(null)
+  const [authorHandle, setAuthorHandle] = useState<string | null>(null)
   const feedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
@@ -67,6 +70,7 @@ export default function PostActionsMenu({
     if (!open) {
       triggerRef.current?.blur()
       setReportStep('main')
+      setBlockStep('idle')
       setFeedback(null)
       if (feedbackTimeoutRef.current) {
         clearTimeout(feedbackTimeoutRef.current)
@@ -74,6 +78,24 @@ export default function PostActionsMenu({
       }
     }
   }, [open])
+
+  /* When menu opens and logged in and not own post, fetch profile to get viewer.blocking and handle */
+  useEffect(() => {
+    if (!open || !session?.did || isOwnPost) return
+    let cancelled = false
+    agent.getProfile({ actor: authorDid }).then((res) => {
+      if (cancelled) return
+      const data = res.data as { viewer?: { blocking?: string }; handle?: string }
+      setAuthorBlockingUri(data.viewer?.blocking ?? null)
+      setAuthorHandle(data.handle ?? null)
+    }).catch(() => {
+      if (!cancelled) {
+        setAuthorBlockingUri(null)
+        setAuthorHandle(null)
+      }
+    })
+    return () => { cancelled = true }
+  }, [open, session?.did, isOwnPost, authorDid])
 
   useEffect(() => {
     if (!isControlled && openTrigger != null && openTrigger !== lastOpenTriggerRef.current) {
@@ -108,7 +130,11 @@ export default function PostActionsMenu({
       const key = e.key.toLowerCase()
       if (key === 'escape' || key === 'q') {
         e.preventDefault()
-        setOpen(false)
+        if (blockStep === 'confirm') {
+          setBlockStep('idle')
+        } else {
+          setOpen(false)
+        }
         return
       }
       if (key === 'w' || key === 's' || key === 'e' || e.key === 'ArrowUp' || e.key === 'ArrowDown') {
@@ -139,7 +165,7 @@ export default function PostActionsMenu({
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [open])
+  }, [open, blockStep])
 
   function showSuccess(message: string) {
     setFeedback({ type: 'success', message })
@@ -155,15 +181,32 @@ export default function PostActionsMenu({
     setFeedback({ type: 'error', message })
   }
 
-  async function handleBlock() {
+  async function handleBlockConfirm() {
     if (!session?.did || isOwnPost) return
     setLoading('block')
     setFeedback(null)
     try {
-      await blockAccount(authorDid)
+      const { uri } = await blockAccount(authorDid)
+      setAuthorBlockingUri(uri)
+      setBlockStep('idle')
       showSuccess('Account blocked')
     } catch {
       showError('Could not block. Try again.')
+    } finally {
+      setLoading(null)
+    }
+  }
+
+  async function handleUnblock() {
+    if (!authorBlockingUri) return
+    setLoading('unblock')
+    setFeedback(null)
+    try {
+      await unblockAccount(authorBlockingUri)
+      setAuthorBlockingUri(null)
+      showSuccess('Account unblocked')
+    } catch {
+      showError('Could not unblock. Try again.')
     } finally {
       setLoading(null)
     }
@@ -268,18 +311,41 @@ export default function PostActionsMenu({
               <button
                 type="button"
                 className={styles.item}
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleHide() }}
+                role="menuitem"
+              >
+                Hide post
+              </button>
+              <button
+                type="button"
+                className={styles.item}
                 onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleCopyLink() }}
                 role="menuitem"
               >
                 Copy link to post
               </button>
+            </>
+          ) : blockStep === 'confirm' ? (
+            <>
               <button
                 type="button"
                 className={styles.item}
-                onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleHide() }}
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setBlockStep('idle') }}
                 role="menuitem"
               >
-                Hide post
+                ← Back
+              </button>
+              <div className={styles.reportReasonLabel}>
+                Block {authorHandle ? `@${authorHandle}` : 'this account'}?
+              </div>
+              <button
+                type="button"
+                className={styles.item}
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleBlockConfirm() }}
+                disabled={loading === 'block'}
+                role="menuitem"
+              >
+                {loading === 'block' ? '…' : 'Yes, block'}
               </button>
             </>
           ) : reportStep === 'reason' ? (
@@ -308,14 +374,6 @@ export default function PostActionsMenu({
             </>
           ) : (
             <>
-              <button
-                type="button"
-                className={styles.item}
-                onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleCopyLink() }}
-                role="menuitem"
-              >
-                Copy link to post
-              </button>
               {isOwnPost && (
                 <button
                   type="button"
@@ -328,15 +386,26 @@ export default function PostActionsMenu({
                 </button>
               )}
               {!isOwnPost && (
-                <button
-                  type="button"
-                  className={styles.item}
-                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleBlock() }}
-                  disabled={loading === 'block'}
-                  role="menuitem"
-                >
-                  {loading === 'block' ? '…' : 'Block account'}
-                </button>
+                authorBlockingUri ? (
+                  <button
+                    type="button"
+                    className={styles.item}
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleUnblock() }}
+                    disabled={loading === 'unblock'}
+                    role="menuitem"
+                  >
+                    {loading === 'unblock' ? '…' : 'Unblock account'}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className={styles.item}
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); setBlockStep('confirm') }}
+                    role="menuitem"
+                  >
+                    Block account
+                  </button>
+                )
               )}
               <button
                 type="button"
@@ -362,6 +431,14 @@ export default function PostActionsMenu({
                 role="menuitem"
               >
                 Hide post
+              </button>
+              <button
+                type="button"
+                className={styles.item}
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleCopyLink() }}
+                role="menuitem"
+              >
+                Copy link to post
               </button>
             </>
           )}

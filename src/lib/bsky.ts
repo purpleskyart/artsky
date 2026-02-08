@@ -676,14 +676,27 @@ export async function listMyDownvotes(): Promise<Record<string, string>> {
   return out
 }
 
-/** Block an account by DID. Requires session. */
-export async function blockAccount(did: string): Promise<void> {
+/** Block an account by DID. Requires session. Returns the block record URI. */
+export async function blockAccount(did: string): Promise<{ uri: string }> {
   const session = getSession()
   if (!session?.did) throw new Error('Not logged in')
-  await agent.app.bsky.graph.block.create(
+  const result = await agent.app.bsky.graph.block.create(
     { repo: session.did },
     { subject: did, createdAt: new Date().toISOString() }
   )
+  return { uri: result.uri }
+}
+
+/** Unblock an account by the block record URI. Requires session. */
+export async function unblockAccount(blockUri: string): Promise<void> {
+  const session = getSession()
+  if (!session?.did) throw new Error('Not logged in')
+  const parsed = parseAtUri(blockUri)
+  if (!parsed || parsed.collection !== 'app.bsky.graph.block') throw new Error('Invalid block URI')
+  await agent.app.bsky.graph.block.delete({
+    repo: session.did,
+    rkey: parsed.rkey,
+  })
 }
 
 /** Report a post (or record). Requires session. reasonType defaults to com.atproto.moderation.defs#reasonOther */
@@ -701,6 +714,104 @@ export async function muteThread(rootUri: string): Promise<void> {
   const session = getSession()
   if (!session?.did) throw new Error('Not logged in')
   await agent.app.bsky.graph.muteThread({ root: rootUri })
+}
+
+/** List accounts the current user has blocked. Returns block record URI and profile info. Requires session. */
+export async function listBlockedAccounts(): Promise<{ blockUri: string; did: string; handle?: string; displayName?: string; avatar?: string }[]> {
+  const session = getSession()
+  if (!session?.did) throw new Error('Not logged in')
+  const out: { blockUri: string; did: string; handle?: string; displayName?: string; avatar?: string }[] = []
+  let cursor: string | undefined
+  do {
+    const res = await agent.com.atproto.repo.listRecords({
+      repo: session.did,
+      collection: 'app.bsky.graph.block',
+      limit: 100,
+      cursor,
+    })
+    for (const r of res.data.records ?? []) {
+      const value = r.value as { subject?: string }
+      const did = value?.subject
+      if (did && r.uri) {
+        out.push({ blockUri: r.uri, did })
+      }
+    }
+    cursor = res.data.cursor
+  } while (cursor)
+  const profiles = await Promise.all(
+    out.map((o) =>
+      agent.getProfile({ actor: o.did }).then((p) => p.data as { handle?: string; displayName?: string; avatar?: string }).catch(() => null)
+    )
+  )
+  profiles.forEach((p, i) => {
+    if (p && out[i]) {
+      out[i].handle = p.handle
+      out[i].displayName = p.displayName
+      out[i].avatar = p.avatar
+    }
+  })
+  return out
+}
+
+/** List accounts the current user has muted. Requires session. */
+export async function listMutedAccounts(): Promise<{ did: string; handle: string; displayName?: string; avatar?: string }[]> {
+  const session = getSession()
+  if (!session?.did) throw new Error('Not logged in')
+  const res = await agent.app.bsky.graph.getMutes({ limit: 100 })
+  return (res.data.mutes ?? []).map((p) => ({
+    did: p.did,
+    handle: p.handle,
+    displayName: p.displayName,
+    avatar: p.avatar,
+  }))
+}
+
+/** Unmute an account by DID. Requires session. */
+export async function unmuteAccount(did: string): Promise<void> {
+  const session = getSession()
+  if (!session?.did) throw new Error('Not logged in')
+  await agent.app.bsky.graph.unmuteActor({ actor: did })
+}
+
+/** Get muted words from preferences. Requires session. */
+export async function getMutedWords(): Promise<{ id?: string; value: string; targets: string[]; actorTarget?: string; expiresAt?: string }[]> {
+  const session = getSession()
+  if (!session?.did) throw new Error('Not logged in')
+  const res = await agent.app.bsky.actor.getPreferences({})
+  const prefs = res.data.preferences as { $type?: string; items?: { id?: string; value: string; targets?: string[]; actorTarget?: string; expiresAt?: string }[] }[]
+  const muted = prefs.find((p) => p.$type === 'app.bsky.actor.defs#mutedWordsPref')
+  const items = muted?.items ?? []
+  return items.map((w) => ({
+    id: w.id,
+    value: w.value,
+    targets: w.targets ?? [],
+    actorTarget: w.actorTarget,
+    expiresAt: w.expiresAt,
+  }))
+}
+
+/** Update muted words in preferences (replace full list). Requires session. */
+export async function putMutedWords(
+  words: { id?: string; value: string; targets: string[]; actorTarget?: string; expiresAt?: string }[]
+): Promise<void> {
+  const session = getSession()
+  if (!session?.did) throw new Error('Not logged in')
+  const res = await agent.app.bsky.actor.getPreferences({})
+  const prefs = [...(res.data.preferences as object[])]
+  const idx = prefs.findIndex((p) => (p as { $type?: string }).$type === 'app.bsky.actor.defs#mutedWordsPref')
+  const newPref = {
+    $type: 'app.bsky.actor.defs#mutedWordsPref',
+    items: words.map((w) => ({
+      ...(w.id ? { id: w.id } : {}),
+      value: w.value,
+      targets: w.targets?.length ? w.targets : (['content', 'tag'] as const),
+      ...(w.actorTarget ? { actorTarget: w.actorTarget } : { actorTarget: 'all' as const }),
+      ...(w.expiresAt ? { expiresAt: w.expiresAt } : {}),
+    })),
+  }
+  if (idx >= 0) prefs[idx] = newPref
+  else prefs.push(newPref)
+  await agent.app.bsky.actor.putPreferences({ preferences: prefs })
 }
 
 /** Upload a blob for use in a standard.site document media array. Requires session. */

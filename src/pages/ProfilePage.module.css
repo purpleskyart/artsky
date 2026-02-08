@@ -6,13 +6,26 @@
 
 .profileHeader {
   display: flex;
-  gap: 1rem;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
   padding: 1rem;
   margin-bottom: 1rem;
   background: var(--surface);
   border-radius: 0.75rem;
   border: 1px solid var(--border);
   box-shadow: var(--shadow-card);
+}
+
+.profileHeaderMain {
+  display: flex;
+  gap: 1rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.profileMenu {
+  flex-shrink: 0;
 }
 
 .avatar {
@@ -78,6 +91,23 @@
 
 .followBtnFollowing:hover:not(:disabled) .followLabelHover {
   display: inline;
+}
+
+.blockedMutedBtn {
+  flex-shrink: 0;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  cursor: pointer;
+}
+
+.blockedMutedBtn:hover {
+  color: var(--text);
+  border-color: var(--text);
 }
 
 .displayName {

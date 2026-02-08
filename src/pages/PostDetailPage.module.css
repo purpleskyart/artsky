@@ -500,6 +500,8 @@
 
 .replies {
   margin-top: 0.25rem;
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
 }
 
 .collapsedCommentWrap {
@@ -583,6 +585,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: center;
   gap: 0.5rem 1rem;
 }
 
@@ -797,6 +800,8 @@
 
 .inlineReplyFormWrap {
   margin-top: 0.75rem;
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
 }
 
 /* No outline by default; accent outline when form or any control inside has focus */

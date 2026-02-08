@@ -8,6 +8,8 @@ import { agent, publicAgent, getPostMediaInfo, getSession, listStandardSiteDocum
 import { formatRelativeTime, formatRelativeTimeTitle } from '../lib/date'
 import PostCard from '../components/PostCard'
 import PostText from '../components/PostText'
+import ProfileActionsMenu from '../components/ProfileActionsMenu'
+import BlockedAndMutedModal from '../components/BlockedAndMutedModal'
 import Layout from '../components/Layout'
 import { useViewMode, type ViewMode } from '../context/ViewModeContext'
 import { useModeration, type NsfwPreference } from '../context/ModerationContext'
@@ -87,6 +89,7 @@ export function ProfileContent({
   const [tabsBarVisible, setTabsBarVisible] = useState(true)
   const [keyboardFocusIndex, setKeyboardFocusIndex] = useState(0)
   const [keyboardAddOpen, setKeyboardAddOpen] = useState(false)
+  const [showBlockedMutedModal, setShowBlockedMutedModal] = useState(false)
   const { openPostModal, isModalOpen } = useProfileModal()
   const editProfileCtx = useEditProfile()
   const topBarSlots = useModalTopBarSlot()
@@ -374,55 +377,78 @@ export function ProfileContent({
     <>
       <div className={`${styles.wrap} ${inModal ? styles.wrapInModal : ''}`}>
         <header className={styles.profileHeader}>
-          {profile?.avatar && (
-            <img src={profile.avatar} alt="" className={styles.avatar} />
-          )}
-          <div className={styles.profileMeta}>
-            {profile?.displayName && (
-              <h2 className={styles.displayName}>{profile.displayName}</h2>
+          <div className={styles.profileHeaderMain}>
+            {profile?.avatar && (
+              <img src={profile.avatar} alt="" className={styles.avatar} />
             )}
-            <div className={styles.handleRow}>
-              <p className={styles.handle}>@{handle}</p>
-              {isOwnProfile && (
-                <button
-                  type="button"
-                  className={styles.followBtn}
-                  onClick={openEditProfile}
-                  title="Edit profile"
-                >
-                  Edit profile
-                </button>
+            <div className={styles.profileMeta}>
+              {profile?.displayName && (
+                <h2 className={styles.displayName}>{profile.displayName}</h2>
               )}
-              {showFollowButton &&
-                (isFollowing ? (
-                  <button
-                    type="button"
-                    className={`${styles.followBtn} ${styles.followBtnFollowing}`}
-                    onClick={handleUnfollow}
-                    disabled={followLoading}
-                    title="Unfollow"
-                  >
-                    <span className={styles.followLabelDefault}>Following</span>
-                    <span className={styles.followLabelHover}>Unfollow</span>
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    className={styles.followBtn}
-                    onClick={handleFollow}
-                    disabled={followLoading}
-                  >
-                    {followLoading ? 'Following…' : 'Follow'}
-                  </button>
-                ))}
+              <div className={styles.handleRow}>
+                <p className={styles.handle}>@{handle}</p>
+                {isOwnProfile && (
+                  <>
+                    <button
+                      type="button"
+                      className={styles.followBtn}
+                      onClick={openEditProfile}
+                      title="Edit profile"
+                    >
+                      Edit profile
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.blockedMutedBtn}
+                      onClick={() => setShowBlockedMutedModal(true)}
+                      title="View blocked accounts and muted words"
+                    >
+                      Blocked & muted
+                    </button>
+                  </>
+                )}
+                {showFollowButton &&
+                  (isFollowing ? (
+                    <button
+                      type="button"
+                      className={`${styles.followBtn} ${styles.followBtnFollowing}`}
+                      onClick={handleUnfollow}
+                      disabled={followLoading}
+                      title="Unfollow"
+                    >
+                      <span className={styles.followLabelDefault}>Following</span>
+                      <span className={styles.followLabelHover}>Unfollow</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className={styles.followBtn}
+                      onClick={handleFollow}
+                      disabled={followLoading}
+                    >
+                      {followLoading ? 'Following…' : 'Follow'}
+                    </button>
+                  ))}
+              </div>
+              {profile?.description && (
+                <p className={styles.description}>
+                  <PostText text={profile.description} linkDisplay="domain" />
+                </p>
+              )}
             </div>
-            {profile?.description && (
-              <p className={styles.description}>
-                <PostText text={profile.description} linkDisplay="domain" />
-              </p>
-            )}
           </div>
+          {profile && (
+            <ProfileActionsMenu
+              profileDid={profile.did}
+              profileHandle={handle}
+              isOwnProfile={isOwnProfile}
+              className={styles.profileMenu}
+            />
+          )}
         </header>
+        {showBlockedMutedModal && (
+          <BlockedAndMutedModal onClose={() => setShowBlockedMutedModal(false)} />
+        )}
         {inModal && centerSlot
           ? createPortal(
               <nav className={styles.tabs} aria-label="Profile sections">
