@@ -34,6 +34,10 @@ const PRESET_SOURCES: FeedSource[] = [
   { kind: 'custom', label: "What's Hot", uri: 'at://did:plc:z72i7hdynmk6r22z27h6tvur/app.bsky.feed.generator/whats-hot' },
 ]
 
+function sameSource(a: FeedSource, b: FeedSource): boolean {
+  return (a.uri ?? a.label) === (b.uri ?? b.label)
+}
+
 export default function FeedPage() {
   const location = useLocation()
   const navigate = useNavigate()
@@ -154,8 +158,21 @@ export default function FeedPage() {
     entries: mixEntries,
     setEntryPercent,
     toggleSource,
+    addEntry,
     totalPercent: mixTotalPercent,
   } = useFeedMix()
+
+  const handleToggleSource = useCallback(
+    (clicked: FeedSource) => {
+      if (mixEntries.length === 0 && !sameSource(clicked, source)) {
+        addEntry(source)
+        addEntry(clicked)
+      } else {
+        toggleSource(clicked)
+      }
+    },
+    [mixEntries.length, source, addEntry, toggleSource]
+  )
   const feedLabel =
     mixEntries.length >= 2
       ? 'Feed mix'
@@ -454,7 +471,7 @@ export default function FeedPage() {
             sources={allSources}
             fallbackSource={source}
             mixEntries={mixEntries}
-            onToggle={toggleSource}
+            onToggle={handleToggleSource}
             setEntryPercent={setEntryPercent}
             onAddCustom={async (input) => {
               setError(null)
@@ -463,7 +480,7 @@ export default function FeedPage() {
                 await addSavedFeed(uri)
                 await loadSavedFeeds()
                 const label = await getFeedDisplayName(uri)
-                toggleSource({ kind: 'custom', label, uri })
+                handleToggleSource({ kind: 'custom', label, uri })
               } catch (err) {
                 setError(err instanceof Error ? err.message : 'Could not add feed')
               }

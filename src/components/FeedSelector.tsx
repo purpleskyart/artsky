@@ -2,8 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import type { FeedSource, FeedMixEntry } from '../types'
 import styles from './FeedSelector.module.css'
 
-const REMIX_EXPLANATION =
-  'Remix combines multiple feeds into one. Turn on two or more feeds, then use − and + to set how many posts from each appear in every 10. The bar shows each feed\'s share.'
+const REMIX_EXPLANATION = 'Enable multiple feeds then use − and + to change how many posts from each feed youll see.'
 
 function sameSource(a: FeedSource, b: FeedSource): boolean {
   return (a.uri ?? a.label) === (b.uri ?? b.label)
@@ -58,23 +57,24 @@ export default function FeedSelector({
 
   return (
     <div className={styles.wrap}>
-      <div className={styles.remixHeader} ref={helpRef}>
-        <button
-          type="button"
-          className={styles.helpBtn}
-          onClick={() => setShowHelp((v) => !v)}
-          aria-label="Explain remix feed"
-          aria-expanded={showHelp}
-        >
-          ?
-        </button>
-        {showHelp && (
-          <div className={styles.helpPopover} role="tooltip">
-            {REMIX_EXPLANATION}
-          </div>
-        )}
-      </div>
-      <div className={styles.tabs}>
+      <div className={styles.feedRow}>
+        <div className={styles.remixHeader} ref={helpRef}>
+          <button
+            type="button"
+            className={styles.helpBtn}
+            onClick={() => setShowHelp((v) => !v)}
+            aria-label="Explain remix feed"
+            aria-expanded={showHelp}
+          >
+            ?
+          </button>
+          {showHelp && (
+            <div className={styles.helpPopover} role="tooltip">
+              {REMIX_EXPLANATION}
+            </div>
+          )}
+        </div>
+        <div className={styles.tabs}>
         {sources.map((s) => {
           const entryIndex = mixEntries.findIndex((e) => sameSource(e.source, s))
           const isInMix = entryIndex >= 0 || (mixEntries.length === 0 && sameSource(s, fallbackSource))
@@ -140,6 +140,7 @@ export default function FeedSelector({
             </div>
           )
         })}
+        </div>
       </div>
       {showCustom ? (
         <form onSubmit={handleAddCustom} className={styles.customForm}>
