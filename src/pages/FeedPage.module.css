@@ -187,6 +187,29 @@
   padding: 2rem 1rem;
 }
 
+.feedLoginHint {
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.9rem;
+  margin: 2rem 1rem;
+  padding: 0;
+}
+
+.feedLoginHintLink {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+  font-size: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.feedLoginHintLink:hover {
+  text-decoration: underline;
+}
+
 .guestSection {
   margin-bottom: 0.5rem;
 }

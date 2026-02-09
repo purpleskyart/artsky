@@ -2,34 +2,62 @@
   margin-bottom: 0.4rem;
 }
 
+/* Dropdown: add padding; page variant has no extra padding */
+.wrapDropdown {
+  padding: 0.75rem;
+}
+
+/* Page variant: single row of help + pills */
 .feedRow {
   display: flex;
   align-items: flex-start;
   gap: 0.5rem;
   flex-wrap: wrap;
-  justify-content: center;
+  justify-content: flex-start;
 }
 
-.remixHeader {
+.feedRow .helpBtn {
+  width: 2.75rem;
+  height: 2.75rem;
+  font-size: 0.9rem;
+}
+
+/* Header: title + help (dropdown only) */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.headerTitle {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: -0.01em;
+}
+
+.helpWrap {
   position: relative;
-  display: inline-block;
   flex-shrink: 0;
 }
 
 .helpBtn {
-  width: 2.75rem;
-  height: 2.75rem;
-  min-height: 2.75rem;
+  width: 1.75rem;
+  height: 1.75rem;
   padding: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.9rem;
+  font-size: 0.8rem;
   font-weight: 600;
   color: var(--muted);
   background: var(--glass-highlight);
   border: 1px solid var(--glass-border);
-  border-radius: var(--glass-radius-sm);
+  border-radius: 50%;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   box-sizing: border-box;
@@ -42,20 +70,44 @@
 
 .helpPopover {
   position: absolute;
-  left: 0;
+  right: 0;
   top: calc(100% + 0.35rem);
   z-index: 20;
-  min-width: 280px;
-  max-width: 360px;
+  min-width: 260px;
+  max-width: 320px;
   width: max-content;
-  padding: 0.65rem 0.9rem;
-  font-size: 0.9rem;
+  padding: 0.6rem 0.8rem;
+  font-size: 0.85rem;
   line-height: 1.45;
   color: var(--text);
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--glass-radius-sm);
   box-shadow: var(--shadow-card);
+}
+
+/* Section: choose feeds */
+.section {
+  margin-bottom: 0.75rem;
+}
+
+.sectionHint {
+  margin: 0 0 0.5rem 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.ratioHint {
+  margin: 0.5rem 0 0 0;
+  font-size: 0.75rem;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.sectionAdd {
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border);
 }
 
 .tabs {
@@ -102,13 +154,14 @@
   font-size: 0.85rem;
   line-height: 1;
   font-weight: 600;
-  color: var(--muted);
-  background: var(--surface);
+  color: var(--text);
+  background: var(--glass-highlight);
   border: 1px solid var(--glass-border);
   border-radius: var(--glass-radius-sm);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   flex-shrink: 0;
+  transition: border-color 0.15s ease, color 0.15s ease;
 }
 
 .ratioBtnSide:hover {
@@ -122,7 +175,7 @@
   min-height: 2.75rem;
   min-width: 4rem;
   box-sizing: border-box;
-  border: 1px solid var(--accent);
+  border: 1px solid var(--glass-border);
   border-radius: var(--glass-radius-sm);
   color: var(--text-on-accent);
   font-size: 0.9rem;
@@ -191,6 +244,13 @@
   filter: brightness(0.92);
 }
 
+/* Ratio pills: glass border by default (avoids purple at right edge when not hovered); hover gets accent outline */
+.tabs button.feedPillWithFill,
+.tabs button.feedPillWithFill:focus,
+.tabs button.feedPillWithFill:active {
+  border-color: var(--glass-border);
+}
+
 .customForm {
   margin-top: 0.5rem;
   display: flex;
@@ -206,6 +266,33 @@
   background: var(--glass-highlight);
   color: var(--text);
   font-size: 16px;
+}
+
+.customSuggestions {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--glass-radius-sm);
+  background: var(--glass-bg);
+  max-height: 12rem;
+  overflow-y: auto;
+}
+
+.customSuggestionItem {
+  display: block;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  background: none;
+  border: none;
+  color: var(--text);
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.customSuggestionItem:hover {
+  background: var(--glass-highlight);
 }
 
 .customActions {
@@ -239,6 +326,26 @@
 }
 
 .addFeed {
+  display: block;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  background: transparent;
+  border: 1px dashed var(--border);
+  border-radius: var(--glass-radius-sm);
+  color: var(--muted);
+  font-size: 0.9rem;
+  cursor: pointer;
+  text-align: center;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.addFeed:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Page variant: simple text-style link for add custom */
+.addFeedPage {
   margin-top: 0.5rem;
   padding: 0.4rem 0;
   background: none;
@@ -248,19 +355,42 @@
   cursor: pointer;
 }
 
+.addFeedPage:hover {
+  color: var(--accent);
+}
+
 /* Mobile: scale down so feed selector fits without overflowing */
 @media (max-width: 767px) {
   .wrap {
     margin-bottom: 0.3rem;
   }
-  .feedRow {
-    gap: 0.35rem;
+  .wrapDropdown {
+    padding: 0.5rem;
   }
-  .helpBtn {
+  .feedRow .helpBtn {
     width: 2.25rem;
     height: 2.25rem;
-    min-height: 2.25rem;
     font-size: 0.8rem;
+  }
+  .header {
+    margin-bottom: 0.5rem;
+    padding-bottom: 0.4rem;
+  }
+  .headerTitle {
+    font-size: 0.95rem;
+  }
+  .helpBtn {
+    width: 1.6rem;
+    height: 1.6rem;
+    font-size: 0.75rem;
+  }
+  .section {
+    margin-bottom: 0.5rem;
+  }
+  .sectionHint,
+  .ratioHint {
+    font-size: 0.72rem;
+    margin-bottom: 0.35rem;
   }
   .helpPopover {
     min-width: 240px;

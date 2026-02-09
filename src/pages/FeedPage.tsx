@@ -13,10 +13,12 @@ import {
   type TimelineItem,
 } from '../lib/bsky'
 import type { FeedSource } from '../types'
+import { GUEST_FEED_SOURCES, GUEST_MIX_ENTRIES } from '../config/feedSources'
 import FeedSelector from '../components/FeedSelector'
 import PostCard from '../components/PostCard'
 import Layout from '../components/Layout'
 import { useProfileModal } from '../context/ProfileModalContext'
+import { useLoginModal } from '../context/LoginModalContext'
 import { useSession } from '../context/SessionContext'
 import { useMediaOnly } from '../context/MediaOnlyContext'
 import { useFeedMix } from '../context/FeedMixContext'
@@ -230,6 +232,7 @@ export default function FeedPage() {
   const location = useLocation()
   const navigate = useNavigate()
   const navigationType = useNavigationType()
+  const { openLoginModal } = useLoginModal()
   const { session } = useSession()
   const { viewMode } = useViewMode()
   const [source, setSource] = useState<FeedSource>(PRESET_SOURCES[0])
@@ -239,7 +242,8 @@ export default function FeedPage() {
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const loadMoreSentinelRef = useRef<HTMLDivElement>(null)
+  /** One sentinel per column so we load more when the user nears the bottom of any column (avoids blank space in short columns). */
+  const loadMoreSentinelRefs = useRef<(HTMLDivElement | null)[]>([])
   const loadingMoreRef = useRef(false)
   const [keyboardFocusIndex, setKeyboardFocusIndex] = useState(0)
   const [keyboardAddOpen, setKeyboardAddOpen] = useState(false)
@@ -425,23 +429,30 @@ export default function FeedPage() {
     load()
   }, [load])
 
-  // Infinite scroll: load more when sentinel enters view (one request at a time, only when cursor exists)
+  // Infinite scroll: load more when any column's sentinel enters view (so short columns trigger load before blank space shows)
   loadingMoreRef.current = loadingMore
   useEffect(() => {
-    const sentinel = loadMoreSentinelRef.current
-    if (!sentinel || !cursor) return
+    if (!cursor) return
+    const refs = loadMoreSentinelRefs.current
     const observer = new IntersectionObserver(
       (entries) => {
-        const [e] = entries
-        if (!e?.isIntersecting || loadingMoreRef.current) return
-        loadingMoreRef.current = true
-        load(cursor)
+        for (const e of entries) {
+          if (e.isIntersecting && !loadingMoreRef.current) {
+            loadingMoreRef.current = true
+            load(cursor)
+            break
+          }
+        }
       },
       { rootMargin: '600px', threshold: 0 }
     )
-    observer.observe(sentinel)
+    const cols = Math.min(3, Math.max(1, viewMode === '1' ? 1 : viewMode === '2' ? 2 : 3))
+    for (let c = 0; c < cols; c++) {
+      const el = refs[c]
+      if (el) observer.observe(el)
+    }
     return () => observer.disconnect()
-  }, [cursor, load])
+  }, [cursor, load, viewMode])
 
   const { mediaOnly } = useMediaOnly()
   const { nsfwPreference, unblurredUris, setUnblurred } = useModeration()
@@ -514,7 +525,7 @@ export default function FeedPage() {
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       /* Never affect feed when a popup is open: check both context and URL (URL covers first render after open). */
-      const hasModalInUrl = /[?&](post|profile|tag)=/.test(location.search)
+      const hasModalInUrl = /[?&](post|profile|tag|forum|artboards|artboard|forumPost)=/.test(location.search)
       if (isModalOpen || hasModalInUrl) return
       const target = e.target as HTMLElement
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable) {
@@ -696,27 +707,27 @@ export default function FeedPage() {
     <Layout title="Feed" showNav>
       <>
       <div className={styles.wrap}>
-        {session && (
-          <FeedSelector
-            sources={allSources}
-            fallbackSource={source}
-            mixEntries={mixEntries}
-            onToggle={handleToggleSource}
-            setEntryPercent={setEntryPercent}
-            onAddCustom={async (input) => {
-              setError(null)
-              try {
-                const uri = await resolveFeedUri(input)
-                await addSavedFeed(uri)
-                await loadSavedFeeds()
-                const label = await getFeedDisplayName(uri)
-                handleToggleSource({ kind: 'custom', label, uri })
-              } catch (err) {
-                setError(err instanceof Error ? err.message : 'Could not add feed')
-              }
-            }}
-          />
-        )}
+        <FeedSelector
+          sources={session ? allSources : GUEST_FEED_SOURCES}
+          fallbackSource={session ? source : GUEST_FEED_SOURCES[0]}
+          mixEntries={session ? mixEntries : GUEST_MIX_ENTRIES}
+          onToggle={handleToggleSource}
+          setEntryPercent={setEntryPercent}
+          onAddCustom={async (input) => {
+            if (!session) return
+            setError(null)
+            try {
+              const uri = await resolveFeedUri(input)
+              await addSavedFeed(uri)
+              await loadSavedFeeds()
+              const label = await getFeedDisplayName(uri)
+              handleToggleSource({ kind: 'custom', label, uri })
+            } catch (err) {
+              setError(err instanceof Error ? err.message : 'Could not add feed')
+            }
+          }}
+          onToggleWhenGuest={session ? undefined : openLoginModal}
+        />
         {error && <p className={styles.error}>{error}</p>}
         {loading ? (
           <div className={styles.loading}>Loading…</div>
@@ -730,7 +741,7 @@ export default function FeedPage() {
           </div>
         ) : (
           <>
-            <div className={`${styles.gridColumns} ${styles[`gridView${viewMode}`]}`} data-feed-cards data-keyboard-nav={keyboardNavActive || undefined}>
+            <div className={`${styles.gridColumns} ${styles[`gridView${viewMode}`]}`} data-feed-cards data-view-mode={viewMode} data-keyboard-nav={keyboardNavActive || undefined}>
               {distributeByHeight(displayItems, cols).map((column, colIndex) => (
                 <div key={colIndex} className={styles.gridColumn}>
                   {column.map(({ item, originalIndex }) => (
@@ -761,12 +772,18 @@ export default function FeedPage() {
                       />
                     </div>
                   ))}
+                  {cursor && (
+                    <div
+                      ref={(el) => { loadMoreSentinelRefs.current[colIndex] = el }}
+                      className={styles.loadMoreSentinel}
+                      aria-hidden
+                    />
+                  )}
                 </div>
               ))}
             </div>
             {cursor && (
               <>
-                <div ref={loadMoreSentinelRef} className={styles.loadMoreSentinel} aria-hidden />
                 <div className={styles.loadMoreRow}>
                   {loadingMore && (
                     <p className={styles.loadingMore} role="status">Loading more…</p>
@@ -783,6 +800,18 @@ export default function FeedPage() {
               </>
             )}
           </>
+        )}
+        {!session && (
+          <p className={styles.feedLoginHint}>
+            <button type="button" className={styles.feedLoginHintLink} onClick={() => openLoginModal()}>
+              Log in
+            </button>
+            {' or '}
+            <button type="button" className={styles.feedLoginHintLink} onClick={() => openLoginModal('create')}>
+              create an account
+            </button>
+            {' to see your own feeds.'}
+          </p>
         )}
       </div>
       {blockConfirm && (
