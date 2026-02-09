@@ -1679,7 +1679,7 @@ export async function addSavedFeed(uri: string): Promise<void> {
   }
   const updated = prefs.filter((p) => p.$type !== v2Type)
   updated.push({ $type: v2Type, items: [...items, newFeed].sort((x, y) => (x.pinned === y.pinned ? 0 : x.pinned ? -1 : 1)) })
-  await a.app.bsky.actor.putPreferences({ preferences: updated })
+  await a.app.bsky.actor.putPreferences({ preferences: updated as AppBskyActorDefs.Preferences })
 }
 
 /** Get display name for a feed URI. */
@@ -1716,7 +1716,7 @@ export async function removeSavedFeedByUri(uri: string): Promise<void> {
   const items = (existing?.items ?? []).filter((f) => !(f.type === 'feed' && f.value === uri))
   const updated = prefs.filter((p) => p.$type !== v2Type)
   updated.push({ $type: v2Type, items })
-  await a.app.bsky.actor.putPreferences({ preferences: updated })
+  await a.app.bsky.actor.putPreferences({ preferences: updated as AppBskyActorDefs.Preferences })
 }
 
 const COMPOSE_IMAGE_MAX = 4
