@@ -201,7 +201,7 @@ body {
     min-height: 100dvh;
     min-height: -webkit-fill-available;
   }
-  /* Content background fixed to viewport so safe-area strips stay transparent even when navbars hide or page scrolls */
+  /* Content background fixed to viewport so safe-area strips stay transparent */
   #root::before {
     content: '';
     position: fixed;

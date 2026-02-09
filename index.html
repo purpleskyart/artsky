@@ -18,16 +18,18 @@
         html[data-theme="dark"] body, body { background: #0f0f1a; color: #e8e8f0; }
       }
       @media (max-width: 767px) {
-        html[data-theme="light"] body, html[data-theme="dark"] body, body { background: transparent; }
+        html, html[data-theme="light"], html[data-theme="dark"] { background: transparent !important; background-color: transparent !important; }
+        html[data-theme="light"] body, html[data-theme="dark"] body, body { background: transparent !important; background-color: transparent !important; }
         html[data-theme="light"] body { color: #141414; }
         html[data-theme="dark"] body, body { color: #e8e8f0; }
       }
     </style>
     <link rel="icon" type="image/svg+xml" href="./icon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=5, user-scalable=yes" />
-    <!-- Theme-color only on desktop so mobile safe areas stay transparent when navbars hide -->
+    <!-- Desktop: theme color for browser chrome. Mobile: transparent so safe areas (notch, home indicator) stay clear -->
     <meta name="theme-color" content="#0f0f1a" media="(min-width: 768px) and (prefers-color-scheme: dark)" />
     <meta name="theme-color" content="#ebeae6" media="(min-width: 768px) and (prefers-color-scheme: light)" />
+    <meta name="theme-color" content="transparent" media="(max-width: 767px)" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="ArtSky" />
