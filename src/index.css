@@ -184,17 +184,19 @@ body {
 /* iOS Safari: transparent above top navbar and below bottom navbar (safe-area strips); background only in content area */
 @media (max-width: 767px) {
   html {
-    background: transparent;
+    background: transparent !important;
   }
   html[data-theme="light"] body,
   html[data-theme="dark"] body,
   body {
-    background: transparent;
+    background: transparent !important;
+    background-color: transparent !important;
   }
   #root,
   html[data-theme="light"] #root {
     position: relative;
-    background: transparent;
+    background: transparent !important;
+    background-color: transparent !important;
     min-height: 100vh;
     min-height: 100dvh;
     min-height: -webkit-fill-available;
