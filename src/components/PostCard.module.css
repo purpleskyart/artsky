@@ -173,6 +173,14 @@ html[data-theme="dark"] .cardSeen {
   min-width: 0;
 }
 
+.cardActionRowRight {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  flex-shrink: 0;
+}
+
 .cardActionRow .addWrap {
   margin-left: 0;
 }

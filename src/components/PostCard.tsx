@@ -6,10 +6,12 @@ import { getPostMediaInfoForDisplay, getPostAllMediaForDisplay, getPostMediaUrlF
 import { getArtboards, createArtboard, addPostToArtboard, isPostInArtboard, isPostInAnyArtboard, getArtboard } from '../lib/artboards'
 import { putArtboardOnPds } from '../lib/artboardsPds'
 import { useSession } from '../context/SessionContext'
+import { useLoginModal } from '../context/LoginModalContext'
 import { useArtOnly } from '../context/ArtOnlyContext'
 import { formatRelativeTime, formatRelativeTimeTitle } from '../lib/date'
 import PostText from './PostText'
 import ProfileLink from './ProfileLink'
+import PostActionsMenu from './PostActionsMenu'
 import styles from './PostCard.module.css'
 
 interface Props {
@@ -65,6 +67,7 @@ function isHlsUrl(url: string): boolean {
 export default function PostCard({ item, isSelected, cardRef: cardRefProp, addButtonRef: _addButtonRef, openAddDropdown, onAddClose, onPostClick, onAspectRatio, fillCell, nsfwBlurred, onNsfwUnblur, constrainMediaHeight, likedUriOverride, seen }: Props) {
   const navigate = useNavigate()
   const { session } = useSession()
+  const { openLoginModal } = useLoginModal()
   const { artOnly, minimalist } = useArtOnly()
   const videoRef = useRef<HTMLVideoElement>(null)
   const mediaWrapRef = useRef<HTMLDivElement>(null)
@@ -91,7 +94,6 @@ export default function PostCard({ item, isSelected, cardRef: cardRefProp, addBu
   const inAnyArtboard = isPostInAnyArtboard(post.uri)
   const showTransFlagOutline = isLiked && inAnyArtboard && isFollowingAuthor
 
-  const [imageIndex, setImageIndex] = useState(0)
   const [mediaAspect, setMediaAspect] = useState<number | null>(() =>
     hasMedia && media?.aspectRatio != null ? media.aspectRatio : null
   )
@@ -139,6 +141,10 @@ export default function PostCard({ item, isSelected, cardRef: cardRefProp, addBu
   async function handleLikeClick(e: React.MouseEvent) {
     e.preventDefault()
     e.stopPropagation()
+    if (!session?.did) {
+      openLoginModal()
+      return
+    }
     if (likeLoading) return
     setLikeLoading(true)
     try {
@@ -255,7 +261,7 @@ export default function PostCard({ item, isSelected, cardRef: cardRefProp, addBu
   const isMultipleImages = hasMedia && media!.type === 'image' && (media!.imageCount ?? 0) > 1
   const allMedia = getPostAllMediaForDisplay(post)
   const imageItems = allMedia.filter((m) => m.type === 'image')
-  const currentImageUrl = isMultipleImages && imageItems.length ? imageItems[imageIndex]?.url : (media?.url ?? '')
+  const currentImageUrl = isMultipleImages && imageItems.length ? imageItems[0]?.url : (media?.url ?? '')
 
   const handleImageLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
     const img = e.currentTarget
@@ -537,6 +543,10 @@ export default function PostCard({ item, isSelected, cardRef: cardRefProp, addBu
                   onClick={(e) => {
                     e.preventDefault()
                     e.stopPropagation()
+                    if (!session?.did) {
+                      openLoginModal()
+                      return
+                    }
                     setAddOpen((o) => !o)
                   }}
                   aria-label="Collect"
@@ -638,6 +648,18 @@ export default function PostCard({ item, isSelected, cardRef: cardRefProp, addBu
               >
                 {likeLoading ? '…' : isLiked ? '♥' : '♡'}
               </button>
+            </div>
+            <div className={styles.cardActionRowRight}>
+              <PostActionsMenu
+                postUri={post.uri}
+                postCid={post.cid}
+                authorDid={post.author.did}
+                rootUri={post.uri}
+                isOwnPost={isOwnPost}
+                compact
+                verticalIcon
+                className={styles.cardActionsMenu}
+              />
             </div>
           </div>
           {!minimalist && (
