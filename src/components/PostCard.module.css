@@ -319,8 +319,25 @@ html[data-theme="dark"] .cardSeen {
 }
 
 @media (max-width: 767px) {
-  .handleRow .authorAvatar {
-    display: none;
+  /* Stack profile picture centered above username */
+  .handleRow {
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+  }
+  .handleRow .authorAvatar,
+  .handleRow .authorAvatarPlaceholder {
+    width: 2rem;
+    height: 2rem;
+  }
+  .handleRow .authorAvatarPlaceholder {
+    font-size: 0.8rem;
+  }
+  .handleRowMain {
+    justify-content: center;
+  }
+  .handleRowMeta {
+    justify-content: center;
   }
   /* 3-column view on mobile only: half-size avatar on preview cards */
   [data-feed-cards][data-view-mode="3"] .cardActionRowAvatar img {
