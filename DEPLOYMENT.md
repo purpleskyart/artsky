@@ -23,3 +23,17 @@ That error means GitHub Pages is serving the **repo’s raw files** (including `
 - If you still see the error, do a hard refresh: **Ctrl+Shift+R** (Windows/Linux) or **Cmd+Shift+R** (Mac)
 
 After this, the live site will be the built app. Future pushes to `main` will deploy automatically.
+
+---
+
+## Fix: "429 - This endpoint is temporarily being throttled" (Jekyll build)
+
+That error means GitHub is running the **default Jekyll** Pages workflow instead of this repo’s **Vite** workflow. Jekyll then hits the GitHub API rate limit when fetching repo metadata.
+
+**Fix:** Use the Actions-based workflow only, so Jekyll never runs:
+
+1. Open **https://github.com/slrgt/artsky** → **Settings** → **Pages**
+2. Under **Build and deployment**, set **Source** to **GitHub Actions** (not "Deploy from a branch")
+3. Save
+
+After that, only the **Deploy to GitHub Pages** workflow runs (Node + Vite build). The built-in Jekyll workflow will no longer run, so the 429 error goes away. Then run the workflow from the Actions tab (branch **main**) to deploy.
