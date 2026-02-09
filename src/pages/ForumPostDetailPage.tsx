@@ -15,7 +15,7 @@ import {
   type ForumReplyView,
 } from '../lib/bsky'
 import { useSession } from '../context/SessionContext'
-import { formatRelativeTime, formatRelativeTimeTitle } from '../lib/date'
+import { formatRelativeTime, formatRelativeTimeTitle, formatExactDateTime } from '../lib/date'
 import PostText from '../components/PostText'
 import ProfileLink from '../components/ProfileLink'
 import { ReplyAsRow } from './PostDetailPage'
@@ -393,6 +393,7 @@ export function ForumPostContent({ documentUri, onClose }: ForumPostContentProps
               tabIndex={-1}
               className={`${postBlockStyles.postBlock} ${postBlockStyles.rootPostBlock}`}
               onFocus={() => setKeyboardFocusIndex(0)}
+              onMouseEnter={() => setKeyboardFocusIndex(0)}
             >
               <div className={postBlockStyles.postBlockContent}>
                 <div className={postBlockStyles.postHead}>
@@ -406,7 +407,7 @@ export function ForumPostContent({ documentUri, onClose }: ForumPostContentProps
                       @{doc.authorHandle ?? doc.did}
                     </ProfileLink>
                     {doc.createdAt && (
-                      <span className={postBlockStyles.postTimestamp} title={formatRelativeTimeTitle(doc.createdAt)}>
+                      <span className={postBlockStyles.postTimestamp} title={formatExactDateTime(doc.createdAt)}>
                         {formatRelativeTime(doc.createdAt)}
                       </span>
                     )}
@@ -545,6 +546,7 @@ export function ForumPostContent({ documentUri, onClose }: ForumPostContentProps
                   className={styles.replyFormWrap}
                   tabIndex={-1}
                   onFocus={() => setKeyboardFocusIndex(forumFocusTotal - 1)}
+                  onMouseEnter={() => setKeyboardFocusIndex(forumFocusTotal - 1)}
                 >
                 <h2 className={styles.replySectionTitle}>Reply</h2>
                 <form ref={replyFormRef} onSubmit={handleReplySubmit} className={styles.replyForm}>
@@ -591,6 +593,7 @@ export function ForumPostContent({ documentUri, onClose }: ForumPostContentProps
                         data-forum-reply-index={replyIndex}
                         tabIndex={-1}
                         onFocus={() => setKeyboardFocusIndex(1 + replyIndex)}
+                        onMouseEnter={() => setKeyboardFocusIndex(1 + replyIndex)}
                         style={{ marginLeft: depth * REPLY_THREAD_INDENT }}
                       >
                         <div className={postBlockStyles.postHead}>
@@ -605,7 +608,7 @@ export function ForumPostContent({ documentUri, onClose }: ForumPostContentProps
                             </ProfileLink>
                             {isComment && <span className={styles.commentBadge}>standard.site comment</span>}
                             {p.record?.createdAt && (
-                              <span className={postBlockStyles.postTimestamp} title={formatRelativeTimeTitle(p.record.createdAt)}>
+                              <span className={postBlockStyles.postTimestamp} title={formatExactDateTime(p.record.createdAt)}>
                                 {formatRelativeTime(p.record.createdAt)}
                               </span>
                             )}

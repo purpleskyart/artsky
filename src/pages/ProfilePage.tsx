@@ -5,7 +5,7 @@ import { useProfileModal } from '../context/ProfileModalContext'
 import { useEditProfile } from '../context/EditProfileContext'
 import { useModalTopBarSlot } from '../context/ModalTopBarSlotContext'
 import { agent, publicAgent, getPostMediaInfo, getPostMediaInfoForDisplay, getSession, getActorFeeds, listStandardSiteDocumentsForAuthor, isPostNsfw, type TimelineItem, type StandardSiteDocumentView } from '../lib/bsky'
-import { formatRelativeTime, formatRelativeTimeTitle } from '../lib/date'
+import { formatRelativeTime, formatRelativeTimeTitle, formatExactDateTime } from '../lib/date'
 import PostCard from '../components/PostCard'
 import PostText from '../components/PostText'
 import ProfileActionsMenu from '../components/ProfileActionsMenu'
@@ -187,6 +187,7 @@ export function ProfileContent({
   const [tabsBarVisible, setTabsBarVisible] = useState(true)
   const [keyboardFocusIndex, setKeyboardFocusIndex] = useState(0)
   const [keyboardAddOpen, setKeyboardAddOpen] = useState(false)
+  const [actionsMenuOpenForIndex, setActionsMenuOpenForIndex] = useState<number | null>(null)
   const [showBlockedMutedModal, setShowBlockedMutedModal] = useState(false)
   const [likeOverrides, setLikeOverrides] = useState<Record<string, string | null>>({})
   const { openPostModal, isModalOpen } = useProfileModal()
@@ -402,7 +403,7 @@ export function ProfileContent({
       if (items.length === 0) return
       const i = keyboardFocusIndexRef.current
       const key = e.key.toLowerCase()
-      if (key === 'w' || key === 's' || key === 'a' || key === 'd' || key === 'e' || key === 'enter' || key === 'f' || key === 'c' || e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') e.preventDefault()
+      if (key === 'w' || key === 's' || key === 'a' || key === 'd' || key === 'e' || key === 'enter' || key === 'f' || key === 'c' || key === 'm' || key === '`' || e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') e.preventDefault()
 
       if (key === 'w' || e.key === 'ArrowUp') {
         mouseMovedRef.current = false
@@ -429,6 +430,7 @@ export function ProfileContent({
       if (key === 'a' || e.key === 'ArrowLeft') {
         mouseMovedRef.current = false
         scrollIntoViewFromKeyboardRef.current = true
+        setActionsMenuOpenForIndex(null)
         if (cols >= 2) {
           const columns = distributeByHeight(items, cols)
           setKeyboardFocusIndex((idx) => indexLeftByRow(columns, idx))
@@ -440,11 +442,21 @@ export function ProfileContent({
       if (key === 'd' || e.key === 'ArrowRight') {
         mouseMovedRef.current = false
         scrollIntoViewFromKeyboardRef.current = true
+        setActionsMenuOpenForIndex(null)
         if (cols >= 2) {
           const columns = distributeByHeight(items, cols)
           setKeyboardFocusIndex((idx) => indexRightByRow(columns, idx))
         } else {
           setKeyboardFocusIndex((idx) => Math.min(items.length - 1, idx + 1))
+        }
+        return
+      }
+      if ((key === 'm' || key === '`') && i >= 0) {
+        const menuOpenForFocusedCard = actionsMenuOpenForIndex === i
+        if (menuOpenForFocusedCard) {
+          setActionsMenuOpenForIndex(null)
+        } else {
+          setActionsMenuOpenForIndex(i)
         }
         return
       }
@@ -475,7 +487,7 @@ export function ProfileContent({
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [tab, cols, isModalOpen, openPostModal, inModal, likeOverrides])
+  }, [tab, cols, isModalOpen, openPostModal, inModal, likeOverrides, actionsMenuOpenForIndex])
 
   useEffect(() => {
     const onMouseMove = () => { mouseMovedRef.current = true }
@@ -690,7 +702,7 @@ export function ProfileContent({
                                   {createdAt && (
                                     <span
                                       className={postBlockStyles.postTimestamp}
-                                      title={formatRelativeTimeTitle(createdAt)}
+                                      title={formatExactDateTime(createdAt)}
                                     >
                                       {formatRelativeTime(createdAt)}
                                     </span>
@@ -719,7 +731,7 @@ export function ProfileContent({
                                 {createdAt && (
                                   <span
                                     className={postBlockStyles.postTimestamp}
-                                    title={formatRelativeTimeTitle(createdAt)}
+                                    title={formatExactDateTime(createdAt)}
                                   >
                                     {formatRelativeTime(createdAt)}
                                   </span>
@@ -780,7 +792,7 @@ export function ProfileContent({
                                 {createdAt && (
                                   <span
                                     className={postBlockStyles.postTimestamp}
-                                    title={formatRelativeTimeTitle(createdAt)}
+                                    title={formatExactDateTime(createdAt)}
                                   >
                                     {formatRelativeTime(createdAt)}
                                   </span>
@@ -861,6 +873,9 @@ export function ProfileContent({
                           onNsfwUnblur={() => setUnblurred(item.post.uri, true)}
                           constrainMediaHeight={false}
                           likedUriOverride={likeOverrides[item.post.uri]}
+                          onActionsMenuOpenChange={(open) => setActionsMenuOpenForIndex(open ? originalIndex : null)}
+                          cardIndex={originalIndex}
+                          actionsMenuOpenForIndex={actionsMenuOpenForIndex}
                         />
                       </div>
                     ))}
@@ -897,6 +912,9 @@ export function ProfileContent({
                       onNsfwUnblur={() => setUnblurred(item.post.uri, true)}
                       constrainMediaHeight={cols === 1}
                       likedUriOverride={likeOverrides[item.post.uri]}
+                      onActionsMenuOpenChange={(open) => setActionsMenuOpenForIndex(open ? index : null)}
+                      cardIndex={index}
+                      actionsMenuOpenForIndex={actionsMenuOpenForIndex}
                     />
                   </div>
                 ))}

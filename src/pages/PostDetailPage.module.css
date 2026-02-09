@@ -560,7 +560,7 @@
 .replies {
   margin-top: 4px;
   padding-left: 0;
-  padding-right: 0;
+  padding-right: 1rem;
 }
 
 /* Top-level comments only: darken the space between them so each new comment is clearly separated */
@@ -580,7 +580,7 @@
 
 .replies .postBlock {
   padding-left: 4px;
-  padding-right: 4px;
+  padding-right: 0.75rem;
   margin-bottom: 0.35rem;
 }
 

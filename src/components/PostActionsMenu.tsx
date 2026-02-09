@@ -94,8 +94,6 @@ interface PostActionsMenuProps {
   feedLabel?: string
   /** Post creation time (ISO string); when set, show relative time e.g. "Posted 2h ago" */
   postedAt?: string
-  /** When this number changes, open the menu (e.g. from M key). Ignored when open/onOpenChange are used. */
-  openTrigger?: number
   /** Controlled open state (when set, menu open is controlled by parent) */
   open?: boolean
   /** Called when menu should close (escape, click outside) or open (trigger click); use with open for controlled mode */
@@ -123,7 +121,6 @@ export default function PostActionsMenu({
   compact,
   feedLabel,
   postedAt,
-  openTrigger,
   open: openControlled,
   onOpenChange,
   verticalIcon,
@@ -144,7 +141,6 @@ export default function PostActionsMenu({
   const menuRef = useRef<HTMLDivElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
-  const lastOpenTriggerRef = useRef<number>(0)
   /** Fixed position for portaled dropdown so it appears above the trigger and isn't clipped by overflow */
   const [dropdownPosition, setDropdownPosition] = useState<{ bottom: number; right: number } | null>(null)
 
@@ -185,20 +181,6 @@ export default function PostActionsMenu({
     })
     return () => { cancelled = true }
   }, [open, session?.did, isOwnPost, authorDid])
-
-  useEffect(() => {
-    if (!isControlled && openTrigger != null && openTrigger !== lastOpenTriggerRef.current) {
-      lastOpenTriggerRef.current = openTrigger
-      if (triggerRef.current) {
-        const rect = triggerRef.current.getBoundingClientRect()
-        setDropdownPosition({
-          bottom: window.innerHeight - rect.top,
-          right: window.innerWidth - rect.right,
-        })
-      }
-      setOpenUncontrolled(true)
-    }
-  }, [openTrigger, isControlled])
 
   function updateDropdownPosition() {
     if (!triggerRef.current) return null
@@ -259,12 +241,6 @@ export default function PostActionsMenu({
           setOpen(false)
           triggerRef.current?.focus()
         }
-        return
-      }
-      if (key === '`' || key === 'm') {
-        e.preventDefault()
-        setOpen(false)
-        triggerRef.current?.focus()
         return
       }
       if (key === 'w' || key === 's' || key === 'e' || key === 'enter' || e.key === 'ArrowUp' || e.key === 'ArrowDown') {

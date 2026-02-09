@@ -239,12 +239,12 @@ export default function FeedPage() {
   const loadingMoreRef = useRef(false)
   const [keyboardFocusIndex, setKeyboardFocusIndex] = useState(0)
   const [keyboardAddOpen, setKeyboardAddOpen] = useState(false)
-  const [openActionsMenuTrigger, setOpenActionsMenuTrigger] = useState(0)
   const [actionsMenuOpenForIndex, setActionsMenuOpenForIndex] = useState<number | null>(null)
   const { openPostModal, isModalOpen } = useProfileModal()
   const cardRefsRef = useRef<(HTMLDivElement | null)[]>([])
   const mediaItemsRef = useRef<TimelineItem[]>([])
   const keyboardFocusIndexRef = useRef(0)
+  const actionsMenuOpenForIndexRef = useRef<number | null>(null)
   const lastScrollIntoViewIndexRef = useRef<number>(-1)
   /** Only scroll into view when focus was changed by keyboard (W/S/A/D), not by mouse hover */
   const scrollIntoViewFromKeyboardRef = useRef(false)
@@ -443,6 +443,7 @@ export default function FeedPage() {
   const cols = Math.min(3, Math.max(1, viewMode === '1' ? 1 : viewMode === '2' ? 2 : 3))
   mediaItemsRef.current = displayItems
   keyboardFocusIndexRef.current = keyboardFocusIndex
+  actionsMenuOpenForIndexRef.current = actionsMenuOpenForIndex
 
   useEffect(() => {
     setKeyboardFocusIndex((i) => (i < 0 ? i : displayItems.length ? Math.min(i, displayItems.length - 1) : 0))
@@ -501,8 +502,8 @@ export default function FeedPage() {
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       /* Never affect feed when a popup is open: check both context and URL (URL covers first render after open). */
-      const hasModalInUrl = /[?&](post|profile|tag|forum|artboards|artboard|forumPost)=/.test(location.search)
-      if (isModalOpen || hasModalInUrl) return
+      const hasContentModalInUrl = /[?&](post|profile|tag|forumPost|artboard)=/.test(location.search)
+      if (isModalOpen || hasContentModalInUrl) return
       const target = e.target as HTMLElement
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable) {
         if (e.key === 'Escape') {
@@ -512,15 +513,15 @@ export default function FeedPage() {
         return
       }
       if (e.ctrlKey || e.metaKey) return
-      if (location.pathname !== '/feed') return
 
       const items = mediaItemsRef.current // displayItems
       const i = keyboardFocusIndexRef.current
       if (items.length === 0) return
 
       const key = e.key.toLowerCase()
+      const focusInActionsMenu = (document.activeElement as HTMLElement)?.closest?.('[role="menu"]')
       const menuOpenForFocusedCard = actionsMenuOpenForIndex === i
-      if (menuOpenForFocusedCard && (key === 'w' || key === 's' || key === 'e' || key === 'enter' || key === '`' || key === 'm' || key === 'q' || key === 'escape')) {
+      if ((focusInActionsMenu || menuOpenForFocusedCard) && (key === 'w' || key === 's' || key === 'e' || key === 'enter' || key === 'q' || key === 'escape')) {
         return
       }
       /* Ignore key repeat for left/right only (so A/D don’t skip); allow repeat for W/S so holding moves up/down */
@@ -533,7 +534,7 @@ export default function FeedPage() {
         }
         return // let Tab/Enter reach the dialog buttons
       }
-      if (key === 'w' || key === 's' || key === 'a' || key === 'd' || key === 'e' || key === 'enter' || key === 'r' || key === 'f' || key === 'c' || key === 'h' || key === 'b' || key === '4' || key === '`' || key === 'm' || e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') e.preventDefault()
+      if (key === 'w' || key === 's' || key === 'a' || key === 'd' || key === 'e' || key === 'enter' || key === 'r' || key === 'f' || key === 'c' || key === 'h' || key === 'b' || key === 'm' || key === '`' || key === '4' || e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') e.preventDefault()
 
       if (key === 'b') {
         const item = items[i]
@@ -573,6 +574,7 @@ export default function FeedPage() {
         const columns = cols >= 2 ? distributeByHeight(items, cols) : null
         const getRect = (idx: number) => cardRefsRef.current[idx]?.getBoundingClientRect()
         const next = fromNone ? 0 : cols >= 2 && columns ? indexLeftClosest(columns, i, getRect) : Math.max(0, i - 1)
+        if (next !== i) setActionsMenuOpenForIndex(null)
         setKeyboardFocusIndex(next)
         return
       }
@@ -583,7 +585,16 @@ export default function FeedPage() {
         const columns = cols >= 2 ? distributeByHeight(items, cols) : null
         const getRect = (idx: number) => cardRefsRef.current[idx]?.getBoundingClientRect()
         const next = fromNone ? 0 : cols >= 2 && columns ? indexRightClosest(columns, i, getRect) : Math.min(items.length - 1, i + 1)
+        if (next !== i) setActionsMenuOpenForIndex(null)
         setKeyboardFocusIndex(next)
+        return
+      }
+      if ((key === 'm' || key === '`') && i >= 0) {
+        if (menuOpenForFocusedCard) {
+          setActionsMenuOpenForIndex(null)
+        } else {
+          setActionsMenuOpenForIndex(i)
+        }
         return
       }
       if (key === 'e' || key === 'enter') {
@@ -614,12 +625,6 @@ export default function FeedPage() {
       }
       if (key === 'c') {
         setKeyboardAddOpen(true)
-        return
-      }
-      if (key === '`' || key === 'm') {
-        if (actionsMenuOpenForIndex !== i) {
-          setOpenActionsMenuTrigger((prev) => prev + 1)
-        }
         return
       }
       if (key === '4') {
@@ -674,7 +679,7 @@ export default function FeedPage() {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [location.pathname, location.search, cols, isModalOpen, openPostModal, blockConfirm, session, likeOverrides, actionsMenuOpenForIndex])
+  }, [location.search, cols, isModalOpen, openPostModal, blockConfirm, session, likeOverrides, actionsMenuOpenForIndex])
 
   useEffect(() => {
     if (blockConfirm) blockCancelRef.current?.focus()
@@ -724,8 +729,9 @@ export default function FeedPage() {
                         cardRef={(el) => { cardRefsRef.current[originalIndex] = el }}
                         openAddDropdown={originalIndex === keyboardFocusIndex && keyboardAddOpen}
                         onAddClose={() => setKeyboardAddOpen(false)}
-                        openActionsMenuTrigger={originalIndex === keyboardFocusIndex ? openActionsMenuTrigger : undefined}
                         onActionsMenuOpenChange={(open) => setActionsMenuOpenForIndex(open ? originalIndex : null)}
+                        cardIndex={originalIndex}
+                        actionsMenuOpenForIndex={actionsMenuOpenForIndex}
                         onPostClick={(uri, opts) => openPostModal(uri, opts?.openReply)}
                         onAspectRatio={undefined}
                         fillCell={false}

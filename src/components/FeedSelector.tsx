@@ -28,6 +28,8 @@ interface Props {
   onRemoveFeed?: (source: FeedSource) => void | Promise<void>
   /** Called when user chooses Share in the feed context menu; should copy the feed link. */
   onShareFeed?: (source: FeedSource) => void | Promise<void>
+  /** Called when user reorders feeds in edit mode; receives the new ordered list. */
+  onReorderSources?: (ordered: FeedSource[]) => void
 }
 
 const LONG_PRESS_MS = 500
@@ -44,6 +46,7 @@ export default function FeedSelector({
   removableSourceUris,
   onRemoveFeed,
   onShareFeed,
+  onReorderSources,
 }: Props) {
   const { session } = useSession()
   const [customInput, setCustomInput] = useState('')
@@ -227,11 +230,11 @@ export default function FeedSelector({
   const hasMix = mixEntries.length >= 2
   const isDropdown = variant === 'dropdown'
   const removableSources = sources.filter((s) => s.uri && removableSourceUris?.has(s.uri))
-  const canEditFeeds = isDropdown && removableSources.length > 0 && onRemoveFeed
+  const canEditFeeds = isDropdown && (removableSources.length > 0 || (sources.length > 0 && onReorderSources)) && (onRemoveFeed || onReorderSources)
 
   useEffect(() => {
-    if (editFeeds && removableSources.length === 0) setEditFeeds(false)
-  }, [editFeeds, removableSources.length])
+    if (editFeeds && sources.length === 0) setEditFeeds(false)
+  }, [editFeeds, sources.length])
 
   const helpButton = (
     <div className={styles.helpWrap} ref={helpRef}>
@@ -271,10 +274,13 @@ export default function FeedSelector({
               className={`${styles.feedPillWithFill} ${!isInMix ? styles.feedPillInactive : ''}`}
               style={
                 isInMix && entry
-                  ? {
-                      /* Use opaque surface for right half so no accent/glass tint shows at the end */
-                      background: `linear-gradient(to right, var(--accent) 0%, var(--accent) ${Math.max(0, percent - 1)}%, var(--surface) ${percent}%, var(--surface) 100%)`,
-                    }
+                  ? percent >= 100
+                    ? { background: 'var(--accent)' }
+                    : {
+                        /* Surface as base; accent gradient on top so no seam at the boundary */
+                        backgroundColor: 'var(--surface)',
+                        backgroundImage: `linear-gradient(to right, var(--accent) 0%, var(--accent) ${percent}%, transparent ${percent}%)`,
+                      }
                   : undefined
               }
               onClick={() => (onToggleWhenGuest ? onToggleWhenGuest() : onToggle(s))}
@@ -501,7 +507,7 @@ export default function FeedSelector({
       <div className={`${styles.wrap} ${styles.wrapDropdown}`}>
         {feedMenu}
         <header className={styles.header}>
-          <span className={styles.headerTitle}>{editFeeds ? 'Remove feeds' : 'Feeds'}</span>
+          <span className={styles.headerTitle}>{editFeeds ? 'Edit feeds' : 'Feeds'}</span>
           <div className={styles.headerActions}>
             {editFeeds ? (
               <button
@@ -524,22 +530,67 @@ export default function FeedSelector({
           </div>
         </header>
         {editFeeds ? (
-          <section className={styles.editFeedsSection} aria-label="Remove custom feeds">
-            <p className={styles.sectionHint}>Tap Remove to delete a feed from your list.</p>
+          <section className={styles.editFeedsSection} aria-label="Edit feeds">
+            <p className={styles.sectionHint}>
+              Use ↑ ↓ to change order. Tap Remove to delete a feed from your list.
+            </p>
             <ul className={styles.editFeedsList}>
-              {removableSources.map((s) => (
-                <li key={s.uri!} className={styles.editFeedsItem}>
-                  <span className={styles.editFeedsLabel}>{s.label}</span>
-                  <button
-                    type="button"
-                    className={styles.editFeedsRemoveBtn}
-                    onClick={() => onRemoveFeed?.(s)}
-                    aria-label={`Remove ${s.label}`}
-                  >
-                    Remove
-                  </button>
-                </li>
-              ))}
+              {sources.map((s, i) => {
+                const canMoveUp = onReorderSources && i > 0
+                const canMoveDown = onReorderSources && i < sources.length - 1
+                const isRemovable = s.uri && removableSourceUris?.has(s.uri)
+                const moveUp = () => {
+                  if (!canMoveUp || !onReorderSources) return
+                  const next = [...sources]
+                  ;[next[i - 1], next[i]] = [next[i], next[i - 1]]
+                  onReorderSources(next)
+                }
+                const moveDown = () => {
+                  if (!canMoveDown || !onReorderSources) return
+                  const next = [...sources]
+                  ;[next[i], next[i + 1]] = [next[i + 1], next[i]]
+                  onReorderSources(next)
+                }
+                return (
+                  <li key={s.uri ?? s.label ?? i} className={styles.editFeedsItem}>
+                    <div className={styles.editFeedsOrderBtns}>
+                      <button
+                        type="button"
+                        className={styles.editFeedsOrderBtn}
+                        onClick={moveUp}
+                        disabled={!canMoveUp}
+                        aria-label={`Move ${s.label} up`}
+                        title="Move up"
+                      >
+                        ↑
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.editFeedsOrderBtn}
+                        onClick={moveDown}
+                        disabled={!canMoveDown}
+                        aria-label={`Move ${s.label} down`}
+                        title="Move down"
+                      >
+                        ↓
+                      </button>
+                    </div>
+                    <span className={styles.editFeedsLabel}>{s.label}</span>
+                    {isRemovable ? (
+                      <button
+                        type="button"
+                        className={styles.editFeedsRemoveBtn}
+                        onClick={() => onRemoveFeed?.(s)}
+                        aria-label={`Remove ${s.label}`}
+                      >
+                        Remove
+                      </button>
+                    ) : (
+                      <span className={styles.editFeedsRemovePlaceholder} aria-hidden />
+                    )}
+                  </li>
+                )
+              })}
             </ul>
           </section>
         ) : (

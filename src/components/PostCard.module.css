@@ -970,6 +970,19 @@ html[data-theme="dark"] .cardSeen {
   opacity: 0.9;
 }
 
+.pinIconWrap {
+  display: inline-flex;
+  align-items: center;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+.pinIcon {
+  width: 0.85rem;
+  height: 0.85rem;
+  opacity: 0.9;
+}
+
 .handle {
   font-size: 0.8rem;
   color: var(--muted);

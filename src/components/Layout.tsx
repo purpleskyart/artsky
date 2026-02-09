@@ -24,6 +24,35 @@ const PRESET_FEED_SOURCES: FeedSource[] = [
   { kind: 'custom', label: "What's Hot", uri: 'at://did:plc:z72i7hdynmk6r22z27h6tvur/app.bsky.feed.generator/whats-hot' },
 ]
 
+const HIDDEN_PRESET_FEEDS_KEY = 'artsky-hidden-preset-feeds'
+const FEED_ORDER_KEY = 'artsky-feed-order'
+
+function feedSourceId(s: FeedSource): string {
+  return s.uri ?? (s.kind === 'timeline' ? 'timeline' : s.label ?? '')
+}
+
+function loadHiddenPresetUris(): Set<string> {
+  try {
+    const raw = localStorage.getItem(HIDDEN_PRESET_FEEDS_KEY)
+    if (!raw) return new Set()
+    const arr = JSON.parse(raw) as string[]
+    return Array.isArray(arr) ? new Set(arr) : new Set()
+  } catch {
+    return new Set()
+  }
+}
+
+function loadFeedOrder(): string[] {
+  try {
+    const raw = localStorage.getItem(FEED_ORDER_KEY)
+    if (!raw) return []
+    const arr = JSON.parse(raw) as string[]
+    return Array.isArray(arr) ? arr : []
+  } catch {
+    return []
+  }
+}
+
 /** NSFW preference row – subscribes to ModerationContext so it stays in sync in account menu and compact sheet. */
 function NsfwPreferenceRow({ rowClassName }: { rowClassName: string }) {
   const { nsfwPreference, setNsfwPreference } = useModeration()
@@ -321,6 +350,8 @@ export default function Layout({ title, children, showNav }: Props) {
   const [notificationFilter, setNotificationFilter] = useState<'all' | 'reply' | 'follow'>('all')
   const [feedsDropdownOpen, setFeedsDropdownOpen] = useState(false)
   const [savedFeedSources, setSavedFeedSources] = useState<FeedSource[]>([])
+  const [hiddenPresetUris, setHiddenPresetUris] = useState<Set<string>>(loadHiddenPresetUris)
+  const [feedOrder, setFeedOrder] = useState<string[]>(loadFeedOrder)
   const [feedAddError, setFeedAddError] = useState<string | null>(null)
   const feedsDropdownRef = useRef<HTMLDivElement>(null)
   const feedsBtnRef = useRef<HTMLButtonElement>(null)
@@ -351,9 +382,19 @@ export default function Layout({ title, children, showNav }: Props) {
   const HOME_HOLD_MS = 500
   const { entries: mixEntries, setEntryPercent, toggleSource, addEntry } = useFeedMix()
   const presetUris = new Set((PRESET_FEED_SOURCES.map((s) => s.uri).filter(Boolean) as string[]))
+  const visiblePresets = PRESET_FEED_SOURCES.filter((s) => !s.uri || !hiddenPresetUris.has(s.uri))
   const savedDeduped = savedFeedSources.filter((s) => !s.uri || !presetUris.has(s.uri))
-  const allFeedSources = [...PRESET_FEED_SOURCES, ...savedDeduped]
-  const fallbackFeedSource = PRESET_FEED_SOURCES[0]
+  const allFeedSources = useMemo(() => {
+    const combined: FeedSource[] = [...visiblePresets, ...savedDeduped]
+    if (feedOrder.length === 0) return combined
+    const orderMap = new Map(feedOrder.map((id, i) => [id, i]))
+    return [...combined].sort((a, b) => {
+      const ia = orderMap.get(feedSourceId(a)) ?? 9999
+      const ib = orderMap.get(feedSourceId(b)) ?? 9999
+      return ia - ib
+    })
+  }, [visiblePresets, savedDeduped, feedOrder])
+  const fallbackFeedSource = visiblePresets[0] ?? PRESET_FEED_SOURCES[0]
   const handleFeedsToggleSource = useCallback(
     (clicked: FeedSource) => {
       if (mixEntries.length === 0) {
@@ -366,8 +407,18 @@ export default function Layout({ title, children, showNav }: Props) {
     [mixEntries.length, addEntry, toggleSource]
   )
 
+  const handleReorderFeeds = useCallback((ordered: FeedSource[]) => {
+    const ids = ordered.map(feedSourceId).filter(Boolean)
+    setFeedOrder(ids)
+    try {
+      localStorage.setItem(FEED_ORDER_KEY, JSON.stringify(ids))
+    } catch {
+      // ignore
+    }
+  }, [])
+
   const removableSourceUris = useMemo(
-    () => new Set(savedDeduped.map((s) => s.uri).filter(Boolean) as string[]),
+    () => new Set([...savedDeduped.map((s) => s.uri).filter(Boolean) as string[], ...presetUris]),
     [savedDeduped]
   )
 
@@ -505,6 +556,18 @@ export default function Layout({ title, children, showNav }: Props) {
         await removeSavedFeedByUri(source.uri)
         setSavedFeedSources((prev) => prev.filter((s) => s.uri !== source.uri))
         if (mixEntries.some((e) => e.source.uri === source.uri)) toggleSource(source)
+        if (presetUris.has(source.uri)) {
+          setHiddenPresetUris((prev) => {
+            const next = new Set(prev)
+            next.add(source.uri!)
+            try {
+              localStorage.setItem(HIDDEN_PRESET_FEEDS_KEY, JSON.stringify([...next]))
+            } catch {
+              // ignore
+            }
+            return next
+          })
+        }
         await loadSavedFeeds()
       } catch {
         // ignore
@@ -1154,6 +1217,7 @@ export default function Layout({ title, children, showNav }: Props) {
                             removableSourceUris={session ? removableSourceUris : undefined}
                             onRemoveFeed={session ? handleRemoveFeed : undefined}
                             onShareFeed={session ? handleShareFeed : undefined}
+                            onReorderSources={session ? handleReorderFeeds : undefined}
                           />
                         </div>
                       )}
@@ -1219,6 +1283,7 @@ export default function Layout({ title, children, showNav }: Props) {
                           removableSourceUris={session ? removableSourceUris : undefined}
                           onRemoveFeed={session ? handleRemoveFeed : undefined}
                           onShareFeed={session ? handleShareFeed : undefined}
+                          onReorderSources={session ? handleReorderFeeds : undefined}
                         />
                       </div>
                     )}
@@ -1372,6 +1437,7 @@ export default function Layout({ title, children, showNav }: Props) {
             removableSourceUris={session ? removableSourceUris : undefined}
             onRemoveFeed={session ? handleRemoveFeed : undefined}
             onShareFeed={session ? handleShareFeed : undefined}
+            onReorderSources={session ? handleReorderFeeds : undefined}
           />
         )}
         {children}

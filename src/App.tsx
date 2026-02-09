@@ -174,7 +174,7 @@ export default function App() {
                     <ModerationProvider>
                     <LoginModalProvider>
                     <ProfileModalProvider>
-                      <AppRoutes />
+                        <AppRoutes />
                     </ProfileModalProvider>
                     </LoginModalProvider>
                     </ModerationProvider>

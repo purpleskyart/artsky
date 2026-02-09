@@ -6,7 +6,7 @@ import { agent, publicAgent, postReply, getPostAllMedia, getPostMediaUrl, getQuo
 import { downloadImageWithHandle, downloadVideoWithPostUri } from '../lib/downloadImage'
 import { useSession } from '../context/SessionContext'
 import { getArtboards, createArtboard, addPostToArtboard, isPostInArtboard } from '../lib/artboards'
-import { formatRelativeTime, formatRelativeTimeTitle } from '../lib/date'
+import { formatRelativeTime, formatRelativeTimeTitle, formatExactDateTime } from '../lib/date'
 import Layout from '../components/Layout'
 import ProfileLink from '../components/ProfileLink'
 import VideoWithHls from '../components/VideoWithHls'
@@ -329,7 +329,7 @@ function PostBlock({
           {createdAt && (
             <span
               className={styles.postTimestamp}
-              title={formatRelativeTimeTitle(createdAt)}
+              title={formatExactDateTime(createdAt)}
             >
               {formatRelativeTime(createdAt)}
             </span>
@@ -384,9 +384,11 @@ function PostBlock({
             rootUri={rootPostUri ?? post.uri}
             isOwnPost={currentDid === post.author.did}
             compact
+            verticalIcon
             className={styles.commentActionsMenu}
             open={onActionsMenuOpenChange ? openActionsMenuCommentUri === post.uri : undefined}
             onOpenChange={onActionsMenuOpenChange ? (open) => onActionsMenuOpenChange(post.uri, open) : undefined}
+            postedAt={(post.record as { createdAt?: string })?.createdAt}
           />
         </div>
       )}
@@ -549,7 +551,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
   const [myDownvotes, setMyDownvotes] = useState<Record<string, string>>({})
   const [commentLikeLoadingUri, setCommentLikeLoadingUri] = useState<string | null>(null)
   const [commentDownvoteLoadingUri, setCommentDownvoteLoadingUri] = useState<string | null>(null)
-  const [openActionsMenuCommentUri, setOpenActionsMenuCommentUri] = useState<string | null>(null)
+  const [openActionsMenuUri, setOpenActionsMenuUri] = useState<string | null>(null)
   const [newBoardName, setNewBoardName] = useState('')
   const [showBoardDropdown, setShowBoardDropdown] = useState(false)
   const [downloadLoading, setDownloadLoading] = useState(false)
@@ -1042,6 +1044,36 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
         return
       }
 
+      if (key === 'm' || key === '`') {
+        const focusInActionsMenu = (document.activeElement as HTMLElement)?.closest?.('[role="menu"]')
+        if (focusInActionsMenu && openActionsMenuUri != null) {
+          e.preventDefault()
+          setOpenActionsMenuUri(null)
+          return
+        }
+        if (thread && isThreadViewPost(thread) && focusItems.length > 0) {
+          const i = keyboardFocusIndexRef.current
+          const item = focusItems[i]
+          if (item) {
+            let uri: string | null = null
+            if (item.type === 'description' || item.type === 'rootMedia') {
+              uri = thread.post.uri
+            } else if (item.type === 'comment' || item.type === 'commentMedia') {
+              uri = item.commentUri
+            }
+            if (uri != null) {
+              e.preventDefault()
+              if (openActionsMenuUri === uri) {
+                setOpenActionsMenuUri(null)
+              } else {
+                setOpenActionsMenuUri(uri)
+              }
+            }
+          }
+        }
+        return
+      }
+
       if (key !== 'w' && key !== 'a' && key !== 's') return
       if (!thread || !isThreadViewPost(thread)) return
 
@@ -1145,7 +1177,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [postSectionCount, postSectionIndex, hasRepliesSection, threadRepliesFlat, focusedCommentIndex, commentFormFocused, thread, hasMediaSection, handleReplyTo, rootMediaForNav.length, openProfileModal, focusItems, handleLike])
+  }, [postSectionCount, postSectionIndex, hasRepliesSection, threadRepliesFlat, focusedCommentIndex, commentFormFocused, thread, hasMediaSection, handleReplyTo, rootMediaForNav.length, openProfileModal, focusItems, handleLike, openActionsMenuUri])
 
   useEffect(() => {
     if (postSectionCount <= 1) return
@@ -1244,7 +1276,10 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
           <>
             <article className={`${styles.postBlock} ${styles.rootPostBlock}`}>
               {rootMedia.length > 0 && (
-                <div ref={mediaSectionRef}>
+                <div
+                  ref={mediaSectionRef}
+                  onMouseEnter={() => rootMediaForNav.length > 0 && setKeyboardFocusIndex(0)}
+                >
                   <MediaGallery
                     items={rootMedia}
                     autoPlayFirstVideo
@@ -1383,7 +1418,12 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                     authorDid={thread.post.author.did}
                     rootUri={thread.post.uri}
                     isOwnPost={session?.did === thread.post.author.did}
+                    compact
+                    verticalIcon
+                    open={openActionsMenuUri === thread.post.uri}
+                    onOpenChange={(open) => setOpenActionsMenuUri(open ? thread.post.uri : null)}
                     onHidden={() => navigate('/feed')}
+                    postedAt={(thread.post.record as { createdAt?: string })?.createdAt}
                   />
                 )}
               </div>
@@ -1398,6 +1438,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                 className={styles.rootPostDescription}
                 tabIndex={-1}
                 onFocus={() => setKeyboardFocusIndex(rootMediaForNav.length)}
+                onMouseEnter={() => setKeyboardFocusIndex(rootMediaForNav.length)}
               >
                 <div className={styles.postHead}>
                   {thread.post.author.avatar && (
@@ -1436,7 +1477,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                     {(thread.post.record as { createdAt?: string })?.createdAt && (
                       <span
                         className={styles.postTimestamp}
-                        title={formatRelativeTimeTitle((thread.post.record as { createdAt: string }).createdAt)}
+                        title={formatExactDateTime((thread.post.record as { createdAt: string }).createdAt)}
                       >
                         {formatRelativeTime((thread.post.record as { createdAt: string }).createdAt)}
                       </span>
@@ -1476,7 +1517,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                             @{quotedHandle}
                           </ProfileLink>
                           {(quoted.record as { createdAt?: string })?.createdAt && (
-                            <span className={styles.quotedPostTime} title={formatRelativeTimeTitle((quoted.record as { createdAt: string }).createdAt)}>
+                            <span className={styles.quotedPostTime} title={formatExactDateTime((quoted.record as { createdAt: string }).createdAt)}>
                               {formatRelativeTime((quoted.record as { createdAt: string }).createdAt)}
                             </span>
                           )}
@@ -1543,6 +1584,12 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                         className={styles.topLevelCommentWrap}
                         data-comment-uri={r.post.uri}
                         tabIndex={-1}
+                        onMouseEnter={() => {
+                          if (commentContentFocusIndex >= 0) {
+                            setKeyboardFocusIndex(commentContentFocusIndex)
+                            setFocusedCommentIndex(threadRepliesFlat.findIndex((f) => f.uri === r.post.uri))
+                          }
+                        }}
                       >
                       <div
                         className={`${styles.collapsedCommentWrap} ${isFocusedCollapsed ? styles.commentFocused : ''}`}
@@ -1564,7 +1611,16 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                     )
                   }
                   return (
-                    <div key={r.post.uri} className={styles.topLevelCommentWrap}>
+                    <div
+                      key={r.post.uri}
+                      className={styles.topLevelCommentWrap}
+                      onMouseEnter={() => {
+                        if (commentContentFocusIndex >= 0) {
+                          setKeyboardFocusIndex(commentContentFocusIndex)
+                          setFocusedCommentIndex(threadRepliesFlat.findIndex((f) => f.uri === r.post.uri))
+                        }
+                      }}
+                    >
                       <PostBlock
                         node={r}
                         depth={0}
@@ -1592,8 +1648,8 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                         myDownvotes={myDownvotes}
                         likeLoadingUri={commentLikeLoadingUri}
                         downvoteLoadingUri={commentDownvoteLoadingUri}
-                        openActionsMenuCommentUri={openActionsMenuCommentUri}
-                        onActionsMenuOpenChange={(uri, open) => setOpenActionsMenuCommentUri(open ? uri : null)}
+                        openActionsMenuCommentUri={openActionsMenuUri}
+                        onActionsMenuOpenChange={(uri, open) => setOpenActionsMenuUri(open ? uri : null)}
                       />
                     </div>
                   )
@@ -1607,6 +1663,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                   tabIndex={-1}
                   className={commentFormFocused ? styles.commentFormWrapFocused : undefined}
                   onFocus={() => setKeyboardFocusIndex(focusItems.length - 1)}
+                  onMouseEnter={() => setKeyboardFocusIndex(focusItems.length - 1)}
                   onBlur={() => {
                     requestAnimationFrame(() => {
                       if (!commentFormRef.current?.contains(document.activeElement)) setCommentFormFocused(false)

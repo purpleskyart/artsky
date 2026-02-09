@@ -9,7 +9,7 @@ import { useSession } from '../context/SessionContext'
 import { useLoginModal } from '../context/LoginModalContext'
 import { useArtOnly } from '../context/ArtOnlyContext'
 import { useModeration } from '../context/ModerationContext'
-import { formatRelativeTime, formatRelativeTimeTitle } from '../lib/date'
+import { formatRelativeTime, formatRelativeTimeTitle, formatExactDateTime } from '../lib/date'
 import { downloadImageWithHandle, downloadVideoWithPostUri } from '../lib/downloadImage'
 import PostText from './PostText'
 import ProfileLink from './ProfileLink'
@@ -44,16 +44,28 @@ interface Props {
   likedUriOverride?: string | null
   /** When true, card is marked as seen (e.g. scrolled past); shown darkened */
   seen?: boolean
-  /** When this number changes, open the ... actions menu (e.g. from ` or M key) */
-  openActionsMenuTrigger?: number
   /** Called when the ... actions menu opens or closes (for parent to track which card's menu is open) */
   onActionsMenuOpenChange?: (open: boolean) => void
+  /** Index of the card (for parent to signal close when focus moves to another card via A/D) */
+  cardIndex?: number
+  /** Index of the card whose ... menu is currently open (null = none); when this is not cardIndex, this card closes its menu */
+  actionsMenuOpenForIndex?: number | null
 }
+
+const REASON_PIN = 'app.bsky.feed.defs#reasonPin'
 
 function RepostIcon() {
   return (
     <svg className={styles.repostIcon} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
       <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z" />
+    </svg>
+  )
+}
+
+function PinIcon() {
+  return (
+    <svg className={styles.pinIcon} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z" />
     </svg>
   )
 }
@@ -78,7 +90,7 @@ function isHlsUrl(url: string): boolean {
   return /\.m3u8(\?|$)/i.test(url) || url.includes('m3u8')
 }
 
-export default function PostCard({ item, isSelected, cardRef: cardRefProp, addButtonRef: _addButtonRef, openAddDropdown, onAddClose, onPostClick, onAspectRatio, fillCell, nsfwBlurred, onNsfwUnblur, constrainMediaHeight, likedUriOverride, seen, openActionsMenuTrigger, onActionsMenuOpenChange }: Props) {
+export default function PostCard({ item, isSelected, cardRef: cardRefProp, addButtonRef: _addButtonRef, openAddDropdown, onAddClose, onPostClick, onAspectRatio, fillCell, nsfwBlurred, onNsfwUnblur, constrainMediaHeight, likedUriOverride, seen, onActionsMenuOpenChange, cardIndex, actionsMenuOpenForIndex }: Props) {
   const navigate = useNavigate()
   const { session } = useSession()
   const { openLoginModal } = useLoginModal()
@@ -95,6 +107,7 @@ export default function PostCard({ item, isSelected, cardRef: cardRefProp, addBu
   const text = (post.record as { text?: string })?.text ?? ''
   const handle = post.author.handle ?? post.author.did
   const repostedByHandle = reason?.by ? (reason.by.handle ?? reason.by.did) : null
+  const isPinned = reason?.$type === REASON_PIN
   const authorViewer = (post.author as { viewer?: { following?: string } }).viewer
   const initialFollowingUri = authorViewer?.following
   const [followUriOverride, setFollowUriOverride] = useState<string | null>(initialFollowingUri ?? null)
@@ -132,15 +145,22 @@ export default function PostCard({ item, isSelected, cardRef: cardRefProp, addBu
   const touchSessionRef = useRef(false)
   const openDelayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const touchStartRef = useRef<{ x: number; y: number } | null>(null)
-  const lastOpenActionsMenuTriggerRef = useRef<number>(0)
-
-  /* Open ... menu when parent increments openActionsMenuTrigger (e.g. ` or M key) */
+  /* Close ... menu when parent says focus moved to another card (e.g. A/D) */
   useEffect(() => {
-    if (openActionsMenuTrigger == null) return
-    if (openActionsMenuTrigger === lastOpenActionsMenuTriggerRef.current) return
-    lastOpenActionsMenuTriggerRef.current = openActionsMenuTrigger
-    setActionsMenuOpen(true)
-  }, [openActionsMenuTrigger])
+    if (cardIndex == null) return
+    if (actionsMenuOpenForIndex === cardIndex) return
+    if (actionsMenuOpen) setActionsMenuOpen(false)
+  }, [actionsMenuOpenForIndex, cardIndex, actionsMenuOpen])
+
+  /* Open ... menu when parent requests it (e.g. M key on focused card) */
+  const prevActionsMenuOpenForIndexRef = useRef<number | null>(null)
+  useEffect(() => {
+    if (cardIndex == null) return
+    if (actionsMenuOpenForIndex === cardIndex && prevActionsMenuOpenForIndexRef.current !== cardIndex) {
+      setActionsMenuOpen(true)
+    }
+    prevActionsMenuOpenForIndexRef.current = actionsMenuOpenForIndex ?? null
+  }, [actionsMenuOpenForIndex, cardIndex])
 
   /* Close ... menu when focus, pointer, or mouse goes to another item (e.g. another card) */
   useEffect(() => {
@@ -841,7 +861,6 @@ export default function PostCard({ item, isSelected, cardRef: cardRefProp, addBu
                   setActionsMenuOpen(open)
                   onActionsMenuOpenChange?.(open)
                 }}
-                openTrigger={openActionsMenuTrigger}
                 dropdownRef={actionsMenuDropdownRef}
                 feedLabel={feedLabel}
                 postedAt={(post.record as { createdAt?: string })?.createdAt}
@@ -884,8 +903,13 @@ export default function PostCard({ item, isSelected, cardRef: cardRefProp, addBu
                 )}
               </span>
               <span className={styles.handleRowMeta}>
+                {isPinned && (
+                  <span className={styles.pinIconWrap} title="Pinned">
+                    <PinIcon />
+                  </span>
+                )}
                 {(post.record as { createdAt?: string })?.createdAt && (
-                  <span className={styles.postTime} title={formatRelativeTimeTitle((post.record as { createdAt: string }).createdAt)}>
+                  <span className={styles.postTime} title={formatExactDateTime((post.record as { createdAt: string }).createdAt)}>
                     {formatRelativeTime((post.record as { createdAt: string }).createdAt)}
                   </span>
                 )}

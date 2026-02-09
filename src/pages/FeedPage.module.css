@@ -415,6 +415,8 @@
   flex-direction: row;
   gap: 0.35rem;
   align-items: flex-start;
+  width: 100%;
+  min-width: 0;
 }
 
 /* 1-col: constrain card media height when using column layout */
