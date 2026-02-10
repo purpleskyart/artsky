@@ -145,7 +145,7 @@ export default function AppModal({
   }
 
   const modal = (
-    <ModalTopBarSlotContext.Provider value={{ centerSlot: topBarSlotEl, rightSlot: topBarRightSlotEl, mobileBottomBarSlot: isMobile ? mobileBottomBarSlotEl : null, isMobile }}>
+    <ModalTopBarSlotContext.Provider value={{ centerSlot: topBarSlotEl, rightSlot: topBarRightSlotEl, mobileBottomBarSlot: mobileBottomBarSlotEl, isMobile }}>
       <div
         ref={overlayRef}
         className={`${styles.overlay}${transparentTopBar ? ` ${styles.overlayFlushTop}` : ''}${expanded ? ` ${styles.overlayExpanded}` : ''}`}
@@ -161,58 +161,15 @@ export default function AppModal({
           onTouchMove={swipe.onTouchMove}
           onTouchEnd={swipe.onTouchEnd}
         >
-          <div className={`${styles.modalTopBar} ${transparentTopBar ? styles.modalTopBarTransparent : ''} ${isMobile ? styles.modalTopBarMobile : ''}`}>
-            <div className={styles.modalTopBarLeft}>
-              {!isMobile ? (
-                <>
-                  <button
-                    ref={focusCloseOnOpen ? closeBtnRef : undefined}
-                    type="button"
-                    className={styles.closeBtn}
-                    onClick={onClose}
-                    aria-label="Close"
-                  >
-                    ×
-                  </button>
-                  {canGoBack ? (
-                    <button
-                      type="button"
-                      className={styles.backBtn}
-                      onClick={onBack}
-                      aria-label="Back to previous"
-                    >
-                      ←
-                    </button>
-                  ) : null}
-                </>
-              ) : null}
+          <div className={`${styles.modalTopBar} ${transparentTopBar ? styles.modalTopBarTransparent : ''} ${styles.modalTopBarActionsBelow}`}>
+            <div className={styles.modalTopBarLeft} aria-hidden="true">
+              {/* X, back, expand are in the bottom bar on all viewports */}
             </div>
             <div ref={setTopBarSlotEl} className={styles.modalTopBarSlot} />
-            <div ref={setTopBarRightSlotEl} className={styles.modalTopBarRight}>
-              {!isMobile ? (
-                <button
-                  type="button"
-                  className={styles.expandBtn}
-                  onClick={() => setExpanded(!expanded)}
-                  aria-label={expanded ? 'Restore popup size' : 'Expand to edges'}
-                  title={expanded ? 'Restore' : 'Expand to edges'}
-                >
-                  {expanded ? (
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                      <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3" />
-                    </svg>
-                  ) : (
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                      <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
-                    </svg>
-                  )}
-                </button>
-              ) : null}
-            </div>
+            <div ref={setTopBarRightSlotEl} className={styles.modalTopBarRight} />
           </div>
-          <div ref={scrollRef} data-modal-scroll className={`${styles.scroll} ${transparentTopBar ? styles.scrollWithTransparentBar : ''} ${isMobile ? styles.scrollMobileBottomBar : ''}`}>{children}</div>
-          {isMobile ? (
-            <div className={`${styles.modalBottomBar} ${bottomBarHidden ? styles.modalBottomBarHidden : ''}`}>
+          <div ref={scrollRef} data-modal-scroll className={`${styles.scroll} ${transparentTopBar ? styles.scrollWithTransparentBar : ''} ${styles.scrollWithBottomBar}`}>{children}</div>
+          <div className={`${styles.modalBottomBar} ${isMobile && bottomBarHidden ? styles.modalBottomBarHidden : ''}`}>
               <button
                 ref={focusCloseOnOpen ? closeBtnRef : undefined}
                 type="button"
@@ -251,7 +208,6 @@ export default function AppModal({
                 )}
               </button>
             </div>
-          ) : null}
         </div>
       </div>
     </ModalTopBarSlotContext.Provider>

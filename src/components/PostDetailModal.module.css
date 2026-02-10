@@ -89,6 +89,36 @@
   min-width: 0;
 }
 
+/* Reserve space for bottom action bar (X, back, expand) on all viewports */
+.scrollWithBottomBar.scroll {
+  padding-bottom: calc(3.25rem + env(safe-area-inset-bottom));
+}
+
+/* Bottom bar: X, back, slot, expand – same on desktop and mobile */
+.modalBottomBar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  z-index: 2;
+  flex-shrink: 0;
+  transition: transform 0.2s ease-out;
+}
+
+.modalBottomBarSlot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 /* Top bar: close/back on left, optional slot (e.g. profile tabs) centered – pins to top of pane */
 .modalTopBar {
   position: sticky;
@@ -131,6 +161,14 @@
 /* When bar is overlay, no top padding so content (e.g. media) goes under the X */
 .scrollWithTransparentBar {
   padding-top: 0;
+}
+
+/* X, back, expand are in bottom bar – collapse left so only center slot shows in top bar */
+.modalTopBarActionsBelow .modalTopBarLeft {
+  width: 0;
+  min-width: 0;
+  overflow: hidden;
+  padding: 0;
 }
 
 /* Left: X + Back so we can match its width on the right for true center */
@@ -247,46 +285,9 @@
   .scroll {
     padding-bottom: 0.5rem;
   }
-  /* Top bar on mobile: no left/right action buttons (they're in bottom bar) */
-  .modalTopBarMobile .modalTopBarLeft {
-    width: 0;
-    min-width: 0;
-    overflow: hidden;
-    padding: 0;
-  }
-  .modalTopBarMobile .modalTopBarRight {
-    width: auto;
-    min-width: 0;
-  }
-  /* Scroll area: reserve space for bottom bar so content isn't covered */
-  .scrollMobileBottomBar.scroll {
-    padding-bottom: calc(3.25rem + env(safe-area-inset-bottom));
-  }
-  /* Bottom bar: X, back, expand; fixed to bottom of pane; hides when user scrolls down */
-  .modalBottomBar {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.75rem;
-    padding: 0.5rem 0.75rem;
-    padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
-    background: var(--surface);
-    border-top: 1px solid var(--border);
-    z-index: 2;
-    flex-shrink: 0;
-    transition: transform 0.2s ease-out;
-  }
+  /* Mobile only: bottom bar hides when user scrolls down */
   .modalBottomBarHidden {
     transform: translateY(100%);
-  }
-  .modalBottomBarSlot {
-    display: flex;
-    align-items: center;
-    justify-content: center;
   }
   /* Transparent bar on mobile: keep at top so X/back are top left */
   .modalTopBarTransparent {
@@ -297,7 +298,7 @@
     padding-top: 0;
     padding-bottom: 0;
   }
-  .scrollWithTransparentBar.scrollMobileBottomBar {
+  .scrollWithTransparentBar.scrollWithBottomBar {
     padding-bottom: calc(3.25rem + env(safe-area-inset-bottom));
   }
 }
