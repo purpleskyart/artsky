@@ -1042,10 +1042,11 @@ export default function FeedPage() {
   )
 
   useEffect(() => {
-    if (feedPullRefresh?.setHandlers) {
-      feedPullRefresh.setHandlers({ onTouchStart: handleTouchStart, onTouchMove: handleTouchMove, onTouchEnd: handleTouchEnd })
+    const setHandlers = feedPullRefresh?.setHandlers
+    if (setHandlers) {
+      setHandlers({ onTouchStart: handleTouchStart, onTouchMove: handleTouchMove, onTouchEnd: handleTouchEnd })
       return () => {
-        feedPullRefresh.setHandlers(null)
+        setHandlers(null)
       }
     }
   }, [feedPullRefresh?.setHandlers, handleTouchStart, handleTouchMove, handleTouchEnd])
