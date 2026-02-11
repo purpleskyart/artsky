@@ -4,7 +4,8 @@ import { useParams, Link } from 'react-router-dom'
 import { useProfileModal } from '../context/ProfileModalContext'
 import { useEditProfile } from '../context/EditProfileContext'
 import { useModalTopBarSlot } from '../context/ModalTopBarSlotContext'
-import { agent, publicAgent, getPostMediaInfo, getPostMediaInfoForDisplay, getSession, getActorFeeds, listStandardSiteDocumentsForAuthor, listActivitySubscriptions, putActivitySubscription, isPostNsfw, type TimelineItem, type StandardSiteDocumentView } from '../lib/bsky'
+import { agent, publicAgent, getAgent, getPostMediaInfo, getPostMediaInfoForDisplay, getSession, getActorFeeds, listStandardSiteDocumentsForAuthor, listActivitySubscriptions, putActivitySubscription, isPostNsfw, getFolloweesWhoFollowTarget, type TimelineItem, type StandardSiteDocumentView, type ProfileViewBasic } from '../lib/bsky'
+import type { AtpAgent } from '@atproto/api'
 import { formatRelativeTime, formatExactDateTime } from '../lib/date'
 import PostCard from '../components/PostCard'
 import PostText from '../components/PostText'
@@ -206,7 +207,9 @@ export function ProfileContent({
   const [keyboardAddOpen, setKeyboardAddOpen] = useState(false)
   const [actionsMenuOpenForIndex, setActionsMenuOpenForIndex] = useState<number | null>(null)
   const [showBlockedMutedModal, setShowBlockedMutedModal] = useState(false)
-  const [followListModal, setFollowListModal] = useState<'followers' | 'following' | 'mutuals' | null>(null)
+  const [followListModal, setFollowListModal] = useState<'followers' | 'following' | 'mutuals' | 'followedByFollows' | null>(null)
+  const [followeesWhoFollowPreview, setFolloweesWhoFollowPreview] = useState<ProfileViewBasic[] | null>(null)
+  const [followeesWhoFollowLoading, setFolloweesWhoFollowLoading] = useState(false)
   const [likeOverrides, setLikeOverrides] = useState<Record<string, string | null>>({})
   const { openPostModal, isModalOpen } = useProfileModal()
   const editProfileCtx = useEditProfile()
@@ -249,6 +252,34 @@ export function ProfileContent({
       .then((subs) => setNotificationSubscribed(subs.some((s) => s.did === profile.did)))
       .catch(() => setNotificationSubscribed(null))
   }, [session, profile?.did])
+
+  useEffect(() => {
+    if (!session || !profile || session.did === profile.did) {
+      setFolloweesWhoFollowPreview(null)
+      setFolloweesWhoFollowLoading(false)
+      return
+    }
+    setFolloweesWhoFollowLoading(true)
+    let cancelled = false
+    const timeoutId = setTimeout(() => {
+      if (!cancelled) setFolloweesWhoFollowLoading(false)
+    }, 12000)
+    const client = getAgent() as AtpAgent
+    getFolloweesWhoFollowTarget(client, session.did, profile.did, { limit: 30 })
+      .then(({ list }) => {
+        if (!cancelled) setFolloweesWhoFollowPreview(list)
+      })
+      .catch(() => {
+        if (!cancelled) setFolloweesWhoFollowPreview([])
+      })
+      .finally(() => {
+        if (!cancelled) setFolloweesWhoFollowLoading(false)
+      })
+    return () => {
+      cancelled = true
+      clearTimeout(timeoutId)
+    }
+  }, [session?.did, profile?.did])
 
   const load = useCallback(async (nextCursor?: string) => {
     if (!handle) return
@@ -767,31 +798,69 @@ export function ProfileContent({
                 </p>
               )}
               {profile && (
-                <div className={styles.followListRow} role="group" aria-label="Followers, following, and mutuals">
-                  <button
-                    type="button"
-                    className={styles.followListBtn}
-                    onClick={() => setFollowListModal('followers')}
-                  >
-                    Followers
-                  </button>
-                  <button
-                    type="button"
-                    className={styles.followListBtn}
-                    onClick={() => setFollowListModal('following')}
-                  >
-                    Following
-                  </button>
-                  {isOwnProfile && (
+                <>
+                  <div className={styles.followListRow} role="group" aria-label="Followers, following, and mutuals">
                     <button
                       type="button"
                       className={styles.followListBtn}
-                      onClick={() => setFollowListModal('mutuals')}
+                      onClick={() => setFollowListModal('followers')}
                     >
-                      Mutuals
+                      Followers
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.followListBtn}
+                      onClick={() => setFollowListModal('following')}
+                    >
+                      Following
+                    </button>
+                    {isOwnProfile && (
+                      <button
+                        type="button"
+                        className={styles.followListBtn}
+                        onClick={() => setFollowListModal('mutuals')}
+                      >
+                        Mutuals
+                      </button>
+                    )}
+                  </div>
+                  {!isOwnProfile && followeesWhoFollowPreview && followeesWhoFollowPreview.length > 0 && (
+                    <button
+                      type="button"
+                      className={styles.followedByFollowsPreview}
+                      onClick={() => setFollowListModal('followedByFollows')}
+                    >
+                      <span className={styles.followedByFollowsAvatars}>
+                        {followeesWhoFollowPreview.slice(0, 2).map((p) =>
+                          p.avatar ? (
+                            <img
+                              key={p.did}
+                              src={p.avatar}
+                              alt=""
+                              className={styles.followedByFollowsAvatar}
+                              loading="lazy"
+                            />
+                          ) : (
+                            <span
+                              key={p.did}
+                              className={styles.followedByFollowsAvatarPlaceholder}
+                              aria-hidden
+                            >
+                              {(p.displayName ?? p.handle ?? p.did).slice(0, 1).toUpperCase()}
+                            </span>
+                          )
+                        )}
+                      </span>
+                      <span className={styles.followedByFollowsText}>
+                        {followeesWhoFollowPreview.length === 1
+                          ? `Followed by @${followeesWhoFollowPreview[0].handle ?? followeesWhoFollowPreview[0].did} you follow`
+                          : followeesWhoFollowPreview.length === 2
+                            ? `Followed by @${followeesWhoFollowPreview[0].handle ?? followeesWhoFollowPreview[0].did}, @${followeesWhoFollowPreview[1].handle ?? followeesWhoFollowPreview[1].did} you follow`
+                            : `Followed by @${followeesWhoFollowPreview[0].handle ?? followeesWhoFollowPreview[0].did}, @${followeesWhoFollowPreview[1].handle ?? followeesWhoFollowPreview[1].did} + ${followeesWhoFollowPreview.length - 2} more you follow`}
+                      </span>
                     </button>
                   )}
-                </div>
+                </>
               )}
             </div>
           </div>
@@ -812,6 +881,8 @@ export function ProfileContent({
             mode={followListModal}
             actor={profile.did}
             onClose={() => setFollowListModal(null)}
+            viewerDid={followListModal === 'followedByFollows' ? session?.did : undefined}
+            authenticatedClient={followListModal === 'followedByFollows' ? agent : undefined}
           />
         )}
         {inModal && mobileBottomBarSlot
@@ -974,65 +1045,21 @@ export function ProfileContent({
             <div className={styles.empty}>No text-only posts (no media, no replies).</div>
           ) : (
             <>
-              <ul className={styles.textList}>
-                {textItems.map((item) => {
-                  const p = item.post
-                  const handle = p.author.handle ?? p.author.did
-                  const text = postText(p)
-                  const createdAt = (p.record as { createdAt?: string })?.createdAt
-                  const avatar = p.author.avatar
-                  return (
-                    <li key={p.uri}>
-                      <div
-                        role="button"
-                        tabIndex={0}
-                        className={styles.textPostLink}
-                        onClick={() => openPostModal(p.uri)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault()
-                            openPostModal(p.uri)
-                          }
-                        }}
-                      >
-                        <article className={postBlockStyles.postBlock}>
-                          <div className={postBlockStyles.postBlockContent}>
-                            <div className={postBlockStyles.postHead}>
-                              {avatar && <img src={avatar} alt="" className={postBlockStyles.avatar} loading="lazy" />}
-                              <div className={postBlockStyles.authorRow}>
-                                <Link
-                                  to={`/profile/${encodeURIComponent(handle)}`}
-                                  className={`${postBlockStyles.handleLink} ${styles.textPostHandleLink}`}
-                                  onClick={(e) => {
-                                    e.preventDefault()
-                                    e.stopPropagation()
-                                    openProfileModal(handle)
-                                  }}
-                                >
-                                  @{handle}
-                                </Link>
-                                {createdAt && (
-                                  <span
-                                    className={postBlockStyles.postTimestamp}
-                                    title={formatExactDateTime(createdAt)}
-                                  >
-                                    {formatRelativeTime(createdAt)}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                            {text ? (
-                              <p className={postBlockStyles.postText}>
-                                <PostText text={text} facets={(p.record as { facets?: unknown[] })?.facets} stopPropagation />
-                              </p>
-                            ) : null}
-                          </div>
-                        </article>
-                      </div>
-                    </li>
-                  )
-                })}
-              </ul>
+              <div className={`${styles.grid} ${styles.gridView1}`} data-view-mode="1">
+                {textItems.map((item, index) => (
+                  <div key={item.post.uri}>
+                    <PostCard
+                      item={item}
+                      onPostClick={(uri, opts) => openPostModal(uri, opts?.openReply)}
+                      nsfwBlurred={nsfwPreference === 'blurred' && isPostNsfw(item.post) && !unblurredUris.has(item.post.uri)}
+                      onNsfwUnblur={() => setUnblurred(item.post.uri, true)}
+                      constrainMediaHeight
+                      likedUriOverride={likeOverrides[item.post.uri]}
+                      onLikedChange={(uri, likeRecordUri) => setLikeOverrides((prev) => ({ ...prev, [uri]: likeRecordUri ?? null }))}
+                    />
+                  </div>
+                ))}
+              </div>
               {cursor && <div ref={loadMoreSentinelRef} className={styles.loadMoreSentinel} aria-hidden />}
               {loadingMore && <div className={styles.loadingMore}>Loading…</div>}
             </>

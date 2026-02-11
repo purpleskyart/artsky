@@ -16,12 +16,19 @@ export const VIEW_LABELS: Record<ViewMode, string> = {
   '3': '3 Columns',
 }
 
+export type ViewModeAnnouncement = {
+  text: string
+  anchorRect: { top: number; left: number; width: number; height: number; bottom: number }
+}
+
 type ViewModeContextValue = {
   viewMode: ViewMode
   setViewMode: (mode: ViewMode) => void
-  /** Cycle 1 → 2 → 3 → 1 (uses current state, safe for header toggle). */
-  cycleViewMode: () => void
+  /** Cycle 1 → 2 → 3 → 1 (uses current state, safe for header toggle). Pass anchor to show toast. */
+  cycleViewMode: (anchor?: HTMLElement) => void
   viewOptions: ViewMode[]
+  /** Brief toast when column view changes. */
+  viewModeAnnouncement: ViewModeAnnouncement | null
 }
 
 const ViewModeContext = createContext<ViewModeContextValue | null>(null)
@@ -47,6 +54,8 @@ function subscribeDesktop(cb: () => void) {
   return () => mq.removeEventListener('change', cb)
 }
 
+const TOAST_MS = 1200
+
 export function ViewModeProvider({ children }: { children: React.ReactNode }) {
   const { session } = useSession()
   const isDesktop = useSyncExternalStore(subscribeDesktop, getDesktopSnapshot, () => false)
@@ -56,6 +65,13 @@ export function ViewModeProvider({ children }: { children: React.ReactNode }) {
     const v = stored ?? defaultMode
     return v === '1' || v === '2' || v === '3' ? v : defaultMode
   })
+  const [viewModeAnnouncement, setViewModeAnnouncement] = useState<ViewModeAnnouncement | null>(null)
+
+  useEffect(() => {
+    if (!viewModeAnnouncement) return
+    const t = setTimeout(() => setViewModeAnnouncement(null), TOAST_MS)
+    return () => clearTimeout(t)
+  }, [viewModeAnnouncement])
 
   useEffect(() => {
     if (getStored() !== null) return
@@ -73,7 +89,7 @@ export function ViewModeProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
-  const cycleViewMode = useCallback(() => {
+  const cycleViewMode = useCallback((anchor?: HTMLElement) => {
     setViewModeState((prev) => {
       const i = VIEW_OPTIONS.indexOf(prev)
       const next: ViewMode = VIEW_OPTIONS[i >= 0 ? (i + 1) % VIEW_OPTIONS.length : 0]
@@ -82,6 +98,13 @@ export function ViewModeProvider({ children }: { children: React.ReactNode }) {
       } catch {
         // ignore
       }
+      const rect = anchor?.getBoundingClientRect()
+      setViewModeAnnouncement({
+        text: VIEW_LABELS[next],
+        anchorRect: rect
+          ? { top: rect.top, left: rect.left, width: rect.width, height: rect.height, bottom: rect.bottom }
+          : { top: 48, left: typeof window !== 'undefined' ? window.innerWidth / 2 : 0, width: 0, height: 0, bottom: 48 },
+      })
       return next
     })
   }, [])
@@ -91,6 +114,7 @@ export function ViewModeProvider({ children }: { children: React.ReactNode }) {
     setViewMode,
     cycleViewMode,
     viewOptions: VIEW_OPTIONS,
+    viewModeAnnouncement,
   }
 
   return (

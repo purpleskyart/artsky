@@ -15,7 +15,7 @@ export type NsfwAnnouncement = {
 
 type ModerationContextValue = {
   nsfwPreference: NsfwPreference
-  setNsfwPreference: (p: NsfwPreference, anchor?: HTMLElement) => void
+  setNsfwPreference: (p: NsfwPreference, anchor?: HTMLElement, options?: { showToast?: boolean }) => void
   /** Cycle: SFW → Blurred → NSFW → SFW. Pass the button element so the tooltip appears nearby. */
   cycleNsfwPreference: (anchor?: HTMLElement) => void
   /** URIs of posts the user has chosen to unblur (blurred mode). Cleared on page refresh. */
@@ -52,7 +52,7 @@ export function ModerationProvider({ children }: { children: React.ReactNode }) 
 
   useEffect(() => {
     if (!nsfwAnnouncement) return
-    const t = setTimeout(() => setNsfwAnnouncement(null), 2000)
+    const t = setTimeout(() => setNsfwAnnouncement(null), 1200)
     return () => clearTimeout(t)
   }, [nsfwAnnouncement])
 
@@ -66,9 +66,9 @@ export function ModerationProvider({ children }: { children: React.ReactNode }) 
     })
   }, [])
 
-  const setNsfwPreference = useCallback((p: NsfwPreference, anchor?: HTMLElement) => {
+  const setNsfwPreference = useCallback((p: NsfwPreference, anchor?: HTMLElement, options?: { showToast?: boolean }) => {
     setNsfwPreferenceState(p)
-    showAnnouncement(p, anchor)
+    if (options?.showToast !== false) showAnnouncement(p, anchor)
   }, [showAnnouncement])
 
   const cycleNsfwPreference = useCallback((anchor?: HTMLElement) => {

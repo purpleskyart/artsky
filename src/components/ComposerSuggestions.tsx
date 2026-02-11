@@ -1,10 +1,12 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   useMemo,
 } from 'react'
+import { createPortal } from 'react-dom'
 import type { AppBskyActorDefs } from '@atproto/api'
 import {
   searchActorsTypeahead,
@@ -81,13 +83,19 @@ export default function ComposerSuggestions({
   const inputRef = externalInputRef ?? internalRef
   const containerRef = useRef<HTMLDivElement>(null)
   const listRef = useRef<HTMLUListElement>(null)
+  const mirrorRef = useRef<HTMLDivElement>(null)
+  const caretRef = useRef<HTMLSpanElement>(null)
+  const dropdownRef = useRef<HTMLDivElement>(null)
   const [suggestions, setSuggestions] = useState<Suggestion[]>([])
   const [loading, setLoading] = useState(false)
   const [activeIndex, setActiveIndex] = useState(0)
   const [open, setOpen] = useState(false)
   const [cursor, setCursor] = useState(0)
+  /** When set, dropdown is positioned at caret (fixed); when null, fallback below textarea */
+  const [dropdownAtCaret, setDropdownAtCaret] = useState<{ top?: number; bottom?: number; left: number; above: boolean } | null>(null)
   const triggerRef = useRef<{ trigger: TriggerKind; query: string; startIndex: number } | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const DROPDOWN_MAX_H = 280
 
   const triggerAtCursor = useMemo(
     () => getTriggerAtCursor(value, cursor),
@@ -263,8 +271,66 @@ export default function ComposerSuggestions({
     el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
   }, [activeIndex, open])
 
+  const triggerStartIndex = triggerAtCursor?.startIndex ?? -1
+  const showMirror = open && triggerStartIndex >= 0 && (suggestions.length > 0 || loading)
+
+  useLayoutEffect(() => {
+    if (!showMirror || !caretRef.current || !inputRef.current) {
+      setDropdownAtCaret(null)
+      return
+    }
+    const rect = caretRef.current.getBoundingClientRect()
+    const spaceBelow = typeof window !== 'undefined' ? window.innerHeight - rect.bottom : 400
+    const above = spaceBelow < DROPDOWN_MAX_H + 8 && rect.top > DROPDOWN_MAX_H + 8
+    setDropdownAtCaret({
+      left: rect.left,
+      ...(above
+        ? { bottom: typeof window !== 'undefined' ? window.innerHeight - rect.top + 4 : undefined }
+        : { top: rect.bottom + 4 }),
+      above,
+    })
+  }, [showMirror, value, triggerStartIndex, suggestions.length, loading])
+
+  useEffect(() => {
+    if (!open) setDropdownAtCaret(null)
+  }, [open])
+
+  const updateDropdownPosition = useCallback(() => {
+    if (!showMirror || !caretRef.current) return
+    const rect = caretRef.current.getBoundingClientRect()
+    const spaceBelow = typeof window !== 'undefined' ? window.innerHeight - rect.bottom : 400
+    const above = spaceBelow < DROPDOWN_MAX_H + 8 && rect.top > DROPDOWN_MAX_H + 8
+    setDropdownAtCaret({
+      left: rect.left,
+      ...(above
+        ? { bottom: typeof window !== 'undefined' ? window.innerHeight - rect.top + 4 : undefined }
+        : { top: rect.bottom + 4 }),
+      above,
+    })
+  }, [showMirror])
+
+  useEffect(() => {
+    if (!showMirror) return
+    const el = inputRef.current
+    if (!el) return
+    const onScroll = () => updateDropdownPosition()
+    const win = el.ownerDocument?.defaultView
+    win?.addEventListener('scroll', onScroll, true)
+    win?.addEventListener('resize', updateDropdownPosition)
+    return () => {
+      win?.removeEventListener('scroll', onScroll, true)
+      win?.removeEventListener('resize', updateDropdownPosition)
+    }
+  }, [showMirror, updateDropdownPosition])
+
   return (
     <div ref={containerRef} className={styles.wrap}>
+      {showMirror && (
+        <div ref={mirrorRef} className={styles.mirror} aria-hidden>
+          {value.slice(0, triggerStartIndex)}
+          <span ref={caretRef} />
+        </div>
+      )}
       <textarea
         ref={inputRef}
         id={id}
@@ -282,70 +348,94 @@ export default function ComposerSuggestions({
         autoFocus={autoFocus}
         aria-label={ariaLabel}
       />
-      {open && (suggestions.length > 0 || loading) && (
-        <div className={styles.dropdown} role="listbox" aria-label="Suggestions">
-          {loading && suggestions.length === 0 ? (
-            <div className={styles.loading}>Searching…</div>
-          ) : (
-            <ul ref={listRef} className={styles.list}>
-              {suggestions.map((s, i) => (
-                <li
-                  key={
-                    s.type === 'user'
-                      ? s.handle
-                      : s.type === 'tag'
-                        ? s.tag
-                        : s.doc.uri
+      {open && (suggestions.length > 0 || loading) && (() => {
+        const dropdownContent = (
+          <div
+            ref={dropdownRef}
+            className={styles.dropdown}
+            role="listbox"
+            aria-label="Suggestions"
+            style={
+              dropdownAtCaret
+                ? {
+                    position: 'fixed',
+                    left: dropdownAtCaret.left,
+                    ...(dropdownAtCaret.above
+                      ? { bottom: dropdownAtCaret.bottom, top: 'auto' }
+                      : { top: dropdownAtCaret.top }),
+                    right: 'auto',
+                    width: 'max(200px, min(320px, 90vw))',
+                    maxHeight: DROPDOWN_MAX_H,
                   }
-                  className={i === activeIndex ? styles.itemActive : styles.item}
-                  role="option"
-                  aria-selected={i === activeIndex}
-                  onMouseDown={(e) => {
-                    e.preventDefault()
-                    insertSuggestion(s)
-                  }}
-                >
-                  {s.type === 'user' && (
-                    <>
-                      {s.avatar ? (
-                        <img src={s.avatar} alt="" className={styles.avatar} />
-                      ) : (
-                        <span className={styles.avatarPlaceholder}>
-                          {(s.displayName ?? s.handle).slice(0, 1).toUpperCase()}
+                : undefined
+            }
+          >
+            {loading && suggestions.length === 0 ? (
+              <div className={styles.loading}>Searching…</div>
+            ) : (
+              <ul ref={listRef} className={styles.list}>
+                {suggestions.map((s, i) => (
+                  <li
+                    key={
+                      s.type === 'user'
+                        ? s.handle
+                        : s.type === 'tag'
+                          ? s.tag
+                          : s.doc.uri
+                    }
+                    className={i === activeIndex ? styles.itemActive : styles.item}
+                    role="option"
+                    aria-selected={i === activeIndex}
+                    onMouseDown={(e) => {
+                      e.preventDefault()
+                      insertSuggestion(s)
+                    }}
+                  >
+                    {s.type === 'user' && (
+                      <>
+                        {s.avatar ? (
+                          <img src={s.avatar} alt="" className={styles.avatar} />
+                        ) : (
+                          <span className={styles.avatarPlaceholder}>
+                            {(s.displayName ?? s.handle).slice(0, 1).toUpperCase()}
+                          </span>
+                        )}
+                        <span className={styles.itemMain}>
+                          <span className={styles.handle}>@{s.handle}</span>
+                          {s.displayName && (
+                            <span className={styles.meta}>{s.displayName}</span>
+                          )}
                         </span>
-                      )}
+                      </>
+                    )}
+                    {s.type === 'tag' && (
                       <span className={styles.itemMain}>
-                        <span className={styles.handle}>@{s.handle}</span>
-                        {s.displayName && (
-                          <span className={styles.meta}>{s.displayName}</span>
+                        <span className={styles.tag}>#{s.tag}</span>
+                        {s.count != null && s.count > 0 && (
+                          <span className={styles.meta}>{s.count} posts</span>
                         )}
                       </span>
-                    </>
-                  )}
-                  {s.type === 'tag' && (
-                    <span className={styles.itemMain}>
-                      <span className={styles.tag}>#{s.tag}</span>
-                      {s.count != null && s.count > 0 && (
-                        <span className={styles.meta}>{s.count} posts</span>
-                      )}
-                    </span>
-                  )}
-                  {s.type === 'forum' && (
-                    <span className={styles.itemMain}>
-                      <span className={styles.forumTitle}>
-                        {s.doc.title ?? s.doc.path ?? s.doc.uri}
+                    )}
+                    {s.type === 'forum' && (
+                      <span className={styles.itemMain}>
+                        <span className={styles.forumTitle}>
+                          {s.doc.title ?? s.doc.path ?? s.doc.uri}
+                        </span>
+                        {s.doc.authorHandle && (
+                          <span className={styles.meta}>@{s.doc.authorHandle}</span>
+                        )}
                       </span>
-                      {s.doc.authorHandle && (
-                        <span className={styles.meta}>@{s.doc.authorHandle}</span>
-                      )}
-                    </span>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      )}
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )
+        return dropdownAtCaret && typeof document !== 'undefined'
+          ? createPortal(dropdownContent, document.body)
+          : dropdownContent
+      })()}
     </div>
   )
 }

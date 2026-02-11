@@ -22,6 +22,12 @@
   margin-bottom: 0;
 }
 
+/* Profile popup: slightly smaller profile picture on desktop */
+.wrapInModal .avatar {
+  width: 52px;
+  height: 52px;
+}
+
 .profileHeader {
   display: flex;
   align-items: flex-start;
@@ -255,6 +261,77 @@
   outline-offset: 2px;
 }
 
+.followedByFollowsPreview {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  margin-top: 0.5rem;
+  padding: 0.25rem 0;
+  font-size: 0.85rem;
+  color: var(--accent);
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  min-width: 0;
+}
+
+.followedByFollowsPreview:hover {
+  text-decoration: underline;
+}
+
+.followedByFollowsPreview:hover .followedByFollowsText {
+  text-decoration: underline;
+}
+
+.followedByFollowsPreview:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.followedByFollowsAvatars {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.followedByFollowsAvatar,
+.followedByFollowsAvatarPlaceholder {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  object-fit: cover;
+  box-sizing: border-box;
+  border: 2px solid var(--bg, #fff);
+}
+
+.followedByFollowsAvatar {
+  display: block;
+}
+
+.followedByFollowsAvatarPlaceholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 600;
+  background: var(--glass-border);
+  color: var(--text);
+}
+
+.followedByFollowsAvatars > *:nth-child(2) {
+  margin-left: -8px;
+}
+
+.followedByFollowsText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
 .tabsSticky {
   position: sticky;
   top: 3.5rem;
@@ -393,7 +470,7 @@
   margin-bottom: 0;
   margin-left: -0.5rem;
   margin-right: -0.5rem;
-  padding: 0.75rem 0.5rem 0;
+  padding: 0.75rem 0.5rem 1rem;
   width: calc(100% + 1rem);
   box-sizing: border-box;
   background: var(--surface);

@@ -88,6 +88,49 @@
   padding-bottom: calc(3.25rem + env(safe-area-inset-bottom));
 }
 
+/* Pull-to-refresh in modals (same behavior as mobile homepage) */
+.scroll .pullRefreshHeader {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  overflow: hidden;
+  transition: height 0.2s ease-out;
+}
+
+.scroll .pullRefreshSpinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: pullRefreshSpin 0.8s linear infinite;
+}
+
+@keyframes pullRefreshSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.scroll .pullRefreshContent {
+  transition: transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Big BETA alert at top of forums/collections popups */
+.modalBetaAlert {
+  width: 100%;
+  padding: 0.6rem 1rem;
+  text-align: center;
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--text-on-accent);
+  background: var(--accent);
+  flex-shrink: 0;
+}
+
 /* Bottom bar: X, back, slot, expand – same on desktop and mobile */
 .modalBottomBar {
   position: absolute;

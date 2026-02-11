@@ -9,8 +9,8 @@ import { useSession } from '../context/SessionContext'
 import { useLoginModal } from '../context/LoginModalContext'
 import { useArtOnly } from '../context/ArtOnlyContext'
 import { useModeration } from '../context/ModerationContext'
+import { useProfileModal } from '../context/ProfileModalContext'
 import { formatRelativeTime, formatExactDateTime } from '../lib/date'
-import { downloadImageWithHandle, downloadVideoWithPostUri } from '../lib/downloadImage'
 import PostText from './PostText'
 import ProfileLink from './ProfileLink'
 import PostActionsMenu from './PostActionsMenu'
@@ -87,14 +87,6 @@ function CollectIcon() {
   )
 }
 
-function DownloadIcon() {
-  return (
-    <svg className={styles.downloadIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M12 5v14m0 0l-4-4m4 4l4-4" />
-    </svg>
-  )
-}
-
 function isHlsUrl(url: string): boolean {
   return /\.m3u8(\?|$)/i.test(url) || url.includes('m3u8')
 }
@@ -105,6 +97,7 @@ export default function PostCard({ item, isSelected, cardRef: cardRefProp, addBu
   const { openLoginModal } = useLoginModal()
   const { artOnly, minimalist } = useArtOnly()
   const { unblurredUris, setUnblurred } = useModeration()
+  const { openQuotesModal } = useProfileModal()
   const videoRef = useRef<HTMLVideoElement>(null)
   const mediaWrapRef = useRef<HTMLDivElement>(null)
   const hlsRef = useRef<Hls | null>(null)
@@ -133,7 +126,6 @@ export default function PostCard({ item, isSelected, cardRef: cardRefProp, addBu
   const initialLikedUri = postViewer?.like
   const [likedUri, setLikedUri] = useState<string | undefined>(initialLikedUri)
   const [likeLoading, setLikeLoading] = useState(false)
-  const [downloadLoading, setDownloadLoading] = useState(false)
   const effectiveLikedUri = likedUriOverride !== undefined ? (likedUriOverride ?? undefined) : likedUri
   const isLiked = !!effectiveLikedUri
   const inAnyArtboard = isPostInAnyArtboard(post.uri)
@@ -262,30 +254,6 @@ export default function PostCard({ item, isSelected, cardRef: cardRefProp, addBu
       setLikedUri(previousLikedUri)
     } finally {
       setLikeLoading(false)
-    }
-  }
-
-  async function handleDownload() {
-    if (!hasMedia || downloadLoading) return
-    if (isVideo && media?.videoPlaylist) {
-      setDownloadLoading(true)
-      try {
-        await downloadVideoWithPostUri(media.videoPlaylist, post.uri)
-      } finally {
-        setDownloadLoading(false)
-      }
-      return
-    }
-    if (hasImage && imageItems.length > 0) {
-      setDownloadLoading(true)
-      try {
-        for (let i = 0; i < imageItems.length; i++) {
-          const url = imageItems[i]?.url
-          if (url) await downloadImageWithHandle(url, handle, post.uri, imageItems.length > 1 ? i : undefined)
-        }
-      } finally {
-        setDownloadLoading(false)
-      }
     }
   }
 
@@ -780,24 +748,6 @@ export default function PostCard({ item, isSelected, cardRef: cardRefProp, addBu
         {(!artOnly || minimalist) && (
         <div className={styles.meta}>
           <div className={styles.cardActionRow} onClick={(e) => e.stopPropagation()}>
-            {(hasImage || isVideo) && (
-              <div className={styles.cardActionRowLeft}>
-                <button
-                  type="button"
-                  className={styles.cardDownloadBtn}
-                  onClick={(e) => {
-                    e.preventDefault()
-                    e.stopPropagation()
-                    handleDownload()
-                  }}
-                  disabled={downloadLoading}
-                  title={isVideo ? 'Download video' : 'Download image (with @handle)'}
-                  aria-label={isVideo ? 'Download video' : 'Download image'}
-                >
-                  {downloadLoading ? '…' : <DownloadIcon />}
-                </button>
-              </div>
-            )}
             <div className={styles.cardActionRowCenter}>
               <div
                 className={`${styles.addWrap} ${addOpen ? styles.addWrapOpen : ''}`}
@@ -952,9 +902,7 @@ export default function PostCard({ item, isSelected, cardRef: cardRefProp, addBu
                 dropdownRef={actionsMenuDropdownRef}
                 feedLabel={feedLabel}
                 postedAt={(post.record as { createdAt?: string })?.createdAt}
-                onDownload={hasMedia ? handleDownload : undefined}
-                downloadLabel={hasMedia ? (isVideo ? 'Download video' : isMultipleImages ? 'Download photos' : 'Download photo') : undefined}
-                downloadLoading={downloadLoading}
+                onViewQuotes={openQuotesModal}
               />
             </div>
           </div>

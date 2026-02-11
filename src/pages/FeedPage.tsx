@@ -295,7 +295,7 @@ export default function FeedPage() {
   const loadingMoreRef = useRef(false)
   /** Cooldown after triggering load more so we don't fire again while sentinel stays in view (stops infinite load loop). */
   const lastLoadMoreAtRef = useRef(0)
-  const [keyboardFocusIndex, setKeyboardFocusIndex] = useState(0)
+  const [keyboardFocusIndex, setKeyboardFocusIndex] = useState(-1)
   const [keyboardAddOpen, setKeyboardAddOpen] = useState(false)
   const [actionsMenuOpenForIndex, setActionsMenuOpenForIndex] = useState<number | null>(null)
   const { openPostModal, isModalOpen } = useProfileModal()
@@ -303,7 +303,7 @@ export default function FeedPage() {
   /** Refs for focused media elements: [cardIndex][mediaIndex] for scroll-into-view on multi-image posts */
   const mediaRefsRef = useRef<Record<number, Record<number, HTMLElement | null>>>({})
   const mediaItemsRef = useRef<TimelineItem[]>([])
-  const keyboardFocusIndexRef = useRef(0)
+  const keyboardFocusIndexRef = useRef(-1)
   const actionsMenuOpenForIndexRef = useRef<number | null>(null)
   const lastScrollIntoViewIndexRef = useRef<number>(-1)
   /** Only scroll into view when focus was changed by keyboard (W/S/A/D), not by mouse hover */
@@ -655,7 +655,7 @@ export default function FeedPage() {
   useEffect(() => {
     setKeyboardFocusIndex((i) => {
       if (i < 0) return i
-      if (focusTargets.length === 0) return 0
+      if (focusTargets.length === 0) return -1
       return Math.min(i, focusTargets.length - 1)
     })
   }, [focusTargets.length])
@@ -1047,15 +1047,17 @@ export default function FeedPage() {
         >
         {session && (
           <div className={styles.suggestedFollowsSection}>
-            <button
-              type="button"
-              className={styles.suggestedFollowsToggle}
-              onClick={() => setSuggestedFollowsOpen((open) => !open)}
-              aria-expanded={suggestedFollowsOpen}
-              aria-label={suggestedFollowsOpen ? 'Hide discover accounts' : 'Discover accounts to follow'}
-            >
-              {suggestedFollowsOpen ? 'Hide suggestions' : 'Discover accounts'}
-            </button>
+            <div className={styles.suggestedFollowsSectionInner}>
+              <button
+                type="button"
+                className={styles.suggestedFollowsToggle}
+                onClick={() => setSuggestedFollowsOpen((open) => !open)}
+                aria-expanded={suggestedFollowsOpen}
+                aria-label={suggestedFollowsOpen ? 'Hide suggestions' : 'Discover accounts to follow'}
+              >
+                {suggestedFollowsOpen ? 'Hide suggestions' : 'Discover accounts'}
+              </button>
+            </div>
             {suggestedFollowsOpen && <SuggestedFollows />}
           </div>
         )}

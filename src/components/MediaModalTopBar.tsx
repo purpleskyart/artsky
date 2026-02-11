@@ -77,7 +77,7 @@ export default function MediaModalTopBar({ centerContent }: { centerContent?: Re
               <button
                 type="button"
                 className={styles.headerBtn}
-                onClick={cycleViewMode}
+                onClick={(e) => cycleViewMode(e.currentTarget)}
                 title={`${VIEW_LABELS[viewMode]}. Click to cycle.`}
                 aria-label={`${VIEW_LABELS[viewMode]}. Click to cycle.`}
               >
@@ -88,7 +88,7 @@ export default function MediaModalTopBar({ centerContent }: { centerContent?: Re
               <button
                 type="button"
                 className={`${styles.headerBtn} ${cardViewMode !== 'default' ? styles.headerBtnActive : ''}`}
-                onClick={cycleCardView}
+                onClick={(e) => cycleCardView(e.currentTarget)}
                 aria-label={cardViewMode === 'default' ? 'Show all' : cardViewMode === 'minimalist' ? 'Minimalist' : 'Art only'}
                 title={cardViewMode === 'default' ? 'Show all' : cardViewMode === 'minimalist' ? 'Minimalist' : 'Art only'}
               >

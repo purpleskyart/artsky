@@ -1,0 +1,42 @@
+.wrap {
+  padding: 0.5rem;
+  padding-bottom: 5rem;
+}
+
+.error {
+  color: var(--error);
+  padding: 0.5rem 0;
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.loading,
+.empty {
+  text-align: center;
+  color: var(--muted);
+  padding: 2rem 1rem;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.cardWrap {
+  min-width: 0;
+}
+
+.loadMoreSentinel {
+  min-height: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem;
+}
+
+.loadingMore {
+  font-size: 0.9rem;
+  color: var(--muted);
+}

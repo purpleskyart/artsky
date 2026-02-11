@@ -1,22 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { agent, getSession, getSuggestedFollows, getSuggestedFollowDetail, type SuggestedFollow, type SuggestedFollowDetail } from '../lib/bsky'
+import { agent, getSession, getSuggestedFollows, getSuggestedFollowsByMutuals, getSuggestedFollowDetail, type SuggestedFollow, type SuggestedFollowDetail } from '../lib/bsky'
 import { getRecommendationsShown, markRecommendationsShown, getRotationCutoff } from '../lib/recommendationStorage'
 import { useProfileModal } from '../context/ProfileModalContext'
 import styles from './SuggestedFollows.module.css'
 
 const DISPLAY_COUNT = 8
 
-export type SuggestedFollowSort = 'count' | 'random' | 'handle'
-
-function shuffle<T>(arr: T[]): T[] {
-  const out = arr.slice()
-  for (let i = out.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [out[i], out[j]] = [out[j], out[i]]
-  }
-  return out
-}
+export type SuggestedFollowSort = 'count' | 'mutuals'
 
 export default function SuggestedFollows() {
   const { openProfileModal } = useProfileModal()
@@ -29,11 +20,7 @@ export default function SuggestedFollows() {
   const [detail, setDetail] = useState<SuggestedFollowDetail | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
 
-  const sortedSuggestions = useMemo(() => {
-    if (sortBy === 'count') return suggestions
-    if (sortBy === 'handle') return [...suggestions].sort((a, b) => (a.handle ?? a.did).localeCompare(b.handle ?? b.did))
-    return shuffle(suggestions)
-  }, [suggestions, sortBy])
+  const sortedSuggestions = useMemo(() => suggestions, [suggestions])
 
   const load = useCallback(async () => {
     const session = getSession()
@@ -41,7 +28,10 @@ export default function SuggestedFollows() {
     if (!did) return
     setLoading(true)
     try {
-      const raw = await getSuggestedFollows(agent, did, { maxSuggestions: 20 })
+      const raw =
+        sortBy === 'mutuals'
+          ? await getSuggestedFollowsByMutuals(agent, did, { maxSuggestions: 20 })
+          : await getSuggestedFollows(agent, did, { maxSuggestions: 20 })
       const shown = getRecommendationsShown()
       const cutoff = getRotationCutoff()
       /* Only filter out dismissed (×) accounts for 7 days; don't mark as "shown" when displaying so each open is fresh */
@@ -55,7 +45,7 @@ export default function SuggestedFollows() {
     } finally {
       setLoading(false)
     }
-  }, [dismissedDids])
+  }, [dismissedDids, sortBy])
 
   useEffect(() => {
     load()
@@ -69,14 +59,16 @@ export default function SuggestedFollows() {
       const session = getSession()
       const did = session?.did
       if (!did) return
-      const d = await getSuggestedFollowDetail(agent, did, s.did)
+      const d = await getSuggestedFollowDetail(agent, did, s.did, {
+        source: sortBy === 'mutuals' ? 'mutuals' : 'peopleYouFollow',
+      })
       setDetail(d)
     } catch {
       setDetail({ count: 0, followedBy: [] })
     } finally {
       setDetailLoading(false)
     }
-  }, [])
+  }, [sortBy])
 
   const handleFollow = useCallback(
     async (did: string, _handle: string) => {
@@ -102,8 +94,7 @@ export default function SuggestedFollows() {
   const infoSuggestion = infoOpenForDid ? suggestions.find((s) => s.did === infoOpenForDid) : null
 
   return (
-    <section className={styles.wrap} aria-label="Suggested accounts to follow">
-      <h2 className={styles.heading}>Discover accounts</h2>
+    <div className={styles.wrap} aria-label="Suggested accounts to follow">
       <p className={styles.subtext}>
         Accounts followed by people you follow. New suggestions each time you open.
       </p>
@@ -117,8 +108,7 @@ export default function SuggestedFollows() {
             aria-label="Sort suggestions"
           >
             <option value="count">Most followed by people you follow</option>
-            <option value="random">Random</option>
-            <option value="handle">Handle (A–Z)</option>
+            <option value="mutuals">Most followed by mutuals</option>
           </select>
         </div>
       )}
@@ -146,9 +136,13 @@ export default function SuggestedFollows() {
               <span className={styles.info}>
                 <span className={styles.handle}>@{s.handle}</span>
                 <span className={styles.reason}>
-                  {s.count === 1
-                    ? 'Followed by 1 person you follow'
-                    : `Followed by ${s.count} people you follow`}
+                  {sortBy === 'mutuals'
+                    ? s.count === 1
+                      ? 'Followed by 1 mutual'
+                      : `Followed by ${s.count} mutuals`
+                    : s.count === 1
+                      ? 'Followed by 1 person you follow'
+                      : `Followed by ${s.count} people you follow`}
                 </span>
               </span>
             </button>
@@ -211,9 +205,13 @@ export default function SuggestedFollows() {
             ) : detail ? (
               <div className={styles.detailBody}>
                 <p className={styles.detailSummary}>
-                  {detail.count === 1
-                    ? 'Followed by 1 person you follow:'
-                    : `Followed by ${detail.count} people you follow:`}
+                  {detail.fromMutuals
+                    ? detail.count === 1
+                      ? 'Followed by 1 mutual:'
+                      : `Followed by ${detail.count} mutuals:`
+                    : detail.count === 1
+                      ? 'Followed by 1 person you follow:'
+                      : `Followed by ${detail.count} people you follow:`}
                 </p>
                 <ul className={styles.detailList}>
                   {detail.followedBy.map((acc) => (
@@ -244,7 +242,7 @@ export default function SuggestedFollows() {
         </div>,
         document.body
       )}
-    </section>
+    </div>
   )
 }
 

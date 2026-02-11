@@ -38,7 +38,7 @@ function bodyPreview(body: string | undefined): string {
 
 type ForumTab = 'all' | 'followed' | 'mine'
 
-export function ForumContent({ inModal = false }: { inModal?: boolean }) {
+export function ForumContent({ inModal = false, onRegisterRefresh }: { inModal?: boolean; onRegisterRefresh?: (fn: () => void | Promise<void>) => void }) {
   const [tab, setTab] = useState<ForumTab>('all')
   const [documents, setDocuments] = useState<StandardSiteDocumentView[]>([])
   const [loading, setLoading] = useState(true)
@@ -75,6 +75,10 @@ export function ForumContent({ inModal = false }: { inModal?: boolean }) {
     setDocuments([])
     load()
   }, [load])
+
+  useEffect(() => {
+    onRegisterRefresh?.(() => load())
+  }, [onRegisterRefresh, load])
 
   const filteredDocuments = useMemo(
     () => documents.filter((doc) => matchesSearch(doc, searchQuery)),

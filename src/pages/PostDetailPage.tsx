@@ -14,8 +14,33 @@ import VideoWithHls from '../components/VideoWithHls'
 import PostText from '../components/PostText'
 import PostActionsMenu from '../components/PostActionsMenu'
 import ComposerSuggestions from '../components/ComposerSuggestions'
+import CharacterCountWithCircle from '../components/CharacterCountWithCircle'
 import { useProfileModal } from '../context/ProfileModalContext'
 import styles from './PostDetailPage.module.css'
+
+const ACTION_ICON_SIZE = 18
+function RepostIcon() {
+  return (
+    <svg width={ACTION_ICON_SIZE} height={ACTION_ICON_SIZE} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z" />
+    </svg>
+  )
+}
+function CollectIcon() {
+  return (
+    <svg width={ACTION_ICON_SIZE} height={ACTION_ICON_SIZE} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+    </svg>
+  )
+}
+function QuotesIcon() {
+  return (
+    <svg width={ACTION_ICON_SIZE} height={ACTION_ICON_SIZE} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M3 21c3 0 7-1 7-8V5c0-1.25-.756-2.017-2-2H3c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2z" />
+      <path d="M15 21c3 0 7-1 7-8V5c0-1.25-.757-2.017-2-2h-5c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2z" />
+    </svg>
+  )
+}
 
 export function ReplyAsRow({
   replyAs,
@@ -256,6 +281,7 @@ function PostBlock({
   downvoteLoadingUri,
   openActionsMenuCommentUri,
   onActionsMenuOpenChange,
+  onViewQuotes,
 }: {
   node: AppBskyFeedDefs.ThreadViewPost | AppBskyFeedDefs.NotFoundPost | AppBskyFeedDefs.BlockedPost | { $type: string }
   depth?: number
@@ -290,6 +316,8 @@ function PostBlock({
   /** When set, which comment's actions menu is open (used to show like/downvote counts on that comment) */
   openActionsMenuCommentUri?: string | null
   onActionsMenuOpenChange?: (uri: string, open: boolean) => void
+  /** When set, show "View Quotes" in the post actions menu and call this with post URI */
+  onViewQuotes?: (postUri: string) => void
 }) {
   if (!isThreadViewPost(node)) return null
   const { post } = node
@@ -417,6 +445,7 @@ function PostBlock({
             open={onActionsMenuOpenChange ? openActionsMenuCommentUri === post.uri : undefined}
             onOpenChange={onActionsMenuOpenChange ? (open) => onActionsMenuOpenChange(post.uri, open) : undefined}
             postedAt={(post.record as { createdAt?: string })?.createdAt}
+            onViewQuotes={onViewQuotes}
           />
         </div>
       )}
@@ -458,7 +487,10 @@ function PostBlock({
               maxLength={300}
               autoFocus
             />
-            <p className={styles.hint}>⌘ Enter or ⌘ E to post</p>
+            <div className={styles.commentFormFooter}>
+              <CharacterCountWithCircle used={(replyComment ?? '').length} max={300} />
+              <p className={styles.hint}>⌘ Enter or ⌘ E to post</p>
+            </div>
             <button type="submit" className={styles.submit} disabled={replyPosting || !(replyComment ?? '').trim()}>
               {replyPosting ? 'Posting…' : 'Post reply'}
             </button>
@@ -532,6 +564,7 @@ function PostBlock({
                     downvoteLoadingUri={downvoteLoadingUri}
                     openActionsMenuCommentUri={openActionsMenuCommentUri}
                     onActionsMenuOpenChange={onActionsMenuOpenChange}
+                    onViewQuotes={onViewQuotes}
                   />
                 )
               })}
@@ -561,7 +594,7 @@ export interface PostDetailContentProps {
 
 export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocusedCommentUri, onClose, onAuthorHandle, onRegisterRefresh }: PostDetailContentProps) {
   const navigate = useNavigate()
-  const { openProfileModal, openPostModal } = useProfileModal()
+  const { openProfileModal, openPostModal, openQuotesModal } = useProfileModal()
   const decodedUri = uriProp
   const [thread, setThread] = useState<
     AppBskyFeedDefs.ThreadViewPost | AppBskyFeedDefs.NotFoundPost | AppBskyFeedDefs.BlockedPost | { $type: string } | null
@@ -592,7 +625,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
   const [openActionsMenuUri, setOpenActionsMenuUri] = useState<string | null>(null)
   const [newBoardName, setNewBoardName] = useState('')
   const [showBoardDropdown, setShowBoardDropdown] = useState(false)
-  const [downloadLoading, setDownloadLoading] = useState(false)
+  const [saveLoading, setSaveLoading] = useState(false)
   const [showRepostDropdown, setShowRepostDropdown] = useState(false)
   const [showQuoteComposer, setShowQuoteComposer] = useState(false)
   const [quoteText, setQuoteText] = useState('')
@@ -610,6 +643,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
   const commentsSectionRef = useRef<HTMLDivElement>(null)
   const [focusedCommentIndex, setFocusedCommentIndex] = useState(0)
   const [commentFormFocused, setCommentFormFocused] = useState(false)
+  const commentFormTopRef = useRef<HTMLFormElement>(null)
   type CommentSortMode = 'newest' | 'oldest' | 'likes' | 'score' | 'controversial' | 'best'
   const [commentSortOrder, setCommentSortOrder] = useState<CommentSortMode>('score')
   const [keyboardFocusIndex, setKeyboardFocusIndex] = useState(0)
@@ -701,27 +735,23 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
     }
   }
 
-  async function handleDownload() {
-    if (!thread || !isThreadViewPost(thread) || downloadLoading) return
+  async function handleSave() {
+    if (!thread || !isThreadViewPost(thread) || saveLoading) return
     const mediaList = getPostAllMedia(thread.post)
     if (mediaList.length === 0) return
-    const first = mediaList[0]
+    const idx = Math.min(keyboardFocusIndex, mediaList.length - 1)
+    const item = mediaList[idx]
     const handle = thread.post.author.handle ?? thread.post.author.did
     const postUri = thread.post.uri
-    if (first.type === 'video' && first.videoPlaylist) {
-      setDownloadLoading(true)
-      try {
-        await downloadVideoWithPostUri(first.videoPlaylist, postUri)
-      } finally {
-        setDownloadLoading(false)
-      }
-      return
-    }
-    setDownloadLoading(true)
+    setSaveLoading(true)
     try {
-      await downloadImageWithHandle(first.url, handle, postUri)
+      if (item.type === 'video' && item.videoPlaylist) {
+        await downloadVideoWithPostUri(item.videoPlaylist, postUri)
+      } else if (item.type === 'image' && item.url) {
+        await downloadImageWithHandle(item.url, handle, postUri, mediaList.length > 1 ? idx : undefined)
+      }
     } finally {
-      setDownloadLoading(false)
+      setSaveLoading(false)
     }
   }
 
@@ -868,6 +898,22 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
       await postReply(rootPost.uri, rootPost.cid, parent.uri, parent.cid, comment.trim())
       setComment('')
       setReplyingTo(null)
+      await load()
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Failed to post comment')
+    } finally {
+      setPosting(false)
+    }
+  }
+
+  async function handlePostReplyFromTop(e: React.FormEvent) {
+    e.preventDefault()
+    if (!thread || !isThreadViewPost(thread) || !comment.trim()) return
+    const rootPost = thread.post
+    setPosting(true)
+    try {
+      await postReply(rootPost.uri, rootPost.cid, rootPost.uri, rootPost.cid, comment.trim())
+      setComment('')
       await load()
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : 'Failed to post comment')
@@ -1596,13 +1642,13 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                 {rootMedia.length > 0 && (
                   <button
                     type="button"
-                    className={styles.downloadBtn}
-                    onClick={handleDownload}
-                    disabled={downloadLoading}
-                    title={rootMedia[0].type === 'video' ? 'Download video' : 'Download image'}
-                    aria-label={rootMedia[0].type === 'video' ? 'Download video' : 'Download image'}
+                    className={styles.saveBtn}
+                    onClick={handleSave}
+                    disabled={saveLoading}
+                    title={rootMedia[keyboardFocusIndex]?.type === 'video' ? 'Save video' : 'Save image'}
+                    aria-label={rootMedia[keyboardFocusIndex]?.type === 'video' ? 'Save video' : 'Save image'}
                   >
-                    {downloadLoading ? '…' : '↓'} Download
+                    {saveLoading ? '…' : '↓'} Save
                   </button>
                 )}
                 <div className={styles.addToBoardWrap}>
@@ -1613,6 +1659,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                     aria-expanded={showBoardDropdown}
                     aria-haspopup="true"
                   >
+                    <span className={styles.likeRepostBtnIcon} aria-hidden><CollectIcon /></span>
                     Collect {showBoardDropdown ? '▾' : '▸'}
                   </button>
                   {showBoardDropdown && (
@@ -1687,6 +1734,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                     aria-expanded={showRepostDropdown}
                     aria-haspopup="true"
                   >
+                    <span className={styles.likeRepostBtnIcon} aria-hidden><RepostIcon /></span>
                     {repostLoading ? '…' : 'Repost ▾'}
                   </button>
                   {showRepostDropdown && (
@@ -1716,6 +1764,18 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                   )}
                 </div>
                 {thread && isThreadViewPost(thread) && (
+                  <button
+                    type="button"
+                    className={styles.likeRepostBtn}
+                    onClick={() => openQuotesModal(thread.post.uri)}
+                    title="View posts that quote this"
+                    aria-label="View quotes"
+                  >
+                    <span className={styles.likeRepostBtnIcon} aria-hidden><QuotesIcon /></span>
+                    View Quotes
+                  </button>
+                )}
+                {thread && isThreadViewPost(thread) && (
                   <PostActionsMenu
                     postUri={thread.post.uri}
                     postCid={thread.post.cid}
@@ -1728,6 +1788,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                     onOpenChange={(open) => setOpenActionsMenuUri(open ? thread.post.uri : null)}
                     onHidden={() => navigate('/feed')}
                     postedAt={(thread.post.record as { createdAt?: string })?.createdAt}
+                    onViewQuotes={openQuotesModal}
                   />
                 )}
               </div>
@@ -1738,6 +1799,51 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
               )}
             </section>
             </article>
+            {thread && isThreadViewPost(thread) && (
+              <div className={styles.inlineReplyFormWrap}>
+                <div>
+                  <form ref={commentFormTopRef} onSubmit={handlePostReplyFromTop} className={styles.commentForm}>
+                    {replyAs && (
+                      <div className={styles.inlineReplyFormHeader}>
+                        {sessionsList && sessionFromContext?.did ? (
+                          <ReplyAsRow replyAs={replyAs} sessionsList={sessionsList} switchAccount={switchAccount} currentDid={sessionFromContext.did} />
+                        ) : (
+                          <p className={styles.replyAs}>
+                            <span className={styles.replyAsLabel}>Replying as</span>
+                            <span className={styles.replyAsUserChip}>
+                              {replyAs.avatar ? (
+                                <img src={replyAs.avatar} alt="" className={styles.replyAsAvatar} loading="lazy" />
+                              ) : (
+                                <span className={styles.replyAsAvatarPlaceholder} aria-hidden>{replyAs.handle.slice(0, 1).toUpperCase()}</span>
+                              )}
+                              <span className={styles.replyAsHandle}>@{replyAs.handle}</span>
+                            </span>
+                          </p>
+                        )}
+                      </div>
+                    )}
+                    <ComposerSuggestions
+                      placeholder="Write a comment…"
+                      value={comment}
+                      onChange={setComment}
+                      onKeyDown={(e) => {
+                        if ((e.key === 'Enter' || e.key === 'E') && (e.metaKey || e.ctrlKey)) {
+                          e.preventDefault()
+                          if (comment.trim() && !posting) commentFormTopRef.current?.requestSubmit()
+                        }
+                      }}
+                      className={styles.textarea}
+                      rows={3}
+                      maxLength={300}
+                    />
+                    <p className={styles.hint}>⌘ Enter or ⌘ E to post</p>
+                    <button type="submit" className={styles.submit} disabled={posting || !comment.trim()}>
+                      {posting ? 'Posting…' : 'Post comment'}
+                    </button>
+                  </form>
+                </div>
+              </div>
+            )}
             {'replies' in thread && Array.isArray(thread.replies) && thread.replies.length > 0 && (
               <div
                 ref={commentsSectionRef}
@@ -1868,6 +1974,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                         downvoteLoadingUri={commentDownvoteLoadingUri}
                         openActionsMenuCommentUri={openActionsMenuUri}
                         onActionsMenuOpenChange={(uri, open) => setOpenActionsMenuUri(open ? uri : null)}
+                        onViewQuotes={openQuotesModal}
                       />
                     </div>
                   )
@@ -1875,7 +1982,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                 </div>
               </div>
             )}
-            {(!replyingTo || (thread && isThreadViewPost(thread) && replyingTo.uri === thread.post.uri)) && (
+            {(thread && isThreadViewPost(thread) && 'replies' in thread && Array.isArray(thread.replies) && thread.replies.length >= 6 && (!replyingTo || replyingTo.uri === thread.post.uri)) && (
               <div className={styles.inlineReplyFormWrap}>
                 <div
                   ref={commentFormWrapRef}
@@ -1954,6 +2061,48 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                 {!session?.did ? (
                   <p className={styles.quoteComposerSignIn}>Log in to quote posts.</p>
                 ) : (
+                  <>
+                    {thread && isThreadViewPost(thread) && (() => {
+                      const post = thread.post
+                      const handle = post.author?.handle ?? post.author?.did ?? ''
+                      const text = (post.record as { text?: string })?.text ?? ''
+                      const mediaList = getPostAllMedia(post)
+                      const firstMedia = mediaList[0]
+                      return (
+                        <div className={styles.quoteComposerQuotedWrap}>
+                          <p className={styles.quotedPostLabel}>Quoting</p>
+                          <div className={styles.quoteComposerQuotedCard}>
+                            <div className={styles.quotedPostHead}>
+                              {post.author?.avatar ? (
+                                <img src={post.author.avatar} alt="" className={styles.quotedPostAvatar} loading="lazy" />
+                              ) : (
+                                <span className={styles.quotedPostAvatarPlaceholder} aria-hidden>{handle.slice(0, 1).toUpperCase()}</span>
+                              )}
+                              <span className={styles.quotedPostHandle}>@{handle}</span>
+                              {(post.record as { createdAt?: string })?.createdAt && (
+                                <span className={styles.quotedPostTime} title={formatExactDateTime((post.record as { createdAt: string }).createdAt)}>
+                                  {formatRelativeTime((post.record as { createdAt: string }).createdAt)}
+                                </span>
+                              )}
+                            </div>
+                            {firstMedia && (
+                              <div className={styles.quotedPostMedia}>
+                                {firstMedia.type === 'image' ? (
+                                  <img src={firstMedia.url} alt="" loading="lazy" className={styles.quotedPostThumb} />
+                                ) : firstMedia.videoPlaylist ? (
+                                  <div className={styles.quotedPostVideoThumb} style={{ backgroundImage: firstMedia.url ? `url(${firstMedia.url})` : undefined }} />
+                                ) : null}
+                              </div>
+                            )}
+                            {text ? (
+                              <p className={styles.quotedPostText}>
+                                <PostText text={text} facets={(post.record as { facets?: unknown[] })?.facets} maxLength={300} stopPropagation />
+                              </p>
+                            ) : null}
+                          </div>
+                        </div>
+                      )
+                    })()}
                   <form
                     onSubmit={handleQuoteSubmit}
                     onKeyDown={(e) => {
@@ -2042,9 +2191,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                         >
                           Add media
                         </button>
-                        <span className={styles.quoteComposerCount} aria-live="polite">
-                          {quoteText.length}/{QUOTE_MAX_LENGTH}
-                        </span>
+                        <CharacterCountWithCircle used={quoteText.length} max={QUOTE_MAX_LENGTH} />
                       </div>
                       <div className={styles.quoteComposerActions}>
                         <button type="button" className={styles.quoteComposerCancel} onClick={closeQuoteComposer} disabled={quotePosting}>
@@ -2061,6 +2208,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                     </div>
                     {quoteError && <p className={styles.quoteComposerError}>{quoteError}</p>}
                   </form>
+                  </>
                 )}
               </div>
             </div>

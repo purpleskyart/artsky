@@ -61,6 +61,28 @@
   to   { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
 
+/* Same as nsfwAnnouncement but positioned above the anchor (e.g. hide seen posts button) */
+.seenPostsAnnouncement {
+  position: fixed;
+  transform: translate(-50%, -100%);
+  z-index: 100;
+  padding: 0.3rem 0.65rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-on-accent);
+  background: var(--accent);
+  border-radius: 999px;
+  box-shadow: var(--shadow-dropdown);
+  white-space: nowrap;
+  pointer-events: none;
+  animation: seenPostsTooltipIn 0.15s ease;
+}
+
+@keyframes seenPostsTooltipIn {
+  from { opacity: 0; transform: translate(-50%, calc(-100% - 4px)); }
+  to   { opacity: 1; transform: translate(-50%, -100%); }
+}
+
 @media (max-width: 767px) {
   /* Reserve space for floating liquid glass nav (pill height + transparent gap below) */
   .wrap {
@@ -82,7 +104,7 @@
 @media (max-width: 767px) {
   /* Match header height: top padding + bar content (logo/buttons + padding) so feed buttons aren’t covered */
   .wrapWithHeader {
-    padding-top: calc(max(0.5rem, env(safe-area-inset-top, 0px)) + 3.5rem);
+    padding-top: calc(max(0.5rem, env(safe-area-inset-top, 59px)) + 3.5rem);
   }
 }
 
@@ -124,12 +146,13 @@
     backdrop-filter: blur(28px) saturate(180%);
     border-radius: 0;
     box-shadow: none;
-    padding-top: max(0.5rem, env(safe-area-inset-top, 0px));
+    /* Fallback 59px covers iPhone status bar + notch/Dynamic Island when env() is 0 or wrong (e.g. PWA standalone) */
+    padding-top: max(0.5rem, env(safe-area-inset-top, 59px));
   }
-  /* PWA/standalone: ensure navbar is below status bar when safe-area-inset-top is missing or small */
+  /* PWA/standalone: reinforce minimum top padding (iOS can report 0 for safe-area-inset-top in standalone) */
   @media (display-mode: standalone) {
     .header {
-      padding-top: max(0.5rem, env(safe-area-inset-top, 44px));
+      padding-top: max(0.5rem, env(safe-area-inset-top, 59px));
     }
   }
   /* Fully off-screen above viewport so top area can stay transparent on iPhone */
@@ -467,8 +490,8 @@
     gap: 0.25rem;
   }
   .logoIcon {
-    width: 22px;
-    height: 22px;
+    width: 18px;
+    height: 18px;
   }
   .logoText {
     font-size: 0.95rem;
@@ -720,8 +743,8 @@ button.logoLink {
 }
 
 .logoIcon {
-  width: 28px;
-  height: 28px;
+  width: 22px;
+  height: 22px;
   display: block;
 }
 
@@ -1710,12 +1733,25 @@ button.logoLink {
 }
 
 @media (max-width: 767px) {
+  /* Search at top (legacy) – kept for reference; mobile now uses searchOverlayMobileBottom */
   .searchOverlayMobileTop {
     align-items: flex-start;
     justify-content: center;
     padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-left)) 1rem max(1rem, env(safe-area-inset-right));
   }
   .searchOverlayMobileTop .searchOverlayCard {
+    width: 100%;
+    max-width: none;
+  }
+  /* Search right above the bottom navbar for easy thumb reach */
+  .searchOverlayMobileBottom {
+    align-items: flex-end;
+    justify-content: center;
+    padding-left: max(1rem, env(safe-area-inset-left));
+    padding-right: max(1rem, env(safe-area-inset-right));
+    padding-bottom: calc(5rem + max(0.75rem, env(safe-area-inset-bottom)));
+  }
+  .searchOverlayMobileBottom .searchOverlayCard {
     width: 100%;
     max-width: none;
   }
@@ -1935,6 +1971,31 @@ button.logoLink {
   overflow-y: auto;
 }
 
+.composeHeader {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.composeHeader .composeCancel {
+  justify-self: start;
+  min-width: 4.5rem;
+}
+
+.composeHeader .composeTitle {
+  margin: 0;
+  justify-self: center;
+  grid-column: 2;
+}
+
+.composeHeaderPostWrap {
+  justify-self: end;
+  grid-column: 3;
+  min-width: 4.5rem;
+}
+
 .composeTitle {
   margin: 0 0 1rem;
   font-size: 1.1rem;
@@ -2104,6 +2165,120 @@ button.logoLink {
   height: 0;
   opacity: 0;
   pointer-events: none;
+}
+
+.composeSegmentLabel {
+  margin: 0 0 0.5rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+/* Previous posts in thread – shown above current segment when user has clicked + */
+.composePreviousPosts {
+  margin-bottom: 1rem;
+  padding: 0.75rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--glass-radius-sm);
+  max-height:  min(40vh, 220px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.composePreviousPostsTitle {
+  margin: 0 0 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.composePreviousPostsList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.composePreviousPostCard {
+  display: block;
+  width: 100%;
+  padding: 0.5rem 0;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.9rem;
+  text-align: left;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  font-family: inherit;
+  border-radius: 0.25rem;
+  transition: background 0.15s ease;
+}
+
+.composePreviousPostCard:hover:not(:disabled) {
+  background: var(--surface);
+}
+
+.composePreviousPostCard:disabled {
+  cursor: default;
+}
+
+.composePreviousPostCardEditing {
+  background: var(--surface);
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.composePreviousPostCard:last-child {
+  border-bottom: none;
+}
+
+.composePreviousPostLabel {
+  display: block;
+  margin-bottom: 0.25rem;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.composePreviousPostText {
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text);
+  line-height: 1.4;
+}
+
+.composePreviousPostMedia {
+  margin: 0.25rem 0 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.composeAddThread {
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 0.35rem;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.composeAddThread:hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--muted);
+}
+
+.composeAddThread:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .composeAddMedia {

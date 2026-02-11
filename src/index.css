@@ -201,14 +201,14 @@ body {
     min-height: 100dvh;
     min-height: -webkit-fill-available;
   }
-  /* Content background fixed to viewport so safe-area strips stay transparent */
+  /* Theme background covers full viewport so area under bottom nav matches theme */
   #root::before {
     content: '';
     position: fixed;
-    top: env(safe-area-inset-top);
-    right: env(safe-area-inset-right);
-    bottom: env(safe-area-inset-bottom);
-    left: env(safe-area-inset-left);
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
     background: var(--bg);
     z-index: -1;
     pointer-events: none;

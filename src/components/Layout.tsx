@@ -11,7 +11,7 @@ import { useModeration } from '../context/ModerationContext'
 import { useMediaOnly } from '../context/MediaOnlyContext'
 import { useScrollLock } from '../context/ScrollLockContext'
 import { useSeenPosts } from '../context/SeenPostsContext'
-import { publicAgent, createPost, getNotifications, getUnreadNotificationCount, updateSeenNotifications, getSavedFeedsFromPreferences, getFeedDisplayName, resolveFeedUri, addSavedFeed, removeSavedFeedByUri, getFeedShareUrl } from '../lib/bsky'
+import { publicAgent, createPost, postReply, getNotifications, getUnreadNotificationCount, updateSeenNotifications, getSavedFeedsFromPreferences, getFeedDisplayName, resolveFeedUri, addSavedFeed, removeSavedFeedByUri, getFeedShareUrl } from '../lib/bsky'
 import type { FeedSource } from '../types'
 import { GUEST_FEED_SOURCES, GUEST_MIX_ENTRIES } from '../config/feedSources'
 import { useFeedMix } from '../context/FeedMixContext'
@@ -19,6 +19,8 @@ import { FeedSwipeProvider } from '../context/FeedSwipeContext'
 import SearchBar from './SearchBar'
 import FeedSelector from './FeedSelector'
 import ComposerSuggestions from './ComposerSuggestions'
+import PostText from './PostText'
+import CharacterCountWithCircle from './CharacterCountWithCircle'
 import { CardDefaultIcon, CardMinimalistIcon, CardArtOnlyIcon, EyeOpenIcon, EyeHalfIcon, EyeClosedIcon } from './Icons'
 import styles from './Layout.module.css'
 
@@ -56,7 +58,7 @@ function loadFeedOrder(): string[] {
   }
 }
 
-/** NSFW preference row – subscribes to ModerationContext so it stays in sync in account menu and compact sheet. */
+/** NSFW preference row – subscribes to ModerationContext so it stays in sync in account menu and compact sheet. No toast when changing from this row. */
 function NsfwPreferenceRow({ rowClassName }: { rowClassName: string }) {
   const { nsfwPreference, setNsfwPreference } = useModeration()
   return (
@@ -66,7 +68,7 @@ function NsfwPreferenceRow({ rowClassName }: { rowClassName: string }) {
           key={p}
           type="button"
           className={nsfwPreference === p ? styles.menuNsfwBtnActive : styles.menuNsfwBtn}
-          onClick={(e) => setNsfwPreference(p, e.currentTarget)}
+          onClick={() => setNsfwPreference(p, undefined, { showToast: false })}
         >
           {p === 'nsfw' ? 'NSFW' : p === 'sfw' ? 'SFW' : 'Blurred'}
         </button>
@@ -332,8 +334,8 @@ export default function Layout({ title, children, showNav }: Props) {
       </button>
     </div>
   )
-  const { viewMode, setViewMode, cycleViewMode } = useViewMode()
-  const { cardViewMode, cycleCardView } = useArtOnly()
+  const { viewMode, setViewMode, cycleViewMode, viewModeAnnouncement } = useViewMode()
+  const { cardViewMode, cycleCardView, cardViewAnnouncement } = useArtOnly()
   const { nsfwPreference, cycleNsfwPreference, nsfwAnnouncement } = useModeration()
   const { mediaOnly, toggleMediaOnly } = useMediaOnly()
   const path = loc.pathname
@@ -356,13 +358,14 @@ export default function Layout({ title, children, showNav }: Props) {
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false)
   const [composeOpen, setComposeOpen] = useState(false)
   const [composeOverlayBottom, setComposeOverlayBottom] = useState(0)
-  const [composeText, setComposeText] = useState('')
-  const [composeImages, setComposeImages] = useState<File[]>([])
-  const [composeImageAlts, setComposeImageAlts] = useState<string[]>([])
+  type ComposeSegment = { text: string; images: File[]; imageAlts: string[] }
+  const [composeSegments, setComposeSegments] = useState<ComposeSegment[]>([{ text: '', images: [], imageAlts: [] }])
+  const [composeSegmentIndex, setComposeSegmentIndex] = useState(0)
   const [composePosting, setComposePosting] = useState(false)
   const [composeError, setComposeError] = useState<string | null>(null)
   const composeFileInputRef = useRef<HTMLInputElement>(null)
   const composeFormRef = useRef<HTMLFormElement>(null)
+  const currentSegment = composeSegments[composeSegmentIndex] ?? { text: '', images: [], imageAlts: [] }
   const navVisible = true
   const [aboutOpen, setAboutOpen] = useState(false)
   const [searchOverlayBottom, setSearchOverlayBottom] = useState(0)
@@ -438,9 +441,12 @@ export default function Layout({ title, children, showNav }: Props) {
     }
   }, [])
 
-  const startSeenHold = useCallback(() => {
+  const seenHoldAnchorRef = useRef<HTMLElement | null>(null)
+  const startSeenHold = useCallback((e: React.PointerEvent) => {
+    seenHoldAnchorRef.current = e.currentTarget as HTMLElement
     seenHoldTimerRef.current = setTimeout(() => {
       seenLongPressTriggeredRef.current = true
+      seenPosts?.announceShowSeen(seenHoldAnchorRef.current ?? undefined)
       seenPosts?.clearSeenAndShowAll()
       seenHoldTimerRef.current = null
     }, HOME_HOLD_MS)
@@ -453,12 +459,12 @@ export default function Layout({ title, children, showNav }: Props) {
     }
   }, [])
 
-  const seenBtnClick = useCallback(() => {
+  const seenBtnClick = useCallback((e?: React.MouseEvent<HTMLButtonElement>) => {
     if (seenLongPressTriggeredRef.current) {
       seenLongPressTriggeredRef.current = false
       return
     }
-    seenPosts?.onHideSeenOnly()
+    seenPosts?.onHideSeenOnly(e?.currentTarget ?? undefined)
     if (path !== '/feed') navigate('/feed')
   }, [seenPosts, path, navigate])
 
@@ -858,7 +864,8 @@ export default function Layout({ title, children, showNav }: Props) {
 
   function openCompose() {
     setComposeOpen(true)
-    setComposeText('')
+    setComposeSegments([{ text: '', images: [], imageAlts: [] }])
+    setComposeSegmentIndex(0)
     setComposeError(null)
     setComposeOverlayBottom(0)
   }
@@ -871,32 +878,72 @@ export default function Layout({ title, children, showNav }: Props) {
   const COMPOSE_IMAGE_MAX = 4
   const COMPOSE_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
 
+  function setCurrentSegmentText(value: string) {
+    setComposeSegments((prev) => {
+      const n = [...prev]
+      const seg = n[composeSegmentIndex]
+      if (seg) n[composeSegmentIndex] = { ...seg, text: value }
+      return n
+    })
+  }
+
   function addComposeImages(files: FileList | File[]) {
     const list = Array.from(files).filter((f) => COMPOSE_IMAGE_TYPES.includes(f.type))
-    const take = Math.min(list.length, COMPOSE_IMAGE_MAX - composeImages.length)
+    const seg = currentSegment
+    const take = Math.min(list.length, COMPOSE_IMAGE_MAX - seg.images.length)
     if (take <= 0) return
     const added = list.slice(0, take)
-    setComposeImages((prev) => [...prev, ...added])
-    setComposeImageAlts((prev) => [...prev, ...added.map(() => '')])
+    setComposeSegments((prev) => {
+      const n = [...prev]
+      const s = n[composeSegmentIndex]
+      if (s) n[composeSegmentIndex] = { ...s, images: [...s.images, ...added], imageAlts: [...s.imageAlts, ...added.map(() => '')] }
+      return n
+    })
   }
 
   function removeComposeImage(index: number) {
-    setComposeImages((prev) => prev.filter((_, i) => i !== index))
-    setComposeImageAlts((prev) => prev.filter((_, i) => i !== index))
+    setComposeSegments((prev) => {
+      const n = [...prev]
+      const s = n[composeSegmentIndex]
+      if (s) n[composeSegmentIndex] = { ...s, images: s.images.filter((_, i) => i !== index), imageAlts: s.imageAlts.filter((_, i) => i !== index) }
+      return n
+    })
+  }
+
+  function addComposeThreadSegment() {
+    setComposeSegments((prev) => [...prev, { text: '', images: [], imageAlts: [] }])
+    setComposeSegmentIndex((prev) => prev + 1)
   }
 
   async function handleComposeSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!session || composePosting) return
-    const canSubmit = composeText.trim() || composeImages.length > 0
-    if (!canSubmit) return
+    const toPost = composeSegments.filter((s) => s.text.trim() || s.images.length > 0)
+    if (toPost.length === 0) return
     setComposeError(null)
     setComposePosting(true)
     try {
-      await createPost(composeText, composeImages.length > 0 ? composeImages : undefined, composeImageAlts.length > 0 ? composeImageAlts : undefined)
-      setComposeText('')
-      setComposeImages([])
-      setComposeImageAlts([])
+      let rootUri: string | null = null
+      let rootCid: string | null = null
+      let parentUri: string | null = null
+      let parentCid: string | null = null
+      for (let i = 0; i < toPost.length; i++) {
+        const s = toPost[i]
+        if (i === 0) {
+          const r = await createPost(s.text, s.images.length > 0 ? s.images : undefined, s.imageAlts.length > 0 ? s.imageAlts : undefined)
+          rootUri = r.uri
+          rootCid = r.cid
+          parentUri = r.uri
+          parentCid = r.cid
+        } else {
+          if (!s.text.trim()) continue
+          const r = await postReply(rootUri!, rootCid!, parentUri!, parentCid!, s.text)
+          parentUri = r.uri
+          parentCid = r.cid
+        }
+      }
+      setComposeSegments([{ text: '', images: [], imageAlts: [] }])
+      setComposeSegmentIndex(0)
       closeCompose()
       navigate('/feed')
     } catch (err) {
@@ -909,7 +956,7 @@ export default function Layout({ title, children, showNav }: Props) {
   function handleComposeKeyDown(e: React.KeyboardEvent, form: HTMLFormElement | null) {
     if ((e.key === 'Enter' || e.key === 'E') && (e.metaKey || e.ctrlKey)) {
       e.preventDefault()
-      if (form && (composeText.trim() || composeImages.length > 0) && !composePosting) {
+      if (form && (currentSegment.text.trim() || currentSegment.images.length > 0) && !composePosting) {
         form.requestSubmit()
       }
     }
@@ -927,8 +974,8 @@ export default function Layout({ title, children, showNav }: Props) {
   }
 
   const composePreviewUrls = useMemo(
-    () => composeImages.map((f) => URL.createObjectURL(f)),
-    [composeImages],
+    () => currentSegment.images.map((f) => URL.createObjectURL(f)),
+    [currentSegment.images],
   )
   useEffect(() => {
     return () => composePreviewUrls.forEach((u) => URL.revokeObjectURL(u))
@@ -1127,7 +1174,7 @@ export default function Layout({ title, children, showNav }: Props) {
             <button
               type="button"
               className={`${styles.menuMobileViewBtn} ${styles.menuMobileViewBtnActive}`}
-              onClick={cycleViewMode}
+              onClick={(e) => cycleViewMode(e.currentTarget)}
               title={`${VIEW_LABELS[viewMode]}. Click to cycle.`}
               aria-label={`Columns: ${VIEW_LABELS[viewMode]}`}
             >
@@ -1140,7 +1187,7 @@ export default function Layout({ title, children, showNav }: Props) {
             </button>
             <button
               type="button"
-              className={`${styles.menuMobileViewBtn} ${nsfwPreference !== 'sfw' ? styles.menuMobileViewBtnActive : ''}`}
+              className={`${styles.menuMobileViewBtn} ${styles.menuMobileViewBtnActive}`}
               onClick={(e) => cycleNsfwPreference(e.currentTarget)}
               title={`${nsfwPreference}. Click to cycle: SFW → Blurred → NSFW`}
               aria-label={`Content: ${nsfwPreference}. Click to cycle.`}
@@ -1154,8 +1201,8 @@ export default function Layout({ title, children, showNav }: Props) {
             </button>
             <button
               type="button"
-              className={`${styles.menuMobileViewBtn} ${cardViewMode !== 'default' ? styles.menuMobileViewBtnActive : ''}`}
-              onClick={cycleCardView}
+              className={`${styles.menuMobileViewBtn} ${styles.menuMobileViewBtnActive}`}
+              onClick={(e) => cycleCardView(e.currentTarget)}
               aria-label={cardViewMode === 'default' ? 'Full Cards' : cardViewMode === 'minimalist' ? 'Mini Cards' : 'Art Cards'}
               title={cardViewMode === 'default' ? 'Full Cards' : cardViewMode === 'minimalist' ? 'Mini Cards' : 'Art Cards'}
             >
@@ -1349,6 +1396,48 @@ export default function Layout({ title, children, showNav }: Props) {
           {nsfwAnnouncement.text}
         </div>
       )}
+      {seenPosts?.seenPostsAnnouncement && (
+        <div
+          className={styles.seenPostsAnnouncement}
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          style={{
+            top: seenPosts.seenPostsAnnouncement.anchorRect.top - 8,
+            left: seenPosts.seenPostsAnnouncement.anchorRect.left + seenPosts.seenPostsAnnouncement.anchorRect.width / 2,
+          }}
+        >
+          {seenPosts.seenPostsAnnouncement.text}
+        </div>
+      )}
+      {viewModeAnnouncement && (
+        <div
+          className={styles.nsfwAnnouncement}
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          style={{
+            top: viewModeAnnouncement.anchorRect.bottom + 8,
+            left: viewModeAnnouncement.anchorRect.left + viewModeAnnouncement.anchorRect.width / 2,
+          }}
+        >
+          {viewModeAnnouncement.text}
+        </div>
+      )}
+      {cardViewAnnouncement && (
+        <div
+          className={styles.nsfwAnnouncement}
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          style={{
+            top: cardViewAnnouncement.anchorRect.bottom + 8,
+            left: cardViewAnnouncement.anchorRect.left + cardViewAnnouncement.anchorRect.width / 2,
+          }}
+        >
+          {cardViewAnnouncement.text}
+        </div>
+      )}
       <header className={`${styles.header} ${showNav && !session ? styles.headerLoggedOut : ''} ${showNav && !isDesktop && !navVisible ? styles.headerHidden : ''}`} role="banner">
         {showNav && (
           <>
@@ -1523,7 +1612,7 @@ export default function Layout({ title, children, showNav }: Props) {
                   <button
                     type="button"
                     className={`${styles.headerBtn} ${cardViewMode !== 'default' ? styles.headerBtnActive : ''}`}
-                    onClick={cycleCardView}
+                    onClick={(e) => cycleCardView(e.currentTarget)}
                     aria-label={cardViewMode === 'default' ? 'Show all' : cardViewMode === 'minimalist' ? 'Minimalist' : 'Art only'}
                     title={cardViewMode === 'default' ? 'Show all' : cardViewMode === 'minimalist' ? 'Minimalist' : 'Art only'}
                   >
@@ -1532,7 +1621,7 @@ export default function Layout({ title, children, showNav }: Props) {
                   <button
                     type="button"
                     className={styles.headerBtn}
-                    onClick={cycleViewMode}
+                    onClick={(e) => cycleViewMode(e.currentTarget)}
                     title={`${VIEW_LABELS[viewMode]}. Click to cycle.`}
                     aria-label={`${VIEW_LABELS[viewMode]}. Click to cycle.`}
                   >
@@ -1682,11 +1771,11 @@ export default function Layout({ title, children, showNav }: Props) {
             <button
               type="button"
               className={styles.seenPostsFloatBtn}
-              onPointerDown={startSeenHold}
+              onPointerDown={(e) => startSeenHold(e)}
               onPointerUp={endSeenHold}
               onPointerLeave={endSeenHold}
               onPointerCancel={endSeenHold}
-              onClick={seenBtnClick}
+              onClick={(e) => seenBtnClick(e)}
               title="Tap to hide seen posts, hold to show them again"
               aria-label="Seen posts: tap to hide, hold to show again"
             >
@@ -1707,13 +1796,13 @@ export default function Layout({ title, children, showNav }: Props) {
                 aria-hidden
               />
               <div
-                className={`${styles.searchOverlayCenter} ${!isDesktop ? styles.searchOverlayMobileTop : styles.searchOverlayAboveKeyboard}`}
+                className={`${styles.searchOverlayCenter} ${!isDesktop ? styles.searchOverlayMobileBottom : styles.searchOverlayAboveKeyboard}`}
                 role="dialog"
                 aria-label="Search"
                 style={!isDesktop ? undefined : { bottom: searchOverlayBottom }}
               >
                 <div className={styles.searchOverlayCard}>
-                  <SearchBar inputRef={searchInputRef} onClose={closeMobileSearch} suggestionsAbove={isDesktop} onSelectFeed={handleSelectFeedFromSearch} />
+                  <SearchBar inputRef={searchInputRef} onClose={closeMobileSearch} suggestionsAbove onSelectFeed={handleSelectFeedFromSearch} />
                 </div>
               </div>
             </>
@@ -1735,17 +1824,72 @@ export default function Layout({ title, children, showNav }: Props) {
                 style={!isDesktop ? { bottom: composeOverlayBottom } : undefined}
               >
                 <div className={styles.composeCard} onClick={(e) => e.stopPropagation()}>
-                  <h2 className={styles.composeTitle}>New post</h2>
+                  <header className={styles.composeHeader}>
+                    <button type="button" className={styles.composeCancel} onClick={closeCompose} disabled={composePosting}>
+                      Cancel
+                    </button>
+                    <h2 className={styles.composeTitle}>New post</h2>
+                    <div className={styles.composeHeaderPostWrap}>
+                      {session && (
+                        <button
+                          type="submit"
+                          form="compose-form"
+                          className={styles.composeSubmit}
+                          disabled={composePosting || composeSegments.every((s) => !s.text.trim() && s.images.length === 0)}
+                        >
+                          {composePosting ? 'Posting…' : 'Post'}
+                        </button>
+                      )}
+                    </div>
+                  </header>
                   {!session ? (
                     <p className={styles.composeSignIn}>
                       <button type="button" className={styles.composeSignInLink} onClick={() => { closeCompose(); openLoginModal(); }}>Log in</button> to post.
                     </p>
                   ) : (
-                    <form ref={composeFormRef} onSubmit={handleComposeSubmit}>
+                    <form id="compose-form" ref={composeFormRef} onSubmit={handleComposeSubmit}>
+                      {composeSegments.length > 1 && (
+                        <div className={styles.composePreviousPosts} role="region" aria-label="Posts in thread">
+                          <p className={styles.composePreviousPostsTitle}>Posts in thread — click to edit</p>
+                          <div className={styles.composePreviousPostsList}>
+                            {composeSegments.map((seg, i) =>
+                              i === composeSegmentIndex ? null : (
+                                <button
+                                  key={i}
+                                  type="button"
+                                  className={styles.composePreviousPostCard}
+                                  onClick={() => setComposeSegmentIndex(i)}
+                                  disabled={composePosting}
+                                  aria-label={`Edit post ${i + 1}`}
+                                >
+                                  <span className={styles.composePreviousPostLabel}>
+                                    Post {i + 1}
+                                  </span>
+                                  {seg.text.trim() ? (
+                                    <div className={styles.composePreviousPostText}>
+                                      <PostText text={seg.text} interactive={false} />
+                                    </div>
+                                  ) : seg.images.length > 0 ? null : (
+                                    <div className={styles.composePreviousPostText}><em>Empty</em></div>
+                                  )}
+                                  {seg.images.length > 0 && (
+                                    <p className={styles.composePreviousPostMedia}>
+                                      {seg.images.length} image{seg.images.length !== 1 ? 's' : ''}
+                                    </p>
+                                  )}
+                                </button>
+                              )
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      {composeSegments.length > 1 && (
+                        <p className={styles.composeSegmentLabel}>Post {composeSegmentIndex + 1} of {composeSegments.length}</p>
+                      )}
                       <ComposerSuggestions
                         className={styles.composeTextarea}
-                        value={composeText}
-                        onChange={setComposeText}
+                        value={currentSegment.text}
+                        onChange={setCurrentSegmentText}
                         onKeyDown={(e) => handleComposeKeyDown(e, composeFormRef.current)}
                         placeholder="What's on your mind? Type @ for users, # for hashtags, % for forum posts"
                         rows={4}
@@ -1753,10 +1897,10 @@ export default function Layout({ title, children, showNav }: Props) {
                         disabled={composePosting}
                         autoFocus={isDesktop}
                       />
-                      {composeImages.length > 0 && (
+                      {currentSegment.images.length > 0 && (
                         <div className={styles.composeMediaSection}>
                           <div className={styles.composePreviews}>
-                            {composeImages.map((_, i) => (
+                            {currentSegment.images.map((_, i) => (
                               <div key={i} className={styles.composePreviewWrap}>
                                 <img
                                   src={composePreviewUrls[i]}
@@ -1777,24 +1921,28 @@ export default function Layout({ title, children, showNav }: Props) {
                           </div>
                           <p className={styles.composeAltPrompt}>Describe each image for accessibility (alt text).</p>
                           <div className={styles.composeAltFields}>
-                            {composeImages.map((_, i) => (
+                            {currentSegment.images.map((_, i) => (
                               <div key={i} className={styles.composeAltRow}>
-                                <label htmlFor={`compose-alt-${i}`} className={styles.composeAltLabel}>
+                                <label htmlFor={`compose-alt-${composeSegmentIndex}-${i}`} className={styles.composeAltLabel}>
                                   Image {i + 1}
                                 </label>
                                 <input
-                                  id={`compose-alt-${i}`}
+                                  id={`compose-alt-${composeSegmentIndex}-${i}`}
                                   type="text"
                                   className={styles.composeAltInput}
                                   placeholder="Describe this image for people using screen readers"
-                                  value={composeImageAlts[i] ?? ''}
+                                  value={currentSegment.imageAlts[i] ?? ''}
                                   onChange={(e) => {
                                     const val = e.target.value.slice(0, 1000)
-                                    setComposeImageAlts((prev) => {
-                                      const next = [...prev]
-                                      while (next.length < composeImages.length) next.push('')
-                                      next[i] = val
-                                      return next
+                                    setComposeSegments((prev) => {
+                                      const n = [...prev]
+                                      const s = n[composeSegmentIndex]
+                                      if (!s) return prev
+                                      const nextAlts = [...s.imageAlts]
+                                      while (nextAlts.length < s.images.length) nextAlts.push('')
+                                      nextAlts[i] = val
+                                      n[composeSegmentIndex] = { ...s, imageAlts: nextAlts }
+                                      return n
                                     })
                                   }}
                                   maxLength={1000}
@@ -1823,26 +1971,24 @@ export default function Layout({ title, children, showNav }: Props) {
                             type="button"
                             className={styles.composeAddMedia}
                             onClick={() => composeFileInputRef.current?.click()}
-                            disabled={composePosting || composeImages.length >= COMPOSE_IMAGE_MAX}
+                            disabled={composePosting || currentSegment.images.length >= COMPOSE_IMAGE_MAX}
                             title="Add photo"
                             aria-label="Add photo"
                           >
                             Add media
                           </button>
-                          <span className={styles.composeCount} aria-live="polite">
-                            {composeText.length}/{POST_MAX_LENGTH}
-                          </span>
                         </div>
                         <div className={styles.composeActions}>
-                          <button type="button" className={styles.composeCancel} onClick={closeCompose} disabled={composePosting}>
-                            Cancel
-                          </button>
+                          <CharacterCountWithCircle used={currentSegment.text.length} max={POST_MAX_LENGTH} />
                           <button
-                            type="submit"
-                            className={styles.composeSubmit}
-                            disabled={composePosting || (!composeText.trim() && composeImages.length === 0)}
+                            type="button"
+                            className={styles.composeAddThread}
+                            onClick={addComposeThreadSegment}
+                            disabled={composePosting}
+                            title="Add to thread"
+                            aria-label="Add to thread"
                           >
-                            {composePosting ? 'Posting…' : 'Post'}
+                            +
                           </button>
                         </div>
                       </div>

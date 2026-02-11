@@ -1,21 +1,29 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { publicAgent, getFollowers, getFollowsList, getMutualsList, type ProfileViewBasic } from '../lib/bsky'
+import { publicAgent, getFollowers, getFollowsList, getMutualsList, getFolloweesWhoFollowTarget, type ProfileViewBasic } from '../lib/bsky'
+import type { AtpAgent } from '@atproto/api'
 import { useProfileModal } from '../context/ProfileModalContext'
 import styles from './FollowListModal.module.css'
 
 const PAGE_SIZE = 50
 
-export type FollowListSort = 'handle-asc' | 'handle-desc' | 'name-asc' | 'name-desc' | 'date-desc' | 'date-asc'
+export type FollowListSortBy = 'handle' | 'displayName' | 'date'
+export type FollowListOrder = 'asc' | 'desc'
 
 export function FollowListModal({
   mode,
   actor,
   onClose,
+  viewerDid,
+  authenticatedClient,
 }: {
-  mode: 'followers' | 'following' | 'mutuals'
+  mode: 'followers' | 'following' | 'mutuals' | 'followedByFollows'
   actor: string
   onClose: () => void
+  /** Required when mode is 'followedByFollows': the logged-in user's DID. */
+  viewerDid?: string
+  /** Required when mode is 'followedByFollows': authenticated API client. */
+  authenticatedClient?: AtpAgent
 }) {
   const { openProfileModal } = useProfileModal()
   const [list, setList] = useState<ProfileViewBasic[]>([])
@@ -23,7 +31,8 @@ export function FollowListModal({
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [search, setSearch] = useState('')
-  const [sort, setSort] = useState<FollowListSort>('handle-asc')
+  const [sortBy, setSortBy] = useState<FollowListSortBy>('handle')
+  const [order, setOrder] = useState<FollowListOrder>('asc')
 
   const load = useCallback(
     async (nextCursor?: string) => {
@@ -34,6 +43,10 @@ export function FollowListModal({
         if (mode === 'mutuals') {
           const { list: mutualList } = await getMutualsList(publicAgent, actor)
           setList(mutualList)
+          setCursor(undefined)
+        } else if (mode === 'followedByFollows' && viewerDid && authenticatedClient) {
+          const { list: followeesList } = await getFolloweesWhoFollowTarget(authenticatedClient, viewerDid, actor)
+          setList(followeesList)
           setCursor(undefined)
         } else {
           const fetcher = mode === 'followers' ? getFollowers : getFollowsList
@@ -51,12 +64,17 @@ export function FollowListModal({
         setLoadingMore(false)
       }
     },
-    [actor, mode]
+    [actor, mode, viewerDid, authenticatedClient]
   )
 
   useEffect(() => {
+    if (mode === 'followedByFollows' && (!viewerDid || !authenticatedClient)) {
+      setLoading(false)
+      setList([])
+      return
+    }
     load()
-  }, [load])
+  }, [load, mode, viewerDid, authenticatedClient])
 
   const filteredAndSorted = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -70,20 +88,16 @@ export function FollowListModal({
     const byHandle = (a: ProfileViewBasic, b: ProfileViewBasic) =>
       (a.handle ?? a.did).localeCompare(b.handle ?? b.did)
     const byDisplayName = (a: ProfileViewBasic, b: ProfileViewBasic) =>
-      (a.displayName ?? '').localeCompare(b.displayName ?? '')
+      (a.displayName ?? a.handle ?? '').localeCompare(b.displayName ?? b.handle ?? '') || byHandle(a, b)
     const byDate = (a: ProfileViewBasic, b: ProfileViewBasic) => {
       const ta = a.indexedAt ? new Date(a.indexedAt).getTime() : 0
       const tb = b.indexedAt ? new Date(b.indexedAt).getTime() : 0
       return ta - tb
     }
-    if (sort === 'handle-asc') out.sort(byHandle)
-    else if (sort === 'handle-desc') out.sort((a, b) => byHandle(b, a))
-    else if (sort === 'name-asc') out.sort((a, b) => byDisplayName(a, b) || byHandle(a, b))
-    else if (sort === 'name-desc') out.sort((a, b) => byDisplayName(b, a) || byHandle(b, a))
-    else if (sort === 'date-desc') out.sort((a, b) => byDate(b, a))
-    else if (sort === 'date-asc') out.sort(byDate)
+    const cmp = sortBy === 'handle' ? byHandle : sortBy === 'displayName' ? byDisplayName : byDate
+    out.sort((a, b) => (order === 'asc' ? cmp(a, b) : cmp(b, a)))
     return out
-  }, [list, search, sort])
+  }, [list, search, sortBy, order])
 
   const loadMore = useCallback(() => {
     if (!cursor || loadingMore || loading) return
@@ -108,9 +122,15 @@ export function FollowListModal({
       <div className={styles.panel} onClick={(e) => e.stopPropagation()}>
         <div className={styles.header}>
           <h2 id="follow-list-title" className={styles.title}>
-            {mode === 'followers' ? 'Followers' : mode === 'following' ? 'Following' : 'Mutuals'}
+            {mode === 'followers'
+              ? 'Followers'
+              : mode === 'following'
+                ? 'Following'
+                : mode === 'followedByFollows'
+                  ? 'People you follow who follow this account'
+                  : 'Mutuals'}
             {list.length > 0 && !loading && (
-              <span className={styles.count}> ({list.length}{mode !== 'mutuals' && cursor != null ? '+' : ''})</span>
+              <span className={styles.count}> ({list.length}{mode !== 'mutuals' && mode !== 'followedByFollows' && cursor != null ? '+' : ''})</span>
             )}
           </h2>
           <button type="button" className={styles.closeBtn} onClick={onClose} aria-label="Close">
@@ -126,23 +146,36 @@ export function FollowListModal({
             onChange={(e) => setSearch(e.target.value)}
             aria-label="Search list"
           />
+          <span className={styles.sortByLabel} aria-hidden>
+            Sort By:{' '}
+          </span>
           <select
             className={styles.sortSelect}
-            value={sort}
-            onChange={(e) => setSort(e.target.value as FollowListSort)}
-            aria-label="Sort list"
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as FollowListSortBy)}
+            aria-label="Sort by"
           >
-            <option value="handle-asc">Username (A–Z)</option>
-            <option value="handle-desc">Username (Z–A)</option>
-            <option value="name-asc">Name (A–Z)</option>
-            <option value="name-desc">Name (Z–A)</option>
-            <option value="date-desc">
-              {mode === 'followers' ? 'Became follower (newest)' : mode === 'following' ? 'Started following (newest)' : 'Date (newest)'}
-            </option>
-            <option value="date-asc">
-              {mode === 'followers' ? 'Became follower (oldest)' : mode === 'following' ? 'Started following (oldest)' : 'Date (oldest)'}
-            </option>
+            <option value="handle">Username</option>
+            <option value="displayName">Display name</option>
+            <option value="date">Date followed</option>
           </select>
+          <button
+            type="button"
+            className={styles.orderToggleBtn}
+            onClick={() => setOrder((o) => (o === 'asc' ? 'desc' : 'asc'))}
+            aria-label={order === 'asc' ? 'Ascending; click for descending' : 'Descending; click for ascending'}
+            title={order === 'asc' ? 'Ascending (click for descending)' : 'Descending (click for ascending)'}
+          >
+            {order === 'asc' ? (
+              <svg className={styles.orderArrow} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M18 15l-6-6-6 6" />
+              </svg>
+            ) : (
+              <svg className={styles.orderArrow} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M6 9l6 6 6-6" />
+              </svg>
+            )}
+          </button>
         </div>
         <div className={styles.body}>
           {loading && list.length === 0 ? (
@@ -155,7 +188,9 @@ export function FollowListModal({
                   ? 'No followers.'
                   : mode === 'following'
                     ? 'Not following anyone.'
-                    : 'No mutuals.'}
+                    : mode === 'followedByFollows'
+                      ? 'None of the people you follow follow this account.'
+                      : 'No mutuals.'}
             </p>
           ) : (
             <ul className={styles.list}>
@@ -195,7 +230,7 @@ export function FollowListModal({
               ))}
             </ul>
           )}
-          {cursor && mode !== 'mutuals' && list.length > 0 && !loading && (
+          {cursor && mode !== 'mutuals' && mode !== 'followedByFollows' && list.length > 0 && !loading && (
             <div className={styles.loadMoreWrap}>
               <button
                 type="button"

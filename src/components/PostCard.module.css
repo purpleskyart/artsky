@@ -264,7 +264,7 @@ html[data-theme="dark"] [data-view-mode="1"] .card:focus-within:not(:has(.mediaG
   opacity: 1;
 }
 
-/* Action row: download absolute left; center (Collect, avatar, Like); menu absolute right */
+/* Action row: center (Collect, avatar, Like); time + menu absolute right */
 .cardActionRow {
   position: relative;
   display: flex;
@@ -337,7 +337,7 @@ html[data-theme="dark"] [data-view-mode="1"] .card:focus-within:not(:has(.mediaG
   opacity: 0.9;
 }
 
-/* When card is narrow enough that download/menu would overlap collect+like, hide them */
+/* When card is narrow enough that time/menu would overlap collect+like, hide them */
 @container postcard (max-width: 200px) {
   .cardActionRowLeft,
   .cardActionRowRight {
@@ -367,6 +367,16 @@ html[data-theme="dark"] [data-view-mode="1"] .card:focus-within:not(:has(.mediaG
   display: block;
   border-radius: 50%;
 }
+
+/* Desktop preview cards: profile picture in action row a little bigger */
+@media (min-width: 768px) {
+  .cardActionRowAvatar,
+  .cardActionRowAvatar img {
+    width: 1.65rem;
+    height: 1.65rem;
+  }
+}
+
 .cardActionRowAvatarFollow {
   padding: 0;
   border: none;
@@ -559,32 +569,6 @@ html[data-theme="dark"] [data-view-mode="1"] .card:focus-within:not(:has(.mediaG
 .cardLikeRepostBtn:disabled {
   opacity: 0.7;
   cursor: default;
-}
-
-.cardDownloadBtn {
-  width: 1.85rem;
-  height: 1.85rem;
-  padding: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--muted);
-  background: none;
-  border: none;
-  border-radius: 0.25rem;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-}
-.cardDownloadBtn:hover:not(:disabled) {
-  color: var(--accent);
-}
-.cardDownloadBtn:disabled {
-  opacity: 0.7;
-  cursor: default;
-}
-.cardDownloadBtn .downloadIcon {
-  width: 1.1rem;
-  height: 1.1rem;
 }
 
 .addToBoardBtn {

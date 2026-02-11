@@ -330,10 +330,10 @@
   justify-content: center;
 }
 
-/* In post popup: profile picture; follow button under it; less space between follow and username */
+/* In post popup: profile picture a little smaller; follow button under it; less space between follow and username */
 .wrapInModal .rootPostDescription .postHead .avatar {
-  width: 40px;
-  height: 40px;
+  width: 34px;
+  height: 34px;
 }
 .wrapInModal .rootPostDescription .postHead .authorRow {
   width: 100%;
@@ -628,6 +628,13 @@
   pointer-events: none;
 }
 
+/* Desktop: allow right-click on image for native "Save image as..." */
+@media (min-width: 768px) {
+  .galleryImageBtn .galleryMedia {
+    pointer-events: auto;
+  }
+}
+
 .galleryVideoWrap {
   display: block;
   width: 100%;
@@ -846,7 +853,7 @@
   gap: 0.5rem 1rem;
 }
 
-.downloadBtn {
+.saveBtn {
   padding: 0.4rem 0.75rem;
   font-size: 0.9rem;
   background: transparent;
@@ -856,17 +863,27 @@
   cursor: pointer;
 }
 
-.downloadBtn:hover:not(:disabled) {
+.saveBtn:hover:not(:disabled) {
   color: var(--text);
   border-color: var(--text);
 }
 
-.downloadBtn:disabled {
+.saveBtn:disabled {
   opacity: 0.7;
   cursor: default;
 }
 
+/* Save button only on mobile; desktop users use browser right-click Save image/video as */
+@media (min-width: 768px) {
+  .saveBtn {
+    display: none;
+  }
+}
+
 .likeRepostBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
   padding: 0.4rem 0.75rem;
   font-size: 0.9rem;
   background: transparent;
@@ -874,6 +891,11 @@
   border: 1px solid var(--border);
   border-radius: 0.4rem;
   cursor: pointer;
+}
+
+.likeRepostBtnIcon {
+  display: inline-flex;
+  flex-shrink: 0;
 }
 
 .likeRepostBtn:hover:not(:disabled) {
@@ -887,6 +909,12 @@
   background-clip: text;
   color: transparent;
   border-color: #ec4899;
+}
+.likeRepostBtnActive .likeRepostBtnIcon {
+  color: #ec4899;
+  background: none;
+  -webkit-background-clip: unset;
+  background-clip: unset;
 }
 .likeRepostBtnActive::selection {
   color: #fff;
@@ -951,6 +979,9 @@
 }
 
 .addToBoardTrigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
   padding: 0.4rem 0.75rem;
   font-size: 0.9rem;
   background: transparent;
@@ -1352,6 +1383,13 @@
   color: var(--text);
 }
 
+.commentFormFooter {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
 .hint {
   margin: 0;
   font-size: 0.8rem;
@@ -1445,6 +1483,33 @@
   font-size: 1.1rem;
   font-weight: 700;
   color: var(--text);
+}
+
+/* Preview of post being quoted (read-only, so you can type while looking at it) */
+.quoteComposerQuotedWrap {
+  margin-bottom: 1rem;
+}
+
+.quoteComposerQuotedCard {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.6rem 0.75rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  cursor: default;
+  transition: none;
+}
+
+.quoteComposerQuotedCard:hover {
+  background: var(--bg);
+  border-color: var(--border);
+}
+
+.quoteComposerQuotedCard .quotedPostText {
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .quoteComposerSignIn {

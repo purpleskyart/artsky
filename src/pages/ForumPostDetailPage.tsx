@@ -77,9 +77,10 @@ const REPLY_THREAD_INDENT = 20
 export interface ForumPostContentProps {
   documentUri: string
   onClose: () => void
+  onRegisterRefresh?: (fn: () => void | Promise<void>) => void
 }
 
-export function ForumPostContent({ documentUri, onClose }: ForumPostContentProps) {
+export function ForumPostContent({ documentUri, onClose, onRegisterRefresh }: ForumPostContentProps) {
   const decodedUri = documentUri
   const [doc, setDoc] = useState<StandardSiteDocumentView | null>(null)
   const [loading, setLoading] = useState(true)
@@ -210,6 +211,10 @@ export function ForumPostContent({ documentUri, onClose }: ForumPostContentProps
   useEffect(() => {
     if (doc) loadReplies()
   }, [doc, loadReplies])
+
+  useEffect(() => {
+    onRegisterRefresh?.(() => loadDoc())
+  }, [onRegisterRefresh, loadDoc])
 
   const forumFocusTotal = 1 + replyTreeFlat.length + (session ? 1 : 0)
 

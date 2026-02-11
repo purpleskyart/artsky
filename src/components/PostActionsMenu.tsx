@@ -22,6 +22,14 @@ function LinkIcon() {
     </svg>
   )
 }
+function QuotesIcon() {
+  return (
+    <svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M3 21c3 0 7-1 7-8V5c0-1.25-.756-2.017-2-2H3c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2z" />
+      <path d="M15 21c3 0 7-1 7-8V5c0-1.25-.757-2.017-2-2h-5c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2z" />
+    </svg>
+  )
+}
 function BackIcon() {
   return (
     <svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -108,6 +116,8 @@ interface PostActionsMenuProps {
   downloadLoading?: boolean
   /** Optional ref to receive the dropdown DOM element (e.g. for parent to detect focus outside) */
   dropdownRef?: React.RefObject<HTMLDivElement | null>
+  /** When set, show "View Quotes" and call this with postUri when clicked */
+  onViewQuotes?: (postUri: string) => void
 }
 
 export default function PostActionsMenu({
@@ -128,6 +138,7 @@ export default function PostActionsMenu({
   downloadLabel,
   downloadLoading,
   dropdownRef: dropdownRefProp,
+  onViewQuotes,
 }: PostActionsMenuProps) {
   const session = getSession()
   const [openUncontrolled, setOpenUncontrolled] = useState(false)
@@ -456,6 +467,22 @@ export default function PostActionsMenu({
                   {downloadLoading ? '' : downloadLabel}
                 </button>
               )}
+              {onViewQuotes && (
+                <button
+                  type="button"
+                  className={styles.item}
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    onViewQuotes(postUri)
+                    setOpen(false)
+                  }}
+                  role="menuitem"
+                >
+                  <span className={styles.itemIcon}><QuotesIcon /></span>
+                  View Quotes
+                </button>
+              )}
               <button
                 type="button"
                 className={styles.item}
@@ -584,6 +611,22 @@ export default function PostActionsMenu({
                 >
                   <span className={styles.itemIcon}>{downloadLoading ? '…' : <DownloadIcon />}</span>
                   {downloadLoading ? '' : downloadLabel}
+                </button>
+              )}
+              {onViewQuotes && (
+                <button
+                  type="button"
+                  className={styles.item}
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    onViewQuotes(postUri)
+                    setOpen(false)
+                  }}
+                  role="menuitem"
+                >
+                  <span className={styles.itemIcon}><QuotesIcon /></span>
+                  View Quotes
                 </button>
               )}
               <button

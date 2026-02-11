@@ -286,13 +286,18 @@
   margin-bottom: 0.75rem;
 }
 
+.suggestedFollowsSectionInner {
+  display: flex;
+  justify-content: center;
+}
+
 .suggestedFollowsToggle {
-  display: block;
-  width: 100%;
+  display: inline-block;
+  width: fit-content;
   padding: 0.5rem 0.75rem;
   font-size: 0.9rem;
   font-family: inherit;
-  text-align: left;
+  text-align: center;
   color: var(--muted);
   background: var(--bg-secondary, rgba(0, 0, 0, 0.03));
   border: 1px solid var(--border);

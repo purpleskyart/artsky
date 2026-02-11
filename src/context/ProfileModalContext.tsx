@@ -8,12 +8,14 @@ import ForumPostModal from '../components/ForumPostModal'
 import ArtboardsModal from '../components/ArtboardsModal'
 import ArtboardModal from '../components/ArtboardModal'
 import SearchModal from '../components/SearchModal'
+import QuotesModal from '../components/QuotesModal'
 
 export type ModalItem =
   | { type: 'post'; uri: string; openReply?: boolean; focusUri?: string }
   | { type: 'profile'; handle: string }
   | { type: 'tag'; tag: string }
   | { type: 'search'; query: string }
+  | { type: 'quotes'; uri: string }
   | { type: 'forum' }
   | { type: 'forumPost'; documentUri: string }
   | { type: 'artboards' }
@@ -30,6 +32,7 @@ type ProfileModalContextValue = {
   openForumPostModal: (documentUri: string) => void
   openArtboardsModal: () => void
   openArtboardModal: (id: string) => void
+  openQuotesModal: (postUri: string) => void
   /** Go back to previous modal (Q or back button). */
   closeModal: () => void
   /** Close all modals (ESC, backdrop click, or X). */
@@ -60,6 +63,8 @@ function parseSearchToModalItem(search: string): ModalItem | null {
   if (tag) return { type: 'tag', tag }
   const searchQuery = params.get('search')
   if (searchQuery) return { type: 'search', query: searchQuery }
+  const quotesUri = params.get('quotes')
+  if (quotesUri) return { type: 'quotes', uri: quotesUri }
   if (params.get('forum') === '1') return { type: 'forum' }
   const forumPostUri = params.get('forumPost')
   if (forumPostUri) return { type: 'forumPost', documentUri: forumPostUri }
@@ -79,6 +84,7 @@ function modalItemToSearch(item: ModalItem): string {
   if (item.type === 'profile') return `profile=${encodeURIComponent(item.handle)}`
   if (item.type === 'tag') return `tag=${encodeURIComponent(item.tag)}`
   if (item.type === 'search') return `search=${encodeURIComponent(item.query)}`
+  if (item.type === 'quotes') return `quotes=${encodeURIComponent(item.uri)}`
   if (item.type === 'forum') return 'forum=1'
   if (item.type === 'forumPost') return `forumPost=${encodeURIComponent(item.documentUri)}`
   if (item.type === 'artboards') return 'artboards=1'
@@ -92,6 +98,7 @@ function modalItemsMatch(a: ModalItem, b: ModalItem): boolean {
   if (a.type === 'profile' && b.type === 'profile') return a.handle === b.handle
   if (a.type === 'tag' && b.type === 'tag') return a.tag === b.tag
   if (a.type === 'search' && b.type === 'search') return a.query === b.query
+  if (a.type === 'quotes' && b.type === 'quotes') return a.uri === b.uri
   if (a.type === 'forum' && b.type === 'forum') return true
   if (a.type === 'forumPost' && b.type === 'forumPost') return a.documentUri === b.documentUri
   if (a.type === 'artboards' && b.type === 'artboards') return true
@@ -183,6 +190,15 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
     })
   }, [syncUrlToStack])
 
+  const openQuotesModal = useCallback((postUri: string) => {
+    const item: ModalItem = { type: 'quotes', uri: postUri }
+    setModalStack((prev) => {
+      const next = [...prev, item]
+      syncUrlToStack(next)
+      return next
+    })
+  }, [syncUrlToStack])
+
   const closeModal = useCallback(() => {
     setModalStack((prev) => {
       const next = prev.length > 1 ? prev.slice(0, -1) : []
@@ -225,6 +241,7 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
     openForumPostModal,
     openArtboardsModal,
     openArtboardModal,
+    openQuotesModal,
     closeModal,
     closeAllModals,
     isModalOpen,
@@ -263,6 +280,14 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
       {currentModal?.type === 'search' && (
         <SearchModal
           query={currentModal.query}
+          onClose={closeAllModals}
+          onBack={closeModal}
+          canGoBack={canGoBack}
+        />
+      )}
+      {currentModal?.type === 'quotes' && (
+        <QuotesModal
+          postUri={currentModal.uri}
           onClose={closeAllModals}
           onBack={closeModal}
           canGoBack={canGoBack}
@@ -308,6 +333,7 @@ export function useProfileModal() {
       openForumPostModal: () => {},
       openArtboardsModal: () => {},
       openArtboardModal: () => {},
+      openQuotesModal: () => {},
       closeModal: () => {},
       closeAllModals: () => {},
       isModalOpen: false,

@@ -22,7 +22,7 @@ import { useProfileModal } from '../context/ProfileModalContext'
 import Layout from '../components/Layout'
 import styles from './ArtboardsPage.module.css'
 
-export function ArtboardsContent({ inModal = false }: { inModal?: boolean }) {
+export function ArtboardsContent({ inModal = false, onRegisterRefresh }: { inModal?: boolean; onRegisterRefresh?: (fn: () => void | Promise<void>) => void }) {
   const { session } = useSession()
   const { openArtboardModal } = useProfileModal()
   const [boards, setBoards] = useState<Artboard[]>(() => getArtboards())
@@ -38,6 +38,10 @@ export function ArtboardsContent({ inModal = false }: { inModal?: boolean }) {
   function refresh() {
     setBoards(getArtboards())
   }
+
+  useEffect(() => {
+    onRegisterRefresh?.(() => refresh())
+  }, [onRegisterRefresh])
 
   useEffect(() => {
     if (!session?.did) return

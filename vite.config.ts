@@ -23,7 +23,7 @@ export default defineConfig({
         scope: './',
         start_url: './',
         icons: [
-          { src: './icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any maskable' },
+          { src: './icon-pwa.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any maskable' },
         ],
       },
       workbox: {

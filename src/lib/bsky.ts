@@ -660,6 +660,22 @@ export async function searchActorsTypeahead(q: string, limit = 10) {
   return res.data
 }
 
+/** Get posts that quote a given post. Uses public API so it works logged in or out. */
+export async function getQuotes(
+  postUri: string,
+  opts?: { limit?: number; cursor?: string }
+): Promise<{ posts: PostView[]; cursor?: string }> {
+  const limit = opts?.limit ?? 30
+  const params = new URLSearchParams()
+  params.set('uri', postUri)
+  params.set('limit', String(limit))
+  if (opts?.cursor) params.set('cursor', opts.cursor)
+  const res = await fetch(`${PUBLIC_BSKY}/xrpc/app.bsky.feed.getQuotes?${params.toString()}`)
+  const data = (await res.json()) as { posts?: PostView[]; cursor?: string; message?: string }
+  if (!res.ok) throw new Error(data.message ?? 'Failed to load quotes')
+  return { posts: data.posts ?? [], cursor: data.cursor }
+}
+
 /** Get suggested feeds for search dropdown. */
 export async function getSuggestedFeeds(limit = 8) {
   try {
@@ -1492,6 +1508,48 @@ export async function getMutualsList(
   return { list: mutuals }
 }
 
+const FOLLOWEES_WHO_FOLLOW_LIMIT = 500
+
+/** People the viewer follows who also follow the target. For "X people you follow follow this account" on profiles. */
+export async function getFolloweesWhoFollowTarget(
+  client: AtpAgent,
+  viewerDid: string,
+  targetDid: string,
+  opts?: { limit?: number }
+): Promise<{ list: ProfileViewBasic[] }> {
+  const maxResults = opts?.limit ?? FOLLOWEES_WHO_FOLLOW_LIMIT
+  const myFollowingDids = new Set<string>()
+  let cursor: string | undefined
+  do {
+    const { list, cursor: next } = await getFollowsList(client, viewerDid, {
+      limit: 50,
+      cursor,
+    })
+    for (const p of list) myFollowingDids.add(p.did)
+    cursor = next
+    if (myFollowingDids.size >= FOLLOWEES_WHO_FOLLOW_LIMIT) break
+  } while (cursor)
+
+  const results: ProfileViewBasic[] = []
+  cursor = undefined
+  do {
+    const { list, cursor: next } = await getFollowers(client, targetDid, {
+      limit: 50,
+      cursor,
+    })
+    for (const p of list) {
+      if (myFollowingDids.has(p.did)) {
+        results.push(p)
+        if (results.length >= maxResults) break
+      }
+    }
+    if (results.length >= maxResults) break
+    cursor = next
+  } while (cursor)
+
+  return { list: results }
+}
+
 /** Suggested accounts to follow: "followed by people you follow", sorted by how many of your followees follow them. */
 export type SuggestedFollow = {
   did: string
@@ -1567,31 +1625,102 @@ export async function getSuggestedFollows(
   return results
 }
 
-/** Detail for a suggested account: which people you follow follow them. Used when user clicks "why" on a suggestion. */
-export type SuggestedFollowDetail = {
-  count: number
-  followedBy: Array<{ did: string; handle: string; displayName?: string; avatar?: string }>
-}
+const SUGGESTED_FOLLOWS_MUTUALS_SAMPLE = 30
 
-/** Get which accounts you follow also follow the given suggested user (for "why we recommend" panel). */
-export async function getSuggestedFollowDetail(
+/** Suggested follows ranked by how many of your mutuals follow them. */
+export async function getSuggestedFollowsByMutuals(
   client: AtpAgent,
   currentUserDid: string,
-  suggestedDid: string
-): Promise<SuggestedFollowDetail> {
+  opts?: { maxSuggestions?: number }
+): Promise<SuggestedFollow[]> {
+  const maxSuggestions = opts?.maxSuggestions ?? SUGGESTED_FOLLOWS_TOP
+  const { list: mutuals } = await getMutualsList(client, currentUserDid)
+  const mutualDids = mutuals.slice(0, SUGGESTED_FOLLOWS_MUTUALS_SAMPLE).map((p) => p.did)
+  if (mutualDids.length === 0) return []
+
   const { dids: myFollowDids } = await getFollows(client, currentUserDid, {
     limit: SUGGESTED_FOLLOWS_MY_FOLLOWS_LIMIT,
   })
-  const sample =
-    myFollowDids.length <= SUGGESTED_FOLLOWS_SAMPLE
-      ? myFollowDids
-      : myFollowDids
-          .slice()
-          .sort(() => Math.random() - 0.5)
-          .slice(0, SUGGESTED_FOLLOWS_SAMPLE)
+  const myFollowSet = new Set(myFollowDids)
+  myFollowSet.add(currentUserDid)
+
+  const countByDid = new Map<string, number>()
+  const handleByDid = new Map<string, string>()
+  for (const did of mutualDids) {
+    try {
+      const { dids: theirDids, handles: theirHandles } = await getFollows(client, did, {
+        limit: SUGGESTED_FOLLOWS_THEIR_LIMIT,
+      })
+      theirHandles.forEach((h, d) => handleByDid.set(d, h))
+      for (const d of theirDids) {
+        if (myFollowSet.has(d)) continue
+        countByDid.set(d, (countByDid.get(d) ?? 0) + 1)
+      }
+    } catch {
+      // skip this mutual on error
+    }
+  }
+
+  const sorted = [...countByDid.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, maxSuggestions)
+  if (sorted.length === 0) return []
+
+  const results: SuggestedFollow[] = []
+  for (const [did, count] of sorted) {
+    const handle = handleByDid.get(did) ?? did
+    results.push({ did, handle, count })
+  }
+  const profiles = await Promise.all(
+    results.map((r) =>
+      client.getProfile({ actor: r.did }).then((res) => res.data as { displayName?: string; avatar?: string }).catch(() => null)
+    )
+  )
+  profiles.forEach((p, i) => {
+    if (p && results[i]) {
+      results[i].displayName = p.displayName
+      results[i].avatar = p.avatar
+    }
+  })
+  return results
+}
+
+/** Detail for a suggested account: which people you follow (or mutuals) follow them. Used when user clicks "why" on a suggestion. */
+export type SuggestedFollowDetail = {
+  count: number
+  followedBy: Array<{ did: string; handle: string; displayName?: string; avatar?: string }>
+  /** When true, followedBy are mutuals; when false, people you follow. */
+  fromMutuals?: boolean
+}
+
+/** Get which accounts you follow (or mutuals) also follow the given suggested user (for "why we recommend" panel). */
+export async function getSuggestedFollowDetail(
+  client: AtpAgent,
+  currentUserDid: string,
+  suggestedDid: string,
+  opts?: { source?: 'peopleYouFollow' | 'mutuals' }
+): Promise<SuggestedFollowDetail> {
+  const fromMutuals = opts?.source === 'mutuals'
+  let sampleDids: string[]
+
+  if (fromMutuals) {
+    const { list: mutuals } = await getMutualsList(client, currentUserDid)
+    sampleDids = mutuals.slice(0, SUGGESTED_FOLLOWS_MUTUALS_SAMPLE).map((p) => p.did)
+  } else {
+    const { dids: myFollowDids } = await getFollows(client, currentUserDid, {
+      limit: SUGGESTED_FOLLOWS_MY_FOLLOWS_LIMIT,
+    })
+    sampleDids =
+      myFollowDids.length <= SUGGESTED_FOLLOWS_SAMPLE
+        ? myFollowDids
+        : myFollowDids
+            .slice()
+            .sort(() => Math.random() - 0.5)
+            .slice(0, SUGGESTED_FOLLOWS_SAMPLE)
+  }
 
   const followeeDidsWhoFollow: string[] = []
-  for (const did of sample) {
+  for (const did of sampleDids) {
     try {
       const { dids: theirDids } = await getFollows(client, did, {
         limit: SUGGESTED_FOLLOWS_THEIR_LIMIT,
@@ -1615,7 +1744,7 @@ export async function getSuggestedFollowDetail(
       })
     )
   )
-  return { count: followeeDidsWhoFollow.length, followedBy: profiles }
+  return { count: followeeDidsWhoFollow.length, followedBy: profiles, fromMutuals }
 }
 
 /** Resolve DID from a publication base URL via .well-known/site.standard.publication. Returns null on CORS/network error. */

@@ -4,7 +4,7 @@ import { ModalTopBarSlotContext } from '../context/ModalTopBarSlotContext'
 import { useModalExpand } from '../context/ModalExpandContext'
 import { useScrollLock } from '../context/ScrollLockContext'
 import { useSwipeToClose } from '../hooks/useSwipeToClose'
-import { usePullToRefresh } from '../hooks/usePullToRefresh'
+import { usePullToRefresh, PULL_REFRESH_HOLD_PX } from '../hooks/usePullToRefresh'
 import styles from './PostDetailModal.module.css'
 
 const MOBILE_BREAKPOINT = 768
@@ -192,7 +192,25 @@ export default function AppModal({
             onTouchMove={pullRefresh.onTouchMove}
             onTouchEnd={pullRefresh.onTouchEnd}
           >
-            {children}
+            {onPullToRefresh && (
+              <div
+                className={styles.pullRefreshHeader}
+                style={{ height: pullRefresh.pullDistance > 0 || pullRefresh.isRefreshing ? PULL_REFRESH_HOLD_PX : 0 }}
+                aria-hidden={pullRefresh.pullDistance === 0 && !pullRefresh.isRefreshing}
+                aria-live="polite"
+                aria-label={pullRefresh.isRefreshing ? 'Refreshing' : undefined}
+              >
+                {(pullRefresh.pullDistance > 0 || pullRefresh.isRefreshing) && (
+                  <div className={styles.pullRefreshSpinner} />
+                )}
+              </div>
+            )}
+            <div
+              className={onPullToRefresh ? styles.pullRefreshContent : undefined}
+              style={onPullToRefresh ? { transform: `translateY(${pullRefresh.pullDistance}px)` } : undefined}
+            >
+              {children}
+            </div>
           </div>
           <div className={`${styles.modalBottomBar} ${isMobile && bottomBarHidden ? styles.modalBottomBarHidden : ''}`}>
               <button

@@ -10,7 +10,7 @@ import { useListKeyboardNav } from '../hooks/useListKeyboardNav'
 import Layout from '../components/Layout'
 import styles from './ArtboardDetailPage.module.css'
 
-export function ArtboardDetailContent({ id, inModal = false }: { id: string; inModal?: boolean }) {
+export function ArtboardDetailContent({ id, inModal = false, onRegisterRefresh }: { id: string; inModal?: boolean; onRegisterRefresh?: (fn: () => void | Promise<void>) => void }) {
   const { session } = useSession()
   const { openPostModal } = useProfileModal()
   const [, setTick] = useState(0)
@@ -22,6 +22,10 @@ export function ArtboardDetailContent({ id, inModal = false }: { id: string; inM
   useEffect(() => {
     setFocusedIndex((i) => (posts.length ? Math.min(i, posts.length - 1) : 0))
   }, [posts.length])
+
+  useEffect(() => {
+    onRegisterRefresh?.(() => setTick((t) => t + 1))
+  }, [onRegisterRefresh])
 
   useEffect(() => {
     if (!inModal || !gridRef.current || focusedIndex < 0) return
