@@ -101,9 +101,22 @@
 /* Parent post (when viewing a reply – "Replying to" above the opened post) */
 .parentPostWrap {
   margin-bottom: 1rem;
-  padding-left: 0.75rem;
+}
+
+.parentPostWrap .quotedPostCard {
+  border: none;
   border-left: 3px solid var(--accent);
-  border-radius: 0 4px 4px 0;
+  border-radius: 0 0.5rem 0.5rem 0;
+  padding-left: 0.6rem;
+}
+
+.parentPostWrap .quotedPostCard:hover {
+  border: none;
+  border-left: 3px solid var(--accent);
+}
+
+.parentPostWrap .quotedPostHandle {
+  text-decoration: none;
 }
 
 .parentPostWrap .quotedPostLabel {
@@ -112,6 +125,7 @@
   color: var(--text);
   margin: 0 0 0.5rem;
   letter-spacing: 0.02em;
+  text-align: center;
 }
 
 /* Quoted post (quote post) block */
@@ -178,6 +192,7 @@
 .quotedPostHandle {
   font-weight: 600;
   color: var(--accent);
+  text-decoration: none;
 }
 
 .quotedPostTime {
