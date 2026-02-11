@@ -607,7 +607,7 @@ export default function FeedPage() {
 
   const { mediaOnly } = useMediaOnly()
   const { nsfwPreference, unblurredUris, setUnblurred } = useModeration()
-  const { hideRepostsFromDids } = useHideReposts() ?? { hideRepostsFromDids: [] }
+  const { hideRepostsFromDids } = useHideReposts() ?? { hideRepostsFromDids: [] as string[] }
   const displayItems = useMemo(() =>
     items
       .filter((item) => (mediaOnly ? getPostMediaInfo(item.post) : true))

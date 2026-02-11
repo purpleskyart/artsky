@@ -13,7 +13,7 @@ const OAUTH_ACCOUNTS_KEY = 'artsky-oauth-accounts'
 /** Ask the browser to keep our storage (helps PWA stay logged in when app is closed). */
 export function requestPersistentStorage(): void {
   try {
-    if (typeof navigator !== 'undefined' && navigator.storage?.persist?.()) {
+    if (typeof navigator !== 'undefined' && typeof navigator.storage?.persist === 'function') {
       void navigator.storage.persist()
     }
   } catch {
