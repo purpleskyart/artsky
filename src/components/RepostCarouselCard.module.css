@@ -1,0 +1,114 @@
+.wrap {
+  background: var(--bg, #fff);
+  border: 1px solid var(--border, rgba(0, 0, 0, 0.08));
+  border-radius: 12px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.wrap.seen {
+  opacity: 0.65;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  flex-shrink: 0;
+  background: var(--surface, rgba(0, 0, 0, 0.03));
+  border-bottom: 1px solid var(--border, rgba(0, 0, 0, 0.06));
+}
+
+.repostIcon {
+  width: 18px;
+  height: 18px;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+.title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.scrollWrap {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.5rem 0.75rem;
+  -webkit-overflow-scrolling: touch;
+}
+
+.scrollWrap::-webkit-scrollbar {
+  height: 4px;
+}
+
+.scrollWrap::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 2px;
+}
+
+.track {
+  display: flex;
+  gap: 0.5rem;
+  min-width: min-content;
+}
+
+.tile {
+  flex-shrink: 0;
+  width: 72px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0;
+  background: none;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+  transition: background 0.15s;
+}
+
+.tile:hover {
+  background: var(--bg-hover, rgba(0, 0, 0, 0.05));
+}
+
+.tile:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.tileImg {
+  width: 56px;
+  height: 56px;
+  border-radius: 8px;
+  object-fit: cover;
+  display: block;
+}
+
+.tilePlaceholder {
+  width: 56px;
+  height: 56px;
+  border-radius: 8px;
+  background: var(--muted);
+  color: var(--surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.tileHandle {
+  font-size: 0.7rem;
+  color: var(--muted);
+  max-width: 72px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

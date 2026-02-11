@@ -10,6 +10,7 @@ import PostCard from '../components/PostCard'
 import PostText from '../components/PostText'
 import ProfileActionsMenu from '../components/ProfileActionsMenu'
 import BlockedAndMutedModal from '../components/BlockedAndMutedModal'
+import { FollowListModal } from '../components/FollowListModal'
 import Layout from '../components/Layout'
 import { useViewMode, type ViewMode } from '../context/ViewModeContext'
 import { useModeration, type NsfwPreference } from '../context/ModerationContext'
@@ -20,7 +21,6 @@ import postBlockStyles from './PostDetailPage.module.css'
 const REASON_REPOST = 'app.bsky.feed.defs#reasonRepost'
 const REASON_PIN = 'app.bsky.feed.defs#reasonPin'
 
-const NSFW_CYCLE: NsfwPreference[] = ['sfw', 'blurred', 'nsfw']
 const VIEW_MODE_CYCLE: ViewMode[] = ['1', '2', '3']
 
 /** Nominal column width for height estimation (px). */
@@ -206,6 +206,7 @@ export function ProfileContent({
   const [keyboardAddOpen, setKeyboardAddOpen] = useState(false)
   const [actionsMenuOpenForIndex, setActionsMenuOpenForIndex] = useState<number | null>(null)
   const [showBlockedMutedModal, setShowBlockedMutedModal] = useState(false)
+  const [followListModal, setFollowListModal] = useState<'followers' | 'following' | 'mutuals' | null>(null)
   const [likeOverrides, setLikeOverrides] = useState<Record<string, string | null>>({})
   const { openPostModal, isModalOpen } = useProfileModal()
   const editProfileCtx = useEditProfile()
@@ -351,7 +352,10 @@ export function ProfileContent({
     })
   }, [onRegisterRefresh, load, loadFeeds, loadBlog, loadLiked])
 
-  // Infinite scroll: load more when any column's sentinel is about to enter view (posts, reposts tabs). Per-column sentinels when cols >= 2 so short columns trigger load before blank space; 800px rootMargin to load before user sees empty space.
+  // Infinite scroll: load more when any column's sentinel is about to enter view (posts, reposts tabs).
+  // Per-column sentinels when cols >= 2 so short columns trigger load before blank space; 800px
+  // rootMargin to load before user sees empty space. Fallback timer handles the case where a very
+  // tall post pushes short-column sentinels beyond rootMargin and the observer never sees them.
   loadingMoreRef.current = loadingMore
   const colsForObserver = viewMode === '1' ? 1 : viewMode === '2' ? 2 : 3
   const loadMoreCursor = tab === 'posts' && profilePostsFilter === 'liked' ? likedCursor : cursor
@@ -361,6 +365,7 @@ export function ProfileContent({
     if (!loadMoreCursor) return
     const firstSentinel = colsForObserver >= 2 ? loadMoreSentinelRefs.current[0] : loadMoreSentinelRef.current
     const root = inModal ? firstSentinel?.closest('[data-modal-scroll]') ?? null : null
+    let retryId = 0
     const observer = new IntersectionObserver(
       (entries) => {
         for (const e of entries) {
@@ -379,11 +384,28 @@ export function ProfileContent({
         const el = refs[c]
         if (el) observer.observe(el)
       }
+      // Fallback: if any column's sentinel scrolled beyond rootMargin (very tall post), check after a short delay.
+      retryId = window.setTimeout(() => {
+        if (loadingMoreRef.current) return
+        const rootBottom = root ? root.getBoundingClientRect().bottom : window.innerHeight
+        for (let c = 0; c < colsForObserver; c++) {
+          const el = refs[c]
+          if (!el) continue
+          if (el.getBoundingClientRect().bottom < rootBottom) {
+            loadingMoreRef.current = true
+            loadMore(loadMoreCursor)
+            return
+          }
+        }
+      }, 200)
     } else {
       const sentinel = loadMoreSentinelRef.current
       if (sentinel) observer.observe(sentinel)
     }
-    return () => observer.disconnect()
+    return () => {
+      observer.disconnect()
+      clearTimeout(retryId)
+    }
   }, [tab, profilePostsFilter, loadMoreCursor, load, loadLiked, loadMore, inModal, colsForObserver])
 
   const followingUri = profile?.viewer?.following ?? followUriOverride
@@ -414,7 +436,7 @@ export function ProfileContent({
     tab === 'posts'
       ? [...authorFeedItemsRaw].sort((a, b) => (isPinned(b) ? 1 : 0) - (isPinned(a) ? 1 : 0))
       : authorFeedItemsRaw
-  const { nsfwPreference, setNsfwPreference, unblurredUris, setUnblurred } = useModeration()
+  const { nsfwPreference, cycleNsfwPreference, unblurredUris, setUnblurred } = useModeration()
   const mediaItems = authorFeedItems
     .filter((item) => getPostMediaInfoForDisplay(item.post))
     .filter((item) => nsfwPreference !== 'sfw' || !isPostNsfw(item.post))
@@ -744,6 +766,33 @@ export function ProfileContent({
                   <PostText text={profile.description} linkDisplay="domain" />
                 </p>
               )}
+              {profile && (
+                <div className={styles.followListRow} role="group" aria-label="Followers, following, and mutuals">
+                  <button
+                    type="button"
+                    className={styles.followListBtn}
+                    onClick={() => setFollowListModal('followers')}
+                  >
+                    Followers
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.followListBtn}
+                    onClick={() => setFollowListModal('following')}
+                  >
+                    Following
+                  </button>
+                  {isOwnProfile && (
+                    <button
+                      type="button"
+                      className={styles.followListBtn}
+                      onClick={() => setFollowListModal('mutuals')}
+                    >
+                      Mutuals
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           </div>
           {profile && (
@@ -757,6 +806,13 @@ export function ProfileContent({
         </header>
         {showBlockedMutedModal && (
           <BlockedAndMutedModal onClose={() => setShowBlockedMutedModal(false)} />
+        )}
+        {followListModal && profile && (
+          <FollowListModal
+            mode={followListModal}
+            actor={profile.did}
+            onClose={() => setFollowListModal(null)}
+          />
         )}
         {inModal && mobileBottomBarSlot
           ? createPortal(
@@ -776,10 +832,7 @@ export function ProfileContent({
                 <button
                   type="button"
                   className={`${styles.toggleBtn} ${styles.toggleBtnBottomBar} ${styles.toggleBtnIcon} ${nsfwPreference !== 'sfw' ? styles.toggleBtnActive : ''}`}
-                  onClick={() => {
-                    const i = NSFW_CYCLE.indexOf(nsfwPreference)
-                    setNsfwPreference(NSFW_CYCLE[(i + 1) % NSFW_CYCLE.length])
-                  }}
+                  onClick={(e) => cycleNsfwPreference(e.currentTarget)}
                   title={`${nsfwPreference}. Click to cycle: SFW → Blurred → NSFW`}
                   aria-label={`NSFW filter: ${nsfwPreference}`}
                 >

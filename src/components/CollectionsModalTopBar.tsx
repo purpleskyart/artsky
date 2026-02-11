@@ -20,7 +20,6 @@ function CardModeIcon({ mode }: { mode: 'default' | 'minimalist' | 'artOnly' }) 
   return <CardArtOnlyIcon size={20} />
 }
 
-const NSFW_CYCLE = ['sfw', 'blurred', 'nsfw'] as const
 
 function Column1Icon() {
   return (
@@ -52,7 +51,7 @@ export default function CollectionsModalTopBar() {
   const slots = useModalTopBarSlot()
   const { viewMode, cycleViewMode } = useViewMode()
   const { cardViewMode, cycleCardView } = useArtOnly()
-  const { nsfwPreference, setNsfwPreference } = useModeration()
+  const { nsfwPreference, cycleNsfwPreference } = useModeration()
 
   const rightSlot = slots?.rightSlot ?? null
   if (!rightSlot) return null
@@ -62,10 +61,7 @@ export default function CollectionsModalTopBar() {
       <button
         type="button"
         className={`${styles.headerBtn} ${nsfwPreference !== 'sfw' ? styles.headerBtnActive : ''}`}
-        onClick={() => {
-          const i = NSFW_CYCLE.indexOf(nsfwPreference)
-          setNsfwPreference(NSFW_CYCLE[(i + 1) % NSFW_CYCLE.length])
-        }}
+        onClick={(e) => cycleNsfwPreference(e.currentTarget)}
         title={`${nsfwPreference}. Click to cycle: SFW → Blurred → NSFW`}
         aria-label={`NSFW filter: ${nsfwPreference}`}
       >

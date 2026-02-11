@@ -46,14 +46,13 @@ function Column3Icon() {
   )
 }
 
-const NSFW_CYCLE = ['sfw', 'blurred', 'nsfw'] as const
 
 /** Renders optional center content + SFW, eye, and column toggles into modal top bar slots. Use inside AppModal. */
 export default function MediaModalTopBar({ centerContent }: { centerContent?: ReactNode }) {
   const slots = useModalTopBarSlot()
   const { viewMode, cycleViewMode } = useViewMode()
   const { cardViewMode, cycleCardView } = useArtOnly()
-  const { nsfwPreference, setNsfwPreference } = useModeration()
+  const { nsfwPreference, cycleNsfwPreference } = useModeration()
 
   const centerSlot = slots?.centerSlot ?? null
   const rightSlot = slots?.rightSlot ?? null
@@ -69,10 +68,7 @@ export default function MediaModalTopBar({ centerContent }: { centerContent?: Re
               <button
                 type="button"
                 className={`${styles.headerBtn} ${nsfwPreference !== 'sfw' ? styles.headerBtnActive : ''}`}
-                onClick={() => {
-                  const i = NSFW_CYCLE.indexOf(nsfwPreference)
-                  setNsfwPreference(NSFW_CYCLE[(i + 1) % NSFW_CYCLE.length])
-                }}
+                onClick={(e) => cycleNsfwPreference(e.currentTarget)}
                 title={`${nsfwPreference}. Click to cycle: SFW → Blurred → NSFW`}
                 aria-label={`NSFW filter: ${nsfwPreference}`}
               >

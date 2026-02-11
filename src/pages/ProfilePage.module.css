@@ -226,6 +226,35 @@
   overflow: hidden;
 }
 
+.followListRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.followListBtn {
+  padding: 0.35rem 0.75rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  cursor: pointer;
+}
+
+.followListBtn:hover {
+  color: var(--text);
+  border-color: var(--accent);
+  background: var(--accent-muted, rgba(0, 0, 0, 0.04));
+}
+
+.followListBtn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .tabsSticky {
   position: sticky;
   top: 3.5rem;

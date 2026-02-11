@@ -159,6 +159,7 @@ function SearchContent({ query, onRegisterRefresh }: { query: string; onRegister
   useEffect(() => {
     if (!cursor) return
     const refs = loadMoreSentinelRefs.current
+    let retryId = 0
     const observer = new IntersectionObserver(
       (entries) => {
         for (const e of entries) {
@@ -176,7 +177,25 @@ function SearchContent({ query, onRegisterRefresh }: { query: string; onRegister
       const el = refs[c]
       if (el) observer.observe(el)
     }
-    return () => observer.disconnect()
+    // Fallback: if any column's sentinel scrolled beyond rootMargin (very tall post), check after a short delay.
+    if (numCols > 1) {
+      retryId = window.setTimeout(() => {
+        if (loadingMoreRef.current) return
+        for (let c = 0; c < numCols; c++) {
+          const el = refs[c]
+          if (!el) continue
+          if (el.getBoundingClientRect().bottom < window.innerHeight) {
+            loadingMoreRef.current = true
+            load(cursor)
+            return
+          }
+        }
+      }, 200)
+    }
+    return () => {
+      observer.disconnect()
+      clearTimeout(retryId)
+    }
   }, [cursor, load, viewMode])
 
   const { nsfwPreference, unblurredUris, setUnblurred } = useModeration()

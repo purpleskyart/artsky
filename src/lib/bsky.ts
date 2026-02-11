@@ -1407,6 +1407,91 @@ export async function getFollows(
   return { dids, handles, cursor: res.data.cursor }
 }
 
+/** Profile view for list display (followers/following). indexedAt when available (e.g. when they appeared in the list). */
+export type ProfileViewBasic = { did: string; handle?: string; displayName?: string; avatar?: string; indexedAt?: string }
+
+/** Get list of accounts that follow the actor (for profile followers modal). */
+export async function getFollowers(
+  client: AtpAgent,
+  actor: string,
+  opts?: { limit?: number; cursor?: string }
+): Promise<{ list: ProfileViewBasic[]; cursor?: string }> {
+  const res = await client.app.bsky.graph.getFollowers({
+    actor,
+    limit: opts?.limit ?? 50,
+    cursor: opts?.cursor,
+  })
+  const list = (res.data.followers ?? []).map((f: { did: string; handle?: string; displayName?: string; avatar?: string; indexedAt?: string }) => ({
+    did: f.did,
+    handle: f.handle,
+    displayName: f.displayName,
+    avatar: f.avatar,
+    indexedAt: f.indexedAt,
+  }))
+  return { list, cursor: res.data.cursor }
+}
+
+/** Get list of accounts that the actor follows (for profile following modal). */
+export async function getFollowsList(
+  client: AtpAgent,
+  actor: string,
+  opts?: { limit?: number; cursor?: string }
+): Promise<{ list: ProfileViewBasic[]; cursor?: string }> {
+  const res = await client.app.bsky.graph.getFollows({
+    actor,
+    limit: opts?.limit ?? 50,
+    cursor: opts?.cursor,
+  })
+  const list = (res.data.follows ?? []).map((f: { did: string; handle?: string; displayName?: string; avatar?: string; indexedAt?: string }) => ({
+    did: f.did,
+    handle: f.handle,
+    displayName: f.displayName,
+    avatar: f.avatar,
+    indexedAt: f.indexedAt,
+  }))
+  return { list, cursor: res.data.cursor }
+}
+
+const MUTUALS_FETCH_LIMIT = 500
+
+/** Get list of mutuals for an actor: people who follow them and whom they also follow. Only meaningful for the authenticated user viewing their own profile. */
+export async function getMutualsList(
+  client: AtpAgent,
+  actor: string
+): Promise<{ list: ProfileViewBasic[] }> {
+  const followerDids = new Set<string>()
+  const followerProfiles = new Map<string, ProfileViewBasic>()
+  let cursor: string | undefined
+  do {
+    const { list, cursor: next } = await getFollowers(client, actor, {
+      limit: 50,
+      cursor,
+    })
+    for (const p of list) {
+      followerDids.add(p.did)
+      followerProfiles.set(p.did, p)
+    }
+    cursor = next
+    if (followerDids.size >= MUTUALS_FETCH_LIMIT) break
+  } while (cursor)
+
+  const mutuals: ProfileViewBasic[] = []
+  cursor = undefined
+  do {
+    const { list, cursor: next } = await getFollowsList(client, actor, {
+      limit: 50,
+      cursor,
+    })
+    for (const p of list) {
+      if (followerDids.has(p.did)) mutuals.push(followerProfiles.get(p.did) ?? p)
+    }
+    cursor = next
+    if (mutuals.length >= MUTUALS_FETCH_LIMIT) break
+  } while (cursor)
+
+  return { list: mutuals }
+}
+
 /** Suggested accounts to follow: "followed by people you follow", sorted by how many of your followees follow them. */
 export type SuggestedFollow = {
   did: string

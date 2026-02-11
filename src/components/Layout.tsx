@@ -66,7 +66,7 @@ function NsfwPreferenceRow({ rowClassName }: { rowClassName: string }) {
           key={p}
           type="button"
           className={nsfwPreference === p ? styles.menuNsfwBtnActive : styles.menuNsfwBtn}
-          onClick={() => setNsfwPreference(p)}
+          onClick={(e) => setNsfwPreference(p, e.currentTarget)}
         >
           {p === 'nsfw' ? 'NSFW' : p === 'sfw' ? 'SFW' : 'Blurred'}
         </button>
@@ -99,12 +99,12 @@ function HomeIcon({ active }: { active?: boolean }) {
   )
 }
 
-/** Small eye icon for seen-posts button (tap = hide seen, hold = show seen) */
+/** Eye-off icon for seen-posts button (tap = hide seen, hold = show seen) */
 function SeenPostsIcon() {
   return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-      <circle cx="12" cy="12" r="3" />
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+      <line x1="1" y1="1" x2="23" y2="23" />
     </svg>
   )
 }
@@ -183,7 +183,6 @@ function CardModeIcon({ mode }: { mode: 'default' | 'minimalist' | 'artOnly' }) 
   return <CardArtOnlyIcon size={20} />
 }
 
-const NSFW_CYCLE = ['sfw', 'blurred', 'nsfw'] as const
 function Column1Icon() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -335,7 +334,7 @@ export default function Layout({ title, children, showNav }: Props) {
   )
   const { viewMode, setViewMode, cycleViewMode } = useViewMode()
   const { cardViewMode, cycleCardView } = useArtOnly()
-  const { nsfwPreference, setNsfwPreference } = useModeration()
+  const { nsfwPreference, setNsfwPreference, cycleNsfwPreference, nsfwAnnouncement } = useModeration()
   const { mediaOnly, toggleMediaOnly } = useMediaOnly()
   const path = loc.pathname
   const isDesktop = useSyncExternalStore(subscribeDesktop, getDesktopSnapshot, () => false)
@@ -673,7 +672,11 @@ export default function Layout({ title, children, showNav }: Props) {
     getNotifications(30)
       .then(({ notifications: list }) => {
         setNotifications(list)
-        setUnreadNotificationCount(list.filter((n) => !n.isRead).length)
+        setUnreadNotificationCount(0)
+        // Immediately advance server seenAt to now so the unread count clears
+        // reliably – the IO-based mark-as-seen can still fail if the panel is
+        // closed before the 400ms debounce fires.
+        updateSeenNotifications().catch(() => {})
       })
       .catch(() => setNotifications([]))
       .finally(() => setNotificationsLoading(false))
@@ -770,7 +773,7 @@ export default function Layout({ title, children, showNav }: Props) {
   }, [notificationsOpen, session])
 
   /* When any full-screen popup is open, lock body scroll so only the popup scrolls */
-  const anyPopupOpen = isModalOpen || (mobileSearchOpen && !isDesktop) || (notificationsOpen && !isDesktop) || composeOpen || aboutOpen
+  const anyPopupOpen = isModalOpen || (mobileSearchOpen && !isDesktop) || composeOpen || aboutOpen
   useEffect(() => {
     if (!scrollLock || !anyPopupOpen) return
     scrollLock.lockScroll()
@@ -1138,12 +1141,9 @@ export default function Layout({ title, children, showNav }: Props) {
             <button
               type="button"
               className={`${styles.menuMobileViewBtn} ${nsfwPreference !== 'sfw' ? styles.menuMobileViewBtnActive : ''}`}
-              onClick={() => {
-                const i = NSFW_CYCLE.indexOf(nsfwPreference)
-                setNsfwPreference(NSFW_CYCLE[(i + 1) % NSFW_CYCLE.length])
-              }}
+              onClick={(e) => cycleNsfwPreference(e.currentTarget)}
               title={`${nsfwPreference}. Click to cycle: SFW → Blurred → NSFW`}
-              aria-label={`Content: ${nsfwPreference}`}
+              aria-label={`Content: ${nsfwPreference}. Click to cycle.`}
             >
               <span className={styles.menuMobileViewBtnIcon}>
                 <NsfwEyeIcon mode={nsfwPreference === 'sfw' ? 'closed' : nsfwPreference === 'blurred' ? 'half' : 'open'} />
@@ -1335,6 +1335,20 @@ export default function Layout({ title, children, showNav }: Props) {
       <a href="#main-content" className={styles.skipLink}>
         Skip to main content
       </a>
+      {nsfwAnnouncement && (
+        <div
+          className={styles.nsfwAnnouncement}
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          style={{
+            top: nsfwAnnouncement.anchorRect.bottom + 8,
+            left: nsfwAnnouncement.anchorRect.left + nsfwAnnouncement.anchorRect.width / 2,
+          }}
+        >
+          {nsfwAnnouncement.text}
+        </div>
+      )}
       <header className={`${styles.header} ${showNav && !session ? styles.headerLoggedOut : ''} ${showNav && !isDesktop && !navVisible ? styles.headerHidden : ''}`} role="banner">
         {showNav && (
           <>
@@ -1500,12 +1514,9 @@ export default function Layout({ title, children, showNav }: Props) {
                   <button
                     type="button"
                     className={`${styles.headerBtn} ${nsfwPreference !== 'sfw' ? styles.headerBtnActive : ''}`}
-                    onClick={() => {
-                      const i = NSFW_CYCLE.indexOf(nsfwPreference)
-                      setNsfwPreference(NSFW_CYCLE[(i + 1) % NSFW_CYCLE.length])
-                    }}
+                    onClick={(e) => cycleNsfwPreference(e.currentTarget)}
                     title={`${nsfwPreference}. Click to cycle: SFW → Blurred → NSFW`}
-                    aria-label={`NSFW filter: ${nsfwPreference}`}
+                    aria-label={`Content filter: ${nsfwPreference}. Click to cycle.`}
                   >
                     <NsfwEyeIcon mode={nsfwPreference === 'sfw' ? 'closed' : nsfwPreference === 'blurred' ? 'half' : 'open'} />
                   </button>
@@ -1547,7 +1558,7 @@ export default function Layout({ title, children, showNav }: Props) {
                   {unreadNotificationCount > 0 && (
                     <span className={styles.notificationUnreadDot} aria-hidden />
                   )}
-                  {notificationsOpen && isDesktop && (
+                  {notificationsOpen && (
                     <div ref={notificationsMenuRef} className={styles.notificationsMenu} role="dialog" aria-label="Notifications">
                       {notificationsPanelContent}
                     </div>
@@ -1668,21 +1679,19 @@ export default function Layout({ title, children, showNav }: Props) {
       {showNav && (
         <>
           <div className={`${styles.navOuter} ${navVisible ? '' : styles.navHidden}`}>
-            {!isDesktop && (
-              <button
-                type="button"
-                className={styles.seenPostsFloatBtn}
-                onPointerDown={startSeenHold}
-                onPointerUp={endSeenHold}
-                onPointerLeave={endSeenHold}
-                onPointerCancel={endSeenHold}
-                onClick={seenBtnClick}
-                title="Tap to hide seen posts, hold to show them again"
-                aria-label="Seen posts: tap to hide, hold to show again"
-              >
-                <SeenPostsIcon />
-              </button>
-            )}
+            <button
+              type="button"
+              className={styles.seenPostsFloatBtn}
+              onPointerDown={startSeenHold}
+              onPointerUp={endSeenHold}
+              onPointerLeave={endSeenHold}
+              onPointerCancel={endSeenHold}
+              onClick={seenBtnClick}
+              title="Tap to hide seen posts, hold to show them again"
+              aria-label="Seen posts: tap to hide, hold to show again"
+            >
+              <SeenPostsIcon />
+            </button>
             <nav
               className={styles.nav}
               aria-label="Main navigation"
@@ -1705,25 +1714,6 @@ export default function Layout({ title, children, showNav }: Props) {
               >
                 <div className={styles.searchOverlayCard}>
                   <SearchBar inputRef={searchInputRef} onClose={closeMobileSearch} suggestionsAbove={isDesktop} onSelectFeed={handleSelectFeedFromSearch} />
-                </div>
-              </div>
-            </>
-          )}
-          {notificationsOpen && !isDesktop && (
-            <>
-              <div
-                className={styles.searchOverlayBackdrop}
-                onClick={() => setNotificationsOpen(false)}
-                aria-hidden
-              />
-              <div
-                className={`${styles.notificationsOverlay} ${styles.notificationsOverlayMobile}`}
-                role="dialog"
-                aria-label="Notifications"
-                onClick={() => setNotificationsOpen(false)}
-              >
-                <div className={styles.notificationsCard} onClick={(e) => e.stopPropagation()}>
-                  {notificationsPanelContent}
                 </div>
               </div>
             </>

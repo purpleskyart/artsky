@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, startTransition } from 'react'
 import { useLocation, useNavigate, useNavigationType } from 'react-router-dom'
 import {
   agent,
@@ -13,6 +13,7 @@ import {
 } from '../lib/bsky'
 import type { FeedSource } from '../types'
 import PostCard from '../components/PostCard'
+import RepostCarouselCard from '../components/RepostCarouselCard'
 import Layout from '../components/Layout'
 import { useProfileModal } from '../context/ProfileModalContext'
 import { useLoginModal } from '../context/LoginModalContext'
@@ -28,21 +29,19 @@ import { usePullToRefresh } from '../hooks/usePullToRefresh'
 import SuggestedFollows from '../components/SuggestedFollows'
 import styles from './FeedPage.module.css'
 
+/** Dedupe feed items by post URI (keep first). Stops the same post appearing as both original and repost. */
+function dedupeFeedByPostUri(items: TimelineItem[]): TimelineItem[] {
+  const seen = new Set<string>()
+  return items.filter((item) => {
+    const uri = item?.post?.uri
+    if (!uri || seen.has(uri)) return false
+    seen.add(uri)
+    return true
+  })
+}
+
 const SEEN_POSTS_KEY = 'artsky-seen-posts'
 const SEEN_POSTS_MAX = 2000
-const FEED_SORT_KEY = 'artsky-feed-sort'
-
-type FeedSortMode = 'newest' | 'oldest' | 'most-likes' | 'most-replies'
-
-function loadFeedSort(): FeedSortMode {
-  try {
-    const v = localStorage.getItem(FEED_SORT_KEY)
-    if (v === 'oldest' || v === 'most-likes' || v === 'most-replies') return v
-    return 'newest'
-  } catch {
-    return 'newest'
-  }
-}
 
 function loadSeenUris(): Set<string> {
   try {
@@ -73,6 +72,85 @@ const PRESET_SOURCES: FeedSource[] = [
 /** Nominal column width for height estimation (px). */
 const ESTIMATE_COL_WIDTH = 280
 const CARD_CHROME = 100
+const REPOST_CAROUSEL_ESTIMATE_HEIGHT = 200
+
+const REASON_REPOST = 'app.bsky.feed.defs#reasonRepost'
+const REPOST_CAROUSEL_WINDOW_MS = 60 * 60 * 1000
+const REPOST_CAROUSEL_MIN_COUNT = 4
+
+export type FeedDisplayEntry =
+  | { type: 'post'; item: TimelineItem; entryIndex: number }
+  | { type: 'carousel'; items: TimelineItem[]; entryIndex: number }
+
+function isRepost(item: TimelineItem): boolean {
+  return (item.reason as { $type?: string })?.$type === REASON_REPOST
+}
+
+function getItemTimestamp(item: TimelineItem): number {
+  const createdAt = (item.post.record as { createdAt?: string })?.createdAt
+  const indexedAt = (item.post as { indexedAt?: string }).indexedAt
+  const s = createdAt ?? indexedAt ?? ''
+  return s ? new Date(s).getTime() : 0
+}
+
+/** Group reposts: if more than 3 reposts fall within a 1-hour window, collapse into a carousel entry. */
+export function buildDisplayEntries(items: TimelineItem[]): FeedDisplayEntry[] {
+  const entries: FeedDisplayEntry[] = []
+  let entryIndex = 0
+  let repostWindow: TimelineItem[] = []
+  let windowMin = 0
+  let windowMax = 0
+
+  function flushRepostWindow() {
+    if (repostWindow.length >= REPOST_CAROUSEL_MIN_COUNT) {
+      entries.push({ type: 'carousel', items: [...repostWindow], entryIndex: entryIndex++ })
+    } else {
+      for (const item of repostWindow) {
+        entries.push({ type: 'post', item, entryIndex: entryIndex++ })
+      }
+    }
+    repostWindow = []
+  }
+
+  for (const item of items) {
+    if (!isRepost(item)) {
+      flushRepostWindow()
+      entries.push({ type: 'post', item, entryIndex: entryIndex++ })
+      continue
+    }
+    const t = getItemTimestamp(item)
+    if (repostWindow.length === 0) {
+      repostWindow.push(item)
+      windowMin = t
+      windowMax = t
+      continue
+    }
+    const newMin = Math.min(windowMin, t)
+    const newMax = Math.max(windowMax, t)
+    if (newMax - newMin <= REPOST_CAROUSEL_WINDOW_MS) {
+      repostWindow.push(item)
+      windowMin = newMin
+      windowMax = newMax
+    } else {
+      flushRepostWindow()
+      repostWindow = [item]
+      windowMin = t
+      windowMax = t
+    }
+  }
+  flushRepostWindow()
+  return entries
+}
+
+function estimateEntryHeight(entry: FeedDisplayEntry): number {
+  if (entry.type === 'carousel') return REPOST_CAROUSEL_ESTIMATE_HEIGHT
+  const media = getPostMediaInfo(entry.item.post)
+  if (!media) return CARD_CHROME + 80
+  if (media.aspectRatio != null && media.aspectRatio > 0) {
+    return CARD_CHROME + ESTIMATE_COL_WIDTH / media.aspectRatio
+  }
+  return CARD_CHROME + 220
+}
 
 function estimateItemHeight(item: TimelineItem): number {
   const media = getPostMediaInfo(item.post)
@@ -83,7 +161,37 @@ function estimateItemHeight(item: TimelineItem): number {
   return CARD_CHROME + 220
 }
 
-/** Distribute items so no column is much longer than others: cap count difference at 1, then pick by smallest estimated height. */
+/** Distribute entries (posts and carousels) so no column is much longer than others. */
+function distributeEntriesByHeight(
+  entries: FeedDisplayEntry[],
+  numCols: number
+): Array<Array<{ entry: FeedDisplayEntry; originalIndex: number }>> {
+  const cols = Math.min(3, Math.max(1, Math.floor(numCols)))
+  if (cols < 1) return []
+  const columns: Array<Array<{ entry: FeedDisplayEntry; originalIndex: number }>> = Array.from(
+    { length: cols },
+    () => []
+  )
+  const columnHeights: number[] = Array(cols).fill(0)
+  for (let i = 0; i < entries.length; i++) {
+    const entry = entries[i]
+    const h = estimateEntryHeight(entry)
+    const lengths = columns.map((col) => col.length)
+    const minCount = lengths.length === 0 ? 0 : Math.min(...lengths)
+    let best = -1
+    for (let c = 0; c < cols; c++) {
+      if (columns[c].length > minCount + 1) continue
+      if (best === -1 || columnHeights[c] < columnHeights[best]) best = c
+      else if (columnHeights[c] === columnHeights[best] && columns[c].length < columns[best].length) best = c
+    }
+    if (best === -1) best = 0
+    columns[best].push({ entry, originalIndex: i })
+    columnHeights[best] += h
+  }
+  return columns
+}
+
+/** Legacy: distribute plain items (used only if we skip carousel). */
 function distributeByHeight(
   items: TimelineItem[],
   numCols: number
@@ -113,9 +221,9 @@ function distributeByHeight(
   return columns
 }
 
-/** Given columns from distributeByHeight, return the index of the card directly above or below the one at currentIndex, or currentIndex if none. */
+/** Given columns from distributeByHeight or distributeEntriesByHeight, return the index of the card directly above or below. */
 function indexAbove(
-  columns: Array<Array<{ item: TimelineItem; originalIndex: number }>>,
+  columns: Array<Array<{ originalIndex: number }>>,
   currentIndex: number
 ): number {
   for (let c = 0; c < columns.length; c++) {
@@ -127,7 +235,7 @@ function indexAbove(
 }
 
 function indexBelow(
-  columns: Array<Array<{ item: TimelineItem; originalIndex: number }>>,
+  columns: Array<Array<{ originalIndex: number }>>,
   currentIndex: number
 ): number {
   for (let c = 0; c < columns.length; c++) {
@@ -150,7 +258,7 @@ function verticalOverlap(a: DOMRect, b: DOMRect): number {
  * If no card in that column has a valid rect (none loaded yet), stay put.
  */
 function indexLeftClosest(
-  columns: Array<Array<{ item: TimelineItem; originalIndex: number }>>,
+  columns: Array<Array<{ originalIndex: number }>>,
   currentIndex: number,
   getRect: (index: number) => DOMRect | undefined
 ): number {
@@ -181,7 +289,7 @@ function indexLeftClosest(
  * If no card in that column has a valid rect (none loaded yet), stay put.
  */
 function indexRightClosest(
-  columns: Array<Array<{ item: TimelineItem; originalIndex: number }>>,
+  columns: Array<Array<{ originalIndex: number }>>,
   currentIndex: number,
   getRect: (index: number) => DOMRect | undefined
 ): number {
@@ -224,6 +332,8 @@ export default function FeedPage() {
   /** One sentinel per column so we load more when the user nears the bottom of any column (avoids blank space in short columns). */
   const loadMoreSentinelRefs = useRef<(HTMLDivElement | null)[]>([])
   const loadingMoreRef = useRef(false)
+  /** Cooldown after triggering load more so we don't fire again while sentinel stays in view (stops infinite load loop). */
+  const lastLoadMoreAtRef = useRef(0)
   const [keyboardFocusIndex, setKeyboardFocusIndex] = useState(0)
   const [keyboardAddOpen, setKeyboardAddOpen] = useState(false)
   const [actionsMenuOpenForIndex, setActionsMenuOpenForIndex] = useState<number | null>(null)
@@ -255,7 +365,6 @@ export default function FeedPage() {
   seenUrisRef.current = seenUris
   const seenPostsContext = useSeenPosts()
   const [suggestedFollowsOpen, setSuggestedFollowsOpen] = useState(false)
-  const [feedSortMode, setFeedSortMode] = useState<FeedSortMode>(loadFeedSort)
 
   // Register clear-seen handler so that long-press on Home can bring back all hidden (seen) items.
   useEffect(() => {
@@ -367,8 +476,12 @@ export default function FeedPage() {
       setError(null)
       if (!session) {
         const { feed, cursor: next } = await getGuestFeed(limit, nextCursor)
-        setItems((prev) => (nextCursor ? [...prev, ...feed] : feed))
-        setCursor(next)
+        const apply = () => {
+          setItems((prev) => dedupeFeedByPostUri(nextCursor ? [...prev, ...feed] : feed))
+          setCursor(next)
+        }
+        if (nextCursor) startTransition(apply)
+        else apply()
       } else if (mixEntries.length >= 2 && mixTotalPercent >= 99) {
         const isLoadMore = !!nextCursor
         let cursorsToUse: Record<string, string> | undefined
@@ -384,27 +497,47 @@ export default function FeedPage() {
           limit,
           cursorsToUse
         )
-        setItems((prev) => (isLoadMore ? [...prev, ...feed] : feed))
-        setCursor(Object.keys(nextCursors).length > 0 ? JSON.stringify(nextCursors) : undefined)
+        const apply = () => {
+          setItems((prev) => dedupeFeedByPostUri(isLoadMore ? [...prev, ...feed] : feed))
+          setCursor(Object.keys(nextCursors).length > 0 ? JSON.stringify(nextCursors) : undefined)
+        }
+        if (isLoadMore) startTransition(apply)
+        else apply()
       } else if (mixEntries.length === 1) {
         const single = mixEntries[0].source
         if (single.kind === 'timeline') {
           const res = await agent.getTimeline({ limit, cursor: nextCursor })
-          setItems((prev) => (nextCursor ? [...prev, ...res.data.feed] : res.data.feed))
-          setCursor(res.data.cursor ?? undefined)
+          const apply = () => {
+            setItems((prev) => dedupeFeedByPostUri(nextCursor ? [...prev, ...res.data.feed] : res.data.feed))
+            setCursor(res.data.cursor ?? undefined)
+          }
+          if (nextCursor) startTransition(apply)
+          else apply()
         } else if (single.uri) {
           const res = await agent.app.bsky.feed.getFeed({ feed: single.uri, limit, cursor: nextCursor })
-          setItems((prev) => (nextCursor ? [...prev, ...res.data.feed] : res.data.feed))
-          setCursor(res.data.cursor ?? undefined)
+          const apply = () => {
+            setItems((prev) => dedupeFeedByPostUri(nextCursor ? [...prev, ...res.data.feed] : res.data.feed))
+            setCursor(res.data.cursor ?? undefined)
+          }
+          if (nextCursor) startTransition(apply)
+          else apply()
         }
       } else if (source.kind === 'timeline') {
         const res = await agent.getTimeline({ limit, cursor: nextCursor })
-        setItems((prev) => (nextCursor ? [...prev, ...res.data.feed] : res.data.feed))
-        setCursor(res.data.cursor ?? undefined)
+        const apply = () => {
+          setItems((prev) => dedupeFeedByPostUri(nextCursor ? [...prev, ...res.data.feed] : res.data.feed))
+          setCursor(res.data.cursor ?? undefined)
+        }
+        if (nextCursor) startTransition(apply)
+        else apply()
       } else if (source.uri) {
         const res = await agent.app.bsky.feed.getFeed({ feed: source.uri, limit, cursor: nextCursor })
-        setItems((prev) => (nextCursor ? [...prev, ...res.data.feed] : res.data.feed))
-        setCursor(res.data.cursor ?? undefined)
+        const apply = () => {
+          setItems((prev) => dedupeFeedByPostUri(nextCursor ? [...prev, ...res.data.feed] : res.data.feed))
+          setCursor(res.data.cursor ?? undefined)
+        }
+        if (nextCursor) startTransition(apply)
+        else apply()
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to load feed'
@@ -419,98 +552,141 @@ export default function FeedPage() {
     load()
   }, [load])
 
-  // Infinite scroll: load more when any column's sentinel enters view (so short columns trigger load before blank space shows)
+  // Infinite scroll: load more when sentinel enters view. Cooldown prevents re-triggering while sentinel stays in view (stops infinite load loop).
+  // After each load we also schedule a fallback check: if any column's sentinel is above the viewport
+  // bottom (blank space visible) we trigger another load once the cooldown expires. This handles two
+  // cases the observer alone misses: (1) sentinel fires immediately after cursor change but the
+  // cooldown blocks it and the observer never re-fires, and (2) a very tall post pushed short-column
+  // sentinels beyond the 600px rootMargin so the observer never sees them at all.
+  const LOAD_MORE_COOLDOWN_MS = 1800
   loadingMoreRef.current = loadingMore
   useEffect(() => {
     if (!cursor) return
     const refs = loadMoreSentinelRefs.current
+    let rafId = 0
+    let timeoutId = 0
+    let retryId = 0
+    const cols = Math.min(3, Math.max(1, viewMode === '1' ? 1 : viewMode === '2' ? 2 : 3))
+
+    /** True when any column's content ends above the viewport bottom (blank space visible). */
+    const anyColumnShort = () => {
+      for (let c = 0; c < cols; c++) {
+        const el = refs[c]
+        if (!el) continue
+        if (el.getBoundingClientRect().bottom < window.innerHeight) return true
+      }
+      return false
+    }
+
+    /** After cooldown, check for short columns and load more if needed. */
+    const scheduleRetry = () => {
+      clearTimeout(retryId)
+      const wait = Math.max(50, LOAD_MORE_COOLDOWN_MS - (Date.now() - lastLoadMoreAtRef.current) + 50)
+      retryId = window.setTimeout(() => {
+        if (loadingMoreRef.current) return
+        if (anyColumnShort()) {
+          loadingMoreRef.current = true
+          lastLoadMoreAtRef.current = Date.now()
+          load(cursor)
+        }
+      }, wait)
+    }
+
     const observer = new IntersectionObserver(
       (entries) => {
         for (const e of entries) {
-          if (e.isIntersecting && !loadingMoreRef.current) {
-            loadingMoreRef.current = true
-            load(cursor)
-            break
+          if (!e.isIntersecting || loadingMoreRef.current) continue
+          if (Date.now() - lastLoadMoreAtRef.current < LOAD_MORE_COOLDOWN_MS) {
+            scheduleRetry()
+            continue
           }
+          loadingMoreRef.current = true
+          const c = cursor
+          rafId = requestAnimationFrame(() => {
+            rafId = 0
+            timeoutId = window.setTimeout(() => {
+              timeoutId = 0
+              lastLoadMoreAtRef.current = Date.now()
+              load(c)
+            }, 120)
+          })
+          break
         }
       },
       { rootMargin: '600px', threshold: 0 }
     )
-    const cols = Math.min(3, Math.max(1, viewMode === '1' ? 1 : viewMode === '2' ? 2 : 3))
     for (let c = 0; c < cols; c++) {
       const el = refs[c]
       if (el) observer.observe(el)
     }
-    return () => observer.disconnect()
+
+    // After each cursor change (new posts loaded), schedule a fallback check for short columns
+    // whose sentinels may have scrolled beyond rootMargin or been blocked by cooldown.
+    if (cols > 1) scheduleRetry()
+
+    return () => {
+      observer.disconnect()
+      if (rafId) cancelAnimationFrame(rafId)
+      if (timeoutId) clearTimeout(timeoutId)
+      clearTimeout(retryId)
+    }
   }, [cursor, load, viewMode])
 
   const { mediaOnly } = useMediaOnly()
   const { nsfwPreference, unblurredUris, setUnblurred } = useModeration()
-  /** When viewing only the Following timeline, we can sort client-side. */
-  const isFollowingFeed =
-    (mixEntries.length === 1 && mixEntries[0].source.kind === 'timeline') ||
-    (mixEntries.length === 0 && source.kind === 'timeline')
-  const sortedItems = useMemo(() => {
-    if (!isFollowingFeed) return items
-    const postMeta = (p: TimelineItem['post']) => ({
-      indexedAt: (p as { indexedAt?: string }).indexedAt ?? '',
-      likeCount: (p as { likeCount?: number }).likeCount ?? 0,
-      replyCount: (p as { replyCount?: number }).replyCount ?? 0,
-    })
-    const sorted = [...items]
-    if (feedSortMode === 'newest') {
-      sorted.sort((a, b) => (postMeta(b.post).indexedAt).localeCompare(postMeta(a.post).indexedAt))
-    } else if (feedSortMode === 'oldest') {
-      sorted.sort((a, b) => (postMeta(a.post).indexedAt).localeCompare(postMeta(b.post).indexedAt))
-    } else if (feedSortMode === 'most-likes') {
-      sorted.sort((a, b) => postMeta(b.post).likeCount - postMeta(a.post).likeCount)
-    } else {
-      sorted.sort((a, b) => postMeta(b.post).replyCount - postMeta(a.post).replyCount)
-    }
-    return sorted
-  }, [items, isFollowingFeed, feedSortMode])
-  const displayItems = sortedItems
-    .filter((item) => (mediaOnly ? getPostMediaInfo(item.post) : true))
-    .filter((item) => !seenUrisAtReset.has(item.post.uri))
-    .filter((item) => nsfwPreference !== 'sfw' || !isPostNsfw(item.post))
-  const itemsAfterOtherFilters = sortedItems
-    .filter((item) => (mediaOnly ? getPostMediaInfo(item.post) : true))
-    .filter((item) => nsfwPreference !== 'sfw' || !isPostNsfw(item.post))
+  const displayItems = useMemo(() =>
+    items
+      .filter((item) => (mediaOnly ? getPostMediaInfo(item.post) : true))
+      .filter((item) => !seenUrisAtReset.has(item.post.uri))
+      .filter((item) => nsfwPreference !== 'sfw' || !isPostNsfw(item.post)),
+    [items, mediaOnly, seenUrisAtReset, nsfwPreference]
+  )
+  const displayEntries = useMemo(() => buildDisplayEntries(displayItems), [displayItems])
+  const itemsAfterOtherFilters = useMemo(() =>
+    items
+      .filter((item) => (mediaOnly ? getPostMediaInfo(item.post) : true))
+      .filter((item) => nsfwPreference !== 'sfw' || !isPostNsfw(item.post)),
+    [items, mediaOnly, nsfwPreference]
+  )
   /** Only "seen all" when there's nothing more to load (no cursor). With mixed feeds, one feed can be exhausted while others still have posts. */
-  const emptyBecauseAllSeen = displayItems.length === 0 && itemsAfterOtherFilters.length > 0 && !cursor
-  const canLoadMoreWhenEmpty = displayItems.length === 0 && cursor != null
+  const emptyBecauseAllSeen = displayEntries.length === 0 && itemsAfterOtherFilters.length > 0 && !cursor
+  const canLoadMoreWhenEmpty = displayEntries.length === 0 && cursor != null
   const cols = Math.min(3, Math.max(1, viewMode === '1' ? 1 : viewMode === '2' ? 2 : 3))
-  /** Flat list of focus targets: one per media item per post (multi-image posts get multiple entries). */
+  /** Flat list of focus targets: one per media item per post; carousel counts as one. */
   const focusTargets = useMemo(() => {
     const out: { cardIndex: number; mediaIndex: number }[] = []
-    displayItems.forEach((item, cardIndex) => {
-      const all = getPostAllMediaForDisplay(item.post)
-      const n = Math.max(1, all.length)
-      for (let m = 0; m < n; m++) out.push({ cardIndex, mediaIndex: m })
+    displayEntries.forEach((entry, cardIndex) => {
+      if (entry.type === 'post') {
+        const all = getPostAllMediaForDisplay(entry.item.post)
+        const n = Math.max(1, all.length)
+        for (let m = 0; m < n; m++) out.push({ cardIndex, mediaIndex: m })
+      } else {
+        out.push({ cardIndex, mediaIndex: 0 })
+      }
     })
     return out
-  }, [displayItems])
+  }, [displayEntries])
   /** First focus index for each card (top image; for S and A/D). */
   const firstFocusIndexForCard = useMemo(() => {
     const out: number[] = []
     let idx = 0
-    displayItems.forEach((item, cardIndex) => {
+    displayEntries.forEach((_entry, cardIndex) => {
       out[cardIndex] = idx
-      const all = getPostAllMediaForDisplay(item.post)
-      idx += Math.max(1, all.length)
+      const entry = displayEntries[cardIndex]
+      const n = entry.type === 'post' ? Math.max(1, getPostAllMediaForDisplay(entry.item.post).length) : 1
+      idx += n
     })
     return out
-  }, [displayItems])
+  }, [displayEntries])
   /** Last focus index for each card (bottom image; for W when moving to card above). */
   const lastFocusIndexForCard = useMemo(() => {
     const out: number[] = []
-    displayItems.forEach((item, cardIndex) => {
-      const all = getPostAllMediaForDisplay(item.post)
-      const n = Math.max(1, all.length)
+    displayEntries.forEach((entry, cardIndex) => {
+      const n = entry.type === 'post' ? Math.max(1, getPostAllMediaForDisplay(entry.item.post).length) : 1
       out[cardIndex] = firstFocusIndexForCard[cardIndex] + n - 1
     })
     return out
-  }, [displayItems, firstFocusIndexForCard])
+  }, [displayEntries, firstFocusIndexForCard])
   mediaItemsRef.current = displayItems
   keyboardFocusIndexRef.current = keyboardFocusIndex
   actionsMenuOpenForIndexRef.current = actionsMenuOpenForIndex
@@ -527,36 +703,33 @@ export default function FeedPage() {
     saveSeenUris(seenUris)
   }, [seenUris])
 
+  // Mark posts as seen when they leave the viewport (top above view). Observer only, no scroll listener, so we don't do layout work or setState during scroll like the profile page.
+  // Batch observer callbacks into one setState per frame and cap updates to once per 400ms to avoid re-render storms.
   useEffect(() => {
-    try {
-      localStorage.setItem(FEED_SORT_KEY, feedSortMode)
-    } catch {
-      // ignore
-    }
-  }, [feedSortMode])
+    const pendingUris = new Set<string>()
+    let flushRaf = 0
+    let lastFlushTime = 0
+    const SEEN_FLUSH_INTERVAL_MS = 400
 
-  // Mark posts as seen when scrolled past (card top above viewport).
-  // Use both IntersectionObserver and a scroll listener: the observer can miss callbacks during fast scroll (especially Safari iOS).
-  useEffect(() => {
-    const markScrolledPastAsSeen = () => {
-      let changed = false
-      let next = seenUrisRef.current
-      for (let i = 0; i < displayItems.length; i++) {
-        const el = cardRefsRef.current[i]
-        if (!el) continue
-        const rect = el.getBoundingClientRect()
-        if (rect.top < 0) {
-          const uri = el.getAttribute('data-post-uri')
-          if (uri && !next.has(uri)) {
-            next = new Set(next).add(uri)
-            changed = true
-          }
+    const flushPending = () => {
+      flushRaf = 0
+      if (pendingUris.size === 0) return
+      const now = Date.now()
+      if (now - lastFlushTime < SEEN_FLUSH_INTERVAL_MS) {
+        flushRaf = requestAnimationFrame(flushPending)
+        return
+      }
+      lastFlushTime = now
+      const toAdd = new Set(pendingUris)
+      pendingUris.clear()
+      setSeenUris((prev) => {
+        let next = prev
+        for (const uri of toAdd) {
+          if (!next.has(uri)) next = new Set(next).add(uri)
         }
-      }
-      if (changed) {
         seenUrisRef.current = next
-        setSeenUris(next)
-      }
+        return next
+      })
     }
 
     const observer = new IntersectionObserver(
@@ -564,36 +737,24 @@ export default function FeedPage() {
         for (const entry of entries) {
           if (!entry.isIntersecting && entry.boundingClientRect.top < 0) {
             const uri = (entry.target as HTMLElement).getAttribute('data-post-uri')
-            if (uri) {
-              const next = new Set(seenUrisRef.current).add(uri)
-              seenUrisRef.current = next
-              setSeenUris(next)
-            }
+            if (uri && !seenUrisRef.current.has(uri)) pendingUris.add(uri)
           }
         }
+        if (pendingUris.size > 0 && !flushRaf) flushRaf = requestAnimationFrame(flushPending)
       },
       { threshold: 0, rootMargin: '0px' }
     )
-    for (let i = 0; i < displayItems.length; i++) {
+    const observeLimit = Math.min(displayEntries.length, 80)
+    for (let i = 0; i < observeLimit; i++) {
       const el = cardRefsRef.current[i]
       if (el) observer.observe(el)
     }
 
-    let scrollRaf: number = 0
-    const onScroll = () => {
-      scrollRaf = requestAnimationFrame(() => {
-        scrollRaf = requestAnimationFrame(markScrolledPastAsSeen)
-      })
-    }
-    window.addEventListener('scroll', onScroll, { passive: true })
-    markScrolledPastAsSeen()
-
     return () => {
-      window.removeEventListener('scroll', onScroll)
-      if (scrollRaf) cancelAnimationFrame(scrollRaf)
       observer.disconnect()
+      if (flushRaf) cancelAnimationFrame(flushRaf)
     }
-  }, [displayItems.length])
+  }, [displayEntries.length])
 
   useEffect(() => {
     const onMouseMove = () => { mouseMovedRef.current = true }
@@ -637,11 +798,13 @@ export default function FeedPage() {
 
       const items = mediaItemsRef.current // displayItems
       const i = keyboardFocusIndexRef.current
-      if (items.length === 0 || focusTargets.length === 0) return
+      if (displayEntries.length === 0 || focusTargets.length === 0) return
 
       setFocusSetByMouse(false)
       const focusTarget = focusTargets[i]
       const currentCardIndex = focusTarget?.cardIndex ?? 0
+      const focusedEntry = displayEntries[currentCardIndex]
+      const focusedItem = focusedEntry?.type === 'post' ? focusedEntry.item : focusedEntry?.type === 'carousel' ? focusedEntry.items[0] : null
 
       const key = e.key.toLowerCase()
       const focusInActionsMenu = (document.activeElement as HTMLElement)?.closest?.('[role="menu"]')
@@ -662,12 +825,11 @@ export default function FeedPage() {
       if (key === 'w' || key === 's' || key === 'a' || key === 'd' || key === 'e' || key === 'enter' || key === 'r' || key === 'f' || key === 'c' || key === 'h' || key === 'b' || key === 'm' || key === '`' || key === '4' || e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') e.preventDefault()
 
       if (key === 'b') {
-        const item = items[currentCardIndex]
-        if (item?.post?.author && session?.did !== item.post.author.did) {
+        if (focusedItem?.post?.author && session?.did !== focusedItem.post.author.did) {
           setBlockConfirm({
-            did: item.post.author.did,
-            handle: item.post.author.handle ?? item.post.author.did,
-            avatar: item.post.author.avatar,
+            did: focusedItem.post.author.did,
+            handle: focusedItem.post.author.handle ?? focusedItem.post.author.did,
+            avatar: focusedItem.post.author.avatar,
           })
           requestAnimationFrame(() => blockCancelRef.current?.focus())
         }
@@ -676,7 +838,7 @@ export default function FeedPage() {
 
       /* Use ref + concrete value (not functional updater) so Strict Mode double-invoke doesn't move two steps */
       const fromNone = i < 0
-      const columns = cols >= 2 ? distributeByHeight(items, cols) : null
+      const columns = cols >= 2 ? distributeEntriesByHeight(displayEntries, cols) : null
       const getRect = (idx: number) => cardRefsRef.current[idx]?.getBoundingClientRect()
       if (key === 'w' || e.key === 'ArrowUp') {
         mouseMovedRef.current = false
@@ -684,7 +846,7 @@ export default function FeedPage() {
         scrollIntoViewFromKeyboardRef.current = true
         const onFirstImageOfCard = i === firstFocusIndexForCard[currentCardIndex]
         const next = fromNone
-          ? (lastFocusIndexForCard[items.length - 1] ?? focusTargets.length - 1)
+          ? (lastFocusIndexForCard[displayEntries.length - 1] ?? focusTargets.length - 1)
           : !onFirstImageOfCard
             ? Math.max(0, i - 1)
             : (() => {
@@ -704,7 +866,7 @@ export default function FeedPage() {
           : !onLastImageOfCard
             ? Math.min(focusTargets.length - 1, i + 1)
             : (() => {
-                const nextCard = cols >= 2 && columns ? indexBelow(columns, currentCardIndex) : Math.min(items.length - 1, currentCardIndex + 1)
+                const nextCard = cols >= 2 && columns ? indexBelow(columns, currentCardIndex) : Math.min(displayEntries.length - 1, currentCardIndex + 1)
                 return firstFocusIndexForCard[nextCard] ?? i
               })()
         setKeyboardFocusIndex(next)
@@ -739,17 +901,15 @@ export default function FeedPage() {
         return
       }
       if (key === 'e' || key === 'enter') {
-        const item = items[currentCardIndex]
-        if (item) openPostModal(item.post.uri)
+        if (focusedItem) openPostModal(focusedItem.post.uri)
         return
       }
       if (key === 'r') {
-        const item = items[currentCardIndex]
-        if (item) openPostModal(item.post.uri, true)
+        if (focusedItem) openPostModal(focusedItem.post.uri, true)
         return
       }
       if (key === 'f') {
-        const item = items[currentCardIndex]
+        const item = focusedItem
         if (!item?.post?.uri || !item?.post?.cid) return
         const uri = item.post.uri
         const currentLikeUri = uri in likeOverrides ? (likeOverrides[uri] ?? undefined) : (item.post as { viewer?: { like?: string } }).viewer?.like
@@ -769,10 +929,9 @@ export default function FeedPage() {
         return
       }
       if (key === '4') {
-        const item = items[currentCardIndex]
-        const author = item?.post?.author as { did: string; viewer?: { following?: string } } | undefined
+        const author = focusedItem?.post?.author as { did: string; viewer?: { following?: string } } | undefined
         if (author && session?.did && session.did !== author.did) {
-          const postUri = item.post.uri
+          const postUri = focusedItem.post.uri
           const followingUri = author.viewer?.following
           if (followingUri) {
             agent.deleteFollow(followingUri).then(() => {
@@ -940,23 +1099,6 @@ export default function FeedPage() {
             {suggestedFollowsOpen && <SuggestedFollows />}
           </div>
         )}
-        {session && isFollowingFeed && (
-          <div className={styles.feedSortRow}>
-            <label htmlFor="feed-sort" className={styles.feedSortLabel}>Sort:</label>
-            <select
-              id="feed-sort"
-              className={styles.feedSortSelect}
-              value={feedSortMode}
-              onChange={(e) => setFeedSortMode(e.target.value as FeedSortMode)}
-              aria-label="Following feed sort order"
-            >
-              <option value="newest">Newest</option>
-              <option value="oldest">Oldest</option>
-              <option value="most-likes">Most liked</option>
-              <option value="most-replies">Most replies</option>
-            </select>
-          </div>
-        )}
         <div
           key={mixEntries.length === 1 ? (mixEntries[0].source.uri ?? mixEntries[0].source.label) : 'mixed'}
           className={styles.feedContentTransition}
@@ -964,7 +1106,7 @@ export default function FeedPage() {
         {error && <p className={styles.error}>{error}</p>}
         {loading ? (
           <div className={styles.loading}>Loading…</div>
-        ) : displayItems.length === 0 ? (
+        ) : displayEntries.length === 0 ? (
           <div className={styles.empty}>
             {canLoadMoreWhenEmpty ? (
               <>
@@ -999,11 +1141,11 @@ export default function FeedPage() {
               data-keyboard-nav={keyboardNavActive || undefined}
               onMouseLeave={() => setKeyboardFocusIndex(-1)}
             >
-              {distributeByHeight(displayItems, cols).map((column, colIndex) => (
+              {distributeEntriesByHeight(displayEntries, cols).map((column, colIndex) => (
                 <div key={colIndex} className={styles.gridColumn}>
-                  {column.map(({ item, originalIndex }) => (
+                  {column.map(({ entry, originalIndex }) => (
                     <div
-                      key={item.post.uri}
+                      key={entry.type === 'post' ? entry.item.post.uri : `carousel-${entry.items[0].post.uri}`}
                       className={styles.gridItem}
                       onMouseEnter={() => {
                         if (mouseMovedRef.current) {
@@ -1014,33 +1156,43 @@ export default function FeedPage() {
                         }
                       }}
                     >
-                      <PostCard
-                        item={item}
-                        isSelected={focusTargets[keyboardFocusIndex]?.cardIndex === originalIndex}
-                        focusedMediaIndex={
-                          focusTargets[keyboardFocusIndex]?.cardIndex === originalIndex && !(focusSetByMouse && getPostAllMediaForDisplay(item.post).length > 1)
-                            ? focusTargets[keyboardFocusIndex]?.mediaIndex
-                            : undefined
-                        }
-                        onMediaRef={(mediaIndex, el) => {
-                          if (!mediaRefsRef.current[originalIndex]) mediaRefsRef.current[originalIndex] = {}
-                          mediaRefsRef.current[originalIndex][mediaIndex] = el
-                        }}
-                        cardRef={(el) => { cardRefsRef.current[originalIndex] = el }}
-                        openAddDropdown={focusTargets[keyboardFocusIndex]?.cardIndex === originalIndex && keyboardAddOpen}
-                        onAddClose={() => setKeyboardAddOpen(false)}
-                        onActionsMenuOpenChange={(open) => setActionsMenuOpenForIndex(open ? originalIndex : null)}
-                        cardIndex={originalIndex}
-                        actionsMenuOpenForIndex={actionsMenuOpenForIndex}
-                        onPostClick={(uri, opts) => openPostModal(uri, opts?.openReply)}
-                        onAspectRatio={undefined}
-                        fillCell={false}
-                        nsfwBlurred={nsfwPreference === 'blurred' && isPostNsfw(item.post) && !unblurredUris.has(item.post.uri)}
-                        onNsfwUnblur={() => setUnblurred(item.post.uri, true)}
-                        likedUriOverride={likeOverrides[item.post.uri]}
-                        onLikedChange={(uri, likeRecordUri) => setLikeOverrides((prev) => ({ ...prev, [uri]: likeRecordUri ?? null }))}
-                        seen={seenUris.has(item.post.uri)}
-                      />
+                      {entry.type === 'post' ? (
+                        <PostCard
+                          item={entry.item}
+                          isSelected={focusTargets[keyboardFocusIndex]?.cardIndex === originalIndex}
+                          focusedMediaIndex={
+                            focusTargets[keyboardFocusIndex]?.cardIndex === originalIndex && !(focusSetByMouse && getPostAllMediaForDisplay(entry.item.post).length > 1)
+                              ? focusTargets[keyboardFocusIndex]?.mediaIndex
+                              : undefined
+                          }
+                          onMediaRef={(mediaIndex, el) => {
+                            if (!mediaRefsRef.current[originalIndex]) mediaRefsRef.current[originalIndex] = {}
+                            mediaRefsRef.current[originalIndex][mediaIndex] = el
+                          }}
+                          cardRef={(el) => { cardRefsRef.current[originalIndex] = el }}
+                          openAddDropdown={focusTargets[keyboardFocusIndex]?.cardIndex === originalIndex && keyboardAddOpen}
+                          onAddClose={() => setKeyboardAddOpen(false)}
+                          onActionsMenuOpenChange={(open) => setActionsMenuOpenForIndex(open ? originalIndex : null)}
+                          cardIndex={originalIndex}
+                          actionsMenuOpenForIndex={actionsMenuOpenForIndex}
+                          onPostClick={(uri, opts) => openPostModal(uri, opts?.openReply)}
+                          onAspectRatio={undefined}
+                          fillCell={false}
+                          nsfwBlurred={nsfwPreference === 'blurred' && isPostNsfw(entry.item.post) && !unblurredUris.has(entry.item.post.uri)}
+                          onNsfwUnblur={() => setUnblurred(entry.item.post.uri, true)}
+                          likedUriOverride={likeOverrides[entry.item.post.uri]}
+                          onLikedChange={(uri, likeRecordUri) => setLikeOverrides((prev) => ({ ...prev, [uri]: likeRecordUri ?? null }))}
+                          seen={seenUris.has(entry.item.post.uri)}
+                        />
+                      ) : (
+                        <RepostCarouselCard
+                          items={entry.items}
+                          onPostClick={(uri) => openPostModal(uri)}
+                          cardRef={(el) => { cardRefsRef.current[originalIndex] = el }}
+                          seen={seenUris.has(entry.items[0].post.uri)}
+                          data-post-uri={entry.items[0].post.uri}
+                        />
+                      )}
                     </div>
                   ))}
                   {cursor && (

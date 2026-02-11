@@ -926,6 +926,15 @@ export default function PostCard({ item, isSelected, cardRef: cardRefProp, addBu
               </button>
             </div>
             <div className={styles.cardActionRowRight}>
+              {(post.record as { createdAt?: string })?.createdAt && (
+                <span
+                  className={styles.cardActionRowTime}
+                  title={formatExactDateTime((post.record as { createdAt: string }).createdAt)}
+                  aria-hidden
+                >
+                  {formatRelativeTime((post.record as { createdAt: string }).createdAt)}
+                </span>
+              )}
               <PostActionsMenu
                 postUri={post.uri}
                 postCid={post.cid}

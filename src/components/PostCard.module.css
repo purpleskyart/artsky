@@ -44,8 +44,8 @@
 .cardSelected {
   outline: none;
   z-index: 1;
-  transform: scale(1.05);
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.15);
+  transform: scale(1.02);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
 }
 .cardSelected::after {
   box-shadow: none;
@@ -148,8 +148,8 @@ html[data-theme="dark"] .cardSeen {
 /* Hover: lift toward user (scale + shadow, no purple ring) */
 .card:hover {
   outline: none;
-  transform: scale(1.05);
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.15);
+  transform: scale(1.02);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
 }
 .card:hover::after {
   box-shadow: none;
@@ -235,8 +235,8 @@ html[data-theme="dark"] [data-view-mode="1"] .card:hover {
 }
 /* Lift card (scale + shadow) only when focus is not on a media grid cell – otherwise card scale + cell scale makes the top image’s corners extend past the card’s rounded clip */
 .card:focus-within:not(:has(.mediaGridCellFocused)) {
-  transform: scale(1.05);
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.15);
+  transform: scale(1.02);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
 }
 .card:focus-within:not(:has(.mediaGridCellFocused))::after {
   box-shadow: none;
@@ -325,6 +325,16 @@ html[data-theme="dark"] [data-view-mode="1"] .card:focus-within:not(:has(.mediaG
   top: 50%;
   transform: translateY(-50%);
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.cardActionRowTime {
+  font-size: 0.65rem;
+  color: var(--muted);
+  white-space: nowrap;
+  opacity: 0.9;
 }
 
 /* When card is narrow enough that download/menu would overlap collect+like, hide them */
