@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { agent, searchPostsByPhraseAndTags, getPostMediaInfo, isPostNsfw } from '../lib/bsky'
+import { setInitialPostForUri } from '../lib/postCache'
 import type { TimelineItem } from '../lib/bsky'
 import type { AppBskyFeedDefs } from '@atproto/api'
 import PostCard from './PostCard'
@@ -316,7 +317,10 @@ function SearchContent({ query, onRegisterRefresh }: { query: string; onRegister
                     cardRef={(el) => { cardRefsRef.current[originalIndex] = el }}
                     openAddDropdown={originalIndex === keyboardFocusIndex && keyboardAddOpen}
                     onAddClose={() => setKeyboardAddOpen(false)}
-                    onPostClick={(uri) => openPostModal(uri)}
+                    onPostClick={(uri, opts) => {
+                      if (opts?.initialItem) setInitialPostForUri(uri, opts.initialItem)
+                      openPostModal(uri)
+                    }}
                     nsfwBlurred={nsfwPreference === 'blurred' && isPostNsfw(item.post) && !unblurredUris.has(item.post.uri)}
                     onNsfwUnblur={() => setUnblurred(item.post.uri, true)}
                     likedUriOverride={likeOverrides[item.post.uri]}

@@ -18,6 +18,7 @@ import { ScrollLockProvider } from './context/ScrollLockContext'
 import { ModerationProvider } from './context/ModerationContext'
 import { HideRepostsProvider } from './context/HideRepostsContext'
 import { SeenPostsProvider } from './context/SeenPostsContext'
+import { ToastProvider } from './context/ToastContext'
 import FeedPage from './pages/FeedPage'
 import PostDetailPage from './pages/PostDetailPage'
 import ProfilePage from './pages/ProfilePage'
@@ -179,6 +180,7 @@ export default function App() {
         <ThemeProvider>
           <SessionProvider>
             <ScrollLockProvider>
+            <ToastProvider>
             <ViewModeProvider>
               <ArtOnlyProvider>
                 <MediaOnlyProvider>
@@ -202,6 +204,7 @@ export default function App() {
                 </MediaOnlyProvider>
               </ArtOnlyProvider>
             </ViewModeProvider>
+            </ToastProvider>
             </ScrollLockProvider>
           </SessionProvider>
         </ThemeProvider>

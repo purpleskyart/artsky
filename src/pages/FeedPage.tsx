@@ -27,6 +27,7 @@ import { useModeration } from '../context/ModerationContext'
 import { useHideReposts } from '../context/HideRepostsContext'
 import { useSeenPosts } from '../context/SeenPostsContext'
 import { usePullToRefresh } from '../hooks/usePullToRefresh'
+import { setInitialPostForUri } from '../lib/postCache'
 import SuggestedFollows from '../components/SuggestedFollows'
 import styles from './FeedPage.module.css'
 
@@ -372,12 +373,14 @@ export default function FeedPage() {
     }
   }, [seenPostsContext])
 
-  // When the eye (hide seen) button is clicked: hide seen posts only, no scroll.
+  // When the eye (hide seen) button is clicked: hide seen posts only, no scroll. Show toast with count.
   useEffect(() => {
     if (!seenPostsContext) return
-    seenPostsContext.setHideSeenOnlyHandler(() => {
+    seenPostsContext.setHideSeenOnlyHandler((showToast) => {
       requestAnimationFrame(() => {
+        const count = seenUrisRef.current.size
         setSeenUrisAtReset(new Set(seenUrisRef.current))
+        showToast(count === 0 ? 'No seen posts in feed' : `${count} seen posts hidden`)
       })
     })
     return () => {
@@ -409,6 +412,56 @@ export default function FeedPage() {
   useEffect(() => {
     loadSavedFeeds()
   }, [loadSavedFeeds])
+
+  // Purplesky-style: hide floating buttons + nav when scrolling down; show on scroll up or stop
+  useEffect(() => {
+    let timeoutId: ReturnType<typeof setTimeout> | undefined
+    const stopScrollDelay = 200
+    const scrollThreshold = 48
+    let scrollYAtRest = typeof window !== 'undefined' ? window.scrollY : 0
+    let lastY = scrollYAtRest
+    const onScroll = () => {
+      const y = window.scrollY
+      const isHidden = document.body.classList.contains('feed-scrolling')
+      const goingUp = y < lastY
+      lastY = y
+
+      if (goingUp) {
+        if (isHidden) {
+          document.body.classList.remove('feed-scrolling')
+          if (timeoutId) {
+            clearTimeout(timeoutId)
+            timeoutId = undefined
+          }
+        }
+        scrollYAtRest = y
+        return
+      }
+
+      if (isHidden) {
+        if (timeoutId) clearTimeout(timeoutId)
+        timeoutId = setTimeout(() => {
+          document.body.classList.remove('feed-scrolling')
+          scrollYAtRest = window.scrollY
+          timeoutId = undefined
+        }, stopScrollDelay)
+      } else if (y - scrollYAtRest >= scrollThreshold) {
+        document.body.classList.add('feed-scrolling')
+        if (timeoutId) clearTimeout(timeoutId)
+        timeoutId = setTimeout(() => {
+          document.body.classList.remove('feed-scrolling')
+          scrollYAtRest = window.scrollY
+          timeoutId = undefined
+        }, stopScrollDelay)
+      }
+    }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => {
+      window.removeEventListener('scroll', onScroll)
+      if (timeoutId) clearTimeout(timeoutId)
+      document.body.classList.remove('feed-scrolling')
+    }
+  }, [])
 
   // When landing on the feed (refresh or logo/feed button): scroll to top and take snapshot of seen URIs so only those are hidden; newly seen posts while scrolling stay visible.
   useEffect(() => {
@@ -1175,7 +1228,10 @@ export default function FeedPage() {
                           onActionsMenuOpenChange={(open) => setActionsMenuOpenForIndex(open ? originalIndex : null)}
                           cardIndex={originalIndex}
                           actionsMenuOpenForIndex={actionsMenuOpenForIndex}
-                          onPostClick={(uri, opts) => openPostModal(uri, opts?.openReply)}
+                          onPostClick={(uri, opts) => {
+                            if (opts?.initialItem) setInitialPostForUri(uri, opts.initialItem)
+                            openPostModal(uri, opts?.openReply)
+                          }}
                           onAspectRatio={undefined}
                           fillCell={false}
                           nsfwBlurred={nsfwPreference === 'blurred' && isPostNsfw(entry.item.post) && !unblurredUris.has(entry.item.post.uri)}
@@ -1187,7 +1243,10 @@ export default function FeedPage() {
                       ) : (
                         <RepostCarouselCard
                           items={entry.items}
-                          onPostClick={(uri) => openPostModal(uri)}
+                          onPostClick={(uri, opts) => {
+                            if (opts?.initialItem) setInitialPostForUri(uri, opts.initialItem)
+                            openPostModal(uri)
+                          }}
                           cardRef={(el) => { cardRefsRef.current[originalIndex] = el }}
                           seen={seenUris.has(entry.items[0].post.uri)}
                           data-post-uri={entry.items[0].post.uri}

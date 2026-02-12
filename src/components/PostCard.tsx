@@ -29,7 +29,7 @@ interface Props {
   /** Called when the add-to-artboard dropdown is closed */
   onAddClose?: () => void
   /** When provided, opening the post calls this instead of navigating to /post/:uri (e.g. open in modal) */
-  onPostClick?: (uri: string, options?: { openReply?: boolean }) => void
+  onPostClick?: (uri: string, options?: { openReply?: boolean; initialItem?: unknown }) => void
   /** Called when media aspect ratio is known (for bento layout) */
   onAspectRatio?: (aspect: number) => void
   /** When true, card fills grid cell height and media uses object-fit: cover (bento mode) */
@@ -521,14 +521,14 @@ export default function PostCard({ item, isSelected, cardRef: cardRefProp, addBu
     /* On touch devices the synthetic click fires ~300ms after touchEnd; we delay open by 400ms so double-tap can register. Ignore this click and let the timer open. */
     if (touchSessionRef.current) return
     if (onPostClick) {
-      onPostClick(post.uri)
+      onPostClick(post.uri, { initialItem: item })
     } else {
       navigate(`/post/${encodeURIComponent(post.uri)}`)
     }
   }
 
   function openPost() {
-    if (onPostClick) onPostClick(post.uri)
+    if (onPostClick) onPostClick(post.uri, { initialItem: item })
     else navigate(`/post/${encodeURIComponent(post.uri)}`)
   }
 
@@ -552,7 +552,7 @@ export default function PostCard({ item, isSelected, cardRef: cardRefProp, addBu
         onClick={handleCardClick}
         onKeyDown={(e) => {
           if (e.key !== 'Enter') return
-          if (onPostClick) onPostClick(post.uri)
+          if (onPostClick) onPostClick(post.uri, { initialItem: item })
           else navigate(`/post/${encodeURIComponent(post.uri)}`)
         }}
         onTouchStart={(e) => {
@@ -707,6 +707,7 @@ export default function PostCard({ item, isSelected, cardRef: cardRefProp, addBu
                             alt=""
                             className={styles.mediaGridImg}
                             loading="lazy"
+                            decoding="async"
                             onLoad={idx === 0 ? handleImageLoad : undefined}
                           />
                         </div>
@@ -717,7 +718,7 @@ export default function PostCard({ item, isSelected, cardRef: cardRefProp, addBu
             </>
           ) : (
             <>
-              <img src={currentImageUrl} alt="" className={styles.media} loading="lazy" onLoad={handleImageLoad} />
+              <img src={currentImageUrl} alt="" className={styles.media} loading="lazy" decoding="async" onLoad={handleImageLoad} />
             </>
           )}
           {nsfwBlurred && onNsfwUnblur && hasMedia && (

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { agent, searchPostsByTag, getPostMediaInfo, isPostNsfw } from '../lib/bsky'
+import { setInitialPostForUri } from '../lib/postCache'
 import type { TimelineItem } from '../lib/bsky'
 import type { AppBskyFeedDefs } from '@atproto/api'
 import PostCard from '../components/PostCard'
@@ -187,7 +188,10 @@ export function TagContent({ tag, inModal = false, onRegisterRefresh }: { tag: s
                   cardRef={(el) => { cardRefsRef.current[index] = el }}
                   openAddDropdown={index === keyboardFocusIndex && keyboardAddOpen}
                   onAddClose={() => setKeyboardAddOpen(false)}
-                  onPostClick={inModal ? (uri) => openPostModal(uri) : undefined}
+                  onPostClick={inModal ? (uri, opts) => {
+                    if (opts?.initialItem) setInitialPostForUri(uri, opts.initialItem)
+                    openPostModal(uri)
+                  } : undefined}
                   nsfwBlurred={nsfwPreference === 'blurred' && isPostNsfw(item.post) && !unblurredUris.has(item.post.uri)}
                   onNsfwUnblur={() => setUnblurred(item.post.uri, true)}
                   likedUriOverride={likeOverrides[item.post.uri]}

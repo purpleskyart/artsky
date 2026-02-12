@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react'
+import { useToast } from './ToastContext'
 
 const STORAGE_KEY = 'artsky-card-view'
 
@@ -10,16 +11,11 @@ export const CARD_VIEW_LABELS: Record<CardViewMode, string> = {
   artOnly: 'Art Cards',
 }
 
-export type CardViewAnnouncement = {
-  text: string
-  anchorRect: { top: number; left: number; width: number; height: number; bottom: number }
-}
-
 type ArtOnlyContextValue = {
   /** Current card view: default (full), artOnly (focus on art), minimalist (only collect + like) */
   cardViewMode: CardViewMode
   setCardViewMode: (value: CardViewMode) => void
-  /** Cycle: default → minimalist → artOnly → default (eye: open → half → closed). Pass anchor to show toast. */
+  /** Cycle: default → minimalist → artOnly → default. Shows toast. */
   cycleCardView: (anchor?: HTMLElement) => void
   /** True when mode is artOnly or minimalist (hide full text/handle in card) */
   artOnly: boolean
@@ -29,8 +25,6 @@ type ArtOnlyContextValue = {
   setArtOnly: (value: boolean) => void
   /** @deprecated use cycleCardView */
   toggleArtOnly: () => void
-  /** Brief toast when card view changes. */
-  cardViewAnnouncement: CardViewAnnouncement | null
 }
 
 const ArtOnlyContext = createContext<ArtOnlyContextValue | null>(null)
@@ -46,11 +40,9 @@ function getStored(): CardViewMode {
   }
 }
 
-const TOAST_MS = 1200
-
 export function ArtOnlyProvider({ children }: { children: React.ReactNode }) {
+  const toast = useToast()
   const [cardViewMode, setCardViewModeState] = useState<CardViewMode>(getStored)
-  const [cardViewAnnouncement, setCardViewAnnouncement] = useState<CardViewAnnouncement | null>(null)
 
   useEffect(() => {
     try {
@@ -60,29 +52,17 @@ export function ArtOnlyProvider({ children }: { children: React.ReactNode }) {
     }
   }, [cardViewMode])
 
-  useEffect(() => {
-    if (!cardViewAnnouncement) return
-    const t = setTimeout(() => setCardViewAnnouncement(null), TOAST_MS)
-    return () => clearTimeout(t)
-  }, [cardViewAnnouncement])
-
   const setCardViewMode = useCallback((value: CardViewMode) => {
     setCardViewModeState(value)
   }, [])
 
-  const cycleCardView = useCallback((anchor?: HTMLElement) => {
+  const cycleCardView = useCallback((_anchor?: HTMLElement) => {
     setCardViewModeState((m) => {
       const next = m === 'default' ? 'minimalist' : m === 'minimalist' ? 'artOnly' : 'default'
-      const rect = anchor?.getBoundingClientRect()
-      setCardViewAnnouncement({
-        text: CARD_VIEW_LABELS[next],
-        anchorRect: rect
-          ? { top: rect.top, left: rect.left, width: rect.width, height: rect.height, bottom: rect.bottom }
-          : { top: 48, left: typeof window !== 'undefined' ? window.innerWidth / 2 : 0, width: 0, height: 0, bottom: 48 },
-      })
+      toast?.showToast(CARD_VIEW_LABELS[next])
       return next
     })
-  }, [])
+  }, [toast])
 
   const setArtOnly = useCallback((value: boolean) => {
     setCardViewModeState(value ? 'artOnly' : 'default')
@@ -103,7 +83,6 @@ export function ArtOnlyProvider({ children }: { children: React.ReactNode }) {
     minimalist,
     setArtOnly,
     toggleArtOnly,
-    cardViewAnnouncement,
   }
 
   return (
@@ -124,7 +103,6 @@ export function useArtOnly() {
       minimalist: false,
       setArtOnly: () => {},
       toggleArtOnly: () => {},
-      cardViewAnnouncement: null,
     }
   }
   return ctx

@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
+import { useToast } from './ToastContext'
 
 const STORAGE_KEY = 'artsky-feed-media-only'
 
@@ -22,6 +23,7 @@ function getStored(): boolean {
 }
 
 export function MediaOnlyProvider({ children }: { children: ReactNode }) {
+  const toast = useToast()
   const [mediaOnly, setMediaOnlyState] = useState(getStored)
 
   useEffect(() => {
@@ -37,8 +39,12 @@ export function MediaOnlyProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const toggleMediaOnly = useCallback(() => {
-    setMediaOnlyState((v) => !v)
-  }, [])
+    setMediaOnlyState((v) => {
+      const next = !v
+      toast?.showToast(next ? 'Media only' : 'Media and text')
+      return next
+    })
+  }, [toast])
 
   return (
     <MediaOnlyContext.Provider value={{ mediaOnly, setMediaOnly, toggleMediaOnly }}>

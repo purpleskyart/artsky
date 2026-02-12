@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import type { AppBskyFeedDefs } from '@atproto/api'
 import type { AtpSessionData } from '@atproto/api'
-import { agent, publicAgent, postReply, getPostAllMedia, getPostMediaUrl, getQuotedPostView, getPostExternalLink, getSession, createQuotePost, createDownvote, deleteDownvote, listMyDownvotes } from '../lib/bsky'
+import { agent, publicAgent, postReply, getPostAllMedia, getPostMediaUrl, getQuotedPostView, getPostExternalLink, getSession, createQuotePost, createDownvote, deleteDownvote, listMyDownvotes, getPostThreadCached } from '../lib/bsky'
+import { takeInitialPostForUri, getCachedThread } from '../lib/postCache'
 import { getDownvoteCounts } from '../lib/constellation'
 import { downloadImageWithHandle, downloadVideoWithPostUri } from '../lib/downloadImage'
 import { useSession } from '../context/SessionContext'
@@ -847,12 +848,32 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
 
   const load = useCallback(async () => {
     if (!decodedUri) return
-    setLoading(true)
     setError(null)
     const api = getSession() ? agent : publicAgent
+    let hadInstantData = false
+    const initialPost = takeInitialPostForUri(decodedUri)
+    const cached = getCachedThread(decodedUri)
+    if (initialPost) {
+      const post = (initialPost as { post?: unknown }).post ?? initialPost
+      if (post && typeof post === 'object' && (post as { uri?: string }).uri === decodedUri) {
+        const minimal: AppBskyFeedDefs.ThreadViewPost = {
+          $type: 'app.bsky.feed.defs#threadViewPost',
+          post: post as AppBskyFeedDefs.PostView,
+          replies: [],
+        }
+        setThread(minimal)
+        setLoading(false)
+        hadInstantData = true
+      }
+    } else if (cached && isThreadViewPost(cached as AppBskyFeedDefs.ThreadViewPost)) {
+      setThread(cached as AppBskyFeedDefs.ThreadViewPost)
+      setLoading(false)
+      hadInstantData = true
+    }
+    if (!hadInstantData) setLoading(true)
     try {
-      const threadRes = await api.app.bsky.feed.getPostThread({ uri: decodedUri, depth: 10 })
-      const threadData = threadRes.data.thread
+      const threadRes = await getPostThreadCached(decodedUri, api)
+      const threadData = threadRes.data.thread as AppBskyFeedDefs.ThreadViewPost | AppBskyFeedDefs.NotFoundPost | AppBskyFeedDefs.BlockedPost | { $type: string }
       setThread(threadData)
       setLoading(false)
       setDownvoteCountOptimisticDelta({})

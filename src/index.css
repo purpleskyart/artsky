@@ -37,6 +37,16 @@
   --glass-radius: 16px;
   --glass-radius-sm: 12px;
   --touch-min: 44px; /* iOS HIG minimum touch target */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --font-xs: 0.75rem;
+  --font-sm: 0.875rem;
+  --transition-fast: 150ms ease;
+  --nav-height: 56px;
+  --glass-radius-md: 14px;
   --shadow-subtle: none;
   --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.15);
   --shadow-dropdown: 0 8px 24px rgba(0, 0, 0, 0.2);
@@ -285,4 +295,72 @@ html[data-theme="light"] main {
   html[data-theme="light"] main {
     background: var(--bg);
   }
+}
+
+/* ── Floating button glass (purplesky-style; reusable) ───────────────────── */
+.float-btn {
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-card);
+  color: var(--text);
+  cursor: pointer;
+  font-family: inherit;
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+.float-btn:hover {
+  box-shadow: var(--shadow-dropdown);
+}
+.float-btn:active {
+  transform: scale(0.97);
+}
+
+/* Global toast (purplesky-style: glass pill, centered above nav) */
+.app-toast {
+  position: fixed;
+  bottom: calc(var(--nav-height) + env(safe-area-inset-bottom) + var(--space-xl));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 110;
+  padding: 10px 18px;
+  border-radius: 100px;
+  font-size: var(--font-sm);
+  font-weight: 500;
+  color: var(--text);
+  box-shadow: var(--shadow-dropdown);
+  animation: app-toast-in 0.2s ease-out;
+}
+.app-toast.float-btn {
+  cursor: default;
+  pointer-events: none;
+}
+@keyframes app-toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+/* Hide floating elements + bottom nav while scrolling down (feed page) */
+.feeds-float-wrap,
+.hide-seen-fab,
+.login-float-wrap,
+.notification-float-wrap,
+.nav-outer,
+.nav {
+  transition: opacity 0.2s ease;
+}
+body.feed-scrolling .feeds-float-wrap,
+body.feed-scrolling .hide-seen-fab,
+body.feed-scrolling .login-float-wrap,
+body.feed-scrolling .notification-float-wrap,
+body.feed-scrolling .nav-outer,
+body.feed-scrolling .nav {
+  opacity: 0;
+  pointer-events: none;
 }

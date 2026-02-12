@@ -438,6 +438,24 @@ export async function getMixedFeed(
   })
   return { feed: combined.slice(0, limit), cursors: nextCursors }
 }
+
+/** Cached + deduplicated getPostThread for fast repeat opens and low-bandwidth. */
+export async function getPostThreadCached(
+  uri: string,
+  api: { app: { bsky: { feed: { getPostThread: (opts: { uri: string; depth: number }) => Promise<{ data: { thread: unknown } }> } } } },
+): Promise<{ data: { thread: unknown } }> {
+  const { getCachedThread, setCachedThread, dedupeFetch } = await import('./postCache')
+  const cached = getCachedThread(uri)
+  if (cached) {
+    return { data: { thread: cached } }
+  }
+  const res = await dedupeFetch(uri, () =>
+    api.app.bsky.feed.getPostThread({ uri, depth: 10 }),
+  )
+  setCachedThread(uri, res.data.thread)
+  return res
+}
+
 export type ThreadView = Awaited<ReturnType<typeof agent.getPostThread>>['data']['thread']
 
 export type PostMediaInfo = {

@@ -934,65 +934,39 @@ button.logoLink {
   z-index: 30;
 }
 
-/* Mobile: floating Feeds button (top left), minimalist: "Feeds" text + down chevron in glassy circle */
+/* Mobile: floating Feeds button (purplesky-style, top center) */
 .feedsFloatWrap {
   position: fixed;
-  top: max(0.75rem, env(safe-area-inset-top, 59px));
-  left: max(1rem, env(safe-area-inset-left));
-  z-index: 20;
+  top: max(var(--space-md), env(safe-area-inset-top, 59px));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 90;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-}
-
-@media (max-width: 767px) {
-  .feedsFloatWrap {
-    left: 50%;
-    transform: translateX(-50%);
-    align-items: center;
-  }
+  align-items: center;
 }
 
 .feedsFloatBtn {
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.4rem 0.5rem 0.4rem 0.75rem;
-  color: var(--text);
-  font-size: 0.95rem;
+  gap: var(--space-sm);
+  padding: 8px 14px 8px 18px;
+  border: none;
+  border-radius: 100px;
+  font-size: var(--font-sm);
   font-weight: 500;
   font-family: inherit;
-  background: color-mix(in srgb, var(--glass-bg) 68%, transparent);
-  -webkit-backdrop-filter: blur(28px) saturate(180%);
-  backdrop-filter: blur(28px) saturate(180%);
-  border: none;
-  border-radius: 999px;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
 }
 
 .feedsFloatBtn:hover {
-  color: var(--text);
-}
-
-.feedsFloatBtn:active {
-  background: color-mix(in srgb, var(--glass-bg) 85%, transparent);
-  color: var(--text);
+  transform: scale(1.02);
 }
 
 .feedsFloatBtnActive {
   color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 14%, var(--glass-bg));
-}
-
-.feedsFloatBtnActive:hover {
-  color: var(--accent);
-}
-
-.feedsFloatBtnActive:active {
-  background: color-mix(in srgb, var(--accent) 22%, var(--glass-bg));
-  color: var(--accent);
+  background: var(--accent-subtle) !important;
 }
 
 .feedsFloatLabel {
@@ -1003,13 +977,11 @@ button.logoLink {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 1.5rem;
-  height: 1.5rem;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
-  background: color-mix(in srgb, var(--glass-bg) 75%, transparent);
-  -webkit-backdrop-filter: blur(12px);
-  transition: transform 0.2s ease;
-  backdrop-filter: blur(12px);
+  background: var(--glass-highlight);
+  transition: transform var(--transition-fast);
   color: inherit;
 }
 
@@ -1034,12 +1006,12 @@ button.logoLink {
   }
 }
 
-/* Mobile: floating login button (top right) when logged out */
+/* Mobile: floating login button (purplesky-style, top right) when logged out */
 .loginFloatWrap {
   position: fixed;
-  top: max(0.75rem, env(safe-area-inset-top, 59px));
+  top: max(var(--space-md), env(safe-area-inset-top, 59px));
   right: max(1rem, env(safe-area-inset-right));
-  z-index: 20;
+  z-index: 90;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
@@ -1048,17 +1020,16 @@ button.logoLink {
 .loginFloatBtn {
   display: inline-flex;
   align-items: center;
-  padding: 0.4rem 0.75rem;
+  padding: 8px 18px;
   color: var(--text-on-accent);
-  font-size: 0.95rem;
+  font-size: var(--font-sm);
   font-weight: 500;
   font-family: inherit;
-  background: var(--accent-gradient);
-  border: none;
-  border-radius: 999px;
+  background: var(--accent-gradient) !important;
+  border: none !important;
+  border-radius: 100px;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
   transition: filter 0.15s ease;
 }
 
@@ -1067,12 +1038,12 @@ button.logoLink {
   color: var(--text-on-accent);
 }
 
-/* Mobile: floating notification button (top right), same style as seen-posts float */
+/* Mobile: floating notification button (purplesky-style, top right) */
 .notificationFloatWrap {
   position: fixed;
-  top: max(0.75rem, env(safe-area-inset-top, 59px));
+  top: max(var(--space-md), env(safe-area-inset-top, 59px));
   right: max(1rem, env(safe-area-inset-right));
-  z-index: 20;
+  z-index: 90;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
@@ -1771,24 +1742,19 @@ button.logoLink {
   pointer-events: none;
 }
 
-/* Floating above the Home button (first nav item); ~10% = center of first of 5 items */
+/* Floating above the Home button (purplesky hide-seen-fab style) */
 .seenPostsFloatBtn {
   position: absolute;
   bottom: 100%;
   left: 10%;
   transform: translate(-50%, 0);
-  margin-bottom: 0.75rem;
+  margin-bottom: calc(var(--space-md) + var(--space-lg));
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 2.5rem;
-  height: 2.5rem;
+  width: 44px;
+  height: 44px;
   padding: 0;
-  color: var(--muted);
-  background: color-mix(in srgb, var(--glass-bg) 68%, transparent);
-  -webkit-backdrop-filter: blur(28px) saturate(180%);
-  backdrop-filter: blur(28px) saturate(180%);
-  border: none;
   border-radius: 50%;
   cursor: pointer;
   font: inherit;
@@ -1797,11 +1763,14 @@ button.logoLink {
   -webkit-touch-callout: none;
   -webkit-user-select: none;
   user-select: none;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
 }
 
 .seenPostsFloatBtn:hover {
-  color: var(--text);
+  transform: translate(-50%, 0) scale(1.05);
+}
+
+.seenPostsFloatBtn:active {
+  transform: translate(-50%, 0) scale(0.97);
 }
 
 @media (min-width: 768px) {

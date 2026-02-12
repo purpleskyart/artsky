@@ -30,6 +30,19 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         navigateFallback: './index.html',
         maximumFileSizeToCacheInBytes: 3 * 1024 * 1024, // 3 MiB (main chunk exceeds 2 MiB default)
+        runtimeCaching: [
+          {
+            urlPattern: /^https:\/\/(cdn\.bsky\.app|wsrv\.nl)\/.*/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'artsky-images',
+              expiration: {
+                maxEntries: 200,
+                maxAgeSeconds: 60 * 60 * 24 * 7, // 7 days
+              },
+            },
+          },
+        ],
       },
     }),
   ],

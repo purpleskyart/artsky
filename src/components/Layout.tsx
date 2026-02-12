@@ -12,6 +12,7 @@ import { useModeration } from '../context/ModerationContext'
 import { useMediaOnly } from '../context/MediaOnlyContext'
 import { useScrollLock } from '../context/ScrollLockContext'
 import { useSeenPosts } from '../context/SeenPostsContext'
+import { useToast } from '../context/ToastContext'
 import { publicAgent, createPost, postReply, getNotifications, getUnreadNotificationCount, updateSeenNotifications, getSavedFeedsFromPreferences, getFeedDisplayName, resolveFeedUri, addSavedFeed, removeSavedFeedByUri, getFeedShareUrl } from '../lib/bsky'
 import type { FeedSource } from '../types'
 import { GUEST_FEED_SOURCES, GUEST_MIX_ENTRIES } from '../config/feedSources'
@@ -354,9 +355,9 @@ export default function Layout({ title, children, showNav }: Props) {
       </button>
     </div>
   )
-  const { viewMode, setViewMode, cycleViewMode, viewModeAnnouncement } = useViewMode()
-  const { cardViewMode, cycleCardView, cardViewAnnouncement } = useArtOnly()
-  const { nsfwPreference, cycleNsfwPreference, nsfwAnnouncement } = useModeration()
+  const { viewMode, setViewMode, cycleViewMode } = useViewMode()
+  const { cardViewMode, cycleCardView } = useArtOnly()
+  const { nsfwPreference, cycleNsfwPreference } = useModeration()
   const { mediaOnly, toggleMediaOnly } = useMediaOnly()
   const path = loc.pathname
   const isDesktop = useSyncExternalStore(subscribeDesktop, getDesktopSnapshot, () => false)
@@ -413,6 +414,7 @@ export default function Layout({ title, children, showNav }: Props) {
   const seenLongPressTriggeredRef = useRef(false)
   const seenHoldTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const seenPosts = useSeenPosts()
+  const toast = useToast()
   const HOME_HOLD_MS = 500
   const { entries: mixEntries, setEntryPercent, toggleSource, addEntry, setSingleFeed } = useFeedMix()
   const presetUris = new Set((PRESET_FEED_SOURCES.map((s) => s.uri).filter(Boolean) as string[]))
@@ -1477,62 +1479,6 @@ export default function Layout({ title, children, showNav }: Props) {
       <a href="#main-content" className={styles.skipLink}>
         Skip to main content
       </a>
-      {nsfwAnnouncement && (
-        <div
-          className={styles.nsfwAnnouncement}
-          role="status"
-          aria-live="polite"
-          aria-atomic="true"
-          style={{
-            top: nsfwAnnouncement.anchorRect.bottom + 8,
-            left: nsfwAnnouncement.anchorRect.left + nsfwAnnouncement.anchorRect.width / 2,
-          }}
-        >
-          {nsfwAnnouncement.text}
-        </div>
-      )}
-      {seenPosts?.seenPostsAnnouncement && (
-        <div
-          className={styles.seenPostsAnnouncement}
-          role="status"
-          aria-live="polite"
-          aria-atomic="true"
-          style={{
-            top: seenPosts.seenPostsAnnouncement.anchorRect.top - 8,
-            left: seenPosts.seenPostsAnnouncement.anchorRect.left + seenPosts.seenPostsAnnouncement.anchorRect.width / 2,
-          }}
-        >
-          {seenPosts.seenPostsAnnouncement.text}
-        </div>
-      )}
-      {viewModeAnnouncement && (
-        <div
-          className={styles.nsfwAnnouncement}
-          role="status"
-          aria-live="polite"
-          aria-atomic="true"
-          style={{
-            top: viewModeAnnouncement.anchorRect.bottom + 8,
-            left: viewModeAnnouncement.anchorRect.left + viewModeAnnouncement.anchorRect.width / 2,
-          }}
-        >
-          {viewModeAnnouncement.text}
-        </div>
-      )}
-      {cardViewAnnouncement && (
-        <div
-          className={styles.nsfwAnnouncement}
-          role="status"
-          aria-live="polite"
-          aria-atomic="true"
-          style={{
-            top: cardViewAnnouncement.anchorRect.bottom + 8,
-            left: cardViewAnnouncement.anchorRect.left + cardViewAnnouncement.anchorRect.width / 2,
-          }}
-        >
-          {cardViewAnnouncement.text}
-        </div>
-      )}
       {showNav && isDesktop && (
       <header className={`${styles.header} ${!session ? styles.headerLoggedOut : ''}`} role="banner">
         {(
@@ -1829,11 +1775,11 @@ export default function Layout({ title, children, showNav }: Props) {
       </header>
       )}
       {showNav && !isDesktop && (
-        <div className={styles.feedsFloatWrap} ref={feedsDropdownRef}>
+        <div className={`${styles.feedsFloatWrap} feeds-float-wrap`} ref={feedsDropdownRef}>
           <button
             ref={feedsBtnRef}
             type="button"
-            className={`${styles.feedsFloatBtn} ${feedsDropdownOpen ? styles.feedsFloatBtnActive : ''}`}
+            className={`${styles.feedsFloatBtn} float-btn ${feedsDropdownOpen ? styles.feedsFloatBtnActive : ''}`}
             onClick={() => setFeedsDropdownOpen((o) => !o)}
             aria-label="Feeds"
             aria-expanded={feedsDropdownOpen}
@@ -1897,10 +1843,10 @@ export default function Layout({ title, children, showNav }: Props) {
         </div>
       )}
       {showNav && !isDesktop && !session && (
-        <div className={styles.loginFloatWrap}>
+        <div className={`${styles.loginFloatWrap} login-float-wrap`}>
           <button
             type="button"
-            className={styles.loginFloatBtn}
+            className={`${styles.loginFloatBtn} float-btn`}
             onClick={() => openLoginModal()}
             aria-label="Log in"
             title="Log in"
@@ -1910,7 +1856,7 @@ export default function Layout({ title, children, showNav }: Props) {
         </div>
       )}
       {showNav && !isDesktop && session && (
-        <div className={styles.notificationFloatWrap}>
+        <div className={`${styles.notificationFloatWrap} notification-float-wrap`}>
           <button
             ref={notificationsBtnRef}
             type="button"
@@ -1985,11 +1931,11 @@ export default function Layout({ title, children, showNav }: Props) {
       {showNav && (
         <>
           <div
-            className={`${styles.navOuter} ${navVisible ? '' : styles.navHidden} ${!isDesktop && mobileNavScrollHidden ? styles.navOuterScrollHidden : ''}`}
+            className={`${styles.navOuter} nav-outer ${navVisible ? '' : styles.navHidden} ${!isDesktop && mobileNavScrollHidden ? styles.navOuterScrollHidden : ''}`}
           >
             <button
               type="button"
-              className={styles.seenPostsFloatBtn}
+              className={`${styles.seenPostsFloatBtn} hide-seen-fab float-btn`}
               onPointerDown={(e) => startSeenHold(e)}
               onPointerUp={endSeenHold}
               onPointerLeave={endSeenHold}
@@ -2001,7 +1947,7 @@ export default function Layout({ title, children, showNav }: Props) {
               <SeenPostsIcon />
             </button>
             <nav
-              className={styles.nav}
+              className={`${styles.nav} nav`}
               aria-label="Main navigation"
             >
               {navItems}
@@ -2266,6 +2212,11 @@ export default function Layout({ title, children, showNav }: Props) {
             </>
           )}
         </>
+      )}
+      {toast?.toastMessage && (
+        <div className="app-toast float-btn" role="status" aria-live="polite">
+          {toast.toastMessage}
+        </div>
       )}
       </FeedSwipeProvider>
       </FeedPullRefreshContext.Provider>

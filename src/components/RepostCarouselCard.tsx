@@ -11,7 +11,7 @@ function RepostIcon() {
 
 type Props = {
   items: TimelineItem[]
-  onPostClick: (uri: string) => void
+  onPostClick: (uri: string, opts?: { initialItem?: unknown }) => void
   cardRef?: React.Ref<HTMLDivElement | null>
   /** When true, card is marked as seen (e.g. scrolled past); shown darkened */
   seen?: boolean
@@ -51,7 +51,7 @@ export default function RepostCarouselCard({ items, onPostClick, cardRef, seen, 
                 key={uri}
                 type="button"
                 className={styles.tile}
-                onClick={() => onPostClick(uri)}
+                onClick={() => onPostClick(uri, { initialItem: item })}
                 aria-label={handle ? `Repost by @${handle}, open post` : 'Open post'}
               >
                 {thumb ? (
