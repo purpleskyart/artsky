@@ -348,6 +348,8 @@ export function useProfileModal() {
       closeAllModals: () => {},
       isModalOpen: false,
       canGoBack: false,
+      modalScrollHidden: false,
+      setModalScrollHidden: () => {},
     }
   }
   return ctx

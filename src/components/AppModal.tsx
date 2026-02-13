@@ -108,7 +108,9 @@ export default function AppModal({
     const SCROLL_THRESHOLD = 8
     const SCROLL_END_MS = 350
     function onScroll() {
-      const y = el.scrollTop
+      const scrollEl = scrollRef.current
+      if (!scrollEl) return
+      const y = scrollEl.scrollTop
       const delta = y - lastScrollYRef.current
       if (delta > SCROLL_THRESHOLD) setModalScrollHidden(true)
       else if (delta < -SCROLL_THRESHOLD) setModalScrollHidden(false)
