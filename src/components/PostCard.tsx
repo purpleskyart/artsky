@@ -99,7 +99,7 @@ export default function PostCard({ item, isSelected, cardRef: cardRefProp, addBu
   const { artOnly, minimalist } = useArtOnly()
   const { mediaMode } = useMediaOnly()
   const { unblurredUris, setUnblurred } = useModeration()
-  const { openQuotesModal } = useProfileModal()
+  const { openQuotesModal, isModalOpen } = useProfileModal()
   const videoRef = useRef<HTMLVideoElement>(null)
   const mediaWrapRef = useRef<HTMLDivElement>(null)
   const hlsRef = useRef<Hls | null>(null)
@@ -440,15 +440,22 @@ export default function PostCard({ item, isSelected, cardRef: cardRefProp, addBu
     }
   }, [isVideo, media?.videoPlaylist])
 
-  /* Autoplay video when in view, pause when out of view */
+  /* Autoplay video when in view, pause when out of view or when modal opens */
+  const isModalOpenRef = useRef(isModalOpen)
+  isModalOpenRef.current = isModalOpen
   useEffect(() => {
     if (!isVideo || !mediaWrapRef.current || !videoRef.current) return
     const el = mediaWrapRef.current
     const video = videoRef.current
+    if (isModalOpen) video.pause()
     const observer = new IntersectionObserver(
       (entries) => {
         const entry = entries[0]
         if (!entry || !video) return
+        if (isModalOpenRef.current) {
+          video.pause()
+          return
+        }
         if (entry.isIntersecting) {
           video.play().catch(() => {})
         } else {
@@ -459,7 +466,7 @@ export default function PostCard({ item, isSelected, cardRef: cardRefProp, addBu
     )
     observer.observe(el)
     return () => observer.disconnect()
-  }, [isVideo])
+  }, [isVideo, isModalOpen])
 
   /* Unblur NSFW when this card gains focus; reblur when it loses selection. Reused across feed, profile, tag, popups. */
   useEffect(() => {

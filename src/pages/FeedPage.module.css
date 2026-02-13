@@ -533,6 +533,11 @@
 .gridItem {
   min-width: 0;
 }
+/* Hover or selected: lift above adjacent cards so scaled card doesn't go underneath */
+.gridItem:hover,
+.gridItem[data-selected] {
+  z-index: 1;
+}
 
 /* Column layout for 1/2/3 col: same structure so switching column count doesn’t glitch */
 .gridColumns {
