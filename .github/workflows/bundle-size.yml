@@ -1,0 +1,81 @@
+name: Bundle Size Check
+
+on:
+  pull_request:
+    branches: [main, dev]
+  push:
+    branches: [main, dev]
+
+jobs:
+  bundle-size:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Build project
+        run: npm run build
+      
+      - name: Analyze bundle size
+        run: |
+          # Get the size of the main bundle (gzipped)
+          BUNDLE_SIZE=$(find dist/assets -name "*.js" -type f -exec gzip -c {} \; | wc -c)
+          BUNDLE_SIZE_KB=$((BUNDLE_SIZE / 1024))
+          
+          echo "Total bundle size (gzipped): ${BUNDLE_SIZE_KB} KB"
+          echo "BUNDLE_SIZE_KB=${BUNDLE_SIZE_KB}" >> $GITHUB_ENV
+          
+          # Check if bundle size exceeds threshold (500 KB)
+          if [ $BUNDLE_SIZE_KB -gt 500 ]; then
+            echo "::error::Bundle size ${BUNDLE_SIZE_KB} KB exceeds threshold of 500 KB"
+            exit 1
+          else
+            echo "::notice::Bundle size ${BUNDLE_SIZE_KB} KB is within threshold of 500 KB"
+          fi
+      
+      - name: Compare with baseline (PR only)
+        if: github.event_name == 'pull_request'
+        run: |
+          # Checkout base branch
+          git fetch origin ${{ github.base_ref }}
+          git checkout origin/${{ github.base_ref }}
+          
+          # Build base branch
+          npm ci
+          npm run build
+          
+          # Get baseline bundle size
+          BASELINE_SIZE=$(find dist/assets -name "*.js" -type f -exec gzip -c {} \; | wc -c)
+          BASELINE_SIZE_KB=$((BASELINE_SIZE / 1024))
+          
+          # Calculate difference
+          DIFF_KB=$((BUNDLE_SIZE_KB - BASELINE_SIZE_KB))
+          DIFF_PERCENT=$(awk "BEGIN {printf \"%.2f\", ($DIFF_KB / $BASELINE_SIZE_KB) * 100}")
+          
+          echo "Baseline bundle size: ${BASELINE_SIZE_KB} KB"
+          echo "Current bundle size: ${BUNDLE_SIZE_KB} KB"
+          echo "Difference: ${DIFF_KB} KB (${DIFF_PERCENT}%)"
+          
+          # Warn if bundle size increased by more than 10%
+          if [ $DIFF_KB -gt 0 ] && [ $(echo "$DIFF_PERCENT > 10" | bc -l) -eq 1 ]; then
+            echo "::warning::Bundle size increased by ${DIFF_KB} KB (${DIFF_PERCENT}%)"
+          fi
+      
+      - name: Upload bundle analysis
+        uses: actions/upload-artifact@v4
+        with:
+          name: bundle-analysis
+          path: dist/assets/*.js
+          retention-days: 30

@@ -1,14 +1,16 @@
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
+import { createContext, lazy, Suspense, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import PostDetailModal from '../components/PostDetailModal'
-import ProfileModal from '../components/ProfileModal'
-import TagModal from '../components/TagModal'
-import ForumModal from '../components/ForumModal'
-import ForumPostModal from '../components/ForumPostModal'
-import ArtboardsModal from '../components/ArtboardsModal'
-import ArtboardModal from '../components/ArtboardModal'
-import SearchModal from '../components/SearchModal'
-import QuotesModal from '../components/QuotesModal'
+import { ChunkLoadError } from '../components/ChunkLoadError'
+
+const PostDetailModal = lazy(() => import('../components/PostDetailModal'))
+const ProfileModal = lazy(() => import('../components/ProfileModal'))
+const TagModal = lazy(() => import('../components/TagModal'))
+const ForumModal = lazy(() => import('../components/ForumModal'))
+const ForumPostModal = lazy(() => import('../components/ForumPostModal'))
+const ArtboardsModal = lazy(() => import('../components/ArtboardsModal'))
+const ArtboardModal = lazy(() => import('../components/ArtboardModal'))
+const SearchModal = lazy(() => import('../components/SearchModal'))
+const QuotesModal = lazy(() => import('../components/QuotesModal'))
 
 export type ModalItem =
   | { type: 'post'; uri: string; openReply?: boolean; focusUri?: string }
@@ -238,7 +240,7 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
   const canGoBack = modalStack.length > 1
   const currentModal = modalStack[modalStack.length - 1] ?? null
 
-  const value: ProfileModalContextValue = {
+  const value: ProfileModalContextValue = useMemo(() => ({
     openProfileModal,
     closeProfileModal: closeModal,
     closePostModal: closeModal,
@@ -256,75 +258,94 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
     canGoBack,
     modalScrollHidden,
     setModalScrollHidden,
-  }
+  }), [
+    openProfileModal,
+    closeModal,
+    openPostModal,
+    openTagModal,
+    openSearchModal,
+    openForumModal,
+    openForumPostModal,
+    openArtboardsModal,
+    openArtboardModal,
+    openQuotesModal,
+    closeAllModals,
+    isModalOpen,
+    canGoBack,
+    modalScrollHidden,
+  ])
 
   return (
     <ProfileModalContext.Provider value={value}>
       {children}
-      {currentModal?.type === 'post' && (
-        <PostDetailModal
-          uri={currentModal.uri}
-          openReply={currentModal.openReply}
-          focusUri={currentModal.focusUri}
-          onClose={closeAllModals}
-          onBack={closeModal}
-          canGoBack={canGoBack}
-        />
-      )}
-      {currentModal?.type === 'profile' && (
-        <ProfileModal
-          handle={currentModal.handle}
-          onClose={closeAllModals}
-          onBack={closeModal}
-          canGoBack={canGoBack}
-        />
-      )}
-      {currentModal?.type === 'tag' && (
-        <TagModal
-          tag={currentModal.tag}
-          onClose={closeAllModals}
-          onBack={closeModal}
-          canGoBack={canGoBack}
-        />
-      )}
-      {currentModal?.type === 'search' && (
-        <SearchModal
-          query={currentModal.query}
-          onClose={closeAllModals}
-          onBack={closeModal}
-          canGoBack={canGoBack}
-        />
-      )}
-      {currentModal?.type === 'quotes' && (
-        <QuotesModal
-          postUri={currentModal.uri}
-          onClose={closeAllModals}
-          onBack={closeModal}
-          canGoBack={canGoBack}
-        />
-      )}
-      {currentModal?.type === 'forum' && (
-        <ForumModal onClose={closeAllModals} onBack={closeModal} canGoBack={canGoBack} />
-      )}
-      {currentModal?.type === 'forumPost' && (
-        <ForumPostModal
-          documentUri={currentModal.documentUri}
-          onClose={closeAllModals}
-          onBack={closeModal}
-          canGoBack={canGoBack}
-        />
-      )}
-      {currentModal?.type === 'artboards' && (
-        <ArtboardsModal onClose={closeAllModals} onBack={closeModal} canGoBack={canGoBack} />
-      )}
-      {currentModal?.type === 'artboard' && (
-        <ArtboardModal
-          id={currentModal.id}
-          onClose={closeAllModals}
-          onBack={closeModal}
-          canGoBack={canGoBack}
-        />
-      )}
+      <ChunkLoadError>
+        <Suspense fallback={null}>
+        {currentModal?.type === 'post' && (
+          <PostDetailModal
+            uri={currentModal.uri}
+            openReply={currentModal.openReply}
+            focusUri={currentModal.focusUri}
+            onClose={closeAllModals}
+            onBack={closeModal}
+            canGoBack={canGoBack}
+          />
+        )}
+        {currentModal?.type === 'profile' && (
+          <ProfileModal
+            handle={currentModal.handle}
+            onClose={closeAllModals}
+            onBack={closeModal}
+            canGoBack={canGoBack}
+          />
+        )}
+        {currentModal?.type === 'tag' && (
+          <TagModal
+            tag={currentModal.tag}
+            onClose={closeAllModals}
+            onBack={closeModal}
+            canGoBack={canGoBack}
+          />
+        )}
+        {currentModal?.type === 'search' && (
+          <SearchModal
+            query={currentModal.query}
+            onClose={closeAllModals}
+            onBack={closeModal}
+            canGoBack={canGoBack}
+          />
+        )}
+        {currentModal?.type === 'quotes' && (
+          <QuotesModal
+            postUri={currentModal.uri}
+            onClose={closeAllModals}
+            onBack={closeModal}
+            canGoBack={canGoBack}
+          />
+        )}
+        {currentModal?.type === 'forum' && (
+          <ForumModal onClose={closeAllModals} onBack={closeModal} canGoBack={canGoBack} />
+        )}
+        {currentModal?.type === 'forumPost' && (
+          <ForumPostModal
+            documentUri={currentModal.documentUri}
+            onClose={closeAllModals}
+            onBack={closeModal}
+            canGoBack={canGoBack}
+          />
+        )}
+        {currentModal?.type === 'artboards' && (
+          <ArtboardsModal onClose={closeAllModals} onBack={closeModal} canGoBack={canGoBack} />
+        )}
+        {currentModal?.type === 'artboard' && (
+          <ArtboardModal
+            id={currentModal.id}
+            onClose={closeAllModals}
+            onBack={closeModal}
+            canGoBack={canGoBack}
+          />
+        )}
+        </Suspense>
+      </ChunkLoadError>
     </ProfileModalContext.Provider>
   )
 }

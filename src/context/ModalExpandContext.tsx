@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react'
 
 const STORAGE_KEY = 'artsky-modal-expanded'
 
@@ -31,8 +31,11 @@ export function ModalExpandProvider({ children }: { children: ReactNode }) {
     setExpandedState(value)
     setStored(value)
   }, [])
+  
+  const value = useMemo(() => ({ expanded, setExpanded }), [expanded, setExpanded])
+  
   return (
-    <ModalExpandContext.Provider value={{ expanded, setExpanded }}>
+    <ModalExpandContext.Provider value={value}>
       {children}
     </ModalExpandContext.Provider>
   )

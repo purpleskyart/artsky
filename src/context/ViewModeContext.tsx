@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useState } from 'rea
 import { useSyncExternalStore } from 'react'
 import { useSession } from './SessionContext'
 import { useToast } from './ToastContext'
+import { asyncStorage } from '../lib/AsyncStorage'
 
 const STORAGE_KEY = 'artsky-view-mode'
 const DESKTOP_BREAKPOINT = 768
@@ -28,13 +29,9 @@ type ViewModeContextValue = {
 const ViewModeContext = createContext<ViewModeContextValue | null>(null)
 
 function getStored(): ViewMode | null {
-  try {
-    const v = localStorage.getItem(STORAGE_KEY)
-    if (v === '1' || v === '2' || v === '3') return v
-    if (v === '4' || v === '5') return '3' /* migrate old 4/5 column preference to 3 */
-  } catch {
-    // ignore
-  }
+  const v = asyncStorage.get<string>(STORAGE_KEY)
+  if (v === '1' || v === '2' || v === '3') return v
+  if (v === '4' || v === '5') return '3' /* migrate old 4/5 column preference to 3 */
   return null
 }
 
@@ -68,22 +65,16 @@ export function ViewModeProvider({ children }: { children: React.ReactNode }) {
   const setViewMode = useCallback((mode: ViewMode) => {
     const safe: ViewMode = mode === '1' || mode === '2' || mode === '3' ? mode : '2'
     setViewModeState(safe)
-    try {
-      localStorage.setItem(STORAGE_KEY, safe)
-    } catch {
-      // ignore
-    }
+    // Use immediate write (0ms debounce) for user-initiated changes
+    asyncStorage.set(STORAGE_KEY, safe, 0)
   }, [])
 
   const cycleViewMode = useCallback((_anchor?: HTMLElement, options?: { showToast?: boolean }) => {
     setViewModeState((prev) => {
       const i = VIEW_OPTIONS.indexOf(prev)
       const next: ViewMode = VIEW_OPTIONS[i >= 0 ? (i + 1) % VIEW_OPTIONS.length : 0]
-      try {
-        localStorage.setItem(STORAGE_KEY, next)
-      } catch {
-        // ignore
-      }
+      // Use immediate write (0ms debounce) for user-initiated changes
+      asyncStorage.set(STORAGE_KEY, next, 0)
       if (options?.showToast !== false) toast?.showToast(VIEW_LABELS[next])
       return next
     })

@@ -1,0 +1,63 @@
+.progressiveImage {
+  position: relative;
+  overflow: hidden;
+  background-color: transparent;
+  border-radius: inherit;
+}
+
+.placeholder {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: blur(10px);
+  transform: scale(1.1); /* Slightly scale up to hide blur edges */
+  opacity: 1;
+  transition: opacity 0.3s ease-out;
+}
+
+.fullImage {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 0.3s ease-in;
+}
+
+.loaded .placeholder {
+  opacity: 0;
+}
+
+.loaded .fullImage {
+  opacity: 1;
+}
+
+.error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #f5f5f5;
+  color: #999;
+}
+
+.errorPlaceholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 1rem;
+  text-align: center;
+}
+
+.errorPlaceholder svg {
+  opacity: 0.5;
+}
+
+.errorText {
+  font-size: 0.875rem;
+  color: #666;
+}

@@ -434,6 +434,7 @@ function PostBlock({
         </div>
       )}
       <div className={styles.postBlockContent}>
+      <div className={styles.commentContentWrap} data-comment-content={post.uri} tabIndex={-1}>
       <div className={styles.postHead}>
         {avatar && <img src={avatar} alt="" className={styles.avatar} loading="lazy" />}
         <div className={styles.authorRow}>
@@ -623,6 +624,7 @@ function PostBlock({
           </form>
         </div>
       )}
+      </div>
       {hasReplies && (
         <div className={styles.repliesContainer}>
           {isCollapsed ? (
@@ -951,7 +953,9 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
           replies: [],
         }
         setThread(minimal)
-        setLoading(false)
+        // Keep loading true if this is a reply so we show parent skeleton
+        const isReply = (post as { record?: { reply?: unknown } }).record?.reply
+        setLoading(isReply ? true : false)
         hadInstantData = true
       }
     } else if (cached && isThreadViewPost(cached as AppBskyFeedDefs.ThreadViewPost)) {
@@ -1452,15 +1456,18 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
             if (!commentsSection) return
             const commentEl = Array.from(commentsSection.querySelectorAll<HTMLElement>('[data-comment-uri]')).find((n) => n.getAttribute('data-comment-uri') === item.commentUri)
             if (!commentEl) return
+            // Focus the comment content wrapper, not the entire article with nested replies
+            const contentEl = commentEl.querySelector<HTMLElement>('[data-comment-content]')
+            const targetEl = contentEl || commentEl
             if (mediaIndexToFocus >= 0) {
-              const mediaEl = commentEl.querySelectorAll<HTMLElement>('[data-media-item]')?.[mediaIndexToFocus]
+              const mediaEl = targetEl.querySelectorAll<HTMLElement>('[data-media-item]')?.[mediaIndexToFocus]
               if (mediaEl) {
                 mediaEl.focus({ preventScroll: true })
                 mediaEl.scrollIntoView({ behavior: 'smooth', block: 'center' })
               }
             } else {
-              commentEl.focus({ preventScroll: true })
-              commentEl.scrollIntoView({ behavior: 'smooth', block: 'center' })
+              targetEl.focus({ preventScroll: true })
+              targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' })
             }
           })
         } else {
@@ -1526,7 +1533,12 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
       const el = Array.from(commentsSection.querySelectorAll('[data-comment-uri]')).find(
         (n) => n.getAttribute('data-comment-uri') === initialFocusedCommentUri
       )
-      if (el) (el as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' })
+      if (el) {
+        // Scroll to the comment content, not the entire article with nested replies
+        const contentEl = (el as HTMLElement).querySelector<HTMLElement>('[data-comment-content]')
+        const targetEl = contentEl || (el as HTMLElement)
+        targetEl.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' })
+      }
     })
   }, [initialFocusedCommentUri, thread, threadRepliesFlat, focusItems])
 
@@ -1558,63 +1570,89 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
 
   const content = (
       <div className={`${styles.wrap}${onClose ? ` ${styles.wrapInModal}` : ''}${loading ? ` ${styles.wrapLoading}` : ''}`}>
-        {loading && <div className={styles.loading} aria-live="polite">Loading…</div>}
+        {loading && !thread && <div className={styles.loading} aria-live="polite">Loading…</div>}
         {error && <p className={styles.error}>{error}</p>}
         {thread && isThreadViewPost(thread) && (
           <>
-            {'parent' in thread && thread.parent && isThreadViewPost(thread.parent) && (() => {
-              const parentNode = thread.parent
-              const parentPost = parentNode.post
-              const parentHandle = parentPost.author?.handle ?? parentPost.author?.did ?? ''
-              const parentText = (parentPost.record as { text?: string })?.text ?? ''
-              const parentMedia = getPostAllMedia(parentPost)
-              const parentFirstMedia = parentMedia[0]
-              return (
-                <div className={styles.parentPostWrap}>
-                  <p className={styles.quotedPostLabel}>Replying to</p>
-                  <button
-                    type="button"
-                    className={styles.quotedPostCard}
-                    onClick={() => {
-                      if (onClose) {
-                        openPostModal(parentPost.uri)
-                      } else {
-                        navigate(`/post/${encodeURIComponent(parentPost.uri)}`)
-                      }
-                    }}
-                  >
-                    <div className={styles.quotedPostHead}>
-                      {parentPost.author?.avatar ? (
-                        <img src={parentPost.author.avatar} alt="" className={styles.quotedPostAvatar} loading="lazy" />
-                      ) : (
-                        <span className={styles.quotedPostAvatarPlaceholder} aria-hidden>{parentHandle.slice(0, 1).toUpperCase()}</span>
-                      )}
-                      <ProfileLink handle={parentHandle} className={styles.quotedPostHandle} onClick={(e) => e.stopPropagation()}>
-                        @{parentHandle}
-                      </ProfileLink>
-                      {(parentPost.record as { createdAt?: string })?.createdAt && (
-                        <span className={styles.quotedPostTime} title={formatExactDateTime((parentPost.record as { createdAt: string }).createdAt)}>
-                          {formatRelativeTime((parentPost.record as { createdAt: string }).createdAt)}
-                        </span>
-                      )}
-                    </div>
-                    {parentFirstMedia && (
-                      <div className={styles.quotedPostMedia}>
-                        {parentFirstMedia.type === 'image' ? (
-                          <img src={parentFirstMedia.url} alt="" loading="lazy" className={styles.quotedPostThumb} />
-                        ) : parentFirstMedia.videoPlaylist ? (
-                          <div className={styles.quotedPostVideoThumb} style={{ backgroundImage: parentFirstMedia.url ? `url(${parentFirstMedia.url})` : undefined }} />
-                        ) : null}
+            {(() => {
+              // Check if this post is a reply
+              const isReply = (thread.post.record as { reply?: unknown })?.reply
+              const hasParent = 'parent' in thread && thread.parent && isThreadViewPost(thread.parent)
+              
+              // Show skeleton if loading and post is a reply but parent not loaded yet
+              if (loading && isReply && !hasParent) {
+                return (
+                  <div className={styles.parentPostWrap}>
+                    <p className={styles.quotedPostLabel}>Replying to</p>
+                    <div className={`${styles.quotedPostCard} ${styles.parentSkeleton}`}>
+                      <div className={styles.quotedPostHead}>
+                        <span className={styles.quotedPostAvatarPlaceholder} aria-hidden>•</span>
+                        <span className={styles.quotedPostHandle}>Loading…</span>
                       </div>
-                    )}
-                    {parentText ? (
-                      <p className={styles.quotedPostText}>
-                        <PostText text={parentText} facets={(parentPost.record as { facets?: unknown[] })?.facets} maxLength={200} stopPropagation />
-                      </p>
-                    ) : null}
-                  </button>
-                </div>
-              )
+                    </div>
+                  </div>
+                )
+              }
+              
+              // Show actual parent if loaded
+              if (hasParent) {
+                return (() => {
+                  const parentNode = thread.parent
+                  const parentPost = parentNode.post
+                  const parentHandle = parentPost.author?.handle ?? parentPost.author?.did ?? ''
+                  const parentText = (parentPost.record as { text?: string })?.text ?? ''
+                  const parentMedia = getPostAllMedia(parentPost)
+                  const parentFirstMedia = parentMedia[0]
+                  return (
+                    <div className={styles.parentPostWrap}>
+                      <p className={styles.quotedPostLabel}>Replying to</p>
+                      <button
+                        type="button"
+                        className={styles.quotedPostCard}
+                        onClick={() => {
+                          if (onClose) {
+                            openPostModal(parentPost.uri)
+                          } else {
+                            navigate(`/post/${encodeURIComponent(parentPost.uri)}`)
+                          }
+                        }}
+                      >
+                        <div className={styles.quotedPostHead}>
+                          {parentPost.author?.avatar ? (
+                            <img src={parentPost.author.avatar} alt="" className={styles.quotedPostAvatar} loading="lazy" />
+                          ) : (
+                            <span className={styles.quotedPostAvatarPlaceholder} aria-hidden>{parentHandle.slice(0, 1).toUpperCase()}</span>
+                          )}
+                          <ProfileLink handle={parentHandle} className={styles.quotedPostHandle} onClick={(e) => e.stopPropagation()}>
+                            @{parentHandle}
+                          </ProfileLink>
+                          {(parentPost.record as { createdAt?: string })?.createdAt && (
+                            <span className={styles.quotedPostTime} title={formatExactDateTime((parentPost.record as { createdAt: string }).createdAt)}>
+                              {formatRelativeTime((parentPost.record as { createdAt: string }).createdAt)}
+                            </span>
+                          )}
+                        </div>
+                        {parentFirstMedia && (
+                          <div className={styles.quotedPostMedia}>
+                            {parentFirstMedia.type === 'image' ? (
+                              <img src={parentFirstMedia.url} alt="" loading="lazy" className={styles.quotedPostThumb} />
+                            ) : parentFirstMedia.videoPlaylist ? (
+                              <div className={styles.quotedPostVideoThumb} style={{ backgroundImage: parentFirstMedia.url ? `url(${parentFirstMedia.url})` : undefined }} />
+                            ) : null}
+                          </div>
+                        )}
+                        {parentText ? (
+                          <p className={styles.quotedPostText}>
+                            <PostText text={parentText} facets={(parentPost.record as { facets?: unknown[] })?.facets} maxLength={200} stopPropagation />
+                          </p>
+                        ) : null}
+                      </button>
+                    </div>
+                  )
+                })()
+              }
+              
+              return null
             })()}
             <article className={`${styles.postBlock} ${styles.rootPostBlock}`}>
               {rootMedia.length > 0 && (

@@ -414,8 +414,6 @@ html[data-theme="dark"] [data-view-mode="1"] .card:focus-within:not(:has(.mediaG
 .cardActionRowAvatar {
   display: block;
   flex-shrink: 0;
-  border-radius: 50%;
-  overflow: visible;
   line-height: 0;
   position: relative;
   width: 1.35rem;

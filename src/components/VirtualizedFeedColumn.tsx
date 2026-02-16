@@ -1,7 +1,7 @@
 import { useWindowVirtualizer } from '@tanstack/react-virtual'
 import type { FeedDisplayEntry } from '../pages/FeedPage'
 import { getPostAllMediaForDisplay, isPostNsfw } from '../lib/bsky'
-import PostCard from './PostCard'
+import VirtualizedPostCard from './VirtualizedPostCard'
 import RepostCarouselCard from './RepostCarouselCard'
 import { setInitialPostForUri } from '../lib/postCache'
 import styles from '../pages/FeedPage.module.css'
@@ -9,24 +9,40 @@ import styles from '../pages/FeedPage.module.css'
 const ESTIMATE_COL_WIDTH = 280
 const CARD_CHROME = 100
 const REPOST_CAROUSEL_ESTIMATE_HEIGHT = 200
-const OVERSCAN = 8
+const OVERSCAN = 5 // Reduced to minimize measurement updates while still pre-rendering
 /** Vertical gap between cards (matches gridColumn gap: 0.35rem ≈ 6px) */
 const CARD_GAP = 6
 
 function estimateEntryHeight(entry: FeedDisplayEntry): number {
   if (entry.type === 'carousel') return REPOST_CAROUSEL_ESTIMATE_HEIGHT
   const allMedia = getPostAllMediaForDisplay(entry.item.post)
-  if (allMedia.length === 0) return CARD_CHROME + 80
+  
+  // Text-only posts: estimate based on text length
+  if (allMedia.length === 0) {
+    const text = (entry.item.post.record as { text?: string })?.text || ''
+    const textLines = Math.ceil(text.length / 50) // ~50 chars per line
+    const textHeight = Math.min(textLines * 20, 200) // Cap at ~10 lines
+    return CARD_CHROME + textHeight
+  }
+  
   // Multi-image posts stack vertically: combined aspect = 1 / sum(1/ar)
   if (allMedia.length > 1) {
     const totalInverseAspect = allMedia.reduce((s, m) => s + 1 / (m.aspectRatio || 1), 0)
     const combinedAspect = 1 / totalInverseAspect
-    return CARD_CHROME + Math.ceil(ESTIMATE_COL_WIDTH / combinedAspect)
+    const mediaHeight = Math.ceil(ESTIMATE_COL_WIDTH / combinedAspect)
+    // Add extra height for multi-image layout spacing
+    return CARD_CHROME + mediaHeight + (allMedia.length - 1) * 4
   }
+  
+  // Single image: use aspect ratio if available
   const media = allMedia[0]
   if (media.aspectRatio != null && media.aspectRatio > 0) {
-    return CARD_CHROME + Math.ceil(ESTIMATE_COL_WIDTH / media.aspectRatio)
+    const mediaHeight = Math.ceil(ESTIMATE_COL_WIDTH / media.aspectRatio)
+    // Clamp to reasonable bounds
+    return CARD_CHROME + Math.min(Math.max(mediaHeight, 150), 600)
   }
+  
+  // Fallback for unknown aspect ratio
   return CARD_CHROME + 220
 }
 
@@ -49,8 +65,8 @@ export interface VirtualizedFeedColumnProps {
   nsfwPreference: 'nsfw' | 'sfw' | 'blurred'
   unblurredUris: Set<string>
   setUnblurred: (uri: string, revealed: boolean) => void
-  likeOverrides: Record<string, string | null>
-  setLikeOverrides: React.Dispatch<React.SetStateAction<Record<string, string | null>>>
+  likeOverrides: Record<string, string | null | undefined>
+  setLikeOverrides: (postUri: string, likeUri: string | null) => void
   seenUris: Set<string>
   openPostModal: (uri: string, openReply?: boolean, focusUri?: string) => void
   cardRef: (index: number) => (el: HTMLDivElement | null) => void
@@ -89,8 +105,6 @@ export default function VirtualizedFeedColumn({
     overscan: OVERSCAN,
     scrollMargin,
     gap: CARD_GAP,
-    // Prevent scroll jump when measureElement corrects sizes (known issue #997)
-    scrollToFn: () => {},
   })
 
   const virtualItems = virtualizer.getVirtualItems()
@@ -136,7 +150,7 @@ export default function VirtualizedFeedColumn({
               onMouseEnter={() => onMouseEnter(originalIndex)}
             >
               {entry.type === 'post' ? (
-                <PostCard
+                <VirtualizedPostCard
                   item={entry.item}
                   isSelected={focusTargets[keyboardFocusIndex]?.cardIndex === originalIndex}
                   focusedMediaIndex={
@@ -156,7 +170,6 @@ export default function VirtualizedFeedColumn({
                     if (opts?.initialItem) setInitialPostForUri(uri, opts.initialItem)
                     openPostModal(uri, opts?.openReply)
                   }}
-                  onAspectRatio={undefined}
                   fillCell={false}
                   nsfwBlurred={
                     nsfwPreference === 'blurred' &&
@@ -166,7 +179,7 @@ export default function VirtualizedFeedColumn({
                   onNsfwUnblur={() => setUnblurred(entry.item.post.uri, true)}
                   likedUriOverride={likeOverrides[entry.item.post.uri]}
                   onLikedChange={(uri, likeRecordUri) =>
-                    setLikeOverrides((prev) => ({ ...prev, [uri]: likeRecordUri ?? null }))
+                    setLikeOverrides(uri, likeRecordUri ?? null)
                   }
                   seen={seenUris.has(entry.item.post.uri)}
                 />

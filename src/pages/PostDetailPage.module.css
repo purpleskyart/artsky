@@ -100,11 +100,9 @@
   padding-top: 0;
 }
 
-/* Description block is focusable for W/S nav; scale instead of ring */
+/* Description block is focusable for W/S nav; no scale to prevent layout shift */
 .rootPostDescription:focus {
   outline: none;
-  transform: scale(1.03);
-  transition: transform 0.2s ease;
   border-radius: 0.75rem;
 }
 
@@ -146,6 +144,22 @@
   text-align: center;
 }
 
+/* Parent post skeleton while loading */
+.parentSkeleton {
+  pointer-events: none;
+  opacity: 0.5;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+
 /* Quoted post (quote post) block */
 .quotedPostWrap {
   margin-top: 1rem;
@@ -176,8 +190,7 @@
 
 .quotedPostCard:focus {
   outline: none;
-  transform: scale(1.03);
-  transition: transform 0.2s ease;
+  border-color: var(--accent);
 }
 
 .quotedPostHead {
@@ -288,8 +301,7 @@
 
 .collapseBtn:focus {
   outline: none;
-  transform: scale(1.03);
-  transition: transform 0.2s ease;
+  color: var(--accent);
 }
 
 .collapseStrip {
@@ -310,8 +322,7 @@
 
 .collapseStrip:focus {
   outline: none;
-  transform: scale(1.03);
-  transition: transform 0.2s ease;
+  background: var(--accent-strong);
 }
 
 .collapseIcon {
@@ -322,24 +333,19 @@
 
 .sectionFocused {
   outline: none;
-  transform: scale(1.03);
-  transition: transform 0.2s ease;
   border-radius: 0.75rem;
 }
 
-/* Focused comment: scale instead of ring */
+/* Focused comment: no scale to prevent layout shift, no outline (outline is on content wrapper) */
 .commentFocused {
   border-radius: 0.5rem;
   outline: none;
-  transform: scale(1.03);
-  transition: transform 0.2s ease;
 }
 
-/* Desktop: purple border on focused comments */
+/* Desktop: no outline on article, it's on the content wrapper instead */
 @media (hover: hover) {
   .commentFocused {
-    outline: 2px solid #a855f7;
-    outline-offset: 0px;
+    outline: none;
   }
 }
 
@@ -348,11 +354,20 @@
   min-width: 0;
 }
 
-/* Focus on root post block (e.g. forum post doc): scale instead of ring */
+/* Comment content wrapper: wraps just the comment's own content, not nested replies */
+.commentContentWrap {
+  outline: none;
+}
+
+.commentContentWrap:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 0.5rem;
+}
+
+/* Focus on root post block (e.g. forum post doc): no scale to prevent layout shift */
 .rootPostBlock:focus {
   outline: none;
-  transform: scale(1.03);
-  transition: transform 0.2s ease;
 }
 
 /* Desktop: purple border on focused root post */
@@ -735,9 +750,8 @@
 }
 
 .galleryImageBtn:focus {
-  outline: none;
-  transform: scale(1.03);
-  transition: transform 0.2s ease;
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .galleryMedia {
@@ -773,9 +787,8 @@
 }
 
 .galleryVideoWrap:focus {
-  outline: none;
-  transform: scale(1.03);
-  transition: transform 0.2s ease;
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .galleryVideoWrap .galleryVideo {
@@ -1286,9 +1299,8 @@
 }
 
 .inlineReplyFormWrap > div:first-child:focus-within {
-  outline: none;
-  transform: scale(1.03);
-  transition: transform 0.2s ease;
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .inlineReplyFormLabel {
@@ -1365,8 +1377,8 @@
 }
 
 .replyAsHandleBtn:focus-visible {
-  outline: none;
-  transform: scale(1.03);
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .replyAsDropdown {
@@ -1521,9 +1533,8 @@
 }
 
 .textarea:focus {
-  outline: none;
-  transform: scale(1.03);
-  transition: transform 0.2s ease;
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .submit {
@@ -1640,9 +1651,8 @@
 }
 
 .quoteComposerTextarea:focus {
-  outline: none;
-  transform: scale(1.03);
-  transition: transform 0.2s ease;
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .quoteComposerTextarea::placeholder {
@@ -1740,9 +1750,8 @@
 }
 
 .quoteComposerAltInput:focus {
-  outline: none;
-  transform: scale(1.03);
-  transition: transform 0.2s ease;
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .quoteComposerFooter {

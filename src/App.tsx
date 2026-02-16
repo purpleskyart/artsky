@@ -1,30 +1,23 @@
 // ArtSky – Bluesky client focused on art (deploy bump)
-import { Component } from 'react'
+import { Component, lazy, Suspense, useEffect } from 'react'
 import type { ErrorInfo, ReactNode } from 'react'
 import { HashRouter, Navigate, Route, Routes, useParams } from 'react-router-dom'
 import { REPO_URL } from './config/repo'
 import * as bsky from './lib/bsky'
-import { SessionProvider } from './context/SessionContext'
-import { ThemeProvider } from './context/ThemeContext'
-import { ViewModeProvider } from './context/ViewModeContext'
-import { ArtOnlyProvider } from './context/ArtOnlyContext'
-import { MediaOnlyProvider } from './context/MediaOnlyContext'
-import { FeedMixProvider } from './context/FeedMixContext'
-import { ModalExpandProvider } from './context/ModalExpandContext'
-import { ProfileModalProvider } from './context/ProfileModalContext'
-import { LoginModalProvider } from './context/LoginModalContext'
-import { EditProfileProvider } from './context/EditProfileContext'
-import { ScrollLockProvider } from './context/ScrollLockContext'
+import { initPerformanceMetrics } from './lib/performanceMetrics'
+import { CoreProvidersGroup } from './context/CoreProvidersGroup'
+import { FeedProvidersGroup } from './context/FeedProvidersGroup'
+import { ModalProvidersGroup } from './context/ModalProvidersGroup'
 import { ModerationProvider } from './context/ModerationContext'
-import { HideRepostsProvider } from './context/HideRepostsContext'
-import { SeenPostsProvider } from './context/SeenPostsContext'
-import { ToastProvider } from './context/ToastContext'
-import FeedPage from './pages/FeedPage'
-import PostDetailPage from './pages/PostDetailPage'
-import ProfilePage from './pages/ProfilePage'
-import TagPage from './pages/TagPage'
-import CollabPage from './pages/CollabPage'
-import ConsensusPage from './pages/ConsensusPage'
+import { ChunkLoadError } from './components/ChunkLoadError'
+
+// Lazy load route components for code splitting
+const FeedPage = lazy(() => import('./pages/FeedPage'))
+const PostDetailPage = lazy(() => import('./pages/PostDetailPage'))
+const ProfilePage = lazy(() => import('./pages/ProfilePage'))
+const TagPage = lazy(() => import('./pages/TagPage'))
+const CollabPage = lazy(() => import('./pages/CollabPage'))
+const ConsensusPage = lazy(() => import('./pages/ConsensusPage'))
 
 /** Official Git SCM logo (https://git-scm.com/images/logos/downloads/Git-Icon-1788C.svg) */
 function GitLogo() {
@@ -36,6 +29,24 @@ function GitLogo() {
         d="M90.156 41.965 50.036 1.848a5.918 5.918 0 0 0-8.372 0l-8.328 8.332 10.566 10.566a7.03 7.03 0 0 1 7.23 1.684 7.034 7.034 0 0 1 1.669 7.277l10.187 10.184a7.028 7.028 0 0 1 7.278 1.672 7.04 7.04 0 0 1 0 9.957 7.05 7.05 0 0 1-9.965 0 7.044 7.044 0 0 1-1.528-7.66l-9.5-9.497V59.36a7.04 7.04 0 0 1 1.86 11.29 7.04 7.04 0 0 1-9.957 0 7.04 7.04 0 0 1 0-9.958 7.06 7.06 0 0 1 2.304-1.539V33.926a7.049 7.049 0 0 1-3.82-9.234L29.242 14.272 1.73 41.777a5.925 5.925 0 0 0 0 8.371L41.852 90.27a5.925 5.925 0 0 0 8.37 0l39.934-39.934a5.925 5.925 0 0 0 0-8.371"
       />
     </svg>
+  )
+}
+
+/** Loading spinner for lazy-loaded route components */
+function LoadingSpinner() {
+  return (
+    <div
+      style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'var(--bg)',
+        color: 'var(--muted)',
+      }}
+    >
+      <div style={{ textAlign: 'center' }}>Loading…</div>
+    </div>
   )
 }
 
@@ -156,58 +167,45 @@ function ForumPostRedirect() {
 
 function AppRoutes() {
   return (
-    <Routes>
-      <Route path="/feed" element={<FeedPage />} />
-      <Route path="/forum" element={<Navigate to="/feed?forum=1" replace />} />
-      <Route path="/collab" element={<CollabPage />} />
-      <Route path="/consensus" element={<ConsensusPage />} />
-      <Route path="/artboards" element={<Navigate to="/feed?artboards=1" replace />} />
-      <Route path="/artboard/:id" element={<ArtboardRedirect />} />
-      <Route path="/post/:uri" element={<PostDetailPage />} />
-      <Route path="/profile/:handle" element={<ProfilePage />} />
-      <Route path="/tag/:tag" element={<TagPage />} />
-      <Route path="/forum/post/*" element={<ForumPostRedirect />} />
-      <Route path="/" element={<Navigate to="/feed" replace />} />
-      <Route path="*" element={<Navigate to="/feed" replace />} />
-    </Routes>
+    <ChunkLoadError>
+      <Suspense fallback={<LoadingSpinner />}>
+        <Routes>
+          <Route path="/feed" element={<FeedPage />} />
+          <Route path="/forum" element={<Navigate to="/feed?forum=1" replace />} />
+          <Route path="/collab" element={<CollabPage />} />
+          <Route path="/consensus" element={<ConsensusPage />} />
+          <Route path="/artboards" element={<Navigate to="/feed?artboards=1" replace />} />
+          <Route path="/artboard/:id" element={<ArtboardRedirect />} />
+          <Route path="/post/:uri" element={<PostDetailPage />} />
+          <Route path="/profile/:handle" element={<ProfilePage />} />
+          <Route path="/tag/:tag" element={<TagPage />} />
+          <Route path="/forum/post/*" element={<ForumPostRedirect />} />
+          <Route path="/" element={<Navigate to="/feed" replace />} />
+          <Route path="*" element={<Navigate to="/feed" replace />} />
+        </Routes>
+      </Suspense>
+    </ChunkLoadError>
   )
 }
 
 export default function App() {
+  // Initialize performance metrics tracking
+  useEffect(() => {
+    initPerformanceMetrics()
+  }, [])
+
   return (
     <ErrorBoundary>
       <HashRouter>
-        <ThemeProvider>
-          <SessionProvider>
-            <ScrollLockProvider>
-            <ToastProvider>
-            <ViewModeProvider>
-              <ArtOnlyProvider>
-                <MediaOnlyProvider>
-                  <FeedMixProvider>
-                    <SeenPostsProvider>
-                      <EditProfileProvider>
-                    <ModerationProvider>
-                    <HideRepostsProvider>
-                    <LoginModalProvider>
-                    <ModalExpandProvider>
-                    <ProfileModalProvider>
-                        <AppRoutes />
-                    </ProfileModalProvider>
-                    </ModalExpandProvider>
-                    </LoginModalProvider>
-                    </HideRepostsProvider>
-                    </ModerationProvider>
-                      </EditProfileProvider>
-                    </SeenPostsProvider>
-                  </FeedMixProvider>
-                </MediaOnlyProvider>
-              </ArtOnlyProvider>
-            </ViewModeProvider>
-            </ToastProvider>
-            </ScrollLockProvider>
-          </SessionProvider>
-        </ThemeProvider>
+        <CoreProvidersGroup>
+          <FeedProvidersGroup>
+            <ModalProvidersGroup>
+              <ModerationProvider>
+                <AppRoutes />
+              </ModerationProvider>
+            </ModalProvidersGroup>
+          </FeedProvidersGroup>
+        </CoreProvidersGroup>
       </HashRouter>
     </ErrorBoundary>
   )

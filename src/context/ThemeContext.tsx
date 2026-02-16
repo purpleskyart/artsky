@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 
 const STORAGE_KEY = 'artsky-theme'
 export type ThemeMode = 'light' | 'dark' | 'system'
@@ -86,7 +86,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     setThemeColorMeta(next)
   }, [])
 
-  const value: ThemeContextValue = { theme, setTheme, resolved }
+  const value: ThemeContextValue = useMemo(
+    () => ({ theme, setTheme, resolved }),
+    [theme, setTheme, resolved]
+  )
+  
   return (
     <ThemeContext.Provider value={value}>
       {children}

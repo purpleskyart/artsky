@@ -547,6 +547,8 @@
   align-items: flex-start;
   width: 100%;
   min-width: 0;
+  margin-bottom: 1rem;
+  overflow-anchor: none; /* Disable scroll anchoring to prevent scroll jamming when content changes */
 }
 
 /* 1-col: constrain card media height when using column layout */
@@ -576,7 +578,7 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  /* gap removed - virtualizer handles spacing internally */
 }
 
 /* Invisible sentinel for infinite scroll (IntersectionObserver target) */

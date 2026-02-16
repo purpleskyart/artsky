@@ -8,6 +8,9 @@ const isProd = process.env.NODE_ENV === 'production'
 const base = process.env.VITE_BASE_PATH ?? (isProd ? '/artsky/' : '/')
 export default defineConfig({
   base,
+  server: {
+    host: '0.0.0.0', // Listen on all interfaces (IPv4 and IPv6)
+  },
   plugins: [
     react(),
     VitePWA({
@@ -46,4 +49,32 @@ export default defineConfig({
       },
     }),
   ],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Split vendor chunks for better caching
+          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+          'atproto': ['@atproto/api', '@atproto/oauth-client-browser'],
+          'video': ['hls.js'],
+          'virtual': ['@tanstack/react-virtual'],
+        },
+      },
+    },
+    // Enable tree-shaking and minification
+    minify: 'terser',
+    terserOptions: {
+      compress: {
+        drop_console: true, // Remove console.log in production
+        drop_debugger: true,
+      },
+    },
+    // Optimize chunk size
+    chunkSizeWarningLimit: 500,
+  },
+  // Enable dependency pre-bundling optimization
+  optimizeDeps: {
+    include: ['react', 'react-dom', 'react-router-dom'],
+    exclude: ['hls.js'], // Lazy load this
+  },
 })

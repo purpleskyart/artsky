@@ -1,4 +1,4 @@
-import { useRef, useLayoutEffect, useState } from 'react'
+import { useRef, useLayoutEffect, useState, useEffect } from 'react'
 import { useVirtualizer, useWindowVirtualizer } from '@tanstack/react-virtual'
 import type { TimelineItem } from '../lib/bsky'
 import { getPostAllMediaForDisplay, isPostNsfw } from '../lib/bsky'
@@ -74,14 +74,58 @@ function VirtualizedProfileColumnWindow(props: Omit<VirtualizedProfileColumnProp
     isSelected,
   } = props
 
+  // Track scroll position to maintain stability during virtualization updates
+  const scrollPositionRef = useRef<number>(0)
+  const isRestoringScrollRef = useRef<boolean>(false)
+
+  // Save scroll position before updates
+  useEffect(() => {
+    const saveScrollPosition = () => {
+      scrollPositionRef.current = window.scrollY
+    }
+    
+    window.addEventListener('scroll', saveScrollPosition, { passive: true })
+    return () => window.removeEventListener('scroll', saveScrollPosition)
+  }, [])
+
   const virtualizer = useWindowVirtualizer({
     count: column.length,
     estimateSize: (i) => estimateItemHeight(column[i].item),
     overscan: OVERSCAN,
     scrollMargin,
     gap: CARD_GAP,
-    scrollToFn: () => {},
+    // Custom scroll function to maintain position stability
+    scrollToFn: (offset, canSmooth, instance) => {
+      // Only restore scroll if we're not in the middle of a user scroll
+      if (isRestoringScrollRef.current) {
+        return
+      }
+      
+      // Allow programmatic scrolls (e.g., keyboard navigation)
+      if (canSmooth) {
+        window.scrollTo({ top: offset, behavior: 'smooth' })
+      } else {
+        window.scrollTo({ top: offset })
+      }
+    },
   })
+
+  // Restore scroll position after virtualization updates that might cause jumps
+  useEffect(() => {
+    const savedPosition = scrollPositionRef.current
+    const currentPosition = window.scrollY
+    
+    // If scroll position changed unexpectedly (more than 5px), restore it
+    if (Math.abs(currentPosition - savedPosition) > 5) {
+      isRestoringScrollRef.current = true
+      window.scrollTo({ top: savedPosition })
+      
+      // Reset flag after a short delay
+      requestAnimationFrame(() => {
+        isRestoringScrollRef.current = false
+      })
+    }
+  }, [column.length, virtualizer.getTotalSize()])
 
   const virtualItems = virtualizer.getVirtualItems()
   const totalSize = virtualizer.getTotalSize()
@@ -183,6 +227,10 @@ function VirtualizedProfileColumnElement(
 
   const gridRef = useRef<HTMLDivElement | null>(null)
   const [scrollMargin, setScrollMargin] = useState(0)
+  
+  // Track scroll position to maintain stability during virtualization updates
+  const scrollPositionRef = useRef<number>(0)
+  const isRestoringScrollRef = useRef<boolean>(false)
 
   useLayoutEffect(() => {
     const scrollEl = scrollRef.current
@@ -202,6 +250,19 @@ function VirtualizedProfileColumnElement(
     return () => ro.disconnect()
   }, [scrollRef, column.length])
 
+  // Save scroll position before updates
+  useEffect(() => {
+    const scrollEl = scrollRef.current
+    if (!scrollEl) return
+    
+    const saveScrollPosition = () => {
+      scrollPositionRef.current = scrollEl.scrollTop
+    }
+    
+    scrollEl.addEventListener('scroll', saveScrollPosition, { passive: true })
+    return () => scrollEl.removeEventListener('scroll', saveScrollPosition)
+  }, [scrollRef])
+
   const virtualizer = useVirtualizer({
     count: column.length,
     getScrollElement: () => scrollRef.current,
@@ -209,7 +270,44 @@ function VirtualizedProfileColumnElement(
     overscan: OVERSCAN,
     scrollMargin,
     gap: CARD_GAP,
+    // Custom scroll function to maintain position stability
+    scrollToFn: (offset, canSmooth, instance) => {
+      const scrollEl = scrollRef.current
+      if (!scrollEl) return
+      
+      // Only restore scroll if we're not in the middle of a user scroll
+      if (isRestoringScrollRef.current) {
+        return
+      }
+      
+      // Allow programmatic scrolls (e.g., keyboard navigation)
+      if (canSmooth) {
+        scrollEl.scrollTo({ top: offset, behavior: 'smooth' })
+      } else {
+        scrollEl.scrollTop = offset
+      }
+    },
   })
+
+  // Restore scroll position after virtualization updates that might cause jumps
+  useEffect(() => {
+    const scrollEl = scrollRef.current
+    if (!scrollEl) return
+    
+    const savedPosition = scrollPositionRef.current
+    const currentPosition = scrollEl.scrollTop
+    
+    // If scroll position changed unexpectedly (more than 5px), restore it
+    if (Math.abs(currentPosition - savedPosition) > 5) {
+      isRestoringScrollRef.current = true
+      scrollEl.scrollTop = savedPosition
+      
+      // Reset flag after a short delay
+      requestAnimationFrame(() => {
+        isRestoringScrollRef.current = false
+      })
+    }
+  }, [column.length, virtualizer.getTotalSize(), scrollRef])
 
   const virtualItems = virtualizer.getVirtualItems()
   const totalSize = virtualizer.getTotalSize()

@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect, useLayoutEffect } from 'react'
+import { useRef, useState, useEffect, useLayoutEffect, memo, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { blockAccount, unblockAccount, reportPost, muteThread, deletePost, agent } from '../lib/bsky'
 import { getSession } from '../lib/bsky'
@@ -120,7 +120,7 @@ interface PostActionsMenuProps {
   onViewQuotes?: (postUri: string) => void
 }
 
-export default function PostActionsMenu({
+function PostActionsMenu({
   postUri,
   postCid,
   authorDid,
@@ -284,7 +284,7 @@ export default function PostActionsMenu({
     return () => window.removeEventListener('keydown', onKey)
   }, [open, blockStep])
 
-  function showSuccess(message: string) {
+  const showSuccess = useCallback((message: string) => {
     setFeedback({ type: 'success', message })
     if (feedbackTimeoutRef.current) clearTimeout(feedbackTimeoutRef.current)
     feedbackTimeoutRef.current = setTimeout(() => {
@@ -292,13 +292,13 @@ export default function PostActionsMenu({
       setOpen(false)
       setFeedback(null)
     }, 1800)
-  }
+  }, [])
 
-  function showError(message: string) {
+  const showError = useCallback((message: string) => {
     setFeedback({ type: 'error', message })
-  }
+  }, [])
 
-  async function handleBlockConfirm() {
+  const handleBlockConfirm = useCallback(async () => {
     if (!session?.did || isOwnPost) return
     setLoading('block')
     setFeedback(null)
@@ -312,9 +312,9 @@ export default function PostActionsMenu({
     } finally {
       setLoading(null)
     }
-  }
+  }, [session?.did, isOwnPost, authorDid, showSuccess, showError])
 
-  async function handleUnblock() {
+  const handleUnblock = useCallback(async () => {
     if (!authorBlockingUri) return
     setLoading('unblock')
     setFeedback(null)
@@ -327,7 +327,7 @@ export default function PostActionsMenu({
     } finally {
       setLoading(null)
     }
-  }
+  }, [authorBlockingUri, showSuccess, showError])
 
   const REPORT_REASONS: { label: string; reasonType: string }[] = [
     { label: 'Spam', reasonType: 'com.atproto.moderation.defs#reasonSpam' },
@@ -336,7 +336,7 @@ export default function PostActionsMenu({
     { label: 'Other', reasonType: 'com.atproto.moderation.defs#reasonOther' },
   ]
 
-  async function handleReportWithReason(reasonType: string) {
+  const handleReportWithReason = useCallback(async (reasonType: string) => {
     if (!session?.did) return
     setLoading('report')
     setFeedback(null)
@@ -348,9 +348,9 @@ export default function PostActionsMenu({
     } finally {
       setLoading(null)
     }
-  }
+  }, [session?.did, postUri, postCid, showSuccess, showError])
 
-  async function handleMuteThread() {
+  const handleMuteThread = useCallback(async () => {
     if (!session?.did) return
     setLoading('mute')
     setFeedback(null)
@@ -362,18 +362,18 @@ export default function PostActionsMenu({
     } finally {
       setLoading(null)
     }
-  }
+  }, [session?.did, rootUri, showSuccess, showError])
 
-  function handleCopyLink() {
+  const handleCopyLink = useCallback(() => {
     const base = typeof window !== 'undefined' ? window.location.origin + (import.meta.env.BASE_URL || '/').replace(/\/$/, '') : ''
     const url = `${base}/post/${encodeURIComponent(postUri)}`
     navigator.clipboard.writeText(url).then(
       () => showSuccess('Link copied'),
       () => showError('Could not copy link')
     )
-  }
+  }, [postUri, showSuccess, showError])
 
-  async function handleDelete() {
+  const handleDelete = useCallback(async () => {
     if (!session?.did || !isOwnPost) return
     setLoading('delete')
     try {
@@ -385,7 +385,7 @@ export default function PostActionsMenu({
     } finally {
       setLoading(null)
     }
-  }
+  }, [session?.did, isOwnPost, postUri, onHidden])
 
   const loggedIn = !!session?.did
 
@@ -647,3 +647,5 @@ export default function PostActionsMenu({
     </div>
   )
 }
+
+export default memo(PostActionsMenu)
