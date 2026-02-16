@@ -108,6 +108,14 @@
   border-radius: 0.75rem;
 }
 
+/* Desktop: purple border on focused post description */
+@media (hover: hover) {
+  .rootPostDescription:focus {
+    outline: 2px solid #a855f7;
+    outline-offset: 0px;
+  }
+}
+
 /* Parent post (when viewing a reply – "Replying to" above the opened post) */
 .parentPostWrap {
   margin-bottom: 1rem;
@@ -327,6 +335,14 @@
   transition: transform 0.2s ease;
 }
 
+/* Desktop: purple border on focused comments */
+@media (hover: hover) {
+  .commentFocused {
+    outline: 2px solid #a855f7;
+    outline-offset: 0px;
+  }
+}
+
 .postBlockContent {
   flex: 1;
   min-width: 0;
@@ -337,6 +353,14 @@
   outline: none;
   transform: scale(1.03);
   transition: transform 0.2s ease;
+}
+
+/* Desktop: purple border on focused root post */
+@media (hover: hover) {
+  .rootPostBlock:focus {
+    outline: 2px solid #a855f7;
+    outline-offset: 0px;
+  }
 }
 
 .postHead {
@@ -500,6 +524,13 @@
   border: 1px solid var(--border);
   border-radius: 0.35rem;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.replyBtn svg {
+  flex-shrink: 0;
 }
 
 .replyBtn:hover {
@@ -547,6 +578,77 @@
 .commentDownvoteBtnActive {
   color: var(--text);
   border-color: var(--muted);
+}
+
+.commentRepostWrap {
+  position: relative;
+  display: inline-block;
+}
+
+.commentRepostBtn {
+  padding: 0.2rem 0.5rem;
+  font-size: 0.8rem;
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 0.35rem;
+  cursor: pointer;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.commentRepostBtn svg {
+  flex-shrink: 0;
+}
+
+.commentRepostBtn:hover:not(:disabled) {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.commentRepostBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.commentRepostDropdown {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  margin-bottom: 0.25rem;
+  min-width: 140px;
+  background: var(--glass-bg-strong);
+  -webkit-backdrop-filter: blur(var(--glass-blur-strong));
+  backdrop-filter: blur(var(--glass-blur-strong));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--glass-radius-sm);
+  box-shadow: var(--shadow-dropdown);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.commentRepostDropdownItem {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.85rem;
+  background: transparent;
+  color: var(--text);
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.commentRepostDropdownItem:hover {
+  background: var(--glass-hover);
+}
+
+.commentRepostDropdownItem:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .commentVoteTotal {

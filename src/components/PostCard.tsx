@@ -788,7 +788,7 @@ export default function PostCard({ item, isSelected, cardRef: cardRefProp, addBu
               tabIndex={0}
               aria-label="Reveal sensitive content"
             >
-              <span className={styles.nsfwOverlayText}>Tap to reveal</span>
+              <span className={styles.nsfwOverlayText}>NSFW</span>
             </div>
           )}
         </div>

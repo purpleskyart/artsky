@@ -682,6 +682,7 @@
   width: 100%;
   min-width: 0;
   transition: grid-template-columns 0.28s ease, gap 0.28s ease;
+  overflow: visible;
 }
 
 @media (max-width: 599px) {
@@ -719,6 +720,7 @@
   align-items: flex-start;
   width: 100%;
   min-width: 0;
+  overflow: visible;
 }
 
 .gridColumn {
@@ -727,10 +729,20 @@
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
+  overflow: visible;
 }
 
 .gridItem {
   min-width: 0;
+  overflow: visible;
+  position: relative;
+}
+
+/* When card inside is selected/focused, lift the grid item wrapper */
+.gridItem:has(.card:hover),
+.gridItem:has(.cardSelected),
+.gridItem[data-selected] {
+  z-index: 10;
 }
 
 .loadMoreSentinel {

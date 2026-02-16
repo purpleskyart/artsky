@@ -40,15 +40,23 @@
   box-shadow: none;
 }
 
-/* Focused/selected: lift toward user (scale + shadow), no outline */
+/* Focused/selected: lift toward user (scale + shadow + purple border on desktop) */
 .cardSelected {
   outline: none;
-  z-index: 1;
-  transform: scale(1.02);
+  z-index: 10;
+  transform: scale(1.01);
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
 }
 .cardSelected::after {
   box-shadow: none;
+}
+
+/* Desktop: purple border on focused cards */
+@media (hover: hover) {
+  .cardSelected {
+    outline: 2px solid #a855f7;
+    outline-offset: 0px;
+  }
 }
 html[data-theme="dark"] .cardSelected {
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
@@ -145,14 +153,23 @@ html[data-theme="dark"] .cardSeen {
   filter: brightness(0.68);
 }
 
-/* Hover: lift toward user (scale + shadow, no purple ring) */
+/* Hover: lift toward user (scale + shadow + purple border on desktop) */
 .card:hover {
   outline: none;
   transform: scale(1.02);
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+  z-index: 10;
 }
 .card:hover::after {
   box-shadow: none;
+}
+
+/* Desktop: purple border on hover */
+@media (hover: hover) {
+  .card:hover {
+    outline: 2px solid #a855f7;
+    outline-offset: 0px;
+  }
 }
 html[data-theme="dark"] .card:hover {
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
@@ -183,9 +200,17 @@ html[data-theme="dark"] [data-view-mode="1"] .card:hover {
   outline: none;
 }
 
-/* Liked + hover: keep pink ring only */
+/* Liked + hover: keep pink ring + purple outline on desktop */
 .card.cardLiked:hover::after {
   box-shadow: inset 0 0 0 2px #ec4899;
+}
+
+/* Desktop: purple border on hover for liked cards */
+@media (hover: hover) {
+  .card.cardLiked:hover {
+    outline: 2px solid #a855f7;
+    outline-offset: 0px;
+  }
 }
 
 /* When focused/selected: card lifts; ::after only has liked/artboard inset rings */
@@ -193,9 +218,25 @@ html[data-theme="dark"] [data-view-mode="1"] .card:hover {
 .card.cardSelected.cardInArtboard::after {
   box-shadow: none;
 }
+
+/* Desktop: purple border on focused cards in artboard */
+@media (hover: hover) {
+  .card.cardSelected.cardInArtboard {
+    outline: 2px solid #a855f7;
+    outline-offset: 0px;
+  }
+}
 /* Pink inset when liked + focused */
 .card.cardSelected.cardLiked::after {
   box-shadow: inset 0 0 0 2px #ec4899;
+}
+
+/* Desktop: purple border shows on top of pink liked border */
+@media (hover: hover) {
+  .card.cardSelected.cardLiked {
+    outline: 2px solid #a855f7;
+    outline-offset: 0px;
+  }
 }
 
 /* Bento grid: card fills cell height */
@@ -231,11 +272,11 @@ html[data-theme="dark"] [data-view-mode="1"] .card:hover {
 /* Keyboard focus: no outline; lift card when focus is not on a media cell (see below) */
 .card:focus-within {
   outline: none !important;
-  z-index: 1;
+  z-index: 10;
 }
 /* Lift card (scale + shadow) only when focus is not on a media grid cell – otherwise card scale + cell scale makes the top image’s corners extend past the card’s rounded clip */
 .card:focus-within:not(:has(.mediaGridCellFocused)) {
-  transform: scale(1.02);
+  transform: scale(1.01);
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
 }
 .card:focus-within:not(:has(.mediaGridCellFocused))::after {

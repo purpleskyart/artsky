@@ -369,6 +369,19 @@ function PostBlock({
   /** When set, show "View Quotes" in the post actions menu and call this with post URI */
   onViewQuotes?: (postUri: string) => void
 }) {
+  const [commentRepostDropdownOpen, setCommentRepostDropdownOpen] = useState<string | null>(null)
+  const commentRepostDropdownRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!commentRepostDropdownOpen) return
+    const onDocClick = (e: MouseEvent) => {
+      if (commentRepostDropdownRef.current?.contains(e.target as Node)) return
+      setCommentRepostDropdownOpen(null)
+    }
+    document.addEventListener('mousedown', onDocClick)
+    return () => document.removeEventListener('mousedown', onDocClick)
+  }, [commentRepostDropdownOpen])
+
   if (!isThreadViewPost(node)) return null
   const { post } = node
   const postViewer = post as { viewer?: { like?: string }; likeCount?: number; downvoteCount?: number }
@@ -457,7 +470,10 @@ function PostBlock({
               className={styles.replyBtn}
               onClick={() => onReply(post.uri, post.cid, handle)}
             >
-              Reply
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+              </svg>
+              <span>Reply</span>
             </button>
           )}
           {onLike && (
@@ -488,6 +504,60 @@ function PostBlock({
             >
               ↓{showCommentCounts ? ` ${downvoteCount}` : ''}
             </button>
+          )}
+          {currentDid && (
+            <div className={styles.commentRepostWrap} ref={commentRepostDropdownRef}>
+              <button
+                type="button"
+                className={styles.commentRepostBtn}
+                onClick={() => setCommentRepostDropdownOpen(commentRepostDropdownOpen === post.uri ? null : post.uri)}
+                aria-expanded={commentRepostDropdownOpen === post.uri}
+                aria-haspopup="true"
+                title="Repost or quote"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                  <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z" />
+                </svg>
+                <span>Repost</span>
+              </button>
+              {commentRepostDropdownOpen === post.uri && (
+                <div className={styles.commentRepostDropdown} role="menu">
+                  <button
+                    type="button"
+                    className={styles.commentRepostDropdownItem}
+                    role="menuitem"
+                    onClick={async () => {
+                      setCommentRepostDropdownOpen(null)
+                      try {
+                        const postViewer = post as { viewer?: { repost?: string } }
+                        if (postViewer.viewer?.repost) {
+                          await agent.deleteRepost(postViewer.viewer.repost)
+                        } else {
+                          await agent.repost(post.uri, post.cid)
+                        }
+                      } catch (err) {
+                        console.error('Failed to repost:', err)
+                      }
+                    }}
+                  >
+                    {(post as { viewer?: { repost?: string } }).viewer?.repost ? 'Remove repost' : 'Repost'}
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.commentRepostDropdownItem}
+                    role="menuitem"
+                    onClick={() => {
+                      setCommentRepostDropdownOpen(null)
+                      if (onViewQuotes) {
+                        onViewQuotes(post.uri)
+                      }
+                    }}
+                  >
+                    Quote post
+                  </button>
+                </div>
+              )}
+            </div>
           )}
           <PostActionsMenu
             postUri={post.uri}
