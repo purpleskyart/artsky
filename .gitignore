@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# OAuth client metadata — generated at build from deploy URL (owner/repo)
+public/client-metadata.json

@@ -12,11 +12,25 @@
  * GITHUB_REPOSITORY (owner/repo) when set.
  */
 
-const fs = require('fs');
-const path = require('path');
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { execSync } from 'child_process';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const explicitOrigin = process.env.VITE_APP_ORIGIN || process.env.APP_ORIGIN;
-const repo = process.env.GITHUB_REPOSITORY;
+let repo = process.env.GITHUB_REPOSITORY;
+
+// In CI, GITHUB_REPOSITORY is set (e.g. "owner/repo"). Locally, derive from git remote.
+if (!repo) {
+  try {
+    const remoteUrl = execSync('git remote get-url origin', { encoding: 'utf8' }).trim();
+    const match = remoteUrl.match(/github\.com[:/]([^/]+)\/([^/]+?)(?:\.git)?$/);
+    if (match) repo = `${match[1]}/${match[2]}`;
+  } catch (_) {}
+}
+
 const repoOwner = repo && repo.split('/')[0];
 const repoName = repo && repo.split('/')[1];
 
@@ -26,7 +40,7 @@ const origin =
 
 if (!origin) {
   console.error(
-    'OAuth metadata needs deployment origin. Set VITE_APP_ORIGIN (e.g. https://YOUR_USERNAME.github.io) or run in CI where GITHUB_REPOSITORY is set.'
+    'OAuth metadata needs deployment origin. Set VITE_APP_ORIGIN (e.g. https://YOUR_USERNAME.github.io), run in CI, or use a repo with origin pointing at GitHub (owner/repo).'
   );
   process.exit(1);
 }
