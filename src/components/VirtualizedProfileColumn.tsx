@@ -95,7 +95,7 @@ function VirtualizedProfileColumnWindow(props: Omit<VirtualizedProfileColumnProp
     scrollMargin,
     gap: CARD_GAP,
     // Custom scroll function to maintain position stability
-    scrollToFn: (offset, canSmooth, instance) => {
+    scrollToFn: (offset, canSmooth) => {
       // Only restore scroll if we're not in the middle of a user scroll
       if (isRestoringScrollRef.current) {
         return
@@ -271,7 +271,7 @@ function VirtualizedProfileColumnElement(
     scrollMargin,
     gap: CARD_GAP,
     // Custom scroll function to maintain position stability
-    scrollToFn: (offset, canSmooth, instance) => {
+    scrollToFn: (offset, canSmooth) => {
       const scrollEl = scrollRef.current
       if (!scrollEl) return
       

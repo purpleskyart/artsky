@@ -1598,7 +1598,8 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
               if (hasParent) {
                 return (() => {
                   const parentNode = thread.parent
-                  const parentPost = parentNode.post
+                  const parentPost = parentNode && 'post' in parentNode ? parentNode.post : undefined
+                  if (!parentPost) return null
                   const parentHandle = parentPost.author?.handle ?? parentPost.author?.did ?? ''
                   const parentText = (parentPost.record as { text?: string })?.text ?? ''
                   const parentMedia = getPostAllMedia(parentPost)

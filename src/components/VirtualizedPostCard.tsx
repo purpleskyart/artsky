@@ -33,7 +33,7 @@ function VirtualizedPostCard(props: VirtualizedPostCardProps) {
   
   // Use intersection observer to detect if post is visible or near viewport
   // Generous rootMargin (1200px) ensures content is ready before it enters viewport
-  const isVisible = useOffscreenOptimization(containerRef, {
+  useOffscreenOptimization(containerRef, {
     rootMargin: '1200px 0px 1200px 0px',
     threshold: 0,
   })
