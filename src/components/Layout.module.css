@@ -1245,7 +1245,7 @@ button.logoLink {
   position: fixed;
   inset: 0;
   background: var(--overlay-bg);
-  z-index: 21;
+  z-index: 1300;
 }
 
 .accountMenuSheet {
@@ -1262,7 +1262,7 @@ button.logoLink {
   border: 1px solid var(--glass-border);
   border-radius: var(--glass-radius) var(--glass-radius) 0 0;
   box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.2);
-  z-index: 22;
+  z-index: 1301;
 }
 
 .accountMenuSheet .menuSection {
@@ -2429,11 +2429,114 @@ button.logoLink {
   border-color: var(--muted);
 }
 
-/* Compose post modal – overlay receives drop and backdrop click */
+/* Settings / Cache modal – storage usage, clear cache, check updates */
+.settingsOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1201;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  pointer-events: auto;
+}
+
+.settingsCard {
+  width: 100%;
+  max-width: 420px;
+  max-height: 85vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 1.25rem;
+  background: var(--glass-bg-strong);
+  -webkit-backdrop-filter: blur(var(--glass-blur-strong));
+  backdrop-filter: blur(var(--glass-blur-strong));
+  border-radius: var(--glass-radius);
+  box-shadow: var(--shadow-dropdown);
+  pointer-events: auto;
+  animation: popIn 0.2s ease;
+}
+
+.settingsTitle {
+  margin: 0 0 1rem;
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.settingsSubtitle {
+  margin: 0 0 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.settingsSection {
+  margin-bottom: 1.25rem;
+}
+
+.settingsUsage {
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+  color: var(--text);
+}
+
+.settingsBreakdown {
+  margin: 0 0 0;
+  padding-left: 1.25rem;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: var(--text);
+}
+
+.settingsMuted {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.settingsActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.settingsActionBtn {
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  font-family: inherit;
+  color: var(--text);
+  background: var(--glass-highlight);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--glass-radius-sm);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.settingsActionBtn:hover:not(:disabled) {
+  background: var(--glass-hover);
+  border-color: var(--muted);
+}
+
+.settingsActionBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.settingsActionBtnDanger:hover:not(:disabled) {
+  background: var(--error-bg);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+/* Compose post modal – overlay receives drop and backdrop click. Above all modals (z-index 1200+) */
 .composeOverlay {
   position: fixed;
   inset: 0;
-  z-index: 23;
+  z-index: 1300;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2951,7 +3054,7 @@ button.logoLink {
   position: fixed;
   inset: 0;
   background: var(--overlay-bg);
-  z-index: 24;
+  z-index: 1300;
   animation: fadeIn 0.2s ease;
 }
 
@@ -2966,7 +3069,7 @@ button.logoLink {
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
-  z-index: 25;
+  z-index: 1301;
   width: calc(100% - 2rem);
   max-width: 360px;
   max-height: 85vh;

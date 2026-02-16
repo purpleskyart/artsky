@@ -420,6 +420,14 @@
   transition: transform 0.2s ease;
 }
 
+/* Desktop: purple border on focused forum replies */
+@media (hover: hover) {
+  .replyItem:focus {
+    outline: 2px solid #a855f7;
+    outline-offset: 0px;
+  }
+}
+
 .replyItemNested {
   background: color-mix(in srgb, var(--surface) 82%, var(--bg));
 }

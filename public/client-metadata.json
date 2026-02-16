@@ -1,9 +1,9 @@
 {
-  "client_id": "https://purpleskyart.github.io/purplesky/client-metadata.json",
+  "client_id": "https://purpleskyart.github.io/artsky/client-metadata.json",
   "client_name": "ArtSky",
-  "client_uri": "https://purpleskyart.github.io/purplesky/",
+  "client_uri": "https://purpleskyart.github.io/artsky/",
   "redirect_uris": [
-    "https://purpleskyart.github.io/purplesky/"
+    "https://purpleskyart.github.io/artsky/"
   ],
   "scope": "atproto transition:generic rpc:app.bsky.feed.getFeed?aud=did:web:api.bsky.app%23bsky_appview",
   "grant_types": [

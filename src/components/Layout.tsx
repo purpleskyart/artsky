@@ -19,6 +19,7 @@ import { GUEST_FEED_SOURCES, GUEST_MIX_ENTRIES } from '../config/feedSources'
 import { useFeedMix } from '../context/FeedMixContext'
 import { FeedSwipeProvider } from '../context/FeedSwipeContext'
 import SearchBar from './SearchBar'
+import SettingsModal from './SettingsModal'
 import FeedSelector from './FeedSelector'
 import ComposerSuggestions from './ComposerSuggestions'
 import PostText from './PostText'
@@ -266,6 +267,18 @@ function AboutIcon() {
   )
 }
 
+/** Settings / storage icon (database cylinder) */
+function SettingsStorageIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <ellipse cx="12" cy="5" rx="9" ry="3" />
+      <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
+      <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
+      <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
+    </svg>
+  )
+}
+
 /** Media mode: T (text) with small photo under it. Thin stroke to align with other gear icons. */
 function MediaModeIcon() {
   return (
@@ -373,6 +386,7 @@ export default function Layout({ title, children, showNav }: Props) {
   const lastScrollYRef = useRef(0)
   const scrollEndTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [aboutOpen, setAboutOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const [searchOverlayBottom, setSearchOverlayBottom] = useState(0)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const accountBtnRef = useRef<HTMLButtonElement>(null)
@@ -593,6 +607,18 @@ export default function Layout({ title, children, showNav }: Props) {
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [aboutOpen])
+
+  useEffect(() => {
+    if (!settingsOpen) return
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        setSettingsOpen(false)
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [settingsOpen])
 
   useEffect(() => {
     if (!notificationsOpen) return
@@ -850,7 +876,7 @@ export default function Layout({ title, children, showNav }: Props) {
   prevNotificationsOpenRef.current = notificationsOpen
 
   /* When any full-screen popup is open, lock body scroll so only the popup scrolls */
-  const anyPopupOpen = isModalOpen || (mobileSearchOpen && !isDesktop) || composeOpen || aboutOpen
+  const anyPopupOpen = isModalOpen || (mobileSearchOpen && !isDesktop) || composeOpen || aboutOpen || settingsOpen
   useEffect(() => {
     if (!scrollLock || !anyPopupOpen) return
     scrollLock.lockScroll()
@@ -1508,6 +1534,16 @@ export default function Layout({ title, children, showNav }: Props) {
                     <button
                       type="button"
                       className={`${styles.feedFloatBtn} ${styles.gearExpandableBtn} float-btn`}
+                      onClick={() => { setFeedFloatButtonsExpanded(false); setSettingsOpen(true) }}
+                      title="Storage and cache management"
+                      aria-label="Storage & Cache"
+                    >
+                      <SettingsStorageIcon />
+                      <span className={styles.gearExpandableLabel}>Storage & Cache</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={`${styles.feedFloatBtn} ${styles.gearExpandableBtn} float-btn`}
                       onClick={() => setAboutOpen(true)}
                       title="About ArtSky and keyboard shortcuts"
                       aria-label="About ArtSky"
@@ -1926,6 +1962,16 @@ export default function Layout({ title, children, showNav }: Props) {
             <button
               type="button"
               className={`${styles.feedFloatBtn} ${styles.gearExpandableBtn} float-btn`}
+              onClick={() => { setFeedFloatButtonsExpanded(false); setSettingsOpen(true) }}
+              title="Storage and cache management"
+              aria-label="Storage & Cache"
+            >
+              <SettingsStorageIcon />
+              <span className={styles.gearExpandableLabel}>Storage & Cache</span>
+            </button>
+            <button
+              type="button"
+              className={`${styles.feedFloatBtn} ${styles.gearExpandableBtn} float-btn`}
               onClick={() => setAboutOpen(true)}
               title="About ArtSky and keyboard shortcuts"
               aria-label="About ArtSky"
@@ -2259,6 +2305,12 @@ export default function Layout({ title, children, showNav }: Props) {
                 </div>
               </div>
             </>
+          )}
+          {settingsOpen && toast && (
+            <SettingsModal
+              onClose={() => setSettingsOpen(false)}
+              showToast={toast.showToast}
+            />
           )}
           {aboutOpen && (
             <>
