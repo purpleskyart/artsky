@@ -23,11 +23,11 @@
   padding-top: max(3.5rem, calc(env(safe-area-inset-top) + 2.5rem));
 }
 
-/* Floating back button in top-left corner (matches gear/float-btn style) */
+/* Floating back button in top-left corner of modal pane */
 .modalFloatingBack {
   position: absolute;
-  top: max(var(--space-md), env(safe-area-inset-top));
-  left: max(var(--space-md), env(safe-area-inset-left));
+  top: var(--space-md);
+  left: var(--space-md);
   z-index: 10;
   display: inline-flex;
   align-items: center;
@@ -44,6 +44,14 @@
   -webkit-backdrop-filter: blur(var(--glass-blur));
   box-shadow: var(--shadow-card);
   transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+/* On desktop, position back button inside pane with safe area inset */
+@media (min-width: 768px) {
+  .modalFloatingBack {
+    top: max(var(--space-md), env(safe-area-inset-top));
+    left: max(var(--space-md), env(safe-area-inset-left));
+  }
 }
 
 .modalFloatingBack svg {
@@ -127,7 +135,14 @@
 
 /* Top padding so content (images, text) isn't covered by the floating back button */
 .scrollWithFloatingBack.scroll {
-  padding-top: calc(2rem + max(var(--space-md), env(safe-area-inset-top, 0px)) + var(--space-sm));
+  padding-top: calc(2rem + var(--space-md));
+}
+
+/* On desktop, add safe area inset to scroll padding */
+@media (min-width: 768px) {
+  .scrollWithFloatingBack.scroll {
+    padding-top: calc(2rem + max(var(--space-md), env(safe-area-inset-top, 0px)) + var(--space-sm));
+  }
 }
 
 /* Pull-to-refresh in modals (same behavior as mobile homepage) */

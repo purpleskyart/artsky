@@ -583,6 +583,7 @@
   width: 100%;
   pointer-events: none;
   visibility: hidden;
+  overflow-anchor: none; /* Don't anchor to sentinel so viewport isn't locked while loading more */
 }
 
 .loadingMore {
@@ -591,6 +592,7 @@
   font-size: 0.9rem;
   padding: 0.75rem;
   margin: 0;
+  overflow-anchor: none;
 }
 
 .loadMoreRow {
@@ -599,6 +601,7 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.75rem 0 1rem;
+  overflow-anchor: none; /* Don't anchor to bottom UI so user can scroll freely while more posts load */
 }
 
 .loadMoreBtn {

@@ -1861,7 +1861,6 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                   const parentHandle = parentPost.author?.handle ?? parentPost.author?.did ?? ''
                   const parentText = (parentPost.record as { text?: string })?.text ?? ''
                   const parentMedia = getPostAllMedia(parentPost)
-                  const parentFirstMedia = parentMedia[0]
                   return (
                     <div className={styles.parentPostWrap}>
                       <p className={styles.quotedPostLabel}>Replying to</p>
@@ -1891,13 +1890,17 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                             </span>
                           )}
                         </div>
-                        {parentFirstMedia && (
-                          <div className={styles.quotedPostMedia}>
-                            {parentFirstMedia.type === 'image' ? (
-                              <img src={parentFirstMedia.url} alt="" loading="lazy" className={styles.quotedPostThumb} />
-                            ) : parentFirstMedia.videoPlaylist ? (
-                              <div className={styles.quotedPostVideoThumb} style={{ backgroundImage: parentFirstMedia.url ? `url(${parentFirstMedia.url})` : undefined }} />
-                            ) : null}
+                        {parentMedia.length > 0 && (
+                          <div className={styles.quotedPostMediaGrid}>
+                            {parentMedia.map((m, i) => (
+                              <div key={i} className={styles.quotedPostMedia}>
+                                {m.type === 'image' ? (
+                                  <img src={m.url} alt="" loading="lazy" className={styles.quotedPostThumb} />
+                                ) : m.videoPlaylist ? (
+                                  <div className={styles.quotedPostVideoThumb} style={{ backgroundImage: m.url ? `url(${m.url})` : undefined }} />
+                                ) : null}
+                              </div>
+                            ))}
                           </div>
                         )}
                         {parentText ? (
@@ -2017,7 +2020,6 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                   const quotedHandle = quoted.author?.handle ?? quoted.author?.did ?? ''
                   const quotedText = (quoted.record as { text?: string })?.text ?? ''
                   const quotedMedia = getPostAllMedia(quoted)
-                  const quotedFirstMedia = quotedMedia[0]
                   return (
                     <div className={styles.quotedPostWrap}>
                       <p className={styles.quotedPostLabel}>Quoting</p>
@@ -2047,13 +2049,17 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                             </span>
                           )}
                         </div>
-                        {quotedFirstMedia && (
-                          <div className={styles.quotedPostMedia}>
-                            {quotedFirstMedia.type === 'image' ? (
-                              <img src={quotedFirstMedia.url} alt="" loading="lazy" className={styles.quotedPostThumb} />
-                            ) : quotedFirstMedia.videoPlaylist ? (
-                              <div className={styles.quotedPostVideoThumb} style={{ backgroundImage: quotedFirstMedia.url ? `url(${quotedFirstMedia.url})` : undefined }} />
-                            ) : null}
+                        {quotedMedia.length > 0 && (
+                          <div className={styles.quotedPostMediaGrid}>
+                            {quotedMedia.map((m, i) => (
+                              <div key={i} className={styles.quotedPostMedia}>
+                                {m.type === 'image' ? (
+                                  <img src={m.url} alt="" loading="lazy" className={styles.quotedPostThumb} />
+                                ) : m.videoPlaylist ? (
+                                  <div className={styles.quotedPostVideoThumb} style={{ backgroundImage: m.url ? `url(${m.url})` : undefined }} />
+                                ) : null}
+                              </div>
+                            ))}
                           </div>
                         )}
                         {quotedText ? (

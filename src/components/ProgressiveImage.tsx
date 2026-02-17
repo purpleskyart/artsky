@@ -59,6 +59,9 @@ export function ProgressiveImage({
   maxRetries = 3,
   preloadDistance = 1500
 }: ProgressiveImageProps) {
+  /** If onLoad never fires (e.g. cached image, or slow/hung request), stop showing blur after this ms */
+  const LOAD_REVEAL_TIMEOUT_MS = 12_000
+
   const [isLoaded, setIsLoaded] = useState(false)
   const [imageError, setImageError] = useState(false)
   const [retryCount, setRetryCount] = useState(0)
@@ -66,7 +69,9 @@ export function ProgressiveImage({
   const [placeholderError, setPlaceholderError] = useState(false)
   const [shouldPreload, setShouldPreload] = useState(loading === 'eager')
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const loadTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const imgRef = useRef<HTMLImageElement | null>(null)
   const observerRef = useRef<IntersectionObserver | null>(null)
   
   // Convert to WebP format if browser supports it
@@ -113,6 +118,10 @@ export function ProgressiveImage({
   }, [src])
   
   const handleImageLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
+    if (loadTimeoutRef.current) {
+      clearTimeout(loadTimeoutRef.current)
+      loadTimeoutRef.current = null
+    }
     setIsLoaded(true)
     setImageError(false)
     setPermanentError(false)
@@ -147,15 +156,12 @@ export function ProgressiveImage({
     }
   }, [imageError, webpSrc, src, retryCount, maxRetries])
   
-  // Cleanup retry timeout on unmount
+  // Cleanup timeouts and observer on unmount
   useEffect(() => {
     return () => {
-      if (retryTimeoutRef.current) {
-        clearTimeout(retryTimeoutRef.current)
-      }
-      if (observerRef.current) {
-        observerRef.current.disconnect()
-      }
+      if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current)
+      if (loadTimeoutRef.current) clearTimeout(loadTimeoutRef.current)
+      if (observerRef.current) observerRef.current.disconnect()
     }
   }, [])
   
@@ -209,9 +215,41 @@ export function ProgressiveImage({
     setPlaceholderError(false)
     setShouldPreload(loading === 'eager')
   }, [src, loading])
-  
+
+  // When we're loading the full image: (1) check if already complete (e.g. cache), (2) fallback timeout so blur doesn't stick forever
   // Use WebP URL first, fall back to original if error occurs
   const currentSrc = imageError ? src : webpSrc
+
+  useEffect(() => {
+    if (!shouldPreload || isLoaded || permanentError) return
+
+    const checkComplete = () => {
+      const img = imgRef.current
+      if (img?.complete && img.naturalWidth > 0) {
+        if (loadTimeoutRef.current) {
+          clearTimeout(loadTimeoutRef.current)
+          loadTimeoutRef.current = null
+        }
+        setIsLoaded(true)
+      }
+    }
+
+    // Cached images may complete before onLoad runs; check after paint
+    const rafId = requestAnimationFrame(() => checkComplete())
+
+    loadTimeoutRef.current = setTimeout(() => {
+      loadTimeoutRef.current = null
+      if (!isLoaded) setIsLoaded(true) // reveal image so we don't stay on blur forever
+    }, LOAD_REVEAL_TIMEOUT_MS)
+
+    return () => {
+      cancelAnimationFrame(rafId)
+      if (loadTimeoutRef.current) {
+        clearTimeout(loadTimeoutRef.current)
+        loadTimeoutRef.current = null
+      }
+    }
+  }, [shouldPreload, currentSrc, retryCount, isLoaded, permanentError])
   
   // If permanently failed, show error placeholder
   if (permanentError) {
@@ -258,6 +296,7 @@ export function ProgressiveImage({
         />
       )}
       <img
+        ref={imgRef}
         key={`${currentSrc}-${retryCount}`} // Force reload on retry
         src={currentSrc}
         srcSet={srcSet}

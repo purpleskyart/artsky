@@ -149,6 +149,7 @@
   pointer-events: none;
   opacity: 0.5;
   animation: pulse 1.5s ease-in-out infinite;
+  min-height: 80px;
 }
 
 @keyframes pulse {
@@ -232,26 +233,41 @@
   margin-left: auto;
 }
 
-.quotedPostMedia {
+.quotedPostMediaGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(5rem, 1fr));
+  gap: 0.25rem;
   margin-bottom: 0.5rem;
+}
+
+.quotedPostMedia {
   border-radius: 0.35rem;
   overflow: hidden;
   max-height: 12rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
 }
 
 .quotedPostThumb {
-  width: 100%;
-  height: auto;
+  max-width: 100%;
   max-height: 12rem;
-  object-fit: cover;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  object-position: center;
   display: block;
+  vertical-align: middle;
 }
 
 .quotedPostVideoThumb {
   width: 100%;
+  max-height: 12rem;
   aspect-ratio: 16 / 9;
-  background-size: cover;
+  background-size: contain;
   background-position: center;
+  background-repeat: no-repeat;
 }
 
 .quotedPostText {

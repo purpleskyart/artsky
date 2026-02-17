@@ -215,26 +215,23 @@ function distributeEntriesByHeight(
       columnHeights[best] += h
     }
     
-    // Second pass: append NEW entries to shortest columns
+    // Second pass: append NEW entries to shortest columns (by height; tie-break by fewer items)
     for (let i = previousEntryCount; i < entries.length; i++) {
       const entry = entries[i]
       const h = estimateEntryHeight(entry)
-      
-      // Find shortest column
       let best = 0
       for (let c = 1; c < cols; c++) {
-        if (columnHeights[c] < columnHeights[best]) {
-          best = c
-        }
+        const shorter = columnHeights[c] < columnHeights[best]
+        const sameHeight = Math.abs(columnHeights[c] - columnHeights[best]) < 2
+        const fewerItems = columns[c].length < columns[best].length
+        if (shorter || (sameHeight && fewerItems)) best = c
       }
-      
       columns[best].push({ entry, originalIndex: i })
       columnHeights[best] += h
     }
-    
     return columns
   }
-  
+
   // Initial distribution or column count changed - redistribute everything
   const columns: Array<Array<{ entry: FeedDisplayEntry; originalIndex: number }>> = Array.from(
     { length: cols },
@@ -249,8 +246,10 @@ function distributeEntriesByHeight(
     let best = -1
     for (let c = 0; c < cols; c++) {
       if (columns[c].length > minCount + 1) continue
-      if (best === -1 || columnHeights[c] < columnHeights[best]) best = c
-      else if (columnHeights[c] === columnHeights[best] && columns[c].length < columns[best].length) best = c
+      const shorter = best === -1 || columnHeights[c] < columnHeights[best]
+      const sameHeight = best >= 0 && Math.abs(columnHeights[c] - columnHeights[best]) < 2
+      const fewerItems = best >= 0 && columns[c].length < columns[best].length
+      if (shorter || (sameHeight && fewerItems)) best = c
     }
     if (best === -1) best = 0
     columns[best].push({ entry, originalIndex: i })
@@ -720,12 +719,14 @@ export default function FeedPage() {
   }, [load])
 
   // Infinite scroll: load more when sentinel enters view. Cooldown prevents re-triggering while sentinel stays in view (stops infinite load loop).
-  // After each load we also schedule a fallback check: if any column's sentinel is above the viewport
-  // bottom (blank space visible) we trigger another load once the cooldown expires. This handles two
-  // cases the observer alone misses: (1) sentinel fires immediately after cursor change but the
-  // cooldown blocks it and the observer never re-fires, and (2) a very tall post pushed short-column
-  // sentinels beyond the 600px rootMargin so the observer never sees them at all.
+  // Large rootMargin so we load before the user reaches the end. After each load we also schedule a
+  // fallback check: if any column's sentinel is above (viewport bottom + margin) we trigger another
+  // load once the cooldown expires.
   const LOAD_MORE_COOLDOWN_MS = 1800
+  /** Start loading when sentinel is within this distance below the viewport (load before user reaches end). */
+  const LOAD_MORE_ROOT_MARGIN_PX = 1200
+  /** Consider a column "short" when its sentinel is above this line (trigger load before blank space visible). */
+  const LOAD_MORE_SHORT_MARGIN_PX = 600
   loadingMoreRef.current = feedState.loadingMore
   useEffect(() => {
     if (!feedState.cursor) return
@@ -735,12 +736,13 @@ export default function FeedPage() {
     let retryId = 0
     const cols = Math.min(3, Math.max(1, viewMode === '1' ? 1 : viewMode === '2' ? 2 : 3))
 
-    /** True when any column's content ends above the viewport bottom (blank space visible). */
+    /** True when any column's sentinel is above (viewport bottom + margin) so we load before user reaches end. */
     const anyColumnShort = () => {
+      const threshold = window.innerHeight + LOAD_MORE_SHORT_MARGIN_PX
       for (let c = 0; c < cols; c++) {
         const el = refs[c]
         if (!el) continue
-        if (el.getBoundingClientRect().bottom < window.innerHeight) return true
+        if (el.getBoundingClientRect().bottom < threshold) return true
       }
       return false
     }
@@ -780,7 +782,7 @@ export default function FeedPage() {
           break
         }
       },
-      { rootMargin: '600px', threshold: 0 }
+      { rootMargin: `${LOAD_MORE_ROOT_MARGIN_PX}px`, threshold: 0 }
     )
     for (let c = 0; c < cols; c++) {
       const el = refs[c]
@@ -1442,7 +1444,6 @@ export default function FeedPage() {
               data-feed-cards
               data-view-mode={viewMode}
               data-keyboard-nav={keyboardNavActive || undefined}
-              onMouseLeave={isDesktop && !isModalOpen ? () => dispatch({ type: 'SET_KEYBOARD_FOCUS', index: -1 }) : undefined}
             >
               {distributedColumns.map((column, colIndex) => (
                 <FeedColumn

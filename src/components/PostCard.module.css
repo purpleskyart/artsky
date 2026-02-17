@@ -143,12 +143,18 @@ html[data-theme="dark"] [data-view-mode="1"] .cardSelected {
   border-radius: calc(var(--glass-radius-sm) - 1px) calc(var(--glass-radius-sm) - 1px) 0 0;
 }
 
-/* Darken card when marked as seen (scrolled past) */
-.cardSeen {
+/* Darken card when marked as seen (scrolled past) - but not the media */
+.cardSeen .meta,
+.cardSeen .handleBlock,
+.cardSeen .textOnlyPreview,
+.cardSeen .cardActionRow {
   filter: brightness(0.82);
 }
 /* Dark mode: stronger seen dimming so the difference from unseen is clear */
-html[data-theme="dark"] .cardSeen {
+html[data-theme="dark"] .cardSeen .meta,
+html[data-theme="dark"] .cardSeen .handleBlock,
+html[data-theme="dark"] .cardSeen .textOnlyPreview,
+html[data-theme="dark"] .cardSeen .cardActionRow {
   filter: brightness(0.68);
 }
 

@@ -174,17 +174,6 @@ export default function AppModal({
         aria-modal="true"
         aria-label={ariaLabel}
       >
-        <button
-          type="button"
-          className={`${styles.modalFloatingBack}${modalScrollHidden ? ` ${styles.modalFloatingBackScrollHidden}` : ''}`}
-          onClick={canGoBack ? onBack : onClose}
-          aria-label={canGoBack ? 'Back' : 'Close'}
-          title={canGoBack ? 'Back' : 'Close'}
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <path d="M19 12H5M12 19l-7-7 7-7" />
-            </svg>
-          </button>
         <div
           className={`${styles.pane}${swipe.isReturning ? ` ${styles.paneSwipeReturning}` : ''}${transparentTopBar ? ` ${styles.paneNoRightBorder}` : ''}${compact ? ` ${styles.paneCompact}` : ''}${expanded ? ` ${styles.paneExpanded}` : ''}`}
           style={swipe.style}
@@ -193,6 +182,17 @@ export default function AppModal({
           onTouchEnd={swipe.onTouchEnd}
           onClick={(e) => e.stopPropagation()}
         >
+          <button
+            type="button"
+            className={`${styles.modalFloatingBack}${modalScrollHidden ? ` ${styles.modalFloatingBackScrollHidden}` : ''}`}
+            onClick={canGoBack ? onBack : onClose}
+            aria-label={canGoBack ? 'Back' : 'Close'}
+            title={canGoBack ? 'Back' : 'Close'}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M19 12H5M12 19l-7-7 7-7" />
+            </svg>
+          </button>
           {!hideTopBar && (
             <div className={`${styles.modalTopBar} ${transparentTopBar ? styles.modalTopBarTransparent : ''} ${styles.modalTopBarActionsBelow}`}>
               <div className={styles.modalTopBarLeft} aria-hidden="true">
