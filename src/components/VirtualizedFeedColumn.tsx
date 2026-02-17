@@ -171,8 +171,6 @@ export default function VirtualizedFeedColumn({
               ref={(el) => {
                 if (!el) return
                 
-                const rect = el.getBoundingClientRect()
-                const viewportHeight = window.innerHeight
                 const isNewlyAdded = newlyAddedIndices.current.includes(virtualItem.index)
                 
                 // Always measure newly added items immediately to prevent scroll jumps
