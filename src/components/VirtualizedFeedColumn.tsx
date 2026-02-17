@@ -121,6 +121,22 @@ export default function VirtualizedFeedColumn({
   const measureThrottleRef = useRef<Set<number>>(new Set())
   const prevColumnLengthRef = useRef(column.length)
   const newlyAddedIndices = useRef<number[]>([])
+  const prevTotalSizeRef = useRef(totalSize)
+  
+  // Preserve scroll position when new items are appended to the list
+  // This prevents the jitter where new posts appear above current position
+  if (column.length > prevColumnLengthRef.current && column.length > 0) {
+    const estimatedNewHeight = totalSize - prevTotalSizeRef.current
+    
+    // Only adjust if we're scrolled down (not at top)
+    // This preserves scroll position when loading more posts at the bottom
+    if (window.scrollY > 100 && estimatedNewHeight > 0) {
+      // Scroll down by the estimated height of newly added items
+      window.scrollBy(0, estimatedNewHeight)
+    }
+    
+    prevTotalSizeRef.current = totalSize
+  }
   
   // Clear measure throttle when column length changes (new items added)
   // Measure newly added items immediately to prevent scroll jumps from inaccurate estimates
@@ -163,7 +179,7 @@ export default function VirtualizedFeedColumn({
       >
         {virtualItems.map((virtualItem) => {
           const { entry, originalIndex } = column[virtualItem.index]
-          const key = entry.type === 'post' ? `${entry.item.post.uri}-${originalIndex}` : `carousel-${entry.items[0].post.uri}-${originalIndex}`
+          const key = entry.type === 'post' ? entry.item.post.uri : entry.items[0].post.uri
           return (
             <div
               key={key}
@@ -173,13 +189,9 @@ export default function VirtualizedFeedColumn({
                 
                 const isNewlyAdded = newlyAddedIndices.current.includes(virtualItem.index)
                 
-                // Always measure newly added items immediately to prevent scroll jumps
-                // For existing items, only measure if they haven't been measured yet
-                // Avoid remeasuring items when scrolling up to prevent jitter
-                const shouldMeasure = isNewlyAdded ||
-                  !measureThrottleRef.current.has(virtualItem.index)
-                
-                if (shouldMeasure) {
+                // Only measure newly added items or items that haven't been measured yet
+                // Once measured, don't remeasure to prevent jitter
+                if (!measureThrottleRef.current.has(virtualItem.index)) {
                   virtualizer.measureElement(el)
                   measureThrottleRef.current.add(virtualItem.index)
                   lastMeasuredIndexRef.current = Math.max(lastMeasuredIndexRef.current, virtualItem.index)
