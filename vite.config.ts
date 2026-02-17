@@ -55,12 +55,15 @@ export default defineConfig({
         manualChunks: {
           // Split vendor chunks for better caching
           'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+          // Lazy load heavy dependencies
           'atproto': ['@atproto/api', '@atproto/oauth-client-browser'],
           'video': ['hls.js'],
           'virtual': ['@tanstack/react-virtual'],
         },
       },
     },
+    // Disable eager chunk loading for heavy dependencies
+    dynamicImportChunks: true,
     // Enable tree-shaking and minification
     minify: 'terser',
     terserOptions: {
@@ -75,6 +78,6 @@ export default defineConfig({
   // Enable dependency pre-bundling optimization
   optimizeDeps: {
     include: ['react', 'react-dom', 'react-router-dom'],
-    exclude: ['hls.js'], // Lazy load this
+    exclude: ['hls.js', '@atproto/api', '@atproto/oauth-client-browser'], // Lazy load these
   },
 })
