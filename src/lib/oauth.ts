@@ -1,3 +1,5 @@
+import type { BrowserOAuthClient } from '@atproto/oauth-client-browser'
+
 let clientPromise: Promise<BrowserOAuthClient> | null = null
 
 /** Base URL for the app (origin + pathname to app root). Used as client_id base for HTTPS. */
@@ -98,7 +100,7 @@ export async function restoreOAuthSession(did: string): Promise<OAuthSession | n
 /**
  * Start OAuth sign-in for the given handle. Redirects the window to Bluesky; never returns.
  */
-export async function signInWithOAuthRedirect(handle: string): Promise<never> {
+export async function signInWithOAuthRedirect(handle: string): Promise<void> {
   const oauth = await getOAuthClient()
-  return oauth.signInRedirect(handle)
+  await oauth.signInRedirect(handle)
 }
