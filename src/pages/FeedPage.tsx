@@ -565,6 +565,8 @@ export default function FeedPage() {
     return (a.uri ?? a.label) === (b.uri ?? b.label)
   }
 
+  const FEED_LOAD_TIMEOUT_MS = 15_000
+
   const load = useCallback(async (nextCursor?: string, signal?: AbortSignal) => {
     const cols = Math.min(3, Math.max(1, viewMode === '1' ? 1 : viewMode === '2' ? 2 : 3))
     const limit = cols >= 2 ? cols * 10 : 30
@@ -585,8 +587,17 @@ export default function FeedPage() {
       if (nextCursor) dispatch({ type: 'SET_LOADING_MORE', loadingMore: true })
       else dispatch({ type: 'SET_LOADING', loading: true })
       dispatch({ type: 'SET_ERROR', error: null })
+
+      const withTimeout = <T,>(p: Promise<T>, ms: number): Promise<T> =>
+        Promise.race([
+          p,
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('Request timed out. Check your network connection.')), ms),
+          ),
+        ])
+
       if (!session) {
-        const { feed, cursor: next } = await getGuestFeed(limit, nextCursor)
+        const { feed, cursor: next } = await withTimeout(getGuestFeed(limit, nextCursor), FEED_LOAD_TIMEOUT_MS)
         
         // Check if request was cancelled before updating state
         if (signal?.aborted) {
@@ -613,11 +624,14 @@ export default function FeedPage() {
             cursorsToUse = undefined
           }
         }
-        const { feed, cursors: nextCursors } = await getMixedFeed(
-          mixEntries.map((e) => ({ source: e.source, percent: e.percent })),
-          limit,
-          cursorsToUse,
-          signal
+        const { feed, cursors: nextCursors } = await withTimeout(
+          getMixedFeed(
+            mixEntries.map((e) => ({ source: e.source, percent: e.percent })),
+            limit,
+            cursorsToUse,
+            signal
+          ),
+          FEED_LOAD_TIMEOUT_MS
         )
         
         // Check if request was cancelled before updating state
@@ -639,7 +653,7 @@ export default function FeedPage() {
       } else if (mixEntries.length === 1) {
         const single = mixEntries[0].source
         if (single.kind === 'timeline') {
-          const res = await agent.getTimeline({ limit, cursor: nextCursor })
+          const res = await withTimeout(agent.getTimeline({ limit, cursor: nextCursor }), FEED_LOAD_TIMEOUT_MS)
           const apply = () => {
             const items = dedupeFeedByPostUri(nextCursor ? [...feedItemsRef.current, ...res.data.feed] : res.data.feed)
             if (nextCursor) {
@@ -651,7 +665,7 @@ export default function FeedPage() {
           if (nextCursor) startTransition(apply)
           else apply()
         } else if (single.uri) {
-          const res = await agent.app.bsky.feed.getFeed({ feed: single.uri, limit, cursor: nextCursor })
+          const res = await withTimeout(agent.app.bsky.feed.getFeed({ feed: single.uri, limit, cursor: nextCursor }), FEED_LOAD_TIMEOUT_MS)
           const apply = () => {
             const items = dedupeFeedByPostUri(nextCursor ? [...feedItemsRef.current, ...res.data.feed] : res.data.feed)
             if (nextCursor) {
@@ -664,7 +678,7 @@ export default function FeedPage() {
           else apply()
         }
       } else if (source.kind === 'timeline') {
-        const res = await agent.getTimeline({ limit, cursor: nextCursor })
+        const res = await withTimeout(agent.getTimeline({ limit, cursor: nextCursor }), FEED_LOAD_TIMEOUT_MS)
         const apply = () => {
           const items = dedupeFeedByPostUri(nextCursor ? [...feedItemsRef.current, ...res.data.feed] : res.data.feed)
           if (nextCursor) {
@@ -676,7 +690,7 @@ export default function FeedPage() {
         if (nextCursor) startTransition(apply)
         else apply()
       } else if (source.uri) {
-        const res = await agent.app.bsky.feed.getFeed({ feed: source.uri, limit, cursor: nextCursor })
+        const res = await withTimeout(agent.app.bsky.feed.getFeed({ feed: source.uri, limit, cursor: nextCursor }), FEED_LOAD_TIMEOUT_MS)
         const apply = () => {
           const items = dedupeFeedByPostUri(nextCursor ? [...feedItemsRef.current, ...res.data.feed] : res.data.feed)
           if (nextCursor) {

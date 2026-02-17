@@ -72,9 +72,9 @@ export default defineConfig({
     // Optimize chunk size
     chunkSizeWarningLimit: 500,
   },
-  // Enable dependency pre-bundling optimization
+  // Enable dependency pre-bundling optimization (CJS packages like @atproto/api must be pre-bundled so named exports work in ESM)
   optimizeDeps: {
-    include: ['react', 'react-dom', 'react-router-dom'],
-    exclude: ['hls.js', '@atproto/api', '@atproto/oauth-client-browser'], // Lazy load these
+    include: ['react', 'react-dom', 'react-router-dom', '@atproto/api', '@atproto/oauth-client-browser'],
+    exclude: ['hls.js'],
   },
 })
