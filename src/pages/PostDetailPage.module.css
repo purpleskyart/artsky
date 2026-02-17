@@ -666,6 +666,43 @@
   cursor: not-allowed;
 }
 
+.commentActionsWrap {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.commentViewQuotesBtn {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.commentViewQuotesBtn:hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--muted);
+}
+
+.commentViewQuotesBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.commentViewQuotesBtn svg {
+  flex-shrink: 0;
+}
+
+.commentVoteTotal {
+}
+
 .commentVoteTotal {
   font-size: 0.8rem;
   color: var(--muted);

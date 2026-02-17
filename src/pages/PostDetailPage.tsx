@@ -373,6 +373,17 @@ function PostBlock({
 }) {
   const [commentRepostDropdownOpen, setCommentRepostDropdownOpen] = useState<string | null>(null)
   const commentRepostDropdownRef = useRef<HTMLDivElement>(null)
+  const [showQuoteComposer, setShowQuoteComposer] = useState(false)
+  const [quoteText, setQuoteText] = useState('')
+  const [quoteImages, setQuoteImages] = useState<File[]>([])
+  const [quoteImageAlts, setQuoteImageAlts] = useState<string[]>([])
+  const [quoteError, setQuoteError] = useState<string | null>(null)
+  const [quotePosting, setQuotePosting] = useState(false)
+  const quoteFileInputRef = useRef<HTMLInputElement>(null)
+  const repostDropdownRef = useRef<HTMLDivElement>(null)
+  const QUOTE_MAX_LENGTH = 300
+  const QUOTE_IMAGE_MAX = 4
+  const QUOTE_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
 
   useEffect(() => {
     if (!commentRepostDropdownOpen) return
@@ -383,6 +394,73 @@ function PostBlock({
     document.addEventListener('mousedown', onDocClick)
     return () => document.removeEventListener('mousedown', onDocClick)
   }, [commentRepostDropdownOpen])
+
+  useEffect(() => {
+    if (!showQuoteComposer) return
+    function onDocClick(e: MouseEvent) {
+      const target = e.target as Node
+      if (repostDropdownRef.current?.contains(target)) return
+      setShowQuoteComposer(false)
+    }
+    document.addEventListener('mousedown', onDocClick)
+    return () => document.removeEventListener('mousedown', onDocClick)
+  }, [showQuoteComposer])
+
+  function openQuoteComposer() {
+    setCommentRepostDropdownOpen(null)
+    setShowQuoteComposer(true)
+    setQuoteText('')
+    setQuoteImages([])
+    setQuoteImageAlts([])
+    setQuoteError(null)
+  }
+
+  function closeQuoteComposer() {
+    setShowQuoteComposer(false)
+    setQuoteError(null)
+  }
+
+  function addQuoteImages(files: FileList) {
+    const newImages = Array.from(files).filter((f) => QUOTE_IMAGE_TYPES.includes(f.type))
+    setQuoteImages((prev) => [...prev, ...newImages].slice(0, 4))
+    setQuoteImageAlts((prev) => [...prev, ...new Array(newImages.length).fill('')])
+  }
+
+  function removeQuoteImage(index: number) {
+    setQuoteImages((prev) => prev.filter((_, i) => i !== index))
+    setQuoteImageAlts((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  async function handleQuoteSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!isThreadViewPost(node) || quotePosting || !currentDid) return
+    const canSubmit = quoteText.trim() || quoteImages.length > 0
+    if (!canSubmit) return
+    setQuoteError(null)
+    setQuotePosting(true)
+    try {
+      await createQuotePost(
+        node.post.uri,
+        node.post.cid,
+        quoteText,
+        quoteImages.length > 0 ? quoteImages : undefined,
+        quoteImageAlts.length > 0 ? quoteImageAlts : undefined,
+      )
+      closeQuoteComposer()
+    } catch (err: unknown) {
+      setQuoteError(err instanceof Error ? err.message : 'Failed to post quote')
+    } finally {
+      setQuotePosting(false)
+    }
+  }
+
+  const quotePreviewUrls = useMemo(
+    () => quoteImages.map((f) => URL.createObjectURL(f)),
+    [quoteImages],
+  )
+  useEffect(() => {
+    return () => quotePreviewUrls.forEach((u) => URL.revokeObjectURL(u))
+  }, [quotePreviewUrls])
 
   if (!isThreadViewPost(node)) return null
   const { post } = node
@@ -549,12 +627,8 @@ function PostBlock({
                     type="button"
                     className={styles.commentRepostDropdownItem}
                     role="menuitem"
-                    onClick={() => {
-                      setCommentRepostDropdownOpen(null)
-                      if (onViewQuotes) {
-                        onViewQuotes(post.uri)
-                      }
-                    }}
+                    onClick={openQuoteComposer}
+                    disabled={!currentDid}
                   >
                     Quote post
                   </button>
@@ -562,20 +636,35 @@ function PostBlock({
               )}
             </div>
           )}
-          <PostActionsMenu
-            postUri={post.uri}
-            postCid={post.cid}
-            authorDid={post.author.did}
-            rootUri={rootPostUri ?? post.uri}
-            isOwnPost={currentDid === post.author.did}
-            compact
-            verticalIcon
-            className={styles.commentActionsMenu}
-            open={onActionsMenuOpenChange ? openActionsMenuCommentUri === post.uri : undefined}
-            onOpenChange={onActionsMenuOpenChange ? (open) => onActionsMenuOpenChange(post.uri, open) : undefined}
-            postedAt={(post.record as { createdAt?: string })?.createdAt}
-            onViewQuotes={onViewQuotes}
-          />
+          <div className={styles.commentActionsWrap}>
+            <PostActionsMenu
+              postUri={post.uri}
+              postCid={post.cid}
+              authorDid={post.author.did}
+              rootUri={rootPostUri ?? post.uri}
+              isOwnPost={currentDid === post.author.did}
+              compact
+              verticalIcon
+              className={styles.commentActionsMenu}
+              open={onActionsMenuOpenChange ? openActionsMenuCommentUri === post.uri : undefined}
+              onOpenChange={onActionsMenuOpenChange ? (open) => onActionsMenuOpenChange(post.uri, open) : undefined}
+              postedAt={(post.record as { createdAt?: string })?.createdAt}
+              onViewQuotes={onViewQuotes}
+            />
+            <button
+              type="button"
+              className={styles.commentViewQuotesBtn}
+              onClick={() => onViewQuotes?.(post.uri)}
+              title="View posts that quote this"
+              aria-label="View quotes"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M3 21c3 0 7-1 7-8V5c0-1.25-.756-2.017-2-2H3c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2z" />
+                <path d="M15 21c3 0 7-1 7-8V5c0-1.25-.757-2.017-2-2h-5c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2z" />
+              </svg>
+              <span>View Quotes</span>
+            </button>
+          </div>
         </div>
       )}
       {isReplyTarget && replyingTo && setReplyComment && onReplySubmit && clearReplyingTo && commentFormRef && (
@@ -703,6 +792,173 @@ function PostBlock({
         </div>
       )}
       </div>
+      {showQuoteComposer && isThreadViewPost(node) && (() => {
+        const post = node.post
+        const handle = post.author?.handle ?? post.author?.did ?? ''
+        const text = (post.record as { text?: string })?.text ?? ''
+        const mediaList = getPostAllMedia(post)
+        const firstMedia = mediaList[0]
+        return (
+          <>
+            <div className={styles.quoteComposerBackdrop} onClick={closeQuoteComposer} aria-hidden />
+            <div
+              className={styles.quoteComposerOverlay}
+              role="dialog"
+              aria-label="Quote post"
+              onClick={closeQuoteComposer}
+              onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy' }}
+              onDrop={(e) => { e.preventDefault(); if (e.dataTransfer?.files?.length) addQuoteImages(e.dataTransfer.files) }}
+            >
+              <div className={styles.quoteComposerCard} onClick={(e) => e.stopPropagation()}>
+                <h2 className={styles.quoteComposerTitle}>Quote post</h2>
+                {!currentDid ? (
+                  <p className={styles.quoteComposerSignIn}>Log in to quote posts.</p>
+                ) : (
+                  <>
+                    <div className={styles.quoteComposerQuotedWrap}>
+                      <p className={styles.quotedPostLabel}>Quoting</p>
+                      <div className={styles.quoteComposerQuotedCard}>
+                        <div className={styles.quotedPostHead}>
+                          {post.author?.avatar ? (
+                            <img src={post.author.avatar} alt="" className={styles.quotedPostAvatar} loading="lazy" />
+                          ) : (
+                            <span className={styles.quotedPostAvatarPlaceholder} aria-hidden>{handle.slice(0, 1).toUpperCase()}</span>
+                          )}
+                          <span className={styles.quotedPostHandle}>@{handle}</span>
+                          {(post.record as { createdAt?: string })?.createdAt && (
+                            <span className={styles.quotedPostTime} title={formatExactDateTime((post.record as { createdAt: string }).createdAt)}>
+                              {formatRelativeTime((post.record as { createdAt: string }).createdAt)}
+                            </span>
+                          )}
+                        </div>
+                        {firstMedia && (
+                          <div className={styles.quotedPostMedia}>
+                            {firstMedia.type === 'image' ? (
+                              <img src={firstMedia.url} alt="" loading="lazy" className={styles.quotedPostThumb} />
+                            ) : firstMedia.videoPlaylist ? (
+                              <div className={styles.quotedPostVideoThumb} style={{ backgroundImage: firstMedia.url ? `url(${firstMedia.url})` : undefined }} />
+                            ) : null}
+                          </div>
+                        )}
+                        {text ? (
+                          <p className={styles.quotedPostText}>
+                            <PostText text={text} facets={(post.record as { facets?: unknown[] })?.facets} maxLength={300} stopPropagation />
+                          </p>
+                        ) : null}
+                      </div>
+                    </div>
+                    <form
+                      onSubmit={handleQuoteSubmit}
+                      onKeyDown={(e) => {
+                        if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                          e.preventDefault()
+                          handleQuoteSubmit(e as unknown as React.FormEvent)
+                        }
+                      }}
+                    >
+                      <ComposerSuggestions
+                        className={styles.quoteComposerTextarea}
+                        value={quoteText}
+                        onChange={setQuoteText}
+                        placeholder="Add your thoughts..."
+                        rows={4}
+                        maxLength={QUOTE_MAX_LENGTH}
+                        disabled={quotePosting}
+                        autoFocus
+                      />
+                      {quoteImages.length > 0 && (
+                        <div className={styles.quoteComposerMediaSection}>
+                          <div className={styles.quoteComposerPreviews}>
+                            {quoteImages.map((_, i) => (
+                              <div key={i} className={styles.quoteComposerPreviewWrap}>
+                                <img src={quotePreviewUrls[i]} alt="" className={styles.quoteComposerPreviewImg} />
+                                <button
+                                  type="button"
+                                  className={styles.quoteComposerPreviewRemove}
+                                  onClick={() => removeQuoteImage(i)}
+                                  aria-label="Remove image"
+                                  disabled={quotePosting}
+                                >
+                                  ×
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                          <p className={styles.quoteComposerAltPrompt}>Describe each image for accessibility (alt text).</p>
+                          <div className={styles.quoteComposerAltFields}>
+                            {quoteImages.map((_, i) => (
+                              <div key={i} className={styles.quoteComposerAltRow}>
+                                <label htmlFor={`quote-alt-${i}`} className={styles.quoteComposerAltLabel}>Image {i + 1}</label>
+                                <input
+                                  id={`quote-alt-${i}`}
+                                  type="text"
+                                  className={styles.quoteComposerAltInput}
+                                  placeholder="Describe this image"
+                                  value={quoteImageAlts[i] ?? ''}
+                                  onChange={(e) => {
+                                    const val = e.target.value.slice(0, 1000)
+                                    setQuoteImageAlts((prev) => {
+                                      const next = [...prev]
+                                      while (next.length < quoteImages.length) next.push('')
+                                      next[i] = val
+                                      return next
+                                    })
+                                  }}
+                                  maxLength={1000}
+                                  disabled={quotePosting}
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      <div className={styles.quoteComposerFooter}>
+                        <div className={styles.quoteComposerFooterLeft}>
+                          <input
+                            ref={quoteFileInputRef}
+                            type="file"
+                            accept="image/jpeg,image/png,image/gif,image/webp"
+                            multiple
+                            className={styles.quoteComposerFileInput}
+                            onChange={(e) => {
+                              if (e.target.files?.length) addQuoteImages(e.target.files)
+                              e.target.value = ''
+                            }}
+                          />
+                          <button
+                            type="button"
+                            className={styles.quoteComposerAddMedia}
+                            onClick={() => quoteFileInputRef.current?.click()}
+                            disabled={quotePosting || quoteImages.length >= QUOTE_IMAGE_MAX}
+                            title="Add photo"
+                            aria-label="Add photo"
+                          >
+                            Add media
+                          </button>
+                          <CharacterCountWithCircle used={quoteText.length} max={QUOTE_MAX_LENGTH} />
+                        </div>
+                        <div className={styles.quoteComposerActions}>
+                          <button type="button" className={styles.quoteComposerCancel} onClick={closeQuoteComposer} disabled={quotePosting}>
+                            Cancel
+                          </button>
+                          <button
+                            type="submit"
+                            className={styles.quoteComposerSubmit}
+                            disabled={quotePosting || (!quoteText.trim() && quoteImages.length === 0)}
+                          >
+                            {quotePosting ? 'Posting…' : 'Quote post'}
+                          </button>
+                        </div>
+                      </div>
+                      {quoteError && <p className={styles.quoteComposerError}>{quoteError}</p>}
+                    </form>
+                  </>
+                )}
+              </div>
+            </div>
+          </>
+        )
+      })()}
     </article>
   )
 }
