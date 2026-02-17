@@ -1432,7 +1432,7 @@ export default function FeedPage() {
             >
               {distributedColumns.map((column, colIndex) => (
                 <FeedColumn
-                  key={`${colIndex}-${column.length}`}
+                  key={colIndex}
                   column={column}
                   colIndex={colIndex}
                   loadMoreSentinelRef={feedState.cursor ? (el) => { loadMoreSentinelRefs.current[colIndex] = el } : undefined}
