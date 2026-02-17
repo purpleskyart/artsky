@@ -1,23 +1,38 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { FeedMixEntry, FeedSource } from '../types'
+import { useSession } from './SessionContext'
 
-const STORAGE_KEY = 'artsky-feed-mix'
+const STORAGE_KEY_PREFIX = 'artsky-feed-mix'
 
-function loadStored(): { entries: FeedMixEntry[]; enabled: boolean } {
+function storageKey(did: string): string {
+  return `${STORAGE_KEY_PREFIX}-${did || 'guest'}`
+}
+
+function loadStored(did: string): { entries: FeedMixEntry[]; enabled: boolean } {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
+    const key = storageKey(did)
+    let raw = localStorage.getItem(key)
+    let fromLegacy = false
+    if (!raw && did !== 'guest') {
+      raw = localStorage.getItem(STORAGE_KEY_PREFIX)
+      fromLegacy = !!raw
+    }
     if (!raw) return { entries: [], enabled: false }
     const parsed = JSON.parse(raw) as { entries?: FeedMixEntry[]; enabled?: boolean }
     const entries = Array.isArray(parsed?.entries) ? parsed.entries : []
-    return { entries, enabled: !!parsed?.enabled }
+    const result = { entries, enabled: !!parsed?.enabled }
+    if (fromLegacy && did !== 'guest') {
+      save(entries, result.enabled, did)
+    }
+    return result
   } catch {
     return { entries: [], enabled: false }
   }
 }
 
-function save(entries: FeedMixEntry[], enabled: boolean) {
+function save(entries: FeedMixEntry[], enabled: boolean, did: string) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ entries, enabled }))
+    localStorage.setItem(storageKey(did), JSON.stringify({ entries, enabled }))
   } catch {
     // ignore
   }
@@ -44,12 +59,23 @@ type FeedMixContextValue = {
 const FeedMixContext = createContext<FeedMixContextValue | null>(null)
 
 export function FeedMixProvider({ children }: { children: ReactNode }) {
-  const [entries, setEntries] = useState<FeedMixEntry[]>(() => loadStored().entries)
-  const [enabled, setEnabledState] = useState(() => loadStored().enabled)
+  const { session } = useSession()
+  const did = session?.did ?? 'guest'
+  const prevDidRef = useRef(did)
+  const [entries, setEntries] = useState<FeedMixEntry[]>(() => loadStored(did).entries)
+  const [enabled, setEnabledState] = useState(() => loadStored(did).enabled)
 
   useEffect(() => {
-    save(entries, enabled)
-  }, [entries, enabled])
+    if (prevDidRef.current !== did) {
+      save(entries, enabled, prevDidRef.current)
+      const loaded = loadStored(did)
+      setEntries(loaded.entries)
+      setEnabledState(loaded.enabled)
+      prevDidRef.current = did
+      return
+    }
+    save(entries, enabled, did)
+  }, [did, entries, enabled])
 
   const setEnabled = useCallback((v: boolean) => {
     setEnabledState(v)

@@ -50,6 +50,11 @@ export function getApiErrorMessage(error: unknown, context?: string): string {
       return getStatusCodeMessage(status, context)
     }
 
+    // Rate limit messages (API may not always set status 429)
+    if (error.message.toLowerCase().includes('rate limit')) {
+      return 'Too many requests. Please wait a moment and try again.'
+    }
+
     // Return the original error message if it's user-friendly
     if (error.message && !error.message.includes('undefined') && !error.message.includes('null')) {
       return error.message
@@ -58,6 +63,9 @@ export function getApiErrorMessage(error: unknown, context?: string): string {
 
   // Handle string errors
   if (typeof error === 'string') {
+    if (error.toLowerCase().includes('rate limit')) {
+      return 'Too many requests. Please wait a moment and try again.'
+    }
     return error
   }
 

@@ -46,7 +46,15 @@
   transition: transform var(--transition-fast), box-shadow var(--transition-fast);
 }
 
-/* On desktop, position back button inside pane with safe area inset */
+/* Mobile PWA: align back button with gear (same top/left as Layout .gearFloatWrap) so they sit in a row */
+@media (max-width: 767px) {
+  .modalFloatingBack {
+    top: max(var(--space-md), env(safe-area-inset-top, 59px));
+    left: max(var(--space-md), env(safe-area-inset-left));
+  }
+}
+
+/* Desktop: position back button inside pane with safe area inset */
 @media (min-width: 768px) {
   .modalFloatingBack {
     top: max(var(--space-md), env(safe-area-inset-top));

@@ -9,13 +9,12 @@ import ProfileLink from '../components/ProfileLink'
 import { useProfileModal } from '../context/ProfileModalContext'
 import { useSession } from '../context/SessionContext'
 import { CollabContent } from './CollabPage'
-import { ConsensusContent } from './ConsensusPage'
 import { ReplyAsRow } from './PostDetailPage'
 import type { ForumPost } from '../types'
 import styles from './ForumPage.module.css'
 import postBlockStyles from './PostDetailPage.module.css'
 
-type ForumSection = 'discover' | 'artsky' | 'collab' | 'consensus'
+type ForumSection = 'discover' | 'artsky' | 'collab'
 
 function matchesSearchForumPost(post: ForumPost, q: string): boolean {
   if (!q.trim()) return true
@@ -234,14 +233,6 @@ export function ForumContent({ inModal = false, onRegisterRefresh }: { inModal?:
           >
             Collab
           </button>
-          <button
-            type="button"
-            className={section === 'consensus' ? styles.tabActive : styles.tab}
-            onClick={() => setSection('consensus')}
-            aria-pressed={section === 'consensus'}
-          >
-            Consensus
-          </button>
         </div>
 
         {section === 'discover' && (
@@ -272,7 +263,6 @@ export function ForumContent({ inModal = false, onRegisterRefresh }: { inModal?:
       </header>
 
       {section === 'collab' && <CollabContent />}
-      {section === 'consensus' && <ConsensusContent />}
 
       {section === 'discover' && (
         <>
