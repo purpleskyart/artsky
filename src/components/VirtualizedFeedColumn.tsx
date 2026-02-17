@@ -176,11 +176,10 @@ export default function VirtualizedFeedColumn({
                 const isNewlyAdded = newlyAddedIndices.current.includes(virtualItem.index)
                 
                 // Always measure newly added items immediately to prevent scroll jumps
-                // For existing items, only measure if in or near viewport
+                // For existing items, only measure if they haven't been measured yet
+                // Avoid remeasuring items when scrolling up to prevent jitter
                 const shouldMeasure = isNewlyAdded ||
-                  rect.top < viewportHeight + 2000 || 
-                  !measureThrottleRef.current.has(virtualItem.index) ||
-                  rect.bottom < 0
+                  !measureThrottleRef.current.has(virtualItem.index)
                 
                 if (shouldMeasure) {
                   virtualizer.measureElement(el)

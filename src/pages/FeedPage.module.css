@@ -566,11 +566,6 @@
   .gridColumns.gridView1 {
     --feed-card-media-max-height: min(100dvh - 4rem, 92dvh);
   }
-  /* Reduce layout/paint work during scroll on mobile */
-  .gridItem {
-    content-visibility: auto;
-    contain-intrinsic-size: 0 280px;
-  }
 }
 
 .gridColumn {
