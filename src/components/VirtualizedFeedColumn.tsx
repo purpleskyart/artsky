@@ -167,7 +167,6 @@ export default function VirtualizedFeedColumn({
                 // Skip measuring items far below to prevent scroll jumps
                 const rect = el.getBoundingClientRect()
                 const viewportHeight = window.innerHeight
-                const distanceFromViewport = rect.top - viewportHeight
                 
                 // Measure if:
                 // 1. Item is in viewport or within 2000px below
