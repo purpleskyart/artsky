@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { agent, searchPostsByPhraseAndTags, getPostMediaInfo, isPostNsfw } from '../lib/bsky'
 import type { TimelineItem } from '../lib/bsky'
 import type { AppBskyFeedDefs } from '@atproto/api'
-import VirtualizedProfileColumn from './VirtualizedProfileColumn'
+import ProfileColumn from './ProfileColumn'
 import AppModal from './AppModal'
 import MediaModalTopBar from './MediaModalTopBar'
 import { useSession } from '../context/SessionContext'
@@ -310,7 +310,7 @@ function SearchContent({ query, onRegisterRefresh }: { query: string; onRegister
           data-view-mode={viewMode}
         >
           {distributeByHeight(mediaItems, cols).map((column, colIndex) => (
-            <VirtualizedProfileColumn
+            <ProfileColumn
               key={colIndex}
               column={column}
               colIndex={colIndex}

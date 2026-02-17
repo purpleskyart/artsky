@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import VirtualizedPostCard from './VirtualizedPostCard'
+import OptimizedPostCard from './OptimizedPostCard'
 import type { TimelineItem } from '../lib/bsky'
 
 // Mock the useOffscreenOptimization hook
@@ -60,7 +60,7 @@ describe('VirtualizedPostCard', () => {
     const { useOffscreenOptimization } = await import('../hooks/useOffscreenOptimization')
     vi.mocked(useOffscreenOptimization).mockReturnValue(true)
 
-    render(<VirtualizedPostCard {...defaultProps} />)
+    render(<OptimizedPostCard {...defaultProps} />)
     
     expect(screen.getByTestId('post-card')).toBeInTheDocument()
     expect(screen.getByText(mockItem.post.uri)).toBeInTheDocument()
@@ -70,7 +70,7 @@ describe('VirtualizedPostCard', () => {
     const { useOffscreenOptimization } = await import('../hooks/useOffscreenOptimization')
     vi.mocked(useOffscreenOptimization).mockReturnValue(false)
 
-    render(<VirtualizedPostCard {...defaultProps} />)
+    render(<OptimizedPostCard {...defaultProps} />)
     
     // Should still render full PostCard (no placeholder optimization)
     expect(screen.getByTestId('post-card')).toBeInTheDocument()
@@ -81,7 +81,7 @@ describe('VirtualizedPostCard', () => {
     const { useOffscreenOptimization } = await import('../hooks/useOffscreenOptimization')
     vi.mocked(useOffscreenOptimization).mockReturnValue(false)
 
-    render(<VirtualizedPostCard {...defaultProps} isSelected={true} />)
+    render(<OptimizedPostCard {...defaultProps} isSelected={true} />)
     
     // Should render full PostCard even when not visible because it's selected
     expect(screen.getByTestId('post-card')).toBeInTheDocument()
@@ -92,7 +92,7 @@ describe('VirtualizedPostCard', () => {
     vi.mocked(useOffscreenOptimization).mockReturnValue(true)
 
     const cardRef = vi.fn()
-    render(<VirtualizedPostCard {...defaultProps} cardRef={cardRef} />)
+    render(<OptimizedPostCard {...defaultProps} cardRef={cardRef} />)
     
     expect(cardRef).toHaveBeenCalledWith(expect.any(HTMLElement))
   })

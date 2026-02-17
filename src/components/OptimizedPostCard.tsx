@@ -3,7 +3,7 @@ import { useOffscreenOptimization } from '../hooks/useOffscreenOptimization'
 import PostCard from './PostCard'
 import type { TimelineItem } from '../lib/bsky'
 
-interface VirtualizedPostCardProps {
+interface OptimizedPostCardProps {
   item: TimelineItem
   isSelected: boolean
   focusedMediaIndex?: number
@@ -24,11 +24,11 @@ interface VirtualizedPostCardProps {
 }
 
 /**
- * Wrapper around PostCard that implements off-screen DOM minimization.
+ * Wrapper around PostCard with memoization to prevent unnecessary re-renders.
  * Uses IntersectionObserver to detect when posts are far off-screen
- * and renders a minimal placeholder to reduce DOM size and improve performance.
+ * for potential future optimizations.
  */
-function VirtualizedPostCard(props: VirtualizedPostCardProps) {
+function OptimizedPostCard(props: OptimizedPostCardProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   
   // Use intersection observer to detect if post is visible or near viewport
@@ -45,9 +45,8 @@ function VirtualizedPostCard(props: VirtualizedPostCardProps) {
     props.cardRef(el)
   }
 
-  // Always render full content - the virtualizer handles what's actually in the DOM
+  // Always render full content
   // The intersection observer is just for future optimizations
-  // Removing the minimal placeholder prevents blinking when scrolling up
   return (
     <PostCard
       {...props}
@@ -58,4 +57,4 @@ function VirtualizedPostCard(props: VirtualizedPostCardProps) {
 }
 
 // Memoize to prevent unnecessary re-renders
-export default memo(VirtualizedPostCard)
+export default memo(OptimizedPostCard)

@@ -1,6 +1,6 @@
 import type { FeedDisplayEntry } from '../pages/FeedPage'
 import { getPostAllMediaForDisplay, isPostNsfw } from '../lib/bsky'
-import VirtualizedPostCard from './VirtualizedPostCard'
+import OptimizedPostCard from './OptimizedPostCard'
 import RepostCarouselCard from './RepostCarouselCard'
 import { setInitialPostForUri } from '../lib/postCache'
 import styles from '../pages/FeedPage.module.css'
@@ -60,7 +60,7 @@ const FeedCard = memo(function FeedCard({
       onMouseEnter={() => onMouseEnter(originalIndex)}
     >
       {entry.type === 'post' ? (
-        <VirtualizedPostCard
+        <OptimizedPostCard
           item={entry.item}
           isSelected={isSelected}
           focusedMediaIndex={focusedMediaIndex}
@@ -130,7 +130,7 @@ const FeedCard = memo(function FeedCard({
   return true
 })
 
-export interface VirtualizedFeedColumnProps {
+export interface FeedColumnProps {
   column: ColumnItem[]
   colIndex: number
   /** Callback ref for load-more sentinel (when cursor exists) */
@@ -157,7 +157,7 @@ export interface VirtualizedFeedColumnProps {
   onAddClose: () => void
 }
 
-export default function VirtualizedFeedColumn({
+const FeedColumn = memo(function FeedColumn({
   column,
   loadMoreSentinelRef,
   hasCursor,
@@ -178,7 +178,7 @@ export default function VirtualizedFeedColumn({
   onActionsMenuOpenChange,
   onMouseEnter,
   onAddClose,
-}: VirtualizedFeedColumnProps) {
+}: FeedColumnProps) {
   if (column.length === 0) {
     return (
       <div className={styles.gridColumn}>
@@ -189,10 +189,13 @@ export default function VirtualizedFeedColumn({
     )
   }
 
+  // Pre-calculate the focused card to avoid recalculating in the map
+  const focusedCardIndex = focusTargets[keyboardFocusIndex]?.cardIndex ?? -1
+
   return (
     <div className={styles.gridColumn}>
       {column.map(({ entry, originalIndex }) => {
-        const isSelected = focusTargets[keyboardFocusIndex]?.cardIndex === originalIndex
+        const isSelected = focusedCardIndex === originalIndex
         const focusedMediaIndex =
           isSelected &&
           !(focusSetByMouse && getPostAllMediaForDisplay(entry.type === 'post' ? entry.item.post : entry.items[0].post).length > 1)
@@ -228,4 +231,6 @@ export default function VirtualizedFeedColumn({
       )}
     </div>
   )
-}
+})
+
+export default FeedColumn

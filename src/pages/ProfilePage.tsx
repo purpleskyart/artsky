@@ -9,7 +9,7 @@ import { setInitialPostForUri } from '../lib/postCache'
 import type { AtpAgent } from '@atproto/api'
 import { formatRelativeTime, formatExactDateTime } from '../lib/date'
 import PostCard from '../components/PostCard'
-import VirtualizedProfileColumn from '../components/VirtualizedProfileColumn'
+import ProfileColumn from '../components/ProfileColumn'
 import { useModalScroll } from '../context/ModalScrollContext'
 import PostText from '../components/PostText'
 import ProfileActionsMenu from '../components/ProfileActionsMenu'
@@ -1122,7 +1122,7 @@ export function ProfileContent({
               data-view-mode={viewMode}
             >
               {distributeByHeight(mediaItems, cols).map((column, colIndex) => (
-                <VirtualizedProfileColumn
+                <ProfileColumn
                   key={colIndex}
                   column={column}
                   colIndex={colIndex}

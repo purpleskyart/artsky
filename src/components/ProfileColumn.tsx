@@ -6,7 +6,7 @@ import styles from '../pages/ProfilePage.module.css'
 
 type ColumnItem = { item: TimelineItem; originalIndex: number }
 
-export interface VirtualizedProfileColumnProps {
+export interface ProfileColumnProps {
   column: ColumnItem[]
   colIndex: number
   scrollRef: React.RefObject<HTMLDivElement | null> | null
@@ -29,7 +29,7 @@ export interface VirtualizedProfileColumnProps {
   isSelected: (index: number) => boolean
 }
 
-export default function VirtualizedProfileColumn(props: VirtualizedProfileColumnProps) {
+export default function ProfileColumn(props: ProfileColumnProps) {
   const {
     column,
     loadMoreSentinelRef,

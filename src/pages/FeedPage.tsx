@@ -28,7 +28,7 @@ import { useLikeOverrides } from '../context/LikeOverridesContext'
 import { usePullToRefresh } from '../hooks/usePullToRefresh'
 import { useColumnCount } from '../hooks/useViewportWidth'
 import SuggestedFollows from '../components/SuggestedFollows'
-import VirtualizedFeedColumn from '../components/VirtualizedFeedColumn'
+import FeedColumn from '../components/FeedColumn'
 import { feedReducer, type FeedState } from './feedReducer'
 import { debounce } from '../lib/utils'
 import { asyncStorage } from '../lib/AsyncStorage'
@@ -884,6 +884,33 @@ export default function FeedPage() {
   keyboardFocusIndexRef.current = feedState.keyboardFocusIndex
   actionsMenuOpenForIndexRef.current = feedState.actionsMenuOpenForIndex
 
+  // Stable callback refs to prevent unnecessary re-renders
+  const handleCardRef = useCallback((index: number) => (el: HTMLDivElement | null) => {
+    cardRefsRef.current[index] = el
+  }, [])
+
+  const handleMediaRef = useCallback((index: number, mediaIndex: number, el: HTMLElement | null) => {
+    if (!mediaRefsRef.current[index]) mediaRefsRef.current[index] = {}
+    mediaRefsRef.current[index][mediaIndex] = el
+  }, [])
+
+  const handleActionsMenuOpenChange = useCallback((index: number, open: boolean) => {
+    dispatch({ type: 'SET_ACTIONS_MENU_OPEN', index: open ? index : null })
+  }, [])
+
+  const handleMouseEnter = useCallback((originalIndex: number) => {
+    if (isDesktop && mouseMovedRef.current) {
+      mouseMovedRef.current = false
+      setKeyboardNavActive(false)
+      setFocusSetByMouse(true)
+      dispatch({ type: 'SET_KEYBOARD_FOCUS', index: firstFocusIndexForCard[originalIndex] ?? 0 })
+    }
+  }, [isDesktop, firstFocusIndexForCard])
+
+  const handleAddClose = useCallback(() => {
+    setKeyboardAddOpen(false)
+  }, [])
+
   useEffect(() => {
     const currentIndex = feedState.keyboardFocusIndex
     if (currentIndex < 0) return
@@ -1404,7 +1431,7 @@ export default function FeedPage() {
               onMouseLeave={isDesktop && !isModalOpen ? () => dispatch({ type: 'SET_KEYBOARD_FOCUS', index: -1 }) : undefined}
             >
               {distributedColumns.map((column, colIndex) => (
-                <VirtualizedFeedColumn
+                <FeedColumn
                   key={`${colIndex}-${column.length}`}
                   column={column}
                   colIndex={colIndex}
@@ -1423,21 +1450,11 @@ export default function FeedPage() {
                   setLikeOverrides={setLikeOverride}
                   seenUris={feedState.seenUris}
                   openPostModal={openPostModal}
-                  cardRef={(index) => (el) => { cardRefsRef.current[index] = el }}
-                  onMediaRef={(index, mediaIndex, el) => {
-                    if (!mediaRefsRef.current[index]) mediaRefsRef.current[index] = {}
-                    mediaRefsRef.current[index][mediaIndex] = el
-                  }}
-                  onActionsMenuOpenChange={(index, open) => dispatch({ type: 'SET_ACTIONS_MENU_OPEN', index: open ? index : null })}
-                  onMouseEnter={(originalIndex) => {
-                    if (isDesktop && mouseMovedRef.current) {
-                      mouseMovedRef.current = false
-                      setKeyboardNavActive(false)
-                      setFocusSetByMouse(true)
-                      dispatch({ type: 'SET_KEYBOARD_FOCUS', index: firstFocusIndexForCard[originalIndex] ?? 0 })
-                    }
-                  }}
-                  onAddClose={() => setKeyboardAddOpen(false)}
+                  cardRef={handleCardRef}
+                  onMediaRef={handleMediaRef}
+                  onActionsMenuOpenChange={handleActionsMenuOpenChange}
+                  onMouseEnter={handleMouseEnter}
+                  onAddClose={handleAddClose}
                 />
               ))}
             </div>
