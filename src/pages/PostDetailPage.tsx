@@ -262,10 +262,12 @@ function MediaGallery({
       <div className={styles.gallery}>
         {items.map((m, i) => {
           if (m.type === 'video' && m.videoPlaylist) {
+            const videoAspect = m.aspectRatio ?? 16 / 9
             return (
               <div
                 key={i}
                 className={styles.galleryVideoWrap}
+                style={{ aspectRatio: videoAspect }}
                 data-media-item={i}
                 tabIndex={0}
                 onFocus={() => onFocusItem?.(i)}
@@ -637,7 +639,7 @@ function PostBlock({
             </button>
           ) : (
             <div className={styles.replies}>
-              {replies.map((r) => {
+              {replies.map((r, rIndex) => {
                 if (!isThreadViewPost(r)) return null
                 const replyDepth = depth + 1
                 if (collapsedThreads?.has(r.post.uri)) {
@@ -645,7 +647,7 @@ function PostBlock({
                   const label = replyCount === 0 ? 'Comment' : `${replyCount} reply${replyCount !== 1 ? 's' : ''}`
                   const replyHandle = r.post.author?.handle ?? r.post.author?.did ?? ''
                   return (
-                    <div key={r.post.uri} className={styles.collapsedCommentWrap} style={{ marginLeft: replyDepth * 12 }} data-comment-uri={r.post.uri} tabIndex={-1}>
+                    <div key={`${r.post.uri}-${rIndex}`} className={styles.collapsedCommentWrap} style={{ marginLeft: replyDepth * 12 }} data-comment-uri={r.post.uri} tabIndex={-1}>
                       <button type="button" className={styles.collapsedCommentBtn} onClick={() => onToggleCollapse?.(r.post.uri)}>
                         <span className={styles.collapsedCommentExpandIcon} aria-hidden>+</span>
                         {r.post.author?.avatar ? (
@@ -661,7 +663,7 @@ function PostBlock({
                 }
                 return (
                   <PostBlock
-                    key={r.post.uri}
+                    key={`${r.post.uri}-${rIndex}`}
                     node={r}
                     depth={replyDepth}
                     collapsedThreads={collapsedThreads}
@@ -2068,7 +2070,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                   }
                 }}
               >
-                {threadRepliesVisible.map((r) => {
+                {threadRepliesVisible.map((r, rIndex) => {
                   const currentItem = focusItems[keyboardFocusIndex]
                   const focusedCommentUri = (currentItem?.type === 'comment' || currentItem?.type === 'commentMedia') ? currentItem.commentUri : undefined
                   const commentContentFocusIndex = focusItems.findIndex((it) => it.type === 'comment' && it.commentUri === r.post.uri)
@@ -2079,7 +2081,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                     const replyHandle = r.post.author?.handle ?? r.post.author?.did ?? ''
                     return (
                       <div
-                        key={r.post.uri}
+                        key={`${r.post.uri}-${rIndex}`}
                         className={styles.topLevelCommentWrap}
                         data-comment-uri={r.post.uri}
                         tabIndex={-1}
@@ -2111,7 +2113,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                   }
                   return (
                     <div
-                      key={r.post.uri}
+                      key={`${r.post.uri}-${rIndex}`}
                       className={styles.topLevelCommentWrap}
                       onMouseEnter={() => {
                         if (!onClose && commentContentFocusIndex >= 0) {

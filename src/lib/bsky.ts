@@ -14,17 +14,6 @@ const SESSION_KEY = 'artsky-bsky-session'
 const ACCOUNTS_KEY = 'artsky-accounts'
 const OAUTH_ACCOUNTS_KEY = 'artsky-oauth-accounts'
 
-/** Ask the browser to keep our storage (helps PWA stay logged in when app is closed). */
-export function requestPersistentStorage(): void {
-  try {
-    if (typeof navigator !== 'undefined' && typeof navigator.storage?.persist === 'function') {
-      void navigator.storage.persist()
-    }
-  } catch {
-    // ignore
-  }
-}
-
 type AccountsStore = { activeDid: string | null; sessions: Record<string, AtpSessionData> }
 type OAuthAccountsStore = { activeDid: string | null; dids: string[] }
 
@@ -548,7 +537,11 @@ export function getPostMediaInfo(post: PostView): PostMediaInfo | null {
   if (embed.$type === 'app.bsky.embed.video#view') {
     const thumb = embed.thumbnail ?? ''
     const playlist = embed.playlist ?? ''
-    return { url: thumb, type: 'video', videoPlaylist: playlist || undefined }
+    const aspectRatio = (embed as { aspectRatio?: { width: number; height: number } }).aspectRatio
+    const ar = aspectRatio && aspectRatio.width > 0 && aspectRatio.height > 0
+      ? aspectRatio.width / aspectRatio.height
+      : undefined
+    return { url: thumb, type: 'video', videoPlaylist: playlist || undefined, aspectRatio: ar }
   }
   // recordWithMedia: media can be in .media
   const media = (embed as {
@@ -573,10 +566,15 @@ export function getPostMediaInfo(post: PostView): PostMediaInfo | null {
   }
   if (media?.$type === 'app.bsky.embed.video#view') {
     const playlist = (media as { playlist?: string }).playlist
+    const aspectRatio = (media as { aspectRatio?: { width: number; height: number } }).aspectRatio
+    const ar = aspectRatio && aspectRatio.width > 0 && aspectRatio.height > 0
+      ? aspectRatio.width / aspectRatio.height
+      : undefined
     return {
       url: media.thumbnail ?? '',
       type: 'video',
       videoPlaylist: playlist,
+      aspectRatio: ar,
     }
   }
   return null
@@ -604,10 +602,15 @@ export function getPostAllMedia(post: PostView): Array<{ url: string; type: 'ima
     return out
   }
   if (e.$type === 'app.bsky.embed.video#view') {
+    const aspectRatio = (e as { aspectRatio?: { width: number; height: number } }).aspectRatio
+    const ar = aspectRatio && aspectRatio.width > 0 && aspectRatio.height > 0
+      ? aspectRatio.width / aspectRatio.height
+      : undefined
     out.push({
       url: e.thumbnail ?? '',
       type: 'video',
       videoPlaylist: e.playlist ?? undefined,
+      aspectRatio: ar,
     })
     return out
   }
@@ -622,10 +625,15 @@ export function getPostAllMedia(post: PostView): Array<{ url: string; type: 'ima
     return out
   }
   if (media?.$type === 'app.bsky.embed.video#view') {
+    const aspectRatio = (media as { aspectRatio?: { width: number; height: number } }).aspectRatio
+    const ar = aspectRatio && aspectRatio.width > 0 && aspectRatio.height > 0
+      ? aspectRatio.width / aspectRatio.height
+      : undefined
     out.push({
       url: media.thumbnail ?? '',
       type: 'video',
       videoPlaylist: media.playlist,
+      aspectRatio: ar,
     })
   }
   return out

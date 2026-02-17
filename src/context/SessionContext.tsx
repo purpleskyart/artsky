@@ -33,7 +33,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [loading] = useState(false)
 
   useEffect(() => {
-    if (bsky.getStoredSession()) bsky.requestPersistentStorage()
+    // Removed requestPersistentStorage - modern browsers handle storage persistence automatically
   }, [])
 
   useEffect(() => {
@@ -45,7 +45,6 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       if (cancelled) return
       try {
         setSession(ok ? bsky.getSession() : null)
-        if (ok) bsky.requestPersistentStorage()
       } catch {
         setSession(null)
       }
@@ -98,7 +97,6 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const login = useCallback(async (identifier: string, password: string) => {
     await bsky.login(identifier, password)
     setSession(bsky.getSession())
-    bsky.requestPersistentStorage()
   }, [])
 
   const logout = useCallback(async () => {

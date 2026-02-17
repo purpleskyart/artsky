@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import { useWindowVirtualizer } from '@tanstack/react-virtual'
 import type { FeedDisplayEntry } from '../pages/FeedPage'
 import { getPostAllMediaForDisplay, isPostNsfw } from '../lib/bsky'
@@ -9,7 +10,7 @@ import styles from '../pages/FeedPage.module.css'
 const ESTIMATE_COL_WIDTH = 280
 const CARD_CHROME = 100
 const REPOST_CAROUSEL_ESTIMATE_HEIGHT = 200
-const OVERSCAN = 5 // Reduced to minimize measurement updates while still pre-rendering
+const OVERSCAN = 15 // Keep more items rendered above/below viewport for smooth scrolling
 /** Vertical gap between cards (matches gridColumn gap: 0.35rem ≈ 6px) */
 const CARD_GAP = 6
 
@@ -105,10 +106,33 @@ export default function VirtualizedFeedColumn({
     overscan: OVERSCAN,
     scrollMargin,
     gap: CARD_GAP,
+    lanes: 1,
+    // Disable scroll restoration - let browser handle scroll naturally
+    scrollToFn: () => {
+      // No-op: prevent virtualizer from adjusting scroll position
+    },
   })
 
   const virtualItems = virtualizer.getVirtualItems()
   const totalSize = virtualizer.getTotalSize()
+  
+  // Track the last measured item to prevent remeasuring items far below viewport
+  const lastMeasuredIndexRef = useRef(-1)
+  const measureThrottleRef = useRef<Set<number>>(new Set())
+  const prevColumnLengthRef = useRef(column.length)
+  
+  // Clear measure throttle when column length changes (new items added)
+  if (prevColumnLengthRef.current !== column.length) {
+    // Keep measurements for existing items, clear for new items
+    const newThrottle = new Set<number>()
+    for (let i = 0; i < Math.min(prevColumnLengthRef.current, column.length); i++) {
+      if (measureThrottleRef.current.has(i)) {
+        newThrottle.add(i)
+      }
+    }
+    measureThrottleRef.current = newThrottle
+    prevColumnLengthRef.current = column.length
+  }
 
   if (column.length === 0) {
     return (
@@ -131,12 +155,35 @@ export default function VirtualizedFeedColumn({
       >
         {virtualItems.map((virtualItem) => {
           const { entry, originalIndex } = column[virtualItem.index]
-          const key = entry.type === 'post' ? entry.item.post.uri : `carousel-${entry.items[0].post.uri}`
+          const key = entry.type === 'post' ? `${entry.item.post.uri}-${originalIndex}` : `carousel-${entry.items[0].post.uri}-${originalIndex}`
           return (
             <div
               key={key}
               data-index={virtualItem.index}
-              ref={virtualizer.measureElement}
+              ref={(el) => {
+                if (!el) return
+                
+                // Only measure items that are in or near the viewport
+                // Skip measuring items far below to prevent scroll jumps
+                const rect = el.getBoundingClientRect()
+                const viewportHeight = window.innerHeight
+                const distanceFromViewport = rect.top - viewportHeight
+                
+                // Measure if:
+                // 1. Item is in viewport or within 2000px below
+                // 2. Item hasn't been measured yet (first time)
+                // 3. Item is above viewport (always measure to maintain scroll position)
+                if (rect.top < viewportHeight + 2000 || 
+                    !measureThrottleRef.current.has(virtualItem.index) ||
+                    rect.bottom < 0) {
+                  virtualizer.measureElement(el)
+                  measureThrottleRef.current.add(virtualItem.index)
+                  lastMeasuredIndexRef.current = Math.max(lastMeasuredIndexRef.current, virtualItem.index)
+                }
+                
+                // Also set this as the cardRef so IntersectionObserver can track it
+                cardRef(originalIndex)(el)
+              }}
               className={styles.gridItem}
               data-selected={focusTargets[keyboardFocusIndex]?.cardIndex === originalIndex || undefined}
               data-post-uri={entry.type === 'post' ? entry.item.post.uri : entry.items[0].post.uri}
@@ -160,7 +207,7 @@ export default function VirtualizedFeedColumn({
                       : undefined
                   }
                   onMediaRef={(mediaIndex, el) => onMediaRef(originalIndex, mediaIndex, el)}
-                  cardRef={cardRef(originalIndex)}
+                  cardRef={() => {}} // No-op since we're using the wrapper div ref above
                   openAddDropdown={focusTargets[keyboardFocusIndex]?.cardIndex === originalIndex && keyboardAddOpen}
                   onAddClose={onAddClose}
                   onActionsMenuOpenChange={(open) => onActionsMenuOpenChange(originalIndex, open)}
@@ -190,7 +237,7 @@ export default function VirtualizedFeedColumn({
                     if (opts?.initialItem) setInitialPostForUri(uri, opts.initialItem)
                     openPostModal(uri)
                   }}
-                  cardRef={cardRef(originalIndex)}
+                  cardRef={() => {}} // No-op since we're using the wrapper div ref above
                   seen={seenUris.has(entry.items[0].post.uri)}
                   data-post-uri={entry.items[0].post.uri}
                 />

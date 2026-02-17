@@ -1,51 +1,51 @@
 {
-  "timestamp": "2026-02-16T21:09:50.011Z",
+  "timestamp": "2026-02-16T22:43:22.757Z",
   "commit": "unknown",
   "bundles": [
     {
-      "name": "assets/AppModal-BNuYs7yM.js",
+      "name": "assets/AppModal-BXxyJmgh.js",
       "size": 6356,
-      "gzipSize": 2348
+      "gzipSize": 2350
     },
     {
-      "name": "assets/ArtboardModal-CGL-uEn1.js",
+      "name": "assets/ArtboardModal-CwtV-lrE.js",
       "size": 3758,
-      "gzipSize": 1556
+      "gzipSize": 1562
     },
     {
-      "name": "assets/ArtboardsModal-DfP9LB3F.js",
+      "name": "assets/ArtboardsModal-89a_71lj.js",
       "size": 7719,
-      "gzipSize": 2734
+      "gzipSize": 2738
     },
     {
-      "name": "assets/CollabPage-zNVkNjsq.js",
+      "name": "assets/CollabPage-BwJ9LtsO.js",
       "size": 6945,
-      "gzipSize": 2360
+      "gzipSize": 2363
     },
     {
-      "name": "assets/ConsensusPage-CuGxDB9Q.js",
+      "name": "assets/ConsensusPage-Dux4I3eK.js",
       "size": 7058,
-      "gzipSize": 2689
+      "gzipSize": 2694
     },
     {
-      "name": "assets/EditProfileModal-RyI_-uvl.js",
+      "name": "assets/EditProfileModal-CNt3brnG.js",
       "size": 4660,
-      "gzipSize": 1974
+      "gzipSize": 1977
     },
     {
-      "name": "assets/FeedPage-CiGeAjgZ.js",
-      "size": 33372,
-      "gzipSize": 10797
+      "name": "assets/FeedPage-bATYXSDa.js",
+      "size": 34496,
+      "gzipSize": 11171
     },
     {
-      "name": "assets/FeedPage.module-BaFP4clh.js",
+      "name": "assets/FeedPage.module-BXQsl3XB.js",
       "size": 3162,
-      "gzipSize": 894
+      "gzipSize": 889
     },
     {
-      "name": "assets/ForumModal-Bn6C3FXD.js",
+      "name": "assets/ForumModal-DXEwQXqc.js",
       "size": 10062,
-      "gzipSize": 3444
+      "gzipSize": 3450
     },
     {
       "name": "assets/ForumPage.module-D7Em_nze.js",
@@ -53,29 +53,29 @@
       "gzipSize": 310
     },
     {
-      "name": "assets/ForumPostModal-BW_xzTtY.js",
-      "size": 21615,
-      "gzipSize": 6264
+      "name": "assets/ForumPostModal-DWRNARd1.js",
+      "size": 21616,
+      "gzipSize": 6272
     },
     {
-      "name": "assets/Icons-DwCfVFDz.js",
+      "name": "assets/Icons-Db2rTzPk.js",
       "size": 12357,
-      "gzipSize": 2895
+      "gzipSize": 2897
     },
     {
-      "name": "assets/Layout-Bme4ZtR-.js",
+      "name": "assets/Layout-CPSEqVcx.js",
       "size": 81804,
-      "gzipSize": 20592
+      "gzipSize": 20593
     },
     {
-      "name": "assets/LoginModal-C9tRv7oP.js",
+      "name": "assets/LoginModal-Bcgo1sCG.js",
       "size": 9238,
       "gzipSize": 3245
     },
     {
-      "name": "assets/ModalScrollContext-BecMai2n.js",
+      "name": "assets/ModalScrollContext-zde6NgaG.js",
       "size": 259,
-      "gzipSize": 204
+      "gzipSize": 206
     },
     {
       "name": "assets/ModalTopBarSlotContext-BCMHq62N.js",
@@ -83,64 +83,64 @@
       "gzipSize": 134
     },
     {
-      "name": "assets/PostActionsMenu-DoezUVB1.js",
+      "name": "assets/PostActionsMenu-IxCQHKUi.js",
       "size": 12903,
-      "gzipSize": 3429
+      "gzipSize": 3431
     },
     {
-      "name": "assets/PostCard-DhP4tvlt.js",
-      "size": 21599,
-      "gzipSize": 6768
+      "name": "assets/PostCard-DthzAk5E.js",
+      "size": 23937,
+      "gzipSize": 7738
     },
     {
-      "name": "assets/PostDetailModal-DwbT9Djq.js",
+      "name": "assets/PostDetailModal-Bd97bQ-h.js",
       "size": 1089,
-      "gzipSize": 611
+      "gzipSize": 618
     },
     {
-      "name": "assets/PostDetailPage-DNQ643uZ.js",
-      "size": 47624,
-      "gzipSize": 12479
+      "name": "assets/PostDetailPage-4OnA7U7P.js",
+      "size": 48375,
+      "gzipSize": 12715
     },
     {
-      "name": "assets/PostDetailPage.module-DU_4Lqb1.js",
-      "size": 6775,
-      "gzipSize": 1667
+      "name": "assets/PostDetailPage.module-D-5kOdq6.js",
+      "size": 6870,
+      "gzipSize": 1690
     },
     {
-      "name": "assets/PostText-BeWo8WkG.js",
+      "name": "assets/PostText-_BQ-w28F.js",
       "size": 4188,
-      "gzipSize": 1686
+      "gzipSize": 1687
     },
     {
-      "name": "assets/ProfileModal-bLWRN4vU.js",
+      "name": "assets/ProfileModal-DFXByPuQ.js",
       "size": 1089,
-      "gzipSize": 589
+      "gzipSize": 595
     },
     {
-      "name": "assets/ProfilePage-D_fjoVys.js",
+      "name": "assets/ProfilePage-8NQWaT04.js",
       "size": 36100,
-      "gzipSize": 11139
+      "gzipSize": 11147
     },
     {
-      "name": "assets/QuotesModal-CHbk9JGQ.js",
+      "name": "assets/QuotesModal-BRePnKEf.js",
       "size": 2631,
-      "gzipSize": 1347
+      "gzipSize": 1353
     },
     {
-      "name": "assets/SearchModal-DOEYho-5.js",
+      "name": "assets/SearchModal-igeOWESa.js",
       "size": 8992,
-      "gzipSize": 3494
+      "gzipSize": 3504
     },
     {
-      "name": "assets/TagModal-DloYLWux.js",
+      "name": "assets/TagModal-BhKTvGWu.js",
       "size": 1001,
-      "gzipSize": 562
+      "gzipSize": 568
     },
     {
-      "name": "assets/TagPage-DmwWojXS.js",
+      "name": "assets/TagPage-KCZET1JK.js",
       "size": 5782,
-      "gzipSize": 2631
+      "gzipSize": 2637
     },
     {
       "name": "assets/TagPage.module-BpGvzkuE.js",
@@ -148,9 +148,9 @@
       "gzipSize": 133
     },
     {
-      "name": "assets/VirtualizedProfileColumn-CycsIg20.js",
-      "size": 6938,
-      "gzipSize": 2362
+      "name": "assets/VirtualizedProfileColumn-mDeazHco.js",
+      "size": 7929,
+      "gzipSize": 2507
     },
     {
       "name": "assets/artboards-DNvSVVrd.js",
@@ -173,14 +173,14 @@
       "gzipSize": 595
     },
     {
-      "name": "assets/forum-BYXzVXQo.js",
+      "name": "assets/forum-BrqyjY5d.js",
       "size": 4091,
-      "gzipSize": 1370
+      "gzipSize": 1372
     },
     {
-      "name": "assets/index-C841xfAz.js",
-      "size": 246420,
-      "gzipSize": 75159
+      "name": "assets/index-DG_ZSS9q.js",
+      "size": 257117,
+      "gzipSize": 78234
     },
     {
       "name": "assets/postCache-CTqU0alO.js",
@@ -216,8 +216,18 @@
       "name": "registerSW.js",
       "size": 148,
       "gzipSize": 132
+    },
+    {
+      "name": "sw.js",
+      "size": 5809,
+      "gzipSize": 2085
+    },
+    {
+      "name": "workbox-66610c77.js",
+      "size": 21445,
+      "gzipSize": 7321
     }
   ],
-  "totalSize": 2928039,
-  "totalGzipSize": 732563
+  "totalSize": 2971290,
+  "totalGzipSize": 746883
 }

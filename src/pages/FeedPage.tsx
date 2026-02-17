@@ -161,10 +161,81 @@ function estimateEntryHeight(entry: FeedDisplayEntry): number {
 /** Distribute entries (posts and carousels) so no column is much longer than others. */
 function distributeEntriesByHeight(
   entries: FeedDisplayEntry[],
-  numCols: number
+  numCols: number,
+  previousDistribution?: Array<Array<{ entry: FeedDisplayEntry; originalIndex: number }>>,
+  previousEntryCount?: number
 ): Array<Array<{ entry: FeedDisplayEntry; originalIndex: number }>> {
   const cols = Math.min(3, Math.max(1, Math.floor(numCols)))
   if (cols < 1) return []
+  
+  // If we have a previous distribution and only new entries were added, preserve existing layout
+  // BUT only if the column count hasn't changed
+  if (previousDistribution && 
+      previousDistribution.length === cols &&
+      previousEntryCount !== undefined && 
+      entries.length > previousEntryCount) {
+    
+    // Create a map of post URI to its column in previous distribution
+    const uriToColumn = new Map<string, number>()
+    previousDistribution.forEach((col, colIndex) => {
+      col.forEach(({ entry }) => {
+        const uri = entry.type === 'post' ? entry.item.post.uri : entry.items[0]?.post.uri
+        if (uri) uriToColumn.set(uri, colIndex)
+      })
+    })
+    
+    // Start with empty columns
+    const columns: Array<Array<{ entry: FeedDisplayEntry; originalIndex: number }>> = 
+      Array.from({ length: cols }, () => [])
+    const columnHeights: number[] = Array(cols).fill(0)
+    
+    // First pass: rebuild existing entries in their previous columns
+    for (let i = 0; i < previousEntryCount; i++) {
+      const entry = entries[i]
+      const uri = entry.type === 'post' ? entry.item.post.uri : entry.items[0]?.post.uri
+      
+      if (uri) {
+        const prevCol = uriToColumn.get(uri)
+        if (prevCol !== undefined && prevCol < cols) {
+          columns[prevCol].push({ entry, originalIndex: i })
+          columnHeights[prevCol] += estimateEntryHeight(entry)
+          continue
+        }
+      }
+      
+      // Fallback: if URI not found, add to shortest column
+      const h = estimateEntryHeight(entry)
+      let best = 0
+      for (let c = 1; c < cols; c++) {
+        if (columnHeights[c] < columnHeights[best]) {
+          best = c
+        }
+      }
+      columns[best].push({ entry, originalIndex: i })
+      columnHeights[best] += h
+    }
+    
+    // Second pass: append NEW entries to shortest columns
+    for (let i = previousEntryCount; i < entries.length; i++) {
+      const entry = entries[i]
+      const h = estimateEntryHeight(entry)
+      
+      // Find shortest column
+      let best = 0
+      for (let c = 1; c < cols; c++) {
+        if (columnHeights[c] < columnHeights[best]) {
+          best = c
+        }
+      }
+      
+      columns[best].push({ entry, originalIndex: i })
+      columnHeights[best] += h
+    }
+    
+    return columns
+  }
+  
+  // Initial distribution or column count changed - redistribute everything
   const columns: Array<Array<{ entry: FeedDisplayEntry; originalIndex: number }>> = Array.from(
     { length: cols },
     () => []
@@ -306,7 +377,7 @@ export default function FeedPage() {
     keyboardFocusIndex: -1,
     actionsMenuOpenForIndex: null,
     seenUris: loadSeenUris(),
-    seenUrisAtReset: new Set(loadSeenUris()),
+    seenUrisAtReset: new Set(),
   } as FeedState)
   
   /** One sentinel per column so we load more when the user nears the bottom of any column (avoids blank space in short columns). */
@@ -358,13 +429,12 @@ export default function FeedPage() {
     }
   }, [seenPostsContext])
 
-  // When Home/logo is clicked while already on feed: hide seen posts (take snapshot) and scroll to top.
+  // When Home/logo is clicked while already on feed: scroll to top (don't auto-hide read posts).
   // Defer to next frame so any IntersectionObserver callbacks from the same tick run first and seenUrisRef is up to date (fixes "two clicks" on logo/Home).
   useEffect(() => {
     if (!seenPostsContext) return
     seenPostsContext.setHomeClickHandler(() => {
       requestAnimationFrame(() => {
-        dispatch({ type: 'RESET_SEEN_SNAPSHOT' })
         window.scrollTo(0, 0)
       })
     })
@@ -373,14 +443,14 @@ export default function FeedPage() {
     }
   }, [seenPostsContext])
 
-  // When the eye (hide seen) button is clicked: hide seen posts only, no scroll. Show toast with count.
+  // When the eye (hide read) button is clicked: hide read posts only, no scroll. Show toast with count.
   useEffect(() => {
     if (!seenPostsContext) return
     seenPostsContext.setHideSeenOnlyHandler((showToast) => {
       requestAnimationFrame(() => {
         const count = seenUrisRef.current.size
         dispatch({ type: 'RESET_SEEN_SNAPSHOT' })
-        showToast(count === 0 ? 'No seen posts in feed' : `${count} seen posts hidden`)
+        showToast(count === 0 ? 'No read posts in feed' : `${count} read posts hidden`)
       })
     })
     return () => {
@@ -466,11 +536,9 @@ export default function FeedPage() {
     }
   }, [])
 
-  // When landing on the feed (refresh or logo/feed button): scroll to top and take snapshot of seen URIs so only those are hidden; newly seen posts while scrolling stay visible.
+  // When landing on the feed (refresh or logo/feed button): scroll to top. Don't auto-hide read posts.
   useEffect(() => {
     const pathnameChanged = prevPathnameRef.current !== location.pathname
-    const isFeed = location.pathname === '/' || location.pathname.startsWith('/feed')
-    if (isFeed && pathnameChanged) dispatch({ type: 'RESET_SEEN_SNAPSHOT' })
     prevPathnameRef.current = location.pathname
     if (navigationType !== 'POP' && pathnameChanged) window.scrollTo(0, 0)
   }, [location.pathname, navigationType])
@@ -491,6 +559,8 @@ export default function FeedPage() {
 
   const swipeStartRef = useRef<{ x: number; y: number } | null>(null)
   const swipeGestureRef = useRef<'unknown' | 'swipe' | 'pull'>('unknown')
+  const feedItemsRef = useRef<TimelineItem[]>([])
+  feedItemsRef.current = feedState.items
 
   function sameFeedSource(a: FeedSource, b: FeedSource): boolean {
     return (a.uri ?? a.label) === (b.uri ?? b.label)
@@ -499,6 +569,14 @@ export default function FeedPage() {
   const load = useCallback(async (nextCursor?: string, signal?: AbortSignal) => {
     const cols = Math.min(3, Math.max(1, viewMode === '1' ? 1 : viewMode === '2' ? 2 : 3))
     const limit = cols >= 2 ? cols * 10 : 30
+    
+    // Don't refresh feed (load new items at top) if user is scrolled down
+    if (!nextCursor && window.scrollY > 100) {
+      // Still need to clear loading state to prevent infinite loop
+      dispatch({ type: 'SET_LOADING', loading: false })
+      return
+    }
+    
     try {
       // Check if request was cancelled
       if (signal?.aborted) {
@@ -517,7 +595,7 @@ export default function FeedPage() {
         }
         
         const apply = () => {
-          const items = dedupeFeedByPostUri(nextCursor ? [...feedState.items, ...feed] : feed)
+          const items = dedupeFeedByPostUri(nextCursor ? [...feedItemsRef.current, ...feed] : feed)
           if (nextCursor) {
             dispatch({ type: 'APPEND_ITEMS', items: feed, cursor: next })
           } else {
@@ -549,7 +627,7 @@ export default function FeedPage() {
         }
         
         const apply = () => {
-          const items = dedupeFeedByPostUri(isLoadMore ? [...feedState.items, ...feed] : feed)
+          const items = dedupeFeedByPostUri(isLoadMore ? [...feedItemsRef.current, ...feed] : feed)
           const cursor = Object.keys(nextCursors).length > 0 ? JSON.stringify(nextCursors) : undefined
           if (isLoadMore) {
             dispatch({ type: 'APPEND_ITEMS', items: feed, cursor })
@@ -564,7 +642,7 @@ export default function FeedPage() {
         if (single.kind === 'timeline') {
           const res = await agent.getTimeline({ limit, cursor: nextCursor })
           const apply = () => {
-            const items = dedupeFeedByPostUri(nextCursor ? [...feedState.items, ...res.data.feed] : res.data.feed)
+            const items = dedupeFeedByPostUri(nextCursor ? [...feedItemsRef.current, ...res.data.feed] : res.data.feed)
             if (nextCursor) {
               dispatch({ type: 'APPEND_ITEMS', items: res.data.feed, cursor: res.data.cursor })
             } else {
@@ -576,7 +654,7 @@ export default function FeedPage() {
         } else if (single.uri) {
           const res = await agent.app.bsky.feed.getFeed({ feed: single.uri, limit, cursor: nextCursor })
           const apply = () => {
-            const items = dedupeFeedByPostUri(nextCursor ? [...feedState.items, ...res.data.feed] : res.data.feed)
+            const items = dedupeFeedByPostUri(nextCursor ? [...feedItemsRef.current, ...res.data.feed] : res.data.feed)
             if (nextCursor) {
               dispatch({ type: 'APPEND_ITEMS', items: res.data.feed, cursor: res.data.cursor })
             } else {
@@ -589,7 +667,7 @@ export default function FeedPage() {
       } else if (source.kind === 'timeline') {
         const res = await agent.getTimeline({ limit, cursor: nextCursor })
         const apply = () => {
-          const items = dedupeFeedByPostUri(nextCursor ? [...feedState.items, ...res.data.feed] : res.data.feed)
+          const items = dedupeFeedByPostUri(nextCursor ? [...feedItemsRef.current, ...res.data.feed] : res.data.feed)
           if (nextCursor) {
             dispatch({ type: 'APPEND_ITEMS', items: res.data.feed, cursor: res.data.cursor })
           } else {
@@ -601,7 +679,7 @@ export default function FeedPage() {
       } else if (source.uri) {
         const res = await agent.app.bsky.feed.getFeed({ feed: source.uri, limit, cursor: nextCursor })
         const apply = () => {
-          const items = dedupeFeedByPostUri(nextCursor ? [...feedState.items, ...res.data.feed] : res.data.feed)
+          const items = dedupeFeedByPostUri(nextCursor ? [...feedItemsRef.current, ...res.data.feed] : res.data.feed)
           if (nextCursor) {
             dispatch({ type: 'APPEND_ITEMS', items: res.data.feed, cursor: res.data.cursor })
           } else {
@@ -618,7 +696,7 @@ export default function FeedPage() {
       dispatch({ type: 'SET_LOADING', loading: false })
       dispatch({ type: 'SET_LOADING_MORE', loadingMore: false })
     }
-  }, [source, session, mixEntries, mixTotalPercent, feedState.items])
+  }, [source, session, mixEntries, mixTotalPercent])
 
   useEffect(() => {
     const abortController = new AbortController()
@@ -737,11 +815,37 @@ export default function FeedPage() {
   // Use debounced column count to minimize re-renders on viewport resize
   const cols = useColumnCount(viewMode, 150)
   
+  // Track previous distribution to avoid re-shuffling existing posts when new ones load
+  const previousDistributionRef = useRef<Array<Array<{ entry: FeedDisplayEntry; originalIndex: number }>>>([])
+  const previousEntryCountRef = useRef<number>(0)
+  const previousColsRef = useRef<number>(0)
+  
+  // Reset distribution tracking when feed source changes or items are reset (not appended)
+  useEffect(() => {
+    previousDistributionRef.current = []
+    previousEntryCountRef.current = 0
+    previousColsRef.current = 0
+  }, [source, mediaMode, nsfwPreference])
+  
   // Memoize column distribution to prevent recalculation on every render
-  const distributedColumns = useMemo(() => 
-    distributeEntriesByHeight(displayEntries, cols),
-    [displayEntries, cols]
-  )
+  const distributedColumns = useMemo(() => {
+    // Reset if column count changed
+    if (cols !== previousColsRef.current) {
+      previousDistributionRef.current = []
+      previousEntryCountRef.current = 0
+    }
+    
+    const newDistribution = distributeEntriesByHeight(
+      displayEntries, 
+      cols,
+      previousDistributionRef.current,
+      previousEntryCountRef.current
+    )
+    previousDistributionRef.current = newDistribution
+    previousEntryCountRef.current = displayEntries.length
+    previousColsRef.current = cols
+    return newDistribution
+  }, [displayEntries, cols])
   
   /** Flat list of focus targets: one per media item per post (or one per card in text-only mode). */
   const focusTargets = useMemo(() => {
@@ -821,13 +925,15 @@ export default function FeedPage() {
     debouncedSaveSeenUris(feedState.seenUris)
   }, [feedState.seenUris, debouncedSaveSeenUris])
 
-  // Mark posts as seen when they leave the viewport (top above view). Observer only, no scroll listener, so we don't do layout work or setState during scroll like the profile page.
-  // Batch observer callbacks into one setState per frame and cap updates to once per 400ms to avoid re-render storms.
+  // Mark posts as seen when they scroll past the top of the viewport.
+  // With virtualization, elements come and go from the DOM, so we use a MutationObserver
+  // to detect when new elements are added and observe them dynamically.
   useEffect(() => {
     const pendingUris = new Set<string>()
     let flushRaf = 0
     let lastFlushTime = 0
     const SEEN_FLUSH_INTERVAL_MS = 400
+    const observedElements = new WeakSet<Element>()
 
     const flushPending = () => {
       flushRaf = 0
@@ -846,26 +952,66 @@ export default function FeedPage() {
       })
     }
 
-    const observer = new IntersectionObserver(
+    const intersectionObserver = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
           if (!entry.isIntersecting && entry.boundingClientRect.top < 0) {
             const uri = (entry.target as HTMLElement).getAttribute('data-post-uri')
-            if (uri && !seenUrisRef.current.has(uri)) pendingUris.add(uri)
+            if (uri && !seenUrisRef.current.has(uri)) {
+              pendingUris.add(uri)
+            }
           }
         }
         if (pendingUris.size > 0 && !flushRaf) flushRaf = requestAnimationFrame(flushPending)
       },
       { threshold: 0, rootMargin: '0px' }
     )
-    const observeLimit = Math.min(displayEntries.length, 80)
-    for (let i = 0; i < observeLimit; i++) {
-      const el = cardRefsRef.current[i]
-      if (el) observer.observe(el)
+
+    // Function to observe an element if it has data-post-uri and hasn't been observed yet
+    const observeElement = (el: Element) => {
+      if (el instanceof HTMLElement && 
+          el.hasAttribute('data-post-uri') && 
+          !observedElements.has(el)) {
+        intersectionObserver.observe(el)
+        observedElements.add(el)
+      }
+    }
+
+    // Observe all existing elements with data-post-uri
+    const gridEl = gridRef.current
+    if (gridEl) {
+      const existingElements = gridEl.querySelectorAll('[data-post-uri]')
+      existingElements.forEach(observeElement)
+
+      // Watch for new elements being added (virtualization adds/removes elements)
+      const mutationObserver = new MutationObserver((mutations) => {
+        for (const mutation of mutations) {
+          mutation.addedNodes.forEach((node) => {
+            if (node instanceof HTMLElement) {
+              // Check the node itself
+              observeElement(node)
+              // Check children
+              const children = node.querySelectorAll('[data-post-uri]')
+              children.forEach(observeElement)
+            }
+          })
+        }
+      })
+
+      mutationObserver.observe(gridEl, {
+        childList: true,
+        subtree: true,
+      })
+
+      return () => {
+        intersectionObserver.disconnect()
+        mutationObserver.disconnect()
+        if (flushRaf) cancelAnimationFrame(flushRaf)
+      }
     }
 
     return () => {
-      observer.disconnect()
+      intersectionObserver.disconnect()
       if (flushRaf) cancelAnimationFrame(flushRaf)
     }
   }, [displayEntries.length])
@@ -1111,7 +1257,6 @@ export default function FeedPage() {
     onRefresh: async () => {
       await load()
       requestAnimationFrame(() => {
-        dispatch({ type: 'RESET_SEEN_SNAPSHOT' })
         window.scrollTo(0, 0)
       })
     },
@@ -1259,7 +1404,7 @@ export default function FeedPage() {
                 </button>
               </>
             ) : emptyBecauseAllSeen ? (
-              <>You've seen all the posts in this feed.<br />New posts will appear as they're posted.</>
+              <>You've read all the posts in this feed.<br />New posts will appear as they're posted.</>
             ) : mediaMode === 'media' ? (
               'No posts with images or videos in this feed.'
             ) : (

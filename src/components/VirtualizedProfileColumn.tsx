@@ -8,7 +8,7 @@ import styles from '../pages/ProfilePage.module.css'
 
 const ESTIMATE_COL_WIDTH = 280
 const CARD_CHROME = 100
-const OVERSCAN = 8
+const OVERSCAN = 15
 const CARD_GAP = 6
 
 function estimateItemHeight(item: TimelineItem): number {
@@ -74,58 +74,15 @@ function VirtualizedProfileColumnWindow(props: Omit<VirtualizedProfileColumnProp
     isSelected,
   } = props
 
-  // Track scroll position to maintain stability during virtualization updates
-  const scrollPositionRef = useRef<number>(0)
-  const isRestoringScrollRef = useRef<boolean>(false)
-
-  // Save scroll position before updates
-  useEffect(() => {
-    const saveScrollPosition = () => {
-      scrollPositionRef.current = window.scrollY
-    }
-    
-    window.addEventListener('scroll', saveScrollPosition, { passive: true })
-    return () => window.removeEventListener('scroll', saveScrollPosition)
-  }, [])
-
   const virtualizer = useWindowVirtualizer({
     count: column.length,
     estimateSize: (i) => estimateItemHeight(column[i].item),
     overscan: OVERSCAN,
     scrollMargin,
     gap: CARD_GAP,
-    // Custom scroll function to maintain position stability
-    scrollToFn: (offset, canSmooth) => {
-      // Only restore scroll if we're not in the middle of a user scroll
-      if (isRestoringScrollRef.current) {
-        return
-      }
-      
-      // Allow programmatic scrolls (e.g., keyboard navigation)
-      if (canSmooth) {
-        window.scrollTo({ top: offset, behavior: 'smooth' })
-      } else {
-        window.scrollTo({ top: offset })
-      }
-    },
+    // Increase measurement cache to reduce re-measurements
+    lanes: 1,
   })
-
-  // Restore scroll position after virtualization updates that might cause jumps
-  useEffect(() => {
-    const savedPosition = scrollPositionRef.current
-    const currentPosition = window.scrollY
-    
-    // If scroll position changed unexpectedly (more than 5px), restore it
-    if (Math.abs(currentPosition - savedPosition) > 5) {
-      isRestoringScrollRef.current = true
-      window.scrollTo({ top: savedPosition })
-      
-      // Reset flag after a short delay
-      requestAnimationFrame(() => {
-        isRestoringScrollRef.current = false
-      })
-    }
-  }, [column.length, virtualizer.getTotalSize()])
 
   const virtualItems = virtualizer.getVirtualItems()
   const totalSize = virtualizer.getTotalSize()
@@ -148,7 +105,7 @@ function VirtualizedProfileColumnWindow(props: Omit<VirtualizedProfileColumnProp
           const { item, originalIndex } = column[virtualItem.index]
           return (
             <div
-              key={item.post.uri}
+              key={`${item.post.uri}-${originalIndex}`}
               data-index={virtualItem.index}
               ref={virtualizer.measureElement}
               className={styles.gridItem}
@@ -329,7 +286,7 @@ function VirtualizedProfileColumnElement(
           const { item, originalIndex } = column[virtualItem.index]
           return (
             <div
-              key={item.post.uri}
+              key={`${item.post.uri}-${originalIndex}`}
               data-index={virtualItem.index}
               ref={virtualizer.measureElement}
               className={styles.gridItem}

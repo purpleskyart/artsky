@@ -751,6 +751,7 @@ function PostCard({ item, isSelected, cardRef: cardRefProp, addButtonRef: _addBu
                 playsInline
                 loop
                 preload="metadata"
+                style={{ aspectRatio: mediaAspect != null ? `${mediaAspect}` : undefined }}
                 onLoadedMetadata={(e) => {
                   const v = e.currentTarget
                   if (!v.videoWidth || !v.videoHeight) return

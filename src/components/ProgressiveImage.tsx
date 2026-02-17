@@ -56,6 +56,7 @@ export function ProgressiveImage({
   const [imageError, setImageError] = useState(false)
   const [retryCount, setRetryCount] = useState(0)
   const [permanentError, setPermanentError] = useState(false)
+  const [placeholderError, setPlaceholderError] = useState(false)
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   
   // Convert to WebP format if browser supports it
@@ -94,8 +95,9 @@ export function ProgressiveImage({
   // For Bluesky CDN images, use a tiny version as blur-up placeholder
   const placeholderSrc = useMemo(() => {
     if (src.includes('cdn.bsky.app')) {
-      // Use thumbnail version for blur-up effect
-      return src.replace(/\/img\//, '/img/avatar_thumbnail/')
+      // Replace the size variant (feed_fullsize, feed_thumbnail, avatar, etc.) with avatar_thumbnail
+      // This handles URLs like: /img/feed_fullsize/... or /img/avatar/...
+      return src.replace(/\/img\/[^/]+\//, '/img/avatar_thumbnail/')
     }
     return undefined
   }, [src])
@@ -107,6 +109,11 @@ export function ProgressiveImage({
     setRetryCount(0)
     onLoad?.(e)
   }, [onLoad])
+  
+  const handlePlaceholderError = useCallback(() => {
+    // Silently hide placeholder if it fails to load
+    setPlaceholderError(true)
+  }, [])
   
   const handleImageError = useCallback(() => {
     // If WebP fails, fall back to original URL
@@ -145,6 +152,7 @@ export function ProgressiveImage({
     setPermanentError(false)
     setIsLoaded(false)
     setImageError(false)
+    setPlaceholderError(false)
   }, [src])
   
   // Use WebP URL first, fall back to original if error occurs
@@ -184,12 +192,13 @@ export function ProgressiveImage({
       className={`${styles.progressiveImage} ${isLoaded ? styles.loaded : ''} ${className}`}
       style={{ aspectRatio: aspectRatio ? String(aspectRatio) : undefined }}
     >
-      {placeholderSrc && !isLoaded && (
+      {placeholderSrc && !isLoaded && !placeholderError && (
         <img 
           src={placeholderSrc} 
           alt="" 
           className={styles.placeholder}
           aria-hidden="true"
+          onError={handlePlaceholderError}
         />
       )}
       <img

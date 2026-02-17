@@ -86,6 +86,17 @@ export function feedReducer(state: FeedState, action: FeedAction): FeedState {
     case 'MARK_SEEN': {
       const newSeenUris = new Set(state.seenUris)
       action.uris.forEach((uri) => newSeenUris.add(uri))
+      
+      // Prune old URIs if Set grows too large (keep most recent 2500)
+      if (newSeenUris.size > 2500) {
+        const urisArray = Array.from(newSeenUris)
+        const pruned = new Set(urisArray.slice(-2000))
+        return {
+          ...state,
+          seenUris: pruned,
+        }
+      }
+      
       return {
         ...state,
         seenUris: newSeenUris,

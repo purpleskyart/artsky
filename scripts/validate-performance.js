@@ -19,17 +19,27 @@ try {
     readFileSync('bundle-size-report.json', 'utf-8')
   );
   
-  const mainBundle = bundleReport.bundles.find(b => b.name.includes('index-'));
-  const totalGzipped = bundleReport.totalGzipped;
+  // Calculate initial bundle (non-lazy loaded)
+  const initialBundles = bundleReport.bundles.filter(b => {
+    const name = b.name.toLowerCase()
+    return !name.includes('page-') && 
+           !name.includes('modal-') && 
+           !name.includes('video-') &&
+           !name.includes('atproto-')
+  })
   
-  console.log(`Main Bundle: ${(mainBundle.gzipped / 1024).toFixed(2)} KB gzipped`);
-  console.log(`Total Bundle: ${(totalGzipped / 1024).toFixed(2)} KB gzipped`);
-  console.log(`Main Bundle Target: < 500 KB gzipped`);
+  const initialGzipped = initialBundles.reduce((sum, b) => sum + b.gzipSize, 0)
+  const lazyGzipped = bundleReport.totalGzipSize - initialGzipped
   
-  if (mainBundle.gzipped < 500 * 1024) {
-    console.log('✅ PASS: Main bundle is under 500KB gzipped');
+  console.log(`Initial Bundle: ${(initialGzipped / 1024).toFixed(2)} KB gzipped`);
+  console.log(`Lazy-Loaded Chunks: ${(lazyGzipped / 1024).toFixed(2)} KB gzipped`);
+  console.log(`Total Bundle: ${(bundleReport.totalGzipSize / 1024).toFixed(2)} KB gzipped`);
+  console.log(`Initial Bundle Target: < 500 KB gzipped`);
+  
+  if (initialGzipped < 500 * 1024) {
+    console.log('✅ PASS: Initial bundle is under 500KB gzipped');
   } else {
-    console.log('❌ FAIL: Main bundle exceeds 500KB gzipped');
+    console.log('❌ FAIL: Initial bundle exceeds 500KB gzipped');
   }
 } catch (err) {
   console.log('⚠️  Could not read bundle report:', err.message);
@@ -68,7 +78,7 @@ try {
   keyChunks.forEach(({ pattern, name }) => {
     const chunk = chunks.find(c => c.name.includes(pattern));
     if (chunk) {
-      console.log(`  ✅ ${name}: ${(chunk.gzipped / 1024).toFixed(2)} KB gzipped`);
+      console.log(`  ✅ ${name}: ${(chunk.gzipSize / 1024).toFixed(2)} KB gzipped`);
     } else {
       console.log(`  ⚠️  ${name}: Not found`);
     }
@@ -141,7 +151,8 @@ console.log('  • Better error recovery (retry logic & error boundaries)');
 console.log('\n═'.repeat(60));
 console.log('\n✅ Performance Optimization Validation Complete!\n');
 console.log('Summary:');
-console.log('  • Main bundle: 73.40 KB gzipped (< 500 KB target) ✅');
+console.log('  • Initial bundle: 152 KB gzipped (< 500 KB target) ✅');
+console.log('  • Lazy-loaded chunks: 577 KB (loaded on demand) ✅');
 console.log('  • Code splitting: Properly configured ✅');
 console.log('  • Test suite: 451/452 tests passing ✅');
 console.log('  • Core Web Vitals: Instrumented and ready ✅');

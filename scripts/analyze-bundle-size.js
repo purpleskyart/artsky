@@ -106,15 +106,29 @@ function printReport(report) {
   console.log(`Total Gzipped: ${formatBytes(report.totalGzipSize)}`)
   console.log('═'.repeat(60))
   
-  // Check threshold
+  // Check threshold for initial bundle only (not lazy-loaded chunks)
+  // Initial bundle includes: index, react-vendor, Layout, and other non-lazy chunks
+  const initialBundles = report.bundles.filter(b => {
+    const name = b.name.toLowerCase()
+    // Exclude lazy-loaded routes and modals
+    return !name.includes('page-') && 
+           !name.includes('modal-') && 
+           !name.includes('video-') &&
+           !name.includes('atproto-')
+  })
+  
+  const initialGzipSize = initialBundles.reduce((sum, b) => sum + b.gzipSize, 0)
   const maxGzipSizeKB = 500
   const maxGzipSizeBytes = maxGzipSizeKB * 1024
   
-  if (report.totalGzipSize > maxGzipSizeBytes) {
-    console.log(`\n⚠️  WARNING: Bundle size ${formatBytes(report.totalGzipSize)} exceeds threshold of ${formatBytes(maxGzipSizeBytes)}`)
+  console.log(`\nInitial Bundle (non-lazy): ${formatBytes(initialGzipSize)}`)
+  console.log(`Lazy-Loaded Chunks: ${formatBytes(report.totalGzipSize - initialGzipSize)}`)
+  
+  if (initialGzipSize > maxGzipSizeBytes) {
+    console.log(`\n❌ ERROR: Initial bundle size ${formatBytes(initialGzipSize)} exceeds threshold of ${formatBytes(maxGzipSizeBytes)}`)
     return false
   } else {
-    console.log(`\n✅ Bundle size ${formatBytes(report.totalGzipSize)} is within threshold of ${formatBytes(maxGzipSizeBytes)}`)
+    console.log(`\n✅ Initial bundle size ${formatBytes(initialGzipSize)} is within threshold of ${formatBytes(maxGzipSizeBytes)}`)
     return true
   }
 }

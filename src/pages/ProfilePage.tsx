@@ -1070,8 +1070,8 @@ export function ProfileContent({
           ) : (
             <>
               <div className={`${styles.grid} ${styles.gridView1}`} data-view-mode="1">
-                {textItems.map((item) => (
-                  <div key={item.post.uri}>
+                {textItems.map((item, index) => (
+                  <div key={`${item.post.uri}-${index}`}>
                     <PostCard
                       item={item}
                       onPostClick={(uri, opts) => {

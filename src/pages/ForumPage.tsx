@@ -352,7 +352,7 @@ export function ForumContent({ inModal = false, onRegisterRefresh }: { inModal?:
               {artskyFiltered.map((post, index) => {
                 const isFocused = index === artskyFocusedIndex
                 return (
-                  <li key={post.uri} data-forum-index={index}>
+                  <li key={`${post.uri}-${index}`} data-forum-index={index}>
                     <Link
                       to="#"
                       className={isFocused ? `${styles.postLink} ${styles.postLinkFocused}` : styles.postLink}
