@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 
 const TOAST_DURATION_MS = 2500
 
@@ -22,10 +22,13 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     return () => clearTimeout(t)
   }, [toastMessage])
 
-  const value: ToastContextValue = {
-    toastMessage,
-    showToast,
-  }
+  const value: ToastContextValue = useMemo(
+    () => ({
+      toastMessage,
+      showToast,
+    }),
+    [toastMessage, showToast]
+  )
 
   return (
     <ToastContext.Provider value={value}>

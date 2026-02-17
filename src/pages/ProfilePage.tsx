@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useParams, Link } from 'react-router-dom'
 import { useProfileModal } from '../context/ProfileModalContext'
@@ -9,7 +9,7 @@ import { setInitialPostForUri } from '../lib/postCache'
 import type { AtpAgent } from '@atproto/api'
 import { formatRelativeTime, formatExactDateTime } from '../lib/date'
 import PostCard from '../components/PostCard'
-import VirtualizedProfileColumn from '../components/VirtualizedProfileColumn'
+import ProfileColumn from '../components/ProfileColumn'
 import { useModalScroll } from '../context/ModalScrollContext'
 import PostText from '../components/PostText'
 import ProfileActionsMenu from '../components/ProfileActionsMenu'
@@ -218,7 +218,6 @@ export function ProfileContent({
   const { openPostModal, isModalOpen } = useProfileModal()
   const modalScrollRef = useModalScroll()
   const gridRef = useRef<HTMLDivElement | null>(null)
-  const [scrollMargin, setScrollMargin] = useState(0)
   const editProfileCtx = useEditProfile()
   const topBarSlots = useModalTopBarSlot()
   const topBarRightSlot = topBarSlots?.rightSlot ?? null
@@ -522,16 +521,6 @@ export function ProfileContent({
   const cols = viewMode === '1' ? 1 : viewMode === '2' ? 2 : 3
   profileGridItemsRef.current = profileGridItems
   keyboardFocusIndexRef.current = keyboardFocusIndex
-
-  useLayoutEffect(() => {
-    if (inModal || !gridRef.current) return
-    const el = gridRef.current
-    const update = () => setScrollMargin(el.getBoundingClientRect().top + window.scrollY)
-    update()
-    const ro = new ResizeObserver(update)
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [inModal, profileGridItems.length])
 
   useEffect(() => {
     setKeyboardFocusIndex((i) => (profileGridItems.length ? Math.min(i, profileGridItems.length - 1) : 0))
@@ -947,7 +936,7 @@ export function ProfileContent({
                   className={`${styles.tab} ${tab === t ? styles.tabActive : ''}`}
                   onClick={() => setTab(t)}
                 >
-                  {t === 'posts' ? 'Posts' : t === 'reposts' ? 'Reposts' : t === 'blog' ? 'Threads' : t === 'text' ? 'Text' : 'Feeds'}
+                  {t === 'posts' ? 'Posts' : t === 'reposts' ? 'Reposts' : t === 'blog' ? 'Blog' : t === 'text' ? 'Text' : 'Feeds'}
                 </button>
               ))}
             </nav>
@@ -963,7 +952,7 @@ export function ProfileContent({
                 className={`${styles.tab} ${tab === t ? styles.tabActive : ''}`}
                 onClick={() => setTab(t)}
               >
-                {t === 'posts' ? 'Posts' : t === 'reposts' ? 'Reposts' : t === 'blog' ? 'Threads' : t === 'text' ? 'Text' : 'Feeds'}
+                {t === 'posts' ? 'Posts' : t === 'reposts' ? 'Reposts' : t === 'blog' ? 'Blog' : t === 'text' ? 'Text' : 'Feeds'}
               </button>
             ))}
             </nav>
@@ -975,7 +964,7 @@ export function ProfileContent({
           <div className={styles.loading}>Loading…</div>
         ) : tab === 'blog' ? (
           blogDocuments.length === 0 ? (
-            <div className={styles.empty}>No standard.site blog posts.</div>
+            <div className={styles.empty}>No blog posts.</div>
           ) : (
             <>
               <ul className={styles.textList}>
@@ -1070,8 +1059,8 @@ export function ProfileContent({
           ) : (
             <>
               <div className={`${styles.grid} ${styles.gridView1}`} data-view-mode="1">
-                {textItems.map((item) => (
-                  <div key={item.post.uri}>
+                {textItems.map((item, index) => (
+                  <div key={`${item.post.uri}-${index}`}>
                     <PostCard
                       item={item}
                       onPostClick={(uri, opts) => {
@@ -1133,11 +1122,10 @@ export function ProfileContent({
               data-view-mode={viewMode}
             >
               {distributeByHeight(mediaItems, cols).map((column, colIndex) => (
-                <VirtualizedProfileColumn
+                <ProfileColumn
                   key={colIndex}
                   column={column}
                   colIndex={colIndex}
-                  scrollMargin={scrollMargin}
                   scrollRef={inModal ? modalScrollRef : null}
                   loadMoreSentinelRef={
                     cursor

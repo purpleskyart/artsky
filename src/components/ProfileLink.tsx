@@ -1,3 +1,4 @@
+import { memo, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { useProfileModal } from '../context/ProfileModalContext'
 
@@ -11,22 +12,27 @@ interface ProfileLinkProps {
 }
 
 /** Link that opens profile in the modal lightbox instead of navigating. */
-export default function ProfileLink({ handle, className, title, 'aria-label': ariaLabel, onClick, children }: ProfileLinkProps) {
+function ProfileLink({ handle, className, title, 'aria-label': ariaLabel, onClick, children }: ProfileLinkProps) {
   const { openProfileModal } = useProfileModal()
+  
+  const handleClick = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    openProfileModal(handle)
+    onClick?.(e)
+  }, [openProfileModal, handle, onClick])
+  
   return (
     <Link
       to={`/profile/${encodeURIComponent(handle)}`}
       className={className}
       title={title}
       aria-label={ariaLabel}
-      onClick={(e) => {
-        e.preventDefault()
-        e.stopPropagation()
-        openProfileModal(handle)
-        onClick?.(e)
-      }}
+      onClick={handleClick}
     >
       {children}
     </Link>
   )
 }
+
+export default memo(ProfileLink)

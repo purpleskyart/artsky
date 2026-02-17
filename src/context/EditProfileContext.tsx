@@ -1,5 +1,7 @@
-import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from 'react'
-import EditProfileModal from '../components/EditProfileModal'
+import { createContext, lazy, Suspense, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react'
+import { ChunkLoadError } from '../components/ChunkLoadError'
+
+const EditProfileModal = lazy(() => import('../components/EditProfileModal'))
 
 type EditProfileContextValue = {
   openEditProfile: () => void
@@ -28,20 +30,24 @@ export function EditProfileProvider({ children }: { children: ReactNode }) {
     savedCbRef.current?.()
   }, [])
 
-  const value: EditProfileContextValue = {
+  const value: EditProfileContextValue = useMemo(() => ({
     openEditProfile,
     registerOnSaved,
     editSavedVersion,
-  }
+  }), [openEditProfile, registerOnSaved, editSavedVersion])
 
   return (
     <EditProfileContext.Provider value={value}>
       {children}
       {editProfileOpen && (
-        <EditProfileModal
-          onClose={() => setEditProfileOpen(false)}
-          onSaved={handleSaved}
-        />
+        <ChunkLoadError>
+          <Suspense fallback={null}>
+            <EditProfileModal
+              onClose={() => setEditProfileOpen(false)}
+              onSaved={handleSaved}
+            />
+          </Suspense>
+        </ChunkLoadError>
       )}
     </EditProfileContext.Provider>
   )

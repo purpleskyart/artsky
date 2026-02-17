@@ -70,6 +70,7 @@ export function ArtSkyForumPostContent({ documentUri, onClose, onRegisterRefresh
   const [error, setError] = useState<string | null>(null)
   const [replyText, setReplyText] = useState('')
   const [posting, setPosting] = useState(false)
+  const [replyingTo, setReplyingTo] = useState<ForumReply | null>(null)
   const [editMode, setEditMode] = useState(false)
   const [editTitle, setEditTitle] = useState('')
   const [editBody, setEditBody] = useState('')
@@ -128,8 +129,13 @@ export function ArtSkyForumPostContent({ documentUri, onClose, onRegisterRefresh
     if (!session || !post || !replyText.trim() || posting) return
     setPosting(true)
     try {
-      await createForumReply({ postUri: documentUri, text: replyText.trim() })
+      await createForumReply({
+        postUri: documentUri,
+        text: replyText.trim(),
+        replyToUri: replyingTo?.uri,
+      })
       setReplyText('')
+      setReplyingTo(null)
       const r = await listForumReplies(documentUri, [session.did])
       setReplies(r)
     } catch (err) {
@@ -373,7 +379,7 @@ export function ArtSkyForumPostContent({ documentUri, onClose, onRegisterRefresh
         </div>
       </article>
 
-      {session && (
+      {session && !replyingTo && (
         <section className={styles.replySection}>
           <h2 className={styles.replySectionTitle}>Reply</h2>
           <form onSubmit={handleReplySubmit} className={styles.replyForm}>
@@ -432,17 +438,51 @@ export function ArtSkyForumPostContent({ documentUri, onClose, onRegisterRefresh
                       <PostText text={r.record.text} />
                     </div>
                   )}
-                  {session && (
-                    <button
-                      type="button"
-                      className={downvoted ? styles.likeBtnLiked : styles.likeBtn}
-                      onClick={() =>
-                        downvoted ? handleUndoDownvote(myDownvoteUris[r.uri]) : handleDownvote(r.uri, r.cid)
-                      }
-                      title={downvoted ? 'Remove downvote' : 'Downvote'}
-                    >
-                      ↓ {downvotes}
-                    </button>
+                  <div style={{ display: 'flex', gap: 'var(--space-sm)', alignItems: 'center', marginTop: 'var(--space-xs)' }}>
+                    {session && (
+                      <button
+                        type="button"
+                        className={styles.replyToBtn}
+                        onClick={() => setReplyingTo(r)}
+                      >
+                        Reply
+                      </button>
+                    )}
+                    {session && (
+                      <button
+                        type="button"
+                        className={downvoted ? styles.likeBtnLiked : styles.likeBtn}
+                        onClick={() =>
+                          downvoted ? handleUndoDownvote(myDownvoteUris[r.uri]) : handleDownvote(r.uri, r.cid)
+                        }
+                        title={downvoted ? 'Remove downvote' : 'Downvote'}
+                      >
+                        ↓ {downvotes}
+                      </button>
+                    )}
+                  </div>
+                  {session && replyingTo?.uri === r.uri && (
+                    <div style={{ marginTop: 'var(--space-sm)' }}>
+                      <form onSubmit={handleReplySubmit} className={styles.replyForm}>
+                        <textarea
+                          className={styles.replyTextarea}
+                          value={replyText}
+                          onChange={(e) => setReplyText(e.target.value)}
+                          placeholder={`Reply to @${handle}…`}
+                          rows={2}
+                          disabled={posting}
+                          autoFocus
+                        />
+                        <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.35rem' }}>
+                          <button type="button" className={styles.actionBtn} onClick={() => setReplyingTo(null)}>
+                            Cancel
+                          </button>
+                          <button type="submit" className={styles.actionBtnPrimary} disabled={posting || !replyText.trim()}>
+                            {posting ? 'Posting…' : 'Post reply'}
+                          </button>
+                        </div>
+                      </form>
+                    </div>
                   )}
                 </li>
               )

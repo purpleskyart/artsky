@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState } from 'react'
-import Hls from 'hls.js'
+import { loadHls } from '../lib/loadHls'
 
 function isHlsUrl(url: string): boolean {
   return /\.m3u8(\?|$)/i.test(url) || url.includes('m3u8')
@@ -34,20 +34,41 @@ export default function VideoWithHls({
   useEffect(() => {
     if (!playlistUrl || !videoRef.current) return
     const video = videoRef.current
-    if (Hls.isSupported() && isHlsUrl(playlistUrl)) {
-      const hls = new Hls()
-      hls.loadSource(playlistUrl)
-      hls.attachMedia(video)
-      hls.on(Hls.Events.ERROR, () => {})
-      return () => {
-        hls.destroy()
-      }
-    }
-    if (video.canPlayType('application/vnd.apple.mpegurl') || !isHlsUrl(playlistUrl)) {
+    
+    let cleanup: (() => void) | undefined
+    
+    if (isHlsUrl(playlistUrl)) {
+      loadHls().then((Hls) => {
+        if (!videoRef.current) return
+        if (Hls.isSupported()) {
+          const hls = new Hls()
+          hls.loadSource(playlistUrl)
+          hls.attachMedia(video)
+          hls.on(Hls.Events.ERROR, () => {})
+          cleanup = () => {
+            hls.destroy()
+          }
+        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+          video.src = playlistUrl
+          cleanup = () => {
+            video.removeAttribute('src')
+          }
+        }
+      }).catch(() => {
+        // Fallback to native playback if hls.js fails to load
+        if (video.canPlayType('application/vnd.apple.mpegurl')) {
+          video.src = playlistUrl
+        }
+      })
+    } else {
       video.src = playlistUrl
-      return () => {
+      cleanup = () => {
         video.removeAttribute('src')
       }
+    }
+    
+    return () => {
+      cleanup?.()
     }
   }, [playlistUrl])
 

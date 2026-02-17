@@ -1,7 +1,8 @@
-import { useRef, useEffect, useState, useCallback, useLayoutEffect, useMemo } from 'react'
+import { useRef, useEffect, useState, useCallback, useLayoutEffect, useMemo, memo } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
-import Hls from 'hls.js'
+import type Hls from 'hls.js'
+import { loadHls } from '../lib/loadHls'
 import { getPostMediaInfoForDisplay, getPostAllMediaForDisplay, getPostMediaUrlForDisplay, getPostExternalLink, agent, type TimelineItem } from '../lib/bsky'
 import { getArtboards, createArtboard, addPostToArtboard, isPostInArtboard, isPostInAnyArtboard, getArtboard } from '../lib/artboards'
 import { putArtboardOnPds } from '../lib/artboardsPds'
@@ -15,6 +16,7 @@ import { formatExactDateTime, getRelativeTimeParts } from '../lib/date'
 import PostText from './PostText'
 import ProfileLink from './ProfileLink'
 import PostActionsMenu from './PostActionsMenu'
+import { ProgressiveImage } from './ProgressiveImage'
 import styles from './PostCard.module.css'
 
 interface Props {
@@ -92,7 +94,7 @@ function isHlsUrl(url: string): boolean {
   return /\.m3u8(\?|$)/i.test(url) || url.includes('m3u8')
 }
 
-export default function PostCard({ item, isSelected, cardRef: cardRefProp, addButtonRef: _addButtonRef, openAddDropdown, onAddClose, onPostClick, onAspectRatio, fillCell, nsfwBlurred, onNsfwUnblur, constrainMediaHeight, likedUriOverride, onLikedChange, seen, onActionsMenuOpenChange, cardIndex, actionsMenuOpenForIndex, focusedMediaIndex, onMediaRef }: Props) {
+function PostCard({ item, isSelected, cardRef: cardRefProp, addButtonRef: _addButtonRef, openAddDropdown, onAddClose, onPostClick, onAspectRatio, fillCell, nsfwBlurred, onNsfwUnblur, constrainMediaHeight, likedUriOverride, onLikedChange, seen, onActionsMenuOpenChange, cardIndex, actionsMenuOpenForIndex, focusedMediaIndex, onMediaRef }: Props) {
   const navigate = useNavigate()
   const { session } = useSession()
   const { openLoginModal } = useLoginModal()
@@ -106,10 +108,13 @@ export default function PostCard({ item, isSelected, cardRef: cardRefProp, addBu
   const { post, reason } = item as { post: typeof item.post; reason?: { $type?: string; by?: { handle?: string; did?: string } } }
   const feedSource = (item as { _feedSource?: { kind?: string; label?: string } })._feedSource
   const feedLabel = feedSource?.label ?? (feedSource?.kind === 'timeline' ? 'Following' : undefined)
-  const media = getPostMediaInfoForDisplay(post)
+  
+  // Memoize derived state to prevent unnecessary recalculations
+  const media = useMemo(() => getPostMediaInfoForDisplay(post), [post])
   const hasMedia = !!media
   const text = (post.record as { text?: string })?.text ?? ''
-  const externalLink = getPostExternalLink(post)
+  const externalLink = useMemo(() => getPostExternalLink(post), [post])
+  const allMedia = useMemo(() => getPostAllMediaForDisplay(post), [post])
   const handle = post.author.handle ?? post.author.did
   const repostedByHandle = reason?.by ? (reason.by.handle ?? reason.by.did) : null
   const isQuotePost = (() => {
@@ -215,22 +220,29 @@ export default function PostCard({ item, isSelected, cardRef: cardRefProp, addBu
     setFollowUriOverride(initialFollowingUri ?? null)
   }, [post.uri, initialFollowingUri])
 
-  async function handleFollowClick(e: React.MouseEvent) {
+  // Memoize event handlers to prevent unnecessary re-renders
+  const handleFollowClick = useCallback(async (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
     if (followLoading || isOwnPost || !session?.did || isFollowingAuthor) return
+    
+    // Optimistic update: immediately update UI before API call completes
     setFollowLoading(true)
+    const pendingUri = `pending:follow:${post.author.did}:${Date.now()}`
+    setFollowUriOverride(pendingUri)
+    
     try {
       const res = await agent.follow(post.author.did)
       setFollowUriOverride(res.uri)
     } catch {
-      // leave state unchanged
+      // Revert optimistic update on failure
+      setFollowUriOverride(null)
     } finally {
       setFollowLoading(false)
     }
-  }
+  }, [followLoading, isOwnPost, session?.did, isFollowingAuthor, post.author.did])
 
-  async function handleLikeClick(e: React.MouseEvent) {
+  const handleLikeClick = useCallback(async (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
     if (!session?.did) {
@@ -259,7 +271,7 @@ export default function PostCard({ item, isSelected, cardRef: cardRefProp, addBu
     } finally {
       setLikeLoading(false)
     }
-  }
+  }, [session?.did, openLoginModal, likeLoading, effectiveLikedUri, post.uri, post.cid])
 
   useEffect(() => {
     if (openAddDropdown) setAddOpen(true)
@@ -323,20 +335,19 @@ export default function PostCard({ item, isSelected, cardRef: cardRefProp, addBu
 
   const boards = getArtboards()
 
-  function toggleBoardSelection(boardId: string) {
+  const toggleBoardSelection = useCallback((boardId: string) => {
     setAddToBoardIds((prev) => {
       const next = new Set(prev)
       if (next.has(boardId)) next.delete(boardId)
       else next.add(boardId)
       return next
     })
-  }
+  }, [])
 
-  async function handleAddToArtboard() {
+  const handleAddToArtboard = useCallback(async () => {
     const hasSelection = addToBoardIds.size > 0 || newBoardName.trim().length > 0
     if (!hasSelection) return
     const mediaUrl = getPostMediaUrlForDisplay(post)
-    const allMedia = getPostAllMediaForDisplay(post)
     const thumbs = allMedia.length > 0 ? allMedia.map((m) => m.url) : undefined
     const payload = {
       uri: post.uri,
@@ -371,12 +382,12 @@ export default function PostCard({ item, isSelected, cardRef: cardRefProp, addBu
         }
       }
     }
-  }
+  }, [addToBoardIds, newBoardName, post, allMedia, session?.did])
+
 
   const isVideo = hasMedia && media!.type === 'video' && media!.videoPlaylist
   const isMultipleImages = hasMedia && media!.type === 'image' && (media!.imageCount ?? 0) > 1
-  const allMedia = getPostAllMediaForDisplay(post)
-  const imageItems = allMedia.filter((m) => m.type === 'image')
+  const imageItems = useMemo(() => allMedia.filter((m) => m.type === 'image'), [allMedia])
   /** Indices in allMedia for each image (for onMediaRef / focusedMediaIndex when multi-image) */
   const imageMediaIndices = useMemo(
     () => allMedia.map((m, i) => (m.type === 'image' ? i : -1)).filter((i): i is number => i >= 0),
@@ -421,22 +432,43 @@ export default function PostCard({ item, isSelected, cardRef: cardRefProp, addBu
     if (!isVideo || !media?.videoPlaylist || !videoRef.current) return
     const video = videoRef.current
     const src = media!.videoPlaylist
-    if (Hls.isSupported() && isHlsUrl(src)) {
-      const hls = new Hls()
-      hlsRef.current = hls
-      hls.loadSource(src)
-      hls.attachMedia(video)
-      hls.on(Hls.Events.ERROR, () => {})
-      return () => {
-        hls.destroy()
-        hlsRef.current = null
-      }
-    }
-    if (video.canPlayType('application/vnd.apple.mpegurl') || !isHlsUrl(src)) {
+    
+    let cleanup: (() => void) | undefined
+    
+    if (isHlsUrl(src)) {
+      loadHls().then((Hls) => {
+        if (!videoRef.current) return
+        if (Hls.isSupported()) {
+          const hls = new Hls()
+          hlsRef.current = hls
+          hls.loadSource(src)
+          hls.attachMedia(video)
+          hls.on(Hls.Events.ERROR, () => {})
+          cleanup = () => {
+            hls.destroy()
+            hlsRef.current = null
+          }
+        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+          video.src = src
+          cleanup = () => {
+            video.removeAttribute('src')
+          }
+        }
+      }).catch(() => {
+        // Fallback to native playback if hls.js fails to load
+        if (video.canPlayType('application/vnd.apple.mpegurl')) {
+          video.src = src
+        }
+      })
+    } else {
       video.src = src
-      return () => {
+      cleanup = () => {
         video.removeAttribute('src')
       }
+    }
+    
+    return () => {
+      cleanup?.()
     }
   }, [isVideo, media?.videoPlaylist])
 
@@ -509,20 +541,20 @@ export default function PostCard({ item, isSelected, cardRef: cardRefProp, addBu
     return () => observer.disconnect()
   }, [hasMedia, post.uri, unblurredUris, setUnblurred])
 
-  function onMediaEnter() {
+  const onMediaEnter = useCallback(() => {
     if (videoRef.current) {
       videoRef.current.play().catch(() => {})
     }
-  }
+  }, [])
 
-  function onMediaLeave() {
+  const onMediaLeave = useCallback(() => {
     if (videoRef.current) {
       videoRef.current.pause()
       videoRef.current.currentTime = 0
     }
-  }
+  }, [])
 
-  function handleCardClick(e: React.MouseEvent) {
+  const handleCardClick = useCallback((e: React.MouseEvent) => {
     if (didDoubleTapRef.current) {
       didDoubleTapRef.current = false
       e.preventDefault()
@@ -536,14 +568,14 @@ export default function PostCard({ item, isSelected, cardRef: cardRefProp, addBu
     } else {
       navigate(`/post/${encodeURIComponent(post.uri)}`)
     }
-  }
+  }, [didDoubleTapRef, touchSessionRef, onPostClick, post.uri, item, navigate])
 
-  function openPost() {
+  const openPost = useCallback(() => {
     if (onPostClick) onPostClick(post.uri, { initialItem: item })
     else navigate(`/post/${encodeURIComponent(post.uri)}`)
-  }
+  }, [onPostClick, post.uri, item, navigate])
 
-  function handleMediaDoubleTapLike() {
+  const handleMediaDoubleTapLike = useCallback(() => {
     if (!session?.did) {
       openLoginModal()
       return
@@ -560,9 +592,9 @@ export default function PostCard({ item, isSelected, cardRef: cardRefProp, addBu
         onLikedChange?.(post.uri, res.uri)
       }).catch(() => setLikedUri(undefined))
     }
-  }
+  }, [session?.did, openLoginModal, effectiveLikedUri, post.uri, post.cid, onLikedChange])
 
-  function handleMediaClick(e: React.MouseEvent) {
+  const handleMediaClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
     if (mediaClickFromTouchRef.current) return
     const now = Date.now()
@@ -573,7 +605,7 @@ export default function PostCard({ item, isSelected, cardRef: cardRefProp, addBu
       lastMediaClickRef.current = now
       setTimeout(() => openPost(), 400)
     }
-  }
+  }, [mediaClickFromTouchRef, lastMediaClickRef, handleMediaDoubleTapLike, openPost])
 
   const setCardRef = useCallback(
     (el: HTMLDivElement | null) => {
@@ -697,7 +729,7 @@ export default function PostCard({ item, isSelected, cardRef: cardRefProp, addBu
                   onClick={(e) => e.stopPropagation()}
                 >
                   {externalLink.thumb ? (
-                    <img src={externalLink.thumb} alt="" className={styles.textOnlyPreviewLinkThumb} loading="lazy" />
+                    <ProgressiveImage src={externalLink.thumb} alt="" className={styles.textOnlyPreviewLinkThumb} loading="lazy" />
                   ) : null}
                   <span className={styles.textOnlyPreviewLinkTitle}>{externalLink.title}</span>
                   {externalLink.description ? (
@@ -719,6 +751,7 @@ export default function PostCard({ item, isSelected, cardRef: cardRefProp, addBu
                 playsInline
                 loop
                 preload="metadata"
+                style={{ aspectRatio: mediaAspect != null ? `${mediaAspect}` : undefined }}
                 onLoadedMetadata={(e) => {
                   const v = e.currentTarget
                   if (!v.videoWidth || !v.videoHeight) return
@@ -749,12 +782,11 @@ export default function PostCard({ item, isSelected, cardRef: cardRefProp, addBu
                           className={`${styles.mediaGridCell} ${isFocused ? styles.mediaGridCellFocused : ''}`}
                           style={{ flex: `${1 / (imgItem.aspectRatio || 1)} 1 0` }}
                         >
-                          <img
+                          <ProgressiveImage
                             src={imgItem.url}
                             alt=""
                             className={styles.mediaGridImg}
                             loading="lazy"
-                            decoding="async"
                             onLoad={idx === 0 ? handleImageLoad : undefined}
                           />
                         </div>
@@ -765,7 +797,7 @@ export default function PostCard({ item, isSelected, cardRef: cardRefProp, addBu
             </>
           ) : (
             <>
-              <img src={currentImageUrl} alt="" className={styles.media} loading="lazy" decoding="async" onLoad={handleImageLoad} />
+              <ProgressiveImage src={currentImageUrl} alt="" className={styles.media} loading="eager" onLoad={handleImageLoad} />
             </>
           )}
           {nsfwBlurred && onNsfwUnblur && hasMedia && (
@@ -887,7 +919,7 @@ export default function PostCard({ item, isSelected, cardRef: cardRefProp, addBu
                     onClick={(e) => e.stopPropagation()}
                     aria-label={`View @${handle} profile`}
                   >
-                    <img src={post.author.avatar} alt="" loading="lazy" />
+                    <ProgressiveImage src={post.author.avatar} alt="" loading="lazy" />
                   </ProfileLink>
                 ) : (
                   <button
@@ -900,7 +932,7 @@ export default function PostCard({ item, isSelected, cardRef: cardRefProp, addBu
                     aria-label={`Follow @${handle}`}
                     title={`Follow @${handle}`}
                   >
-                    <img src={post.author.avatar} alt="" loading="lazy" />
+                    <ProgressiveImage src={post.author.avatar} alt="" loading="lazy" />
                     <span className={styles.cardActionRowAvatarPlus} aria-hidden>
                       <svg viewBox="0 0 8 8" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
                         <path d="M4 2v4M2 4h4" />
@@ -970,7 +1002,7 @@ export default function PostCard({ item, isSelected, cardRef: cardRefProp, addBu
           <div className={styles.handleBlock}>
             <div className={styles.handleRow}>
               {post.author.avatar ? (
-                <img src={post.author.avatar} alt="" className={styles.authorAvatar} loading="lazy" />
+                <ProgressiveImage src={post.author.avatar} alt="" className={styles.authorAvatar} loading="lazy" />
               ) : post.author.did ? (
                 <span className={styles.authorAvatarPlaceholder} aria-hidden>
                   {(handle || post.author.did).slice(0, 1).toUpperCase()}
@@ -1040,3 +1072,38 @@ export default function PostCard({ item, isSelected, cardRef: cardRefProp, addBu
     </div>
   )
 }
+
+// Wrap PostCard with React.memo and custom comparison function
+// to prevent re-renders when props haven't meaningfully changed
+export default memo(PostCard, (prevProps, nextProps) => {
+  // Return true if props are equal (should NOT re-render)
+  // Return false if props are different (should re-render)
+  
+  // Check critical props that affect rendering
+  if (prevProps.item.post.uri !== nextProps.item.post.uri) return false
+  if (prevProps.isSelected !== nextProps.isSelected) return false
+  if (prevProps.likedUriOverride !== nextProps.likedUriOverride) return false
+  if (prevProps.seen !== nextProps.seen) return false
+  if (prevProps.nsfwBlurred !== nextProps.nsfwBlurred) return false
+  if (prevProps.fillCell !== nextProps.fillCell) return false
+  if (prevProps.constrainMediaHeight !== nextProps.constrainMediaHeight) return false
+  if (prevProps.openAddDropdown !== nextProps.openAddDropdown) return false
+  if (prevProps.cardIndex !== nextProps.cardIndex) return false
+  if (prevProps.actionsMenuOpenForIndex !== nextProps.actionsMenuOpenForIndex) return false
+  if (prevProps.focusedMediaIndex !== nextProps.focusedMediaIndex) return false
+  
+  // Check if the post content has changed (cid is the content identifier)
+  if (prevProps.item.post.cid !== nextProps.item.post.cid) return false
+  
+  // Check if like/repost counts changed
+  const prevLikeCount = prevProps.item.post.likeCount
+  const nextLikeCount = nextProps.item.post.likeCount
+  if (prevLikeCount !== nextLikeCount) return false
+  
+  const prevRepostCount = prevProps.item.post.repostCount
+  const nextRepostCount = nextProps.item.post.repostCount
+  if (prevRepostCount !== nextRepostCount) return false
+  
+  // All critical props are equal, skip re-render
+  return true
+})

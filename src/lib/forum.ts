@@ -5,8 +5,9 @@
  * (app.artsky.forum.reply), pinned posts, wiki pages, and draft posts.
  */
 
-import { agent, getSession, parseAtUri, publicAgent } from './bsky'
+import { agent, getFollows, getSession, parseAtUri, publicAgent } from './bsky'
 import type { ForumPost, ForumReply } from '../types'
+import { FORUM_DISCOVERY_DIDS } from '../config/forumLexicon'
 
 const FORUM_POST_COLLECTION = 'app.artsky.forum.post'
 const FORUM_REPLY_COLLECTION = 'app.artsky.forum.reply'
@@ -36,6 +37,40 @@ export async function createForumPost(opts: {
     validate: false,
   })
   return { uri: res.data.uri, cid: res.data.cid }
+}
+
+/** List forum posts from you + people you follow + optional discovery DIDs. For Forum Discover tab. */
+export async function listForumPostsFromFollowedAndDiscovery(): Promise<ForumPost[]> {
+  const session = getSession()
+  if (!session?.did) return []
+  const client = agent
+  const limitPerRepo = 20
+  const maxFollows = 100
+  const didsToFetch = new Set<string>([session.did, ...FORUM_DISCOVERY_DIDS])
+  try {
+    const { dids: followDids } = await getFollows(client, session.did, { limit: maxFollows })
+    followDids.forEach((d) => didsToFetch.add(d))
+  } catch {
+    // ignore
+  }
+  const byUri = new Map<string, ForumPost>()
+  await Promise.all(
+    Array.from(didsToFetch).map(async (did) => {
+      try {
+        const { posts } = await listForumPosts(did, { limit: limitPerRepo })
+        for (const p of posts) if (!byUri.has(p.uri)) byUri.set(p.uri, p)
+      } catch {
+        // skip
+      }
+    })
+  )
+  const merged = Array.from(byUri.values())
+  merged.sort((a, b) => {
+    const ta = new Date(a.createdAt ?? 0).getTime()
+    const tb = new Date(b.createdAt ?? 0).getTime()
+    return tb - ta
+  })
+  return merged
 }
 
 /** List forum posts from a user's repo. */

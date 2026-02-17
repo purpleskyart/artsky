@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { getQuotes } from '../lib/bsky'
 import type { TimelineItem } from '../lib/bsky'
-import VirtualizedProfileColumn from './VirtualizedProfileColumn'
+import ProfileColumn from './ProfileColumn'
 import AppModal from './AppModal'
 import { useProfileModal } from '../context/ProfileModalContext'
 import { useModeration } from '../context/ModerationContext'
@@ -91,10 +91,9 @@ export default function QuotesModal({ postUri, onClose, onBack, canGoBack }: Quo
         ) : (
           <>
             <div className={`${profileGridStyles.gridColumns} ${profileGridStyles.gridView1}`}>
-              <VirtualizedProfileColumn
+              <ProfileColumn
                 column={items.map((item, i) => ({ item, originalIndex: i }))}
                 colIndex={0}
-                scrollMargin={0}
                 scrollRef={modalScrollRef}
                 loadMoreSentinelRef={cursor ? (el) => { (loadMoreSentinelRef as unknown as { current: HTMLDivElement | null }).current = el } : undefined}
                 hasCursor={!!cursor}

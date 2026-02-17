@@ -90,7 +90,7 @@ function HomeIcon({ active }: { active?: boolean }) {
   )
 }
 
-/** Eye-off icon for seen-posts button (tap = hide seen, hold = show seen) */
+/** Eye-off icon for read-posts button (tap = hide read, hold = show read) */
 function SeenPostsIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -1189,7 +1189,7 @@ export default function Layout({ title, children, showNav }: Props) {
               onPointerLeave={endHomeHold}
               onPointerCancel={endHomeHold}
               onClick={homeBtnClick}
-              title="Home (hold to show all seen posts)"
+              title="Home (hold to show all read posts)"
             >
               <span className={styles.navIcon}><HomeIcon active={homeActive} /></span>
             </button>
@@ -1558,7 +1558,7 @@ export default function Layout({ title, children, showNav }: Props) {
                 type="button"
                 className={styles.logoLink}
                 aria-label="ArtSky – back to feed"
-                title={path === '/feed' ? 'Home (hold to show all seen posts)' : 'Back to feed'}
+                title={path === '/feed' ? 'Home (hold to show all read posts)' : 'Back to feed'}
                 onPointerDown={startHomeHold}
                 onPointerUp={endHomeHold}
                 onPointerLeave={endHomeHold}
@@ -1822,7 +1822,7 @@ export default function Layout({ title, children, showNav }: Props) {
       </header>
       )}
       {showNav && !isDesktop && (
-        <div className={`${styles.feedsFloatWrap} feeds-float-wrap`} ref={feedsDropdownRef}>
+        <div className={`${styles.feedsFloatWrap} feeds-float-wrap ${mobileNavScrollHidden || (isModalOpen && modalScrollHidden) ? styles.feedsFloatWrapScrollHidden : ''}`} ref={feedsDropdownRef}>
           <button
             ref={feedsBtnRef}
             type="button"
@@ -1890,7 +1890,7 @@ export default function Layout({ title, children, showNav }: Props) {
         </div>
       )}
       {showNav && !isDesktop && path === '/feed' && (
-        <div ref={gearFloatWrapRef} className={`${styles.gearFloatWrap} ${isModalOpen ? styles.gearFloatWrapModalOpen : ''} ${isModalOpen && modalScrollHidden ? styles.gearFloatWrapScrollHidden : ''}`}>
+        <div ref={gearFloatWrapRef} className={`${styles.gearFloatWrap} ${isModalOpen ? styles.gearFloatWrapModalOpen : ''} ${mobileNavScrollHidden || (isModalOpen && modalScrollHidden) ? styles.gearFloatWrapScrollHidden : ''}`}>
           <button
             type="button"
             className={`${styles.feedFloatBtn} float-btn ${feedFloatButtonsExpanded ? styles.feedFloatGearActive : ''}`}
@@ -1983,7 +1983,7 @@ export default function Layout({ title, children, showNav }: Props) {
         </div>
       )}
       {showNav && !isDesktop && !session && (
-        <div className={`${styles.loginFloatWrap} login-float-wrap`}>
+        <div className={`${styles.loginFloatWrap} login-float-wrap ${mobileNavScrollHidden || (isModalOpen && modalScrollHidden) ? styles.loginFloatWrapScrollHidden : ''}`}>
           <button
             type="button"
             className={`${styles.loginFloatBtn} float-btn`}
@@ -1996,7 +1996,7 @@ export default function Layout({ title, children, showNav }: Props) {
         </div>
       )}
       {showNav && !isDesktop && session && (
-        <div className={`${styles.notificationFloatWrap} notification-float-wrap`}>
+        <div className={`${styles.notificationFloatWrap} notification-float-wrap ${mobileNavScrollHidden || (isModalOpen && modalScrollHidden) ? styles.notificationFloatWrapScrollHidden : ''}`}>
           <button
             ref={notificationsBtnRef}
             type="button"
@@ -2082,8 +2082,8 @@ export default function Layout({ title, children, showNav }: Props) {
                 onPointerLeave={endSeenHold}
                 onPointerCancel={endSeenHold}
                 onClick={(e) => seenBtnClick(e)}
-                title="Tap to hide seen posts, hold to show them again"
-                aria-label="Seen posts: tap to hide, hold to show again"
+                title="Tap to hide read posts, hold to show them again"
+                aria-label="Read posts: tap to hide, hold to show again"
               >
                 <SeenPostsIcon />
               </button>

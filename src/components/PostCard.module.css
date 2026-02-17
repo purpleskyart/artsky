@@ -14,8 +14,7 @@
   scroll-margin-top: 5rem;
   container-type: inline-size;
   container-name: postcard;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-  will-change: transform;
+  transition: box-shadow 0.2s ease;
   transform-origin: center center;
 }
 
@@ -40,11 +39,10 @@
   box-shadow: none;
 }
 
-/* Focused/selected: lift toward user (scale + shadow + purple border on desktop) */
+/* Focused/selected: lift toward user (shadow + purple border on desktop) */
 .cardSelected {
   outline: none;
   z-index: 10;
-  transform: scale(1.01);
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
 }
 .cardSelected::after {
@@ -53,8 +51,9 @@
 
 /* Desktop: purple border on focused cards */
 @media (hover: hover) {
-  .cardSelected {
-    outline: 2px solid #a855f7;
+  .cardSelected,
+  .cardSelected:focus-within {
+    outline: 2px solid #a855f7 !important;
     outline-offset: 0px;
   }
 }
@@ -144,19 +143,24 @@ html[data-theme="dark"] [data-view-mode="1"] .cardSelected {
   border-radius: calc(var(--glass-radius-sm) - 1px) calc(var(--glass-radius-sm) - 1px) 0 0;
 }
 
-/* Darken card when marked as seen (scrolled past) */
-.cardSeen {
+/* Darken card when marked as seen (scrolled past) - but not the media */
+.cardSeen .meta,
+.cardSeen .handleBlock,
+.cardSeen .textOnlyPreview,
+.cardSeen .cardActionRow {
   filter: brightness(0.82);
 }
 /* Dark mode: stronger seen dimming so the difference from unseen is clear */
-html[data-theme="dark"] .cardSeen {
+html[data-theme="dark"] .cardSeen .meta,
+html[data-theme="dark"] .cardSeen .handleBlock,
+html[data-theme="dark"] .cardSeen .textOnlyPreview,
+html[data-theme="dark"] .cardSeen .cardActionRow {
   filter: brightness(0.68);
 }
 
-/* Hover: lift toward user (scale + shadow + purple border on desktop) */
+/* Hover: lift toward user (shadow + purple border on desktop) */
 .card:hover {
   outline: none;
-  transform: scale(1.02);
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
   z-index: 10;
 }
@@ -166,8 +170,9 @@ html[data-theme="dark"] .cardSeen {
 
 /* Desktop: purple border on hover */
 @media (hover: hover) {
-  .card:hover {
-    outline: 2px solid #a855f7;
+  .card:hover,
+  .card:hover:focus-within {
+    outline: 2px solid #a855f7 !important;
     outline-offset: 0px;
   }
 }
@@ -184,7 +189,6 @@ html[data-theme="dark"] [data-view-mode="1"] .card:hover {
 /* When navigating with keyboard (W/S/A/D), only the selected card lifts – not the card under the mouse */
 [data-feed-cards][data-keyboard-nav] .card:hover:not(.cardSelected) {
   outline: none;
-  transform: none;
   box-shadow: none;
 }
 [data-feed-cards][data-keyboard-nav] .card:hover:not(.cardSelected)::after {
@@ -207,8 +211,9 @@ html[data-theme="dark"] [data-view-mode="1"] .card:hover {
 
 /* Desktop: purple border on hover for liked cards */
 @media (hover: hover) {
-  .card.cardLiked:hover {
-    outline: 2px solid #a855f7;
+  .card.cardLiked:hover,
+  .card.cardLiked:hover:focus-within {
+    outline: 2px solid #a855f7 !important;
     outline-offset: 0px;
   }
 }
@@ -221,8 +226,9 @@ html[data-theme="dark"] [data-view-mode="1"] .card:hover {
 
 /* Desktop: purple border on focused cards in artboard */
 @media (hover: hover) {
-  .card.cardSelected.cardInArtboard {
-    outline: 2px solid #a855f7;
+  .card.cardSelected.cardInArtboard,
+  .card.cardSelected.cardInArtboard:focus-within {
+    outline: 2px solid #a855f7 !important;
     outline-offset: 0px;
   }
 }
@@ -233,8 +239,9 @@ html[data-theme="dark"] [data-view-mode="1"] .card:hover {
 
 /* Desktop: purple border shows on top of pink liked border */
 @media (hover: hover) {
-  .card.cardSelected.cardLiked {
-    outline: 2px solid #a855f7;
+  .card.cardSelected.cardLiked,
+  .card.cardSelected.cardLiked:focus-within {
+    outline: 2px solid #a855f7 !important;
     outline-offset: 0px;
   }
 }
@@ -274,9 +281,15 @@ html[data-theme="dark"] [data-view-mode="1"] .card:hover {
   outline: none !important;
   z-index: 10;
 }
+/* On desktop, keep outline when card has focus within (e.g., when menu is open) */
+@media (hover: hover) {
+  .card:focus-within {
+    outline: 2px solid #a855f7 !important;
+    outline-offset: 0px;
+  }
+}
 /* Lift card (scale + shadow) only when focus is not on a media grid cell – otherwise card scale + cell scale makes the top image’s corners extend past the card’s rounded clip */
 .card:focus-within:not(:has(.mediaGridCellFocused)) {
-  transform: scale(1.01);
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
 }
 .card:focus-within:not(:has(.mediaGridCellFocused))::after {
@@ -330,12 +343,7 @@ html[data-theme="dark"] [data-view-mode="1"] .card:focus-within:not(:has(.mediaG
   .cardActionRowCenter {
     gap: 0.35rem;
   }
-  /* No scale on tap/focus on mobile – preview cards and focus stay same size */
-  .cardSelected,
-  .card:hover,
-  .card:focus-within:not(:has(.mediaGridCellFocused)) {
-    transform: none;
-  }
+  /* No shadow on focus on mobile */
   .card:focus-within:not(:has(.mediaGridCellFocused)) {
     box-shadow: none;
   }
@@ -414,8 +422,6 @@ html[data-theme="dark"] [data-view-mode="1"] .card:focus-within:not(:has(.mediaG
 .cardActionRowAvatar {
   display: block;
   flex-shrink: 0;
-  border-radius: 50%;
-  overflow: visible;
   line-height: 0;
   position: relative;
   width: 1.35rem;

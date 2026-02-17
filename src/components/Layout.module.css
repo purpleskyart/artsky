@@ -61,7 +61,7 @@
   to   { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
 
-/* Same as nsfwAnnouncement but positioned above the anchor (e.g. hide seen posts button) */
+/* Same as nsfwAnnouncement but positioned above the anchor (e.g. hide read posts button) */
 .seenPostsAnnouncement {
   position: fixed;
   transform: translate(-50%, -100%);
@@ -986,7 +986,6 @@ button.logoLink {
   box-shadow: var(--shadow-dropdown);
   z-index: 30;
 }
-
 /* Mobile: floating Feeds button (purplesky-style, top center) */
 .feedsFloatWrap {
   position: fixed;
@@ -997,6 +996,12 @@ button.logoLink {
   display: flex;
   flex-direction: column;
   align-items: center;
+  transition: opacity var(--transition-fast);
+}
+
+.feedsFloatWrap.feedsFloatWrapScrollHidden {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .feedsFloatBtn {
@@ -1059,22 +1064,26 @@ button.logoLink {
   }
 }
 
-/* Mobile: gear button top-left, slides right when modal open to make space for back button */
+/* Mobile: gear button positioned to the right of the back button (which appears when modals open) */
 .gearFloatWrap {
   position: fixed;
   top: max(var(--space-md), env(safe-area-inset-top, 59px));
-  left: max(1rem, env(safe-area-inset-left));
+  left: max(var(--space-md), env(safe-area-inset-left));
   z-index: 1101;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 0.5rem;
   pointer-events: auto;
-  transition: transform var(--transition-fast);
+}
+
+/* When modal is open, position gear to the right of the back button */
+.gearFloatWrap.gearFloatWrapModalOpen {
+  left: calc(max(var(--space-md), env(safe-area-inset-left)) + 2rem + 0.5rem);
 }
 
 .gearFloatWrap > .feedFloatBtn {
-  transition: transform var(--transition-fast), color var(--transition-fast), background var(--transition-fast);
+  transition: color var(--transition-fast), background var(--transition-fast);
 }
 
 .gearFloatWrap .feedFloatBtn svg,
@@ -1082,10 +1091,6 @@ button.logoLink {
 .gearFloatWrap .feedFloatThemeIcon svg {
   width: 1.125rem;
   height: 1.125rem;
-}
-
-.gearFloatWrapModalOpen {
-  transform: translateX(2.5rem);
 }
 
 /* Hide gear when scrolling down in modal (same as nav) */
@@ -1165,6 +1170,12 @@ button.logoLink {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
+  transition: opacity var(--transition-fast);
+}
+
+.loginFloatWrap.loginFloatWrapScrollHidden {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .loginFloatBtn {
@@ -1197,6 +1208,12 @@ button.logoLink {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
+  transition: opacity var(--transition-fast);
+}
+
+.notificationFloatWrap.notificationFloatWrapScrollHidden {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .notificationFloatBtn {
@@ -1215,7 +1232,6 @@ button.logoLink {
   cursor: pointer;
   font: inherit;
   -webkit-tap-highlight-color: transparent;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
   position: relative;
 }
 
@@ -2010,6 +2026,7 @@ button.logoLink {
   width: 2rem;
   height: 2rem;
   padding: 0;
+  color: var(--muted);
   border-radius: 50%;
   cursor: pointer;
   font: inherit;
@@ -2550,10 +2567,13 @@ button.logoLink {
 
 @media (max-width: 767px) {
   .composeOverlayMobile {
-    align-items: flex-end;
+    align-items: center;
     justify-content: center;
-    padding-bottom: 1.75rem;
-    padding-bottom: calc(1.75rem + env(safe-area-inset-bottom));
+    padding: 1.5rem;
+    padding-left: max(1.5rem, env(safe-area-inset-left));
+    padding-right: max(1.5rem, env(safe-area-inset-right));
+    padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
+    padding-top: max(1.5rem, env(safe-area-inset-top));
   }
 }
 

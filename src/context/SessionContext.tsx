@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { Agent } from '@atproto/api'
 import type { AtpSessionData } from '@atproto/api'
 import { REPO_URL } from '../config/repo'
@@ -17,11 +17,6 @@ interface SessionContextValue {
 
 const SessionContext = createContext<SessionContextValue | null>(null)
 
-function isLocalhost(): boolean {
-  if (typeof window === 'undefined') return false
-  return window.location.hostname === 'localhost'
-}
-
 function getInitialSession(): AtpSessionData | null {
   try {
     const fromAgent = bsky.getSession()
@@ -38,7 +33,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [loading] = useState(false)
 
   useEffect(() => {
-    if (bsky.getStoredSession()) bsky.requestPersistentStorage()
+    // Removed requestPersistentStorage - modern browsers handle storage persistence automatically
   }, [])
 
   useEffect(() => {
@@ -50,44 +45,41 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       if (cancelled) return
       try {
         setSession(ok ? bsky.getSession() : null)
-        if (ok) bsky.requestPersistentStorage()
       } catch {
         setSession(null)
       }
     }
 
     async function init() {
-      // On localhost, skip OAuth init so the app doesn't redirect to 127.0.0.1 (library behavior).
-      if (!isLocalhost()) {
-        const oauthAccounts = bsky.getOAuthAccountsSnapshot()
-        try {
-          const search = typeof window !== 'undefined' ? window.location.search : ''
-          const params = new URLSearchParams(search)
-          const hasCallback = params.has('state') && (params.has('code') || params.has('error'))
-          const waitMs = hasCallback ? 12_000 : oauthTimeoutMs
-          const oauthResult = await Promise.race([
-            oauth.initOAuth({
-              hasCallback,
-              preferredRestoreDid: !hasCallback ? oauthAccounts.activeDid ?? undefined : undefined,
-            }),
-            new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), waitMs)),
-          ])
-          if (cancelled) return
-          if (oauthResult?.session) {
-            bsky.addOAuthDid(oauthResult.session.did)
-            const agent = new Agent(oauthResult.session)
-            bsky.setOAuthAgent(agent, oauthResult.session)
-            finish(true)
-            return
-          }
-        } catch (err) {
-          // If session was deleted elsewhere (e.g. another tab/device), clear it so user can sign in again
-          const msg = err instanceof Error ? err.message : String(err)
-          if (/session was deleted|TokenRefreshError/i.test(msg) && oauthAccounts.activeDid) {
-            bsky.removeOAuthDid(oauthAccounts.activeDid)
-          }
-          // OAuth init failed; fall back to credential
+      // Try OAuth initialization first
+      const oauthAccounts = bsky.getOAuthAccountsSnapshot()
+      try {
+        const search = typeof window !== 'undefined' ? window.location.search : ''
+        const params = new URLSearchParams(search)
+        const hasCallback = params.has('state') && (params.has('code') || params.has('error'))
+        const waitMs = hasCallback ? 12_000 : oauthTimeoutMs
+        const oauthResult = await Promise.race([
+          oauth.initOAuth({
+            hasCallback,
+            preferredRestoreDid: !hasCallback ? oauthAccounts.activeDid ?? undefined : undefined,
+          }),
+          new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), waitMs)),
+        ])
+        if (cancelled) return
+        if (oauthResult?.session) {
+          bsky.addOAuthDid(oauthResult.session.did)
+          const agent = new Agent(oauthResult.session)
+          bsky.setOAuthAgent(agent, oauthResult.session)
+          finish(true)
+          return
         }
+      } catch (err) {
+        // If session was deleted elsewhere (e.g. another tab/device), clear it so user can sign in again
+        const msg = err instanceof Error ? err.message : String(err)
+        if (/session was deleted|TokenRefreshError/i.test(msg) && oauthAccounts.activeDid) {
+          bsky.removeOAuthDid(oauthAccounts.activeDid)
+        }
+        // OAuth init failed; fall back to credential
       }
       const ok = await Promise.race([
         bsky.resumeSession(),
@@ -105,7 +97,6 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const login = useCallback(async (identifier: string, password: string) => {
     await bsky.login(identifier, password)
     setSession(bsky.getSession())
-    bsky.requestPersistentStorage()
   }, [])
 
   const logout = useCallback(async () => {
@@ -130,15 +121,18 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     // localStorage or bsky not ready yet
   }
 
-  const value: SessionContextValue = {
-    session,
-    sessionsList,
-    loading,
-    login,
-    logout,
-    switchAccount,
-    refreshSession,
-  }
+  const value: SessionContextValue = useMemo(
+    () => ({
+      session,
+      sessionsList,
+      loading,
+      login,
+      logout,
+      switchAccount,
+      refreshSession,
+    }),
+    [session, sessionsList, loading, login, logout, switchAccount, refreshSession]
+  )
 
   return (
     <SessionContext.Provider value={value}>

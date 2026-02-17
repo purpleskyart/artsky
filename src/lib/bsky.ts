@@ -2,6 +2,10 @@ import { Agent, AtpAgent, RichText, type AtpSessionData, type AtpSessionEvent } 
 import type { AppBskyActorDefs, AppBskyFeedDefs } from '@atproto/api'
 import { GUEST_FEED_ACCOUNTS } from '../config/guestFeed'
 import * as oauth from './oauth'
+import { requestDeduplicator } from './RequestDeduplicator'
+import { responseCache } from './ResponseCache'
+import { retryWithBackoff } from './retryWithBackoff'
+import { getApiErrorMessage, shouldRetryError } from './apiErrors'
 
 const BSKY_SERVICE = 'https://bsky.social'
 /** Public AppView for unauthenticated reads (profiles, feeds). */
@@ -9,17 +13,6 @@ const PUBLIC_BSKY = 'https://public.api.bsky.app'
 const SESSION_KEY = 'artsky-bsky-session'
 const ACCOUNTS_KEY = 'artsky-accounts'
 const OAUTH_ACCOUNTS_KEY = 'artsky-oauth-accounts'
-
-/** Ask the browser to keep our storage (helps PWA stay logged in when app is closed). */
-export function requestPersistentStorage(): void {
-  try {
-    if (typeof navigator !== 'undefined' && typeof navigator.storage?.persist === 'function') {
-      void navigator.storage.persist()
-    }
-  } catch {
-    // ignore
-  }
-}
 
 type AccountsStore = { activeDid: string | null; sessions: Record<string, AtpSessionData> }
 type OAuthAccountsStore = { activeDid: string | null; dids: string[] }
@@ -383,7 +376,8 @@ export type FeedMixEntryInput = { source: { kind: 'timeline' | 'custom'; uri?: s
 export async function getMixedFeed(
   entries: FeedMixEntryInput[],
   limit: number,
-  cursors?: Record<string, string>
+  cursors?: Record<string, string>,
+  signal?: AbortSignal
 ): Promise<{ feed: TimelineItem[]; cursors: Record<string, string> }> {
   const totalPercent = entries.reduce((s, e) => s + e.percent, 0)
   if (entries.length === 0 || totalPercent <= 0) {
@@ -395,16 +389,66 @@ export async function getMixedFeed(
       const key = entry.source.kind === 'timeline' ? 'timeline' : (entry.source.uri ?? '')
       const cursor = cursors?.[key]
       try {
+        // Check if request was cancelled
+        if (signal?.aborted) {
+          throw new Error('Request cancelled')
+        }
+        
         if (entry.source.kind === 'timeline') {
-          const res = await agent.getTimeline({ limit: fetchLimit, cursor })
-          return { key, feed: res.data.feed, nextCursor: res.data.cursor ?? undefined }
+          // Use deduplication and caching for timeline requests
+          const cacheKey = `timeline:${fetchLimit}:${cursor ?? 'initial'}`
+          
+          // Check cache first
+          const cached = responseCache.get<{ feed: TimelineItem[]; cursor?: string }>(cacheKey)
+          if (cached) {
+            return { key, feed: cached.feed, nextCursor: cached.cursor }
+          }
+          
+          // Deduplicate concurrent requests with retry logic and custom error handling
+          const res = await requestDeduplicator.dedupe(
+            cacheKey,
+            () => retryWithBackoff(
+              () => agent.getTimeline({ limit: fetchLimit, cursor }),
+              { shouldRetry: shouldRetryError }
+            )
+          )
+          
+          const result = { feed: res.data.feed, cursor: res.data.cursor ?? undefined }
+          
+          // Cache the response (1 minute TTL)
+          responseCache.set(cacheKey, result, 60000)
+          
+          return { key, feed: result.feed, nextCursor: result.cursor }
         }
         if (entry.source.uri) {
-          const res = await agent.app.bsky.feed.getFeed({ feed: entry.source.uri, limit: fetchLimit, cursor })
-          return { key, feed: res.data.feed, nextCursor: res.data.cursor }
+          // Use deduplication and caching for feed requests
+          const cacheKey = `feed:${entry.source.uri}:${fetchLimit}:${cursor ?? 'initial'}`
+          
+          // Check cache first
+          const cached = responseCache.get<{ feed: TimelineItem[]; cursor?: string }>(cacheKey)
+          if (cached) {
+            return { key, feed: cached.feed, nextCursor: cached.cursor }
+          }
+          
+          // Deduplicate concurrent requests with retry logic and custom error handling
+          const res = await requestDeduplicator.dedupe(
+            cacheKey,
+            () => retryWithBackoff(
+              () => agent.app.bsky.feed.getFeed({ feed: entry.source.uri!, limit: fetchLimit, cursor }),
+              { shouldRetry: shouldRetryError }
+            )
+          )
+          
+          const result = { feed: res.data.feed, cursor: res.data.cursor }
+          
+          // Cache the response (1 minute TTL)
+          responseCache.set(cacheKey, result, 60000)
+          
+          return { key, feed: result.feed, nextCursor: result.cursor }
         }
-      } catch {
-        // ignore failed feed
+      } catch (error) {
+        // Log user-friendly error message but don't fail the entire feed
+        console.warn(getApiErrorMessage(error, `load ${key} feed`))
       }
       return { key, feed: [] as TimelineItem[], nextCursor: undefined }
     })
@@ -493,7 +537,11 @@ export function getPostMediaInfo(post: PostView): PostMediaInfo | null {
   if (embed.$type === 'app.bsky.embed.video#view') {
     const thumb = embed.thumbnail ?? ''
     const playlist = embed.playlist ?? ''
-    return { url: thumb, type: 'video', videoPlaylist: playlist || undefined }
+    const aspectRatio = (embed as { aspectRatio?: { width: number; height: number } }).aspectRatio
+    const ar = aspectRatio && aspectRatio.width > 0 && aspectRatio.height > 0
+      ? aspectRatio.width / aspectRatio.height
+      : undefined
+    return { url: thumb, type: 'video', videoPlaylist: playlist || undefined, aspectRatio: ar }
   }
   // recordWithMedia: media can be in .media
   const media = (embed as {
@@ -518,10 +566,15 @@ export function getPostMediaInfo(post: PostView): PostMediaInfo | null {
   }
   if (media?.$type === 'app.bsky.embed.video#view') {
     const playlist = (media as { playlist?: string }).playlist
+    const aspectRatio = (media as { aspectRatio?: { width: number; height: number } }).aspectRatio
+    const ar = aspectRatio && aspectRatio.width > 0 && aspectRatio.height > 0
+      ? aspectRatio.width / aspectRatio.height
+      : undefined
     return {
       url: media.thumbnail ?? '',
       type: 'video',
       videoPlaylist: playlist,
+      aspectRatio: ar,
     }
   }
   return null
@@ -549,10 +602,15 @@ export function getPostAllMedia(post: PostView): Array<{ url: string; type: 'ima
     return out
   }
   if (e.$type === 'app.bsky.embed.video#view') {
+    const aspectRatio = (e as { aspectRatio?: { width: number; height: number } }).aspectRatio
+    const ar = aspectRatio && aspectRatio.width > 0 && aspectRatio.height > 0
+      ? aspectRatio.width / aspectRatio.height
+      : undefined
     out.push({
       url: e.thumbnail ?? '',
       type: 'video',
       videoPlaylist: e.playlist ?? undefined,
+      aspectRatio: ar,
     })
     return out
   }
@@ -567,10 +625,15 @@ export function getPostAllMedia(post: PostView): Array<{ url: string; type: 'ima
     return out
   }
   if (media?.$type === 'app.bsky.embed.video#view') {
+    const aspectRatio = (media as { aspectRatio?: { width: number; height: number } }).aspectRatio
+    const ar = aspectRatio && aspectRatio.width > 0 && aspectRatio.height > 0
+      ? aspectRatio.width / aspectRatio.height
+      : undefined
     out.push({
       url: media.thumbnail ?? '',
       type: 'video',
       videoPlaylist: media.playlist,
+      aspectRatio: ar,
     })
   }
   return out
@@ -709,15 +772,27 @@ export async function getQuotes(
   postUri: string,
   opts?: { limit?: number; cursor?: string }
 ): Promise<{ posts: PostView[]; cursor?: string }> {
-  const limit = opts?.limit ?? 30
-  const params = new URLSearchParams()
-  params.set('uri', postUri)
-  params.set('limit', String(limit))
-  if (opts?.cursor) params.set('cursor', opts.cursor)
-  const res = await fetch(`${PUBLIC_BSKY}/xrpc/app.bsky.feed.getQuotes?${params.toString()}`)
-  const data = (await res.json()) as { posts?: PostView[]; cursor?: string; message?: string }
-  if (!res.ok) throw new Error(data.message ?? 'Failed to load quotes')
-  return { posts: data.posts ?? [], cursor: data.cursor }
+  try {
+    const limit = opts?.limit ?? 30
+    const params = new URLSearchParams()
+    params.set('uri', postUri)
+    params.set('limit', String(limit))
+    if (opts?.cursor) params.set('cursor', opts.cursor)
+    
+    const res = await retryWithBackoff(
+      () => fetch(`${PUBLIC_BSKY}/xrpc/app.bsky.feed.getQuotes?${params.toString()}`),
+      { shouldRetry: shouldRetryError }
+    )
+    
+    if (!res.ok) {
+      throw Object.assign(new Error('Failed to load quotes'), { status: res.status })
+    }
+    
+    const data = (await res.json()) as { posts?: PostView[]; cursor?: string; message?: string }
+    return { posts: data.posts ?? [], cursor: data.cursor }
+  } catch (error) {
+    throw new Error(getApiErrorMessage(error, 'load quotes'))
+  }
 }
 
 /** Get suggested feeds for search dropdown. */
@@ -740,13 +815,25 @@ export type ActorFeedView = {
 }
 
 export async function getActorFeeds(actor: string, limit = 50): Promise<ActorFeedView[]> {
-  const params = new URLSearchParams()
-  params.set('actor', actor)
-  params.set('limit', String(limit))
-  const res = await fetch(`${PUBLIC_BSKY}/xrpc/app.bsky.feed.getActorFeeds?${params.toString()}`)
-  const data = (await res.json()) as { feeds?: ActorFeedView[]; message?: string }
-  if (!res.ok) throw new Error(data.message ?? 'Failed to load feeds')
-  return data.feeds ?? []
+  try {
+    const params = new URLSearchParams()
+    params.set('actor', actor)
+    params.set('limit', String(limit))
+    
+    const res = await retryWithBackoff(
+      () => fetch(`${PUBLIC_BSKY}/xrpc/app.bsky.feed.getActorFeeds?${params.toString()}`),
+      { shouldRetry: shouldRetryError }
+    )
+    
+    if (!res.ok) {
+      throw Object.assign(new Error('Failed to load feeds'), { status: res.status })
+    }
+    
+    const data = (await res.json()) as { feeds?: ActorFeedView[]; message?: string }
+    return data.feeds ?? []
+  } catch (error) {
+    throw new Error(getApiErrorMessage(error, 'load feeds'))
+  }
 }
 
 /** Search posts by hashtag (tag without #). Uses agent when logged in (avoids public API CORS/failures), else public App View API. */
@@ -756,29 +843,45 @@ export async function searchPostsByTag(tag: string, cursor?: string) {
 
   if (getSession()) {
     try {
-      const res = await agent.app.bsky.feed.searchPosts({
-        q: normalized,
-        tag: [normalized],
-        limit: 30,
-        sort: 'latest',
-        cursor,
-      })
+      const res = await retryWithBackoff(
+        () => agent.app.bsky.feed.searchPosts({
+          q: normalized,
+          tag: [normalized],
+          limit: 30,
+          sort: 'latest',
+          cursor,
+        }),
+        { shouldRetry: shouldRetryError }
+      )
       return { posts: res.data.posts ?? [], cursor: res.data.cursor }
-    } catch {
-      /* fall through to public API */
+    } catch (error) {
+      // Log error but fall through to public API
+      console.warn(getApiErrorMessage(error, 'search posts'))
     }
   }
 
-  const params = new URLSearchParams()
-  params.set('q', normalized)
-  params.set('tag', normalized)
-  params.set('limit', '30')
-  params.set('sort', 'latest')
-  if (cursor) params.set('cursor', cursor)
-  const res = await fetch(`${PUBLIC_BSKY}/xrpc/app.bsky.feed.searchPosts?${params.toString()}`)
-  const data = (await res.json()) as { posts?: AppBskyFeedDefs.PostView[]; cursor?: string; message?: string }
-  if (!res.ok) throw new Error(data.message ?? 'Failed to load tag')
-  return { posts: data.posts ?? [], cursor: data.cursor }
+  try {
+    const params = new URLSearchParams()
+    params.set('q', normalized)
+    params.set('tag', normalized)
+    params.set('limit', '30')
+    params.set('sort', 'latest')
+    if (cursor) params.set('cursor', cursor)
+    
+    const res = await retryWithBackoff(
+      () => fetch(`${PUBLIC_BSKY}/xrpc/app.bsky.feed.searchPosts?${params.toString()}`),
+      { shouldRetry: shouldRetryError }
+    )
+    
+    if (!res.ok) {
+      throw Object.assign(new Error('Failed to load tag'), { status: res.status })
+    }
+    
+    const data = (await res.json()) as { posts?: AppBskyFeedDefs.PostView[]; cursor?: string; message?: string }
+    return { posts: data.posts ?? [], cursor: data.cursor }
+  } catch (error) {
+    throw new Error(getApiErrorMessage(error, 'load tag'))
+  }
 }
 
 /** Search posts by full-text query (no tag filter). Uses agent when logged in (avoids public API CORS/failures), else public App View API. */
@@ -788,27 +891,43 @@ export async function searchPostsByQuery(q: string, cursor?: string) {
 
   if (getSession()) {
     try {
-      const res = await agent.app.bsky.feed.searchPosts({
-        q: term,
-        limit: 30,
-        sort: 'latest',
-        cursor,
-      })
+      const res = await retryWithBackoff(
+        () => agent.app.bsky.feed.searchPosts({
+          q: term,
+          limit: 30,
+          sort: 'latest',
+          cursor,
+        }),
+        { shouldRetry: shouldRetryError }
+      )
       return { posts: res.data.posts ?? [], cursor: res.data.cursor }
-    } catch {
-      /* fall through to public API */
+    } catch (error) {
+      // Log error but fall through to public API
+      console.warn(getApiErrorMessage(error, 'search posts'))
     }
   }
 
-  const params = new URLSearchParams()
-  params.set('q', term)
-  params.set('limit', '30')
-  params.set('sort', 'latest')
-  if (cursor) params.set('cursor', cursor)
-  const res = await fetch(`${PUBLIC_BSKY}/xrpc/app.bsky.feed.searchPosts?${params.toString()}`)
-  const data = (await res.json()) as { posts?: AppBskyFeedDefs.PostView[]; cursor?: string; message?: string }
-  if (!res.ok) throw new Error(data.message ?? 'Failed to search')
-  return { posts: data.posts ?? [], cursor: data.cursor }
+  try {
+    const params = new URLSearchParams()
+    params.set('q', term)
+    params.set('limit', '30')
+    params.set('sort', 'latest')
+    if (cursor) params.set('cursor', cursor)
+    
+    const res = await retryWithBackoff(
+      () => fetch(`${PUBLIC_BSKY}/xrpc/app.bsky.feed.searchPosts?${params.toString()}`),
+      { shouldRetry: shouldRetryError }
+    )
+    
+    if (!res.ok) {
+      throw Object.assign(new Error('Failed to search'), { status: res.status })
+    }
+    
+    const data = (await res.json()) as { posts?: AppBskyFeedDefs.PostView[]; cursor?: string; message?: string }
+    return { posts: data.posts ?? [], cursor: data.cursor }
+  } catch (error) {
+    throw new Error(getApiErrorMessage(error, 'search posts'))
+  }
 }
 
 /** For multi-word phrase "hello world", derive tag variants: helloworld, hello-world. Returns merged, deduped posts (by uri) and cursor from phrase search for pagination. */
@@ -846,13 +965,13 @@ export async function searchPostsByPhraseAndTags(phrase: string, cursor?: string
   return { posts: merged, cursor: phraseResult.cursor }
 }
 
-/** Domain used for standard.site / long-form blog posts. */
+/** standard.site lexicon: for blog posts only (postcards on home from blogs you follow, profile Blog tab). Not used for Forums; see app.artsky.forum lexicon. */
 export const STANDARD_SITE_DOMAIN = 'standard.site'
 
 /** Standard.site lexicon collection NSIDs (long-form blogs on AT Protocol). */
 export const STANDARD_SITE_DOCUMENT_COLLECTION = 'site.standard.document'
 export const STANDARD_SITE_PUBLICATION_COLLECTION = 'site.standard.publication'
-/** Standard.site comment lexicon (comments on documents; interoperable with leaflet.pub etc.). */
+/** Standard.site comment lexicon (comments on blog documents; interoperable with leaflet.pub etc.). */
 export const STANDARD_SITE_COMMENT_COLLECTION = 'site.standard.comment'
 
 /** Blob ref as returned from uploadBlob (CID reference). */
@@ -888,25 +1007,37 @@ export type StandardSiteDocumentView = {
   mediaRefs?: Array<{ image: StandardSiteDocumentBlobRef; mimeType?: string }>
 }
 
-/** List site.standard.document records from a repo. Does not require the lexicon to be installed. */
+/** List site.standard.document records from a repo. Does not require the lexicon to be installed.
+ * Returns empty list if the PDS rejects the collection (e.g. Bluesky's Enoki returns 400 for site.standard.document). */
 export async function listStandardSiteDocuments(
   client: AtpAgent,
   repo: string,
   opts?: { limit?: number; cursor?: string; reverse?: boolean }
 ): Promise<{ records: { uri: string; cid: string; value: StandardSiteDocumentRecord }[]; cursor?: string }> {
-  const res = await client.com.atproto.repo.listRecords({
-    repo,
-    collection: STANDARD_SITE_DOCUMENT_COLLECTION,
-    limit: opts?.limit ?? 30,
-    cursor: opts?.cursor,
-    reverse: opts?.reverse ?? true,
-  })
-  const records = (res.data.records ?? []).map((r: { uri: string; cid: string; value: Record<string, unknown> }) => ({
-    uri: r.uri,
-    cid: r.cid,
-    value: r.value as StandardSiteDocumentRecord,
-  }))
-  return { records, cursor: res.data.cursor }
+  try {
+    const res = await client.com.atproto.repo.listRecords({
+      repo,
+      collection: STANDARD_SITE_DOCUMENT_COLLECTION,
+      limit: opts?.limit ?? 30,
+      cursor: opts?.cursor,
+      reverse: opts?.reverse ?? true,
+    })
+    const records = (res.data.records ?? []).map((r: { uri: string; cid: string; value: Record<string, unknown> }) => ({
+      uri: r.uri,
+      cid: r.cid,
+      value: r.value as StandardSiteDocumentRecord,
+    }))
+    return { records, cursor: res.data.cursor }
+  } catch (err) {
+    const e = err as { message?: string; status?: number; statusCode?: number }
+    const status = e.status ?? e.statusCode
+    const msg = String(e.message ?? '')
+    const is400 = status === 400 || msg.includes('Bad Request') || msg.includes('InvalidRequest')
+    if (is400) {
+      return { records: [], cursor: undefined }
+    }
+    throw err
+  }
 }
 
 /** Get the base URL of a publication from a repo (first site.standard.publication record). */
@@ -1829,10 +1960,9 @@ export async function listStandardSiteDocumentsFromDiscovery(
       if (seen.has(did)) return
       seen.add(did)
       try {
-        const [baseUrl, { records }] = await Promise.all([
-          getStandardSitePublicationBaseUrl(client, did),
-          listStandardSiteDocuments(client, did, { limit: limitPerRepo, reverse: true }),
-        ])
+        const { records } = await listStandardSiteDocuments(client, did, { limit: limitPerRepo, reverse: true })
+        if (records.length === 0) return
+        const baseUrl = await getStandardSitePublicationBaseUrl(client, did)
         let handle: string | undefined
         let avatar: string | undefined
         try {
@@ -1888,24 +2018,17 @@ export async function listStandardSiteDocumentsForForum(): Promise<StandardSiteD
     const { dids: followDids, handles: followHandles } = await getFollows(client, session.did, { limit: maxFollows })
     followHandles.forEach((h, did) => didToHandle.set(did, h))
     const didsToFetch = [session.did, ...followDids]
-    const baseUrlCache = new Map<string, string | null>()
-    await Promise.all(
-      didsToFetch.map(async (did) => {
-        const [base, profile] = await Promise.all([
-          getStandardSitePublicationBaseUrl(client, did),
-          client.getProfile({ actor: did }).then((p) => (p.data as { avatar?: string }).avatar).catch(() => undefined),
-        ])
-        baseUrlCache.set(did, base)
-        if (profile) didToAvatar.set(did, profile)
-      })
-    )
     const results = await Promise.all(
       didsToFetch.map(async (did) => {
         try {
           const { records } = await listStandardSiteDocuments(client, did, { limit: limitPerRepo, reverse: true })
-          const baseUrl = baseUrlCache.get(did) ?? undefined
+          if (records.length === 0) return []
+          const [baseUrl, avatar] = await Promise.all([
+            getStandardSitePublicationBaseUrl(client, did),
+            client.getProfile({ actor: did }).then((p) => (p.data as { avatar?: string }).avatar).catch(() => undefined),
+          ])
+          if (avatar) didToAvatar.set(did, avatar)
           const handle = didToHandle.get(did)
-          const avatar = didToAvatar.get(did)
           return records.map((r) => {
             const path = r.value.path ?? r.uri.split('/').pop() ?? ''
             return {
@@ -1919,7 +2042,7 @@ export async function listStandardSiteDocumentsForForum(): Promise<StandardSiteD
               createdAt: r.value.createdAt,
               baseUrl: baseUrl ?? undefined,
               authorHandle: handle,
-              authorAvatar: avatar,
+              authorAvatar: didToAvatar.get(did),
             }
           })
         } catch {
@@ -2040,14 +2163,13 @@ export async function listStandardSiteDocumentsForAuthor(
   opts?: { limit?: number; cursor?: string }
 ): Promise<{ documents: StandardSiteDocumentView[]; cursor?: string }> {
   try {
-    const [baseUrl, { records, cursor }] = await Promise.all([
-      getStandardSitePublicationBaseUrl(client, did),
-      listStandardSiteDocuments(client, did, {
-        limit: opts?.limit ?? 30,
-        cursor: opts?.cursor,
-        reverse: true,
-      }),
-    ])
+    const { records, cursor } = await listStandardSiteDocuments(client, did, {
+      limit: opts?.limit ?? 30,
+      cursor: opts?.cursor,
+      reverse: true,
+    })
+    if (records.length === 0) return { documents: [], cursor }
+    const baseUrl = await getStandardSitePublicationBaseUrl(client, did)
     const documents: StandardSiteDocumentView[] = records.map((r) => {
       const path = r.value.path ?? r.uri.split('/').pop() ?? ''
       return {
@@ -2345,3 +2467,4 @@ export async function postReply(
     },
   })
 }
+

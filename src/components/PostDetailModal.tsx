@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useProfileModal } from '../context/ProfileModalContext'
 import { PostDetailContent } from '../pages/PostDetailPage'
 import AppModal from './AppModal'
@@ -26,6 +26,10 @@ export default function PostDetailModal({ uri, openReply, focusUri, onClose, onB
     if (authorHandle) openProfileModal(authorHandle)
   }
 
+  const handleRegisterRefresh = useCallback((fn: () => void | Promise<void>) => {
+    setRefreshFn(() => fn)
+  }, [])
+
   return (
     <AppModal
       ariaLabel="Post"
@@ -42,7 +46,7 @@ export default function PostDetailModal({ uri, openReply, focusUri, onClose, onB
         initialFocusedCommentUri={focusUri}
         onClose={onClose}
         onAuthorHandle={setAuthorHandle}
-        onRegisterRefresh={(fn) => setRefreshFn(() => fn)}
+        onRegisterRefresh={handleRegisterRefresh}
       />
     </AppModal>
   )

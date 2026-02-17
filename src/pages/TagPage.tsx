@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { agent, searchPostsByTag, getPostMediaInfo, isPostNsfw } from '../lib/bsky'
 import type { TimelineItem } from '../lib/bsky'
 import type { AppBskyFeedDefs } from '@atproto/api'
-import VirtualizedProfileColumn from '../components/VirtualizedProfileColumn'
+import ProfileColumn from '../components/ProfileColumn'
 import Layout from '../components/Layout'
 import { useSession } from '../context/SessionContext'
 import { useProfileModal } from '../context/ProfileModalContext'
@@ -81,7 +81,6 @@ export function TagContent({ tag, inModal = false, onRegisterRefresh }: { tag: s
   const lastScrollIntoViewIndexRef = useRef(-1)
   const modalScrollRef = useModalScroll()
   const gridRef = useRef<HTMLDivElement | null>(null)
-  const [scrollMargin, setScrollMargin] = useState(0)
 
   const load = useCallback(async (nextCursor?: string) => {
     if (!tag) return
@@ -120,16 +119,6 @@ export function TagContent({ tag, inModal = false, onRegisterRefresh }: { tag: s
   const cols = viewMode === '1' ? 1 : viewMode === '2' ? 2 : 3
   mediaItemsRef.current = mediaItems
   keyboardFocusIndexRef.current = keyboardFocusIndex
-
-  useLayoutEffect(() => {
-    if (inModal || !gridRef.current) return
-    const el = gridRef.current
-    const update = () => setScrollMargin(el.getBoundingClientRect().top + window.scrollY)
-    update()
-    const ro = new ResizeObserver(update)
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [inModal, mediaItems.length])
 
   loadingMoreRef.current = loadingMore
   useEffect(() => {
@@ -264,11 +253,10 @@ export function TagContent({ tag, inModal = false, onRegisterRefresh }: { tag: s
             data-view-mode={viewMode}
           >
             {distributeByHeight(mediaItems, cols).map((column, colIndex) => (
-              <VirtualizedProfileColumn
+              <ProfileColumn
                 key={colIndex}
                 column={column}
                 colIndex={colIndex}
-                scrollMargin={scrollMargin}
                 scrollRef={inModal ? modalScrollRef : null}
                 loadMoreSentinelRef={
                   cursor

@@ -1,6 +1,8 @@
-import { createContext, useCallback, useContext, useState, type ReactNode } from 'react'
-import LoginModal from '../components/LoginModal'
+import { createContext, lazy, Suspense, useCallback, useContext, useMemo, useState, type ReactNode } from 'react'
 import type { LoginMode } from '../components/LoginCard'
+import { ChunkLoadError } from '../components/ChunkLoadError'
+
+const LoginModal = lazy(() => import('../components/LoginModal'))
 
 type LoginModalContextValue = {
   openLoginModal: (mode?: LoginMode) => void
@@ -22,20 +24,26 @@ export function LoginModalProvider({ children }: { children: ReactNode }) {
     setIsOpen(false)
   }, [])
 
-  const value: LoginModalContextValue = {
+  const value: LoginModalContextValue = useMemo(() => ({
     openLoginModal,
     closeLoginModal,
-  }
+  }), [openLoginModal, closeLoginModal])
 
   return (
     <LoginModalContext.Provider value={value}>
       {children}
-      <LoginModal
-        isOpen={isOpen}
-        mode={mode}
-        onClose={closeLoginModal}
-        onSuccess={closeLoginModal}
-      />
+      {isOpen && (
+        <ChunkLoadError>
+          <Suspense fallback={null}>
+            <LoginModal
+              isOpen={isOpen}
+              mode={mode}
+              onClose={closeLoginModal}
+              onSuccess={closeLoginModal}
+            />
+          </Suspense>
+        </ChunkLoadError>
+      )}
     </LoginModalContext.Provider>
   )
 }

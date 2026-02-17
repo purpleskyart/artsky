@@ -1,0 +1,233 @@
+{
+  "timestamp": "2026-02-16T22:43:22.757Z",
+  "commit": "unknown",
+  "bundles": [
+    {
+      "name": "assets/AppModal-BXxyJmgh.js",
+      "size": 6356,
+      "gzipSize": 2350
+    },
+    {
+      "name": "assets/ArtboardModal-CwtV-lrE.js",
+      "size": 3758,
+      "gzipSize": 1562
+    },
+    {
+      "name": "assets/ArtboardsModal-89a_71lj.js",
+      "size": 7719,
+      "gzipSize": 2738
+    },
+    {
+      "name": "assets/CollabPage-BwJ9LtsO.js",
+      "size": 6945,
+      "gzipSize": 2363
+    },
+    {
+      "name": "assets/ConsensusPage-Dux4I3eK.js",
+      "size": 7058,
+      "gzipSize": 2694
+    },
+    {
+      "name": "assets/EditProfileModal-CNt3brnG.js",
+      "size": 4660,
+      "gzipSize": 1977
+    },
+    {
+      "name": "assets/FeedPage-bATYXSDa.js",
+      "size": 34496,
+      "gzipSize": 11171
+    },
+    {
+      "name": "assets/FeedPage.module-BXQsl3XB.js",
+      "size": 3162,
+      "gzipSize": 889
+    },
+    {
+      "name": "assets/ForumModal-DXEwQXqc.js",
+      "size": 10062,
+      "gzipSize": 3450
+    },
+    {
+      "name": "assets/ForumPage.module-D7Em_nze.js",
+      "size": 630,
+      "gzipSize": 310
+    },
+    {
+      "name": "assets/ForumPostModal-DWRNARd1.js",
+      "size": 21616,
+      "gzipSize": 6272
+    },
+    {
+      "name": "assets/Icons-Db2rTzPk.js",
+      "size": 12357,
+      "gzipSize": 2897
+    },
+    {
+      "name": "assets/Layout-CPSEqVcx.js",
+      "size": 81804,
+      "gzipSize": 20593
+    },
+    {
+      "name": "assets/LoginModal-Bcgo1sCG.js",
+      "size": 9238,
+      "gzipSize": 3245
+    },
+    {
+      "name": "assets/ModalScrollContext-zde6NgaG.js",
+      "size": 259,
+      "gzipSize": 206
+    },
+    {
+      "name": "assets/ModalTopBarSlotContext-BCMHq62N.js",
+      "size": 136,
+      "gzipSize": 134
+    },
+    {
+      "name": "assets/PostActionsMenu-IxCQHKUi.js",
+      "size": 12903,
+      "gzipSize": 3431
+    },
+    {
+      "name": "assets/PostCard-DthzAk5E.js",
+      "size": 23937,
+      "gzipSize": 7738
+    },
+    {
+      "name": "assets/PostDetailModal-Bd97bQ-h.js",
+      "size": 1089,
+      "gzipSize": 618
+    },
+    {
+      "name": "assets/PostDetailPage-4OnA7U7P.js",
+      "size": 48375,
+      "gzipSize": 12715
+    },
+    {
+      "name": "assets/PostDetailPage.module-D-5kOdq6.js",
+      "size": 6870,
+      "gzipSize": 1690
+    },
+    {
+      "name": "assets/PostText-_BQ-w28F.js",
+      "size": 4188,
+      "gzipSize": 1687
+    },
+    {
+      "name": "assets/ProfileModal-DFXByPuQ.js",
+      "size": 1089,
+      "gzipSize": 595
+    },
+    {
+      "name": "assets/ProfilePage-8NQWaT04.js",
+      "size": 36100,
+      "gzipSize": 11147
+    },
+    {
+      "name": "assets/QuotesModal-BRePnKEf.js",
+      "size": 2631,
+      "gzipSize": 1353
+    },
+    {
+      "name": "assets/SearchModal-igeOWESa.js",
+      "size": 8992,
+      "gzipSize": 3504
+    },
+    {
+      "name": "assets/TagModal-BhKTvGWu.js",
+      "size": 1001,
+      "gzipSize": 568
+    },
+    {
+      "name": "assets/TagPage-KCZET1JK.js",
+      "size": 5782,
+      "gzipSize": 2637
+    },
+    {
+      "name": "assets/TagPage.module-BpGvzkuE.js",
+      "size": 172,
+      "gzipSize": 133
+    },
+    {
+      "name": "assets/VirtualizedProfileColumn-mDeazHco.js",
+      "size": 7929,
+      "gzipSize": 2507
+    },
+    {
+      "name": "assets/artboards-DNvSVVrd.js",
+      "size": 1125,
+      "gzipSize": 545
+    },
+    {
+      "name": "assets/artboardsPds-DWUixJ9h.js",
+      "size": 1166,
+      "gzipSize": 564
+    },
+    {
+      "name": "assets/atproto-JNpM3I1p.js",
+      "size": 1721607,
+      "gzipSize": 362007
+    },
+    {
+      "name": "assets/date-Ct-NsrQr.js",
+      "size": 1647,
+      "gzipSize": 595
+    },
+    {
+      "name": "assets/forum-BrqyjY5d.js",
+      "size": 4091,
+      "gzipSize": 1372
+    },
+    {
+      "name": "assets/index-DG_ZSS9q.js",
+      "size": 257117,
+      "gzipSize": 78234
+    },
+    {
+      "name": "assets/postCache-CTqU0alO.js",
+      "size": 628,
+      "gzipSize": 368
+    },
+    {
+      "name": "assets/react-vendor-rw3WIpbI.js",
+      "size": 46921,
+      "gzipSize": 16209
+    },
+    {
+      "name": "assets/useListKeyboardNav-8QPlw-5M.js",
+      "size": 1285,
+      "gzipSize": 647
+    },
+    {
+      "name": "assets/usePullToRefresh-QiYvLiof.js",
+      "size": 1758,
+      "gzipSize": 740
+    },
+    {
+      "name": "assets/video-DCuzn9dR.js",
+      "size": 519833,
+      "gzipSize": 158286
+    },
+    {
+      "name": "assets/virtual-SmD9oKU4.js",
+      "size": 15396,
+      "gzipSize": 4604
+    },
+    {
+      "name": "registerSW.js",
+      "size": 148,
+      "gzipSize": 132
+    },
+    {
+      "name": "sw.js",
+      "size": 5809,
+      "gzipSize": 2085
+    },
+    {
+      "name": "workbox-66610c77.js",
+      "size": 21445,
+      "gzipSize": 7321
+    }
+  ],
+  "totalSize": 2971290,
+  "totalGzipSize": 746883
+}

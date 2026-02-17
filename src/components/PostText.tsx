@@ -1,3 +1,4 @@
+import { memo, useMemo } from 'react'
 import { RichText as AtpRichText } from '@atproto/api'
 import ProfileLink from './ProfileLink'
 import TagLink from './TagLink'
@@ -91,8 +92,8 @@ function renderSegment(
   )
 }
 
-export default function PostText({ text, facets, className, maxLength, stopPropagation, linkDisplay = 'url', interactive = true }: PostTextProps) {
-  const onClick = stopPropagation ? (e: React.MouseEvent) => e.stopPropagation() : undefined
+function PostText({ text, facets, className, maxLength, stopPropagation, linkDisplay = 'url', interactive = true }: PostTextProps) {
+  const onClick = useMemo(() => stopPropagation ? (e: React.MouseEvent) => e.stopPropagation() : undefined, [stopPropagation])
 
   if (facets && Array.isArray(facets) && facets.length > 0) {
     try {
@@ -206,3 +207,5 @@ export default function PostText({ text, facets, className, maxLength, stopPropa
     </span>
   )
 }
+
+export default memo(PostText)
