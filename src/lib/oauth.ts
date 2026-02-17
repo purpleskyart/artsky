@@ -1,6 +1,4 @@
-import { BrowserOAuthClient } from '@atproto/oauth-client-browser'
-
-let client: BrowserOAuthClient | null = null
+let clientPromise: Promise<BrowserOAuthClient> | null = null
 
 /** Base URL for the app (origin + pathname to app root). Used as client_id base for HTTPS. */
 function getAppBaseUrl(): string {
@@ -36,15 +34,16 @@ export async function getOAuthClient(): Promise<BrowserOAuthClient> {
   if (typeof window === 'undefined') {
     throw new Error('OAuth is only available in the browser')
   }
-  if (client) return client
+  if (clientPromise) return clientPromise
   const clientId = isLoopback() ? getLoopbackClientId() : `${getAppBaseUrl()}/client-metadata.json`
   // Use query so callback lands in ?code=...&state=... and doesn't conflict with HashRouter's hash.
-  client = await BrowserOAuthClient.load({
+  const { BrowserOAuthClient } = await import('@atproto/oauth-client-browser')
+  clientPromise = BrowserOAuthClient.load({
     clientId,
     handleResolver: 'https://bsky.social/',
     responseMode: 'query',
   })
-  return client
+  return clientPromise
 }
 
 export type OAuthSession = import('@atproto/oauth-client').OAuthSession

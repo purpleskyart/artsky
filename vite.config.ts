@@ -62,8 +62,6 @@ export default defineConfig({
         },
       },
     },
-    // Disable eager chunk loading for heavy dependencies
-    dynamicImportChunks: true,
     // Enable tree-shaking and minification
     minify: 'terser',
     terserOptions: {
