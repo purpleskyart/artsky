@@ -24,6 +24,11 @@ interface ProgressiveImageProps {
    * Defaults to 3
    */
   maxRetries?: number
+  /**
+   * Distance from viewport (in pixels) at which to start preloading
+   * Defaults to 1500px - images start loading before they enter viewport
+   */
+  preloadDistance?: number
 }
 
 /**
@@ -31,13 +36,14 @@ interface ProgressiveImageProps {
  * 
  * Features:
  * - Displays a blur-up placeholder while the full image loads
- * - Supports lazy/eager loading modes
+ * - Supports lazy/eager loading modes with intelligent preloading
  * - Maintains aspect ratio to prevent layout shift
  * - Smooth transition from placeholder to full image
  * - Prefers WebP format with automatic fallback for unsupported browsers
  * - Responsive image sizing with srcset for optimal bandwidth usage
  * - Retry logic with exponential backoff for failed image loads (up to 3 retries)
  * - Displays error placeholder for permanently failed images
+ * - Preloads images before they reach viewport (1500px ahead by default)
  * 
  * Requirements: 5.1, 5.2, 5.3, 5.4, 5.5
  */
@@ -50,14 +56,18 @@ export function ProgressiveImage({
   onLoad,
   sizes = [320, 640, 960, 1280, 1920],
   sizesAttr,
-  maxRetries = 3
+  maxRetries = 3,
+  preloadDistance = 1500
 }: ProgressiveImageProps) {
   const [isLoaded, setIsLoaded] = useState(false)
   const [imageError, setImageError] = useState(false)
   const [retryCount, setRetryCount] = useState(0)
   const [permanentError, setPermanentError] = useState(false)
   const [placeholderError, setPlaceholderError] = useState(false)
+  const [shouldPreload, setShouldPreload] = useState(loading === 'eager')
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const observerRef = useRef<IntersectionObserver | null>(null)
   
   // Convert to WebP format if browser supports it
   // Falls back to original URL if WebP is not supported or if WebP conversion fails
@@ -143,8 +153,52 @@ export function ProgressiveImage({
       if (retryTimeoutRef.current) {
         clearTimeout(retryTimeoutRef.current)
       }
+      if (observerRef.current) {
+        observerRef.current.disconnect()
+      }
     }
   }, [])
+  
+  // Set up IntersectionObserver to preload images before they enter viewport
+  useEffect(() => {
+    // Skip if already eager loading or if already loaded
+    if (loading === 'eager' || isLoaded) {
+      setShouldPreload(true)
+      return
+    }
+    
+    const container = containerRef.current
+    if (!container) return
+    
+    // Create observer with large rootMargin to trigger preloading early
+    observerRef.current = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            // Image is approaching viewport - start loading
+            setShouldPreload(true)
+            // Once we start preloading, we can disconnect the observer
+            if (observerRef.current) {
+              observerRef.current.disconnect()
+            }
+          }
+        }
+      },
+      {
+        // Large rootMargin ensures images start loading well before entering viewport
+        rootMargin: `${preloadDistance}px 0px ${preloadDistance}px 0px`,
+        threshold: 0,
+      }
+    )
+    
+    observerRef.current.observe(container)
+    
+    return () => {
+      if (observerRef.current) {
+        observerRef.current.disconnect()
+      }
+    }
+  }, [loading, preloadDistance, isLoaded])
   
   // Reset retry state when src changes
   useEffect(() => {
@@ -153,7 +207,8 @@ export function ProgressiveImage({
     setIsLoaded(false)
     setImageError(false)
     setPlaceholderError(false)
-  }, [src])
+    setShouldPreload(loading === 'eager')
+  }, [src, loading])
   
   // Use WebP URL first, fall back to original if error occurs
   const currentSrc = imageError ? src : webpSrc
@@ -189,6 +244,7 @@ export function ProgressiveImage({
   
   return (
     <div 
+      ref={containerRef}
       className={`${styles.progressiveImage} ${isLoaded ? styles.loaded : ''} ${className}`}
       style={{ aspectRatio: aspectRatio ? String(aspectRatio) : undefined }}
     >
@@ -207,7 +263,7 @@ export function ProgressiveImage({
         srcSet={srcSet}
         sizes={srcSet ? finalSizesAttr : undefined}
         alt={alt}
-        loading={loading}
+        loading={shouldPreload ? 'eager' : 'lazy'}
         onLoad={handleImageLoad}
         onError={handleImageError}
         className={styles.fullImage}
