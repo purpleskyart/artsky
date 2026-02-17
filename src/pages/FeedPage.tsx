@@ -385,7 +385,7 @@ export default function FeedPage() {
   /** Cooldown after triggering load more so we don't fire again while sentinel stays in view (stops infinite load loop). */
   const lastLoadMoreAtRef = useRef(0)
   const [keyboardAddOpen, setKeyboardAddOpen] = useState(false)
-  const { openPostModal, openForumPostModal, isModalOpen } = useProfileModal()
+  const { openPostModal, isModalOpen } = useProfileModal()
   const cardRefsRef = useRef<(HTMLDivElement | null)[]>([])
   /** Refs for focused media elements: [cardIndex][mediaIndex] for scroll-into-view on multi-image posts */
   const mediaRefsRef = useRef<Record<number, Record<number, HTMLElement | null>>>({})

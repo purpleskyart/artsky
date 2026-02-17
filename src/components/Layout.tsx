@@ -68,7 +68,7 @@ function loadHiddenPresetUris(did: string): Set<string> {
     }
     return result
   } catch {
-    return new Set()
+    return new Set<string>()
   }
 }
 
