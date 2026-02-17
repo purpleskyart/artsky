@@ -936,7 +936,7 @@ export function ProfileContent({
                   className={`${styles.tab} ${tab === t ? styles.tabActive : ''}`}
                   onClick={() => setTab(t)}
                 >
-                  {t === 'posts' ? 'Posts' : t === 'reposts' ? 'Reposts' : t === 'blog' ? 'Threads' : t === 'text' ? 'Text' : 'Feeds'}
+                  {t === 'posts' ? 'Posts' : t === 'reposts' ? 'Reposts' : t === 'blog' ? 'Blog' : t === 'text' ? 'Text' : 'Feeds'}
                 </button>
               ))}
             </nav>
@@ -952,7 +952,7 @@ export function ProfileContent({
                 className={`${styles.tab} ${tab === t ? styles.tabActive : ''}`}
                 onClick={() => setTab(t)}
               >
-                {t === 'posts' ? 'Posts' : t === 'reposts' ? 'Reposts' : t === 'blog' ? 'Threads' : t === 'text' ? 'Text' : 'Feeds'}
+                {t === 'posts' ? 'Posts' : t === 'reposts' ? 'Reposts' : t === 'blog' ? 'Blog' : t === 'text' ? 'Text' : 'Feeds'}
               </button>
             ))}
             </nav>
@@ -964,7 +964,7 @@ export function ProfileContent({
           <div className={styles.loading}>Loading…</div>
         ) : tab === 'blog' ? (
           blogDocuments.length === 0 ? (
-            <div className={styles.empty}>No standard.site blog posts.</div>
+            <div className={styles.empty}>No blog posts.</div>
           ) : (
             <>
               <ul className={styles.textList}>

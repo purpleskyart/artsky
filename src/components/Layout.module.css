@@ -1068,13 +1068,18 @@ button.logoLink {
 .gearFloatWrap {
   position: fixed;
   top: max(var(--space-md), env(safe-area-inset-top, 59px));
-  left: calc(max(var(--space-md), env(safe-area-inset-left)) + 2rem + 0.5rem);
+  left: max(var(--space-md), env(safe-area-inset-left));
   z-index: 1101;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 0.5rem;
   pointer-events: auto;
+}
+
+/* When modal is open, position gear to the right of the back button */
+.gearFloatWrap.gearFloatWrapModalOpen {
+  left: calc(max(var(--space-md), env(safe-area-inset-left)) + 2rem + 0.5rem);
 }
 
 .gearFloatWrap > .feedFloatBtn {
@@ -1227,7 +1232,6 @@ button.logoLink {
   cursor: pointer;
   font: inherit;
   -webkit-tap-highlight-color: transparent;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
   position: relative;
 }
 
@@ -2022,6 +2026,7 @@ button.logoLink {
   width: 2rem;
   height: 2rem;
   padding: 0;
+  color: var(--muted);
   border-radius: 50%;
   cursor: pointer;
   font: inherit;
@@ -2562,10 +2567,13 @@ button.logoLink {
 
 @media (max-width: 767px) {
   .composeOverlayMobile {
-    align-items: flex-end;
+    align-items: center;
     justify-content: center;
-    padding-bottom: 1.75rem;
-    padding-bottom: calc(1.75rem + env(safe-area-inset-bottom));
+    padding: 1.5rem;
+    padding-left: max(1.5rem, env(safe-area-inset-left));
+    padding-right: max(1.5rem, env(safe-area-inset-right));
+    padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
+    padding-top: max(1.5rem, env(safe-area-inset-top));
   }
 }
 

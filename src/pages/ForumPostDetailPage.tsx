@@ -166,7 +166,7 @@ export function ForumPostContent({ documentUri, onClose, onRegisterRefresh }: Fo
         setTimeout(() => loadDoc(), 600)
         return
       } else {
-        setError('Post not found or not a standard.site document.')
+        setError('Post not found or not a blog post.')
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to load post')

@@ -202,9 +202,10 @@ const FeedColumn = memo(function FeedColumn({
             ? focusTargets[keyboardFocusIndex]?.mediaIndex
             : undefined
         
+        const postUri = entry.type === 'post' ? entry.item.post.uri : entry.items[0].post.uri
         return (
           <FeedCard
-            key={entry.type === 'post' ? entry.item.post.uri : entry.items[0].post.uri}
+            key={`${postUri}-${originalIndex}`}
             entry={entry}
             originalIndex={originalIndex}
             isSelected={isSelected}

@@ -16,6 +16,7 @@ import PostActionsMenu from '../components/PostActionsMenu'
 import ComposerSuggestions from '../components/ComposerSuggestions'
 import CharacterCountWithCircle from '../components/CharacterCountWithCircle'
 import { useProfileModal } from '../context/ProfileModalContext'
+import { useLoginModal } from '../context/LoginModalContext'
 import styles from './PostDetailPage.module.css'
 
 const ACTION_ICON_SIZE = 18
@@ -47,11 +48,14 @@ export function ReplyAsRow({
   sessionsList,
   switchAccount,
   currentDid,
+  label = 'Replying as',
 }: {
   replyAs: { handle: string; avatar?: string }
   sessionsList: AtpSessionData[]
   switchAccount: (did: string) => Promise<boolean>
   currentDid: string
+  /** Optional label (e.g. "Posting as" for new thread composer). */
+  label?: string
 }) {
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [accountProfiles, setAccountProfiles] = useState<Record<string, { avatar?: string; handle?: string }>>({})
@@ -81,10 +85,10 @@ export function ReplyAsRow({
     })
     return () => { cancelled = true }
   }, [sessionsDidKey, sessionsList])
-  const canSwitch = sessionsList.length > 1
+  const { openLoginModal } = useLoginModal()
   return (
     <p className={styles.replyAs}>
-      <span className={styles.replyAsLabel}>Replying as</span>
+      <span className={styles.replyAsLabel}>{label}</span>
       <span className={styles.replyAsUserChip}>
         {replyAs.avatar ? (
           <img src={replyAs.avatar} alt="" className={styles.replyAsAvatar} loading="lazy" />
@@ -92,49 +96,54 @@ export function ReplyAsRow({
           <span className={styles.replyAsAvatarPlaceholder} aria-hidden>{replyAs.handle.slice(0, 1).toUpperCase()}</span>
         )}
         <div className={styles.replyAsHandleWrap} ref={wrapRef}>
-          {canSwitch ? (
-            <>
+          <button
+            type="button"
+            className={styles.replyAsHandleBtn}
+            onClick={() => setDropdownOpen((o) => !o)}
+            aria-expanded={dropdownOpen}
+            aria-haspopup="true"
+          >
+            @{replyAs.handle}
+          </button>
+          {dropdownOpen && (
+            <div className={styles.replyAsDropdown} role="menu">
+              {sessionsList.map((s) => {
+                const profile = accountProfiles[s.did]
+                const handle = profile?.handle ?? (s as { handle?: string }).handle ?? s.did
+                const isCurrent = s.did === currentDid
+                return (
+                  <button
+                    key={s.did}
+                    type="button"
+                    role="menuitem"
+                    className={isCurrent ? styles.replyAsDropdownItemActive : styles.replyAsDropdownItem}
+                    onClick={async () => {
+                      const ok = await switchAccount(s.did)
+                      if (ok) setDropdownOpen(false)
+                    }}
+                  >
+                    {profile?.avatar ? (
+                      <img src={profile.avatar} alt="" className={styles.replyAsDropdownAvatar} loading="lazy" />
+                    ) : (
+                      <span className={styles.replyAsDropdownAvatarPlaceholder} aria-hidden>{(handle || s.did).slice(0, 1).toUpperCase()}</span>
+                    )}
+                    <span className={styles.replyAsDropdownHandle}>@{handle}</span>
+                    {isCurrent && <span className={styles.replyAsDropdownCheck} aria-hidden>✓</span>}
+                  </button>
+                )
+              })}
               <button
                 type="button"
-                className={styles.replyAsHandleBtn}
-                onClick={() => setDropdownOpen((o) => !o)}
-                aria-expanded={dropdownOpen}
-                aria-haspopup="true"
+                role="menuitem"
+                className={styles.replyAsDropdownAddAccount}
+                onClick={() => {
+                  setDropdownOpen(false)
+                  openLoginModal()
+                }}
               >
-                @{replyAs.handle}
+                + Add account
               </button>
-              {dropdownOpen && (
-                <div className={styles.replyAsDropdown} role="menu">
-                  {sessionsList.map((s) => {
-                    const profile = accountProfiles[s.did]
-                    const handle = profile?.handle ?? (s as { handle?: string }).handle ?? s.did
-                    const isCurrent = s.did === currentDid
-                    return (
-                      <button
-                        key={s.did}
-                        type="button"
-                        role="menuitem"
-                        className={isCurrent ? styles.replyAsDropdownItemActive : styles.replyAsDropdownItem}
-                        onClick={async () => {
-                          const ok = await switchAccount(s.did)
-                          if (ok) setDropdownOpen(false)
-                        }}
-                      >
-                        {profile?.avatar ? (
-                          <img src={profile.avatar} alt="" className={styles.replyAsDropdownAvatar} loading="lazy" />
-                        ) : (
-                          <span className={styles.replyAsDropdownAvatarPlaceholder} aria-hidden>{(handle || s.did).slice(0, 1).toUpperCase()}</span>
-                        )}
-                        <span className={styles.replyAsDropdownHandle}>@{handle}</span>
-                        {isCurrent && <span className={styles.replyAsDropdownCheck} aria-hidden>✓</span>}
-                      </button>
-                    )
-                  })}
-                </div>
-              )}
-            </>
-          ) : (
-            <span className={styles.replyAsHandle}>@{replyAs.handle}</span>
+            </div>
           )}
         </div>
       </span>

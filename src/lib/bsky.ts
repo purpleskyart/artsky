@@ -965,13 +965,13 @@ export async function searchPostsByPhraseAndTags(phrase: string, cursor?: string
   return { posts: merged, cursor: phraseResult.cursor }
 }
 
-/** Domain used for standard.site / long-form blog posts. */
+/** standard.site lexicon: for blog posts only (postcards on home from blogs you follow, profile Blog tab). Not used for Forums; see app.artsky.forum lexicon. */
 export const STANDARD_SITE_DOMAIN = 'standard.site'
 
 /** Standard.site lexicon collection NSIDs (long-form blogs on AT Protocol). */
 export const STANDARD_SITE_DOCUMENT_COLLECTION = 'site.standard.document'
 export const STANDARD_SITE_PUBLICATION_COLLECTION = 'site.standard.publication'
-/** Standard.site comment lexicon (comments on documents; interoperable with leaflet.pub etc.). */
+/** Standard.site comment lexicon (comments on blog documents; interoperable with leaflet.pub etc.). */
 export const STANDARD_SITE_COMMENT_COLLECTION = 'site.standard.comment'
 
 /** Blob ref as returned from uploadBlob (CID reference). */
@@ -1007,25 +1007,37 @@ export type StandardSiteDocumentView = {
   mediaRefs?: Array<{ image: StandardSiteDocumentBlobRef; mimeType?: string }>
 }
 
-/** List site.standard.document records from a repo. Does not require the lexicon to be installed. */
+/** List site.standard.document records from a repo. Does not require the lexicon to be installed.
+ * Returns empty list if the PDS rejects the collection (e.g. Bluesky's Enoki returns 400 for site.standard.document). */
 export async function listStandardSiteDocuments(
   client: AtpAgent,
   repo: string,
   opts?: { limit?: number; cursor?: string; reverse?: boolean }
 ): Promise<{ records: { uri: string; cid: string; value: StandardSiteDocumentRecord }[]; cursor?: string }> {
-  const res = await client.com.atproto.repo.listRecords({
-    repo,
-    collection: STANDARD_SITE_DOCUMENT_COLLECTION,
-    limit: opts?.limit ?? 30,
-    cursor: opts?.cursor,
-    reverse: opts?.reverse ?? true,
-  })
-  const records = (res.data.records ?? []).map((r: { uri: string; cid: string; value: Record<string, unknown> }) => ({
-    uri: r.uri,
-    cid: r.cid,
-    value: r.value as StandardSiteDocumentRecord,
-  }))
-  return { records, cursor: res.data.cursor }
+  try {
+    const res = await client.com.atproto.repo.listRecords({
+      repo,
+      collection: STANDARD_SITE_DOCUMENT_COLLECTION,
+      limit: opts?.limit ?? 30,
+      cursor: opts?.cursor,
+      reverse: opts?.reverse ?? true,
+    })
+    const records = (res.data.records ?? []).map((r: { uri: string; cid: string; value: Record<string, unknown> }) => ({
+      uri: r.uri,
+      cid: r.cid,
+      value: r.value as StandardSiteDocumentRecord,
+    }))
+    return { records, cursor: res.data.cursor }
+  } catch (err) {
+    const e = err as { message?: string; status?: number; statusCode?: number }
+    const status = e.status ?? e.statusCode
+    const msg = String(e.message ?? '')
+    const is400 = status === 400 || msg.includes('Bad Request') || msg.includes('InvalidRequest')
+    if (is400) {
+      return { records: [], cursor: undefined }
+    }
+    throw err
+  }
 }
 
 /** Get the base URL of a publication from a repo (first site.standard.publication record). */
@@ -1948,10 +1960,9 @@ export async function listStandardSiteDocumentsFromDiscovery(
       if (seen.has(did)) return
       seen.add(did)
       try {
-        const [baseUrl, { records }] = await Promise.all([
-          getStandardSitePublicationBaseUrl(client, did),
-          listStandardSiteDocuments(client, did, { limit: limitPerRepo, reverse: true }),
-        ])
+        const { records } = await listStandardSiteDocuments(client, did, { limit: limitPerRepo, reverse: true })
+        if (records.length === 0) return
+        const baseUrl = await getStandardSitePublicationBaseUrl(client, did)
         let handle: string | undefined
         let avatar: string | undefined
         try {
@@ -2007,24 +2018,17 @@ export async function listStandardSiteDocumentsForForum(): Promise<StandardSiteD
     const { dids: followDids, handles: followHandles } = await getFollows(client, session.did, { limit: maxFollows })
     followHandles.forEach((h, did) => didToHandle.set(did, h))
     const didsToFetch = [session.did, ...followDids]
-    const baseUrlCache = new Map<string, string | null>()
-    await Promise.all(
-      didsToFetch.map(async (did) => {
-        const [base, profile] = await Promise.all([
-          getStandardSitePublicationBaseUrl(client, did),
-          client.getProfile({ actor: did }).then((p) => (p.data as { avatar?: string }).avatar).catch(() => undefined),
-        ])
-        baseUrlCache.set(did, base)
-        if (profile) didToAvatar.set(did, profile)
-      })
-    )
     const results = await Promise.all(
       didsToFetch.map(async (did) => {
         try {
           const { records } = await listStandardSiteDocuments(client, did, { limit: limitPerRepo, reverse: true })
-          const baseUrl = baseUrlCache.get(did) ?? undefined
+          if (records.length === 0) return []
+          const [baseUrl, avatar] = await Promise.all([
+            getStandardSitePublicationBaseUrl(client, did),
+            client.getProfile({ actor: did }).then((p) => (p.data as { avatar?: string }).avatar).catch(() => undefined),
+          ])
+          if (avatar) didToAvatar.set(did, avatar)
           const handle = didToHandle.get(did)
-          const avatar = didToAvatar.get(did)
           return records.map((r) => {
             const path = r.value.path ?? r.uri.split('/').pop() ?? ''
             return {
@@ -2038,7 +2042,7 @@ export async function listStandardSiteDocumentsForForum(): Promise<StandardSiteD
               createdAt: r.value.createdAt,
               baseUrl: baseUrl ?? undefined,
               authorHandle: handle,
-              authorAvatar: avatar,
+              authorAvatar: didToAvatar.get(did),
             }
           })
         } catch {
@@ -2159,14 +2163,13 @@ export async function listStandardSiteDocumentsForAuthor(
   opts?: { limit?: number; cursor?: string }
 ): Promise<{ documents: StandardSiteDocumentView[]; cursor?: string }> {
   try {
-    const [baseUrl, { records, cursor }] = await Promise.all([
-      getStandardSitePublicationBaseUrl(client, did),
-      listStandardSiteDocuments(client, did, {
-        limit: opts?.limit ?? 30,
-        cursor: opts?.cursor,
-        reverse: true,
-      }),
-    ])
+    const { records, cursor } = await listStandardSiteDocuments(client, did, {
+      limit: opts?.limit ?? 30,
+      cursor: opts?.cursor,
+      reverse: true,
+    })
+    if (records.length === 0) return { documents: [], cursor }
+    const baseUrl = await getStandardSitePublicationBaseUrl(client, did)
     const documents: StandardSiteDocumentView[] = records.map((r) => {
       const path = r.value.path ?? r.uri.split('/').pop() ?? ''
       return {
