@@ -120,10 +120,11 @@ export default function VirtualizedFeedColumn({
   const lastMeasuredIndexRef = useRef(-1)
   const measureThrottleRef = useRef<Set<number>>(new Set())
   const prevColumnLengthRef = useRef(column.length)
+  const newlyAddedIndices = useRef<number[]>([])
   
   // Clear measure throttle when column length changes (new items added)
+  // Measure newly added items immediately to prevent scroll jumps from inaccurate estimates
   if (prevColumnLengthRef.current !== column.length) {
-    // Keep measurements for existing items, clear for new items
     const newThrottle = new Set<number>()
     for (let i = 0; i < Math.min(prevColumnLengthRef.current, column.length); i++) {
       if (measureThrottleRef.current.has(i)) {
@@ -131,6 +132,13 @@ export default function VirtualizedFeedColumn({
       }
     }
     measureThrottleRef.current = newThrottle
+    
+    // Track newly added items at the end of the column to measure them immediately
+    newlyAddedIndices.current = Array.from(
+      { length: column.length - prevColumnLengthRef.current },
+      (_, i) => prevColumnLengthRef.current + i
+    )
+    
     prevColumnLengthRef.current = column.length
   }
 
@@ -163,21 +171,26 @@ export default function VirtualizedFeedColumn({
               ref={(el) => {
                 if (!el) return
                 
-                // Only measure items that are in or near the viewport
-                // Skip measuring items far below to prevent scroll jumps
                 const rect = el.getBoundingClientRect()
                 const viewportHeight = window.innerHeight
+                const isNewlyAdded = newlyAddedIndices.current.includes(virtualItem.index)
                 
-                // Measure if:
-                // 1. Item is in viewport or within 2000px below
-                // 2. Item hasn't been measured yet (first time)
-                // 3. Item is above viewport (always measure to maintain scroll position)
-                if (rect.top < viewportHeight + 2000 || 
-                    !measureThrottleRef.current.has(virtualItem.index) ||
-                    rect.bottom < 0) {
+                // Always measure newly added items immediately to prevent scroll jumps
+                // For existing items, only measure if in or near viewport
+                const shouldMeasure = isNewlyAdded ||
+                  rect.top < viewportHeight + 2000 || 
+                  !measureThrottleRef.current.has(virtualItem.index) ||
+                  rect.bottom < 0
+                
+                if (shouldMeasure) {
                   virtualizer.measureElement(el)
                   measureThrottleRef.current.add(virtualItem.index)
                   lastMeasuredIndexRef.current = Math.max(lastMeasuredIndexRef.current, virtualItem.index)
+                  
+                  // Remove from newly added list once measured
+                  if (isNewlyAdded) {
+                    newlyAddedIndices.current = newlyAddedIndices.current.filter(i => i !== virtualItem.index)
+                  }
                 }
                 
                 // Also set this as the cardRef so IntersectionObserver can track it
