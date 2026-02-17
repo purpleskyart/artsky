@@ -4,7 +4,7 @@ import { GUEST_FEED_ACCOUNTS } from '../config/guestFeed'
 import * as oauth from './oauth'
 import { requestDeduplicator } from './RequestDeduplicator'
 import { responseCache } from './ResponseCache'
-import { retryWithBackoff } from './retryWithBackoff'
+import { retryWithBackoff, shouldRetryIncluding429 } from './retryWithBackoff'
 import { getApiErrorMessage, shouldRetryError } from './apiErrors'
 
 const BSKY_SERVICE = 'https://bsky.social'
@@ -494,7 +494,10 @@ export async function getPostThreadCached(
     return { data: { thread: cached } }
   }
   const res = await dedupeFetch(uri, () =>
-    api.app.bsky.feed.getPostThread({ uri, depth: 10 }),
+    retryWithBackoff(
+      () => api.app.bsky.feed.getPostThread({ uri, depth: 10 }),
+      { shouldRetry: shouldRetryIncluding429, initialDelay: 3000, maxRetries: 2 },
+    ),
   )
   setCachedThread(uri, res.data.thread)
   return res

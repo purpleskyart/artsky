@@ -32,30 +32,66 @@ const PRESET_FEED_SOURCES: FeedSource[] = [
   { kind: 'custom', label: "What's Hot", uri: 'at://did:plc:z72i7hdynmk6r22z27h6tvur/app.bsky.feed.generator/whats-hot' },
 ]
 
-const HIDDEN_PRESET_FEEDS_KEY = 'artsky-hidden-preset-feeds'
-const FEED_ORDER_KEY = 'artsky-feed-order'
+const HIDDEN_PRESET_FEEDS_PREFIX = 'artsky-hidden-preset-feeds'
+const FEED_ORDER_PREFIX = 'artsky-feed-order'
+
+function hiddenPresetKey(did: string): string {
+  return `${HIDDEN_PRESET_FEEDS_PREFIX}-${did || 'guest'}`
+}
+
+function feedOrderKey(did: string): string {
+  return `${FEED_ORDER_PREFIX}-${did || 'guest'}`
+}
 
 function feedSourceId(s: FeedSource): string {
   return s.uri ?? (s.kind === 'timeline' ? 'timeline' : s.label ?? '')
 }
 
-function loadHiddenPresetUris(): Set<string> {
+function loadHiddenPresetUris(did: string): Set<string> {
   try {
-    const raw = localStorage.getItem(HIDDEN_PRESET_FEEDS_KEY)
+    const key = hiddenPresetKey(did)
+    let raw = localStorage.getItem(key)
+    let fromLegacy = false
+    if (!raw && did !== 'guest') {
+      raw = localStorage.getItem(HIDDEN_PRESET_FEEDS_PREFIX)
+      fromLegacy = !!raw
+    }
     if (!raw) return new Set()
     const arr = JSON.parse(raw) as string[]
-    return Array.isArray(arr) ? new Set(arr) : new Set()
+    const result = Array.isArray(arr) ? new Set(arr) : new Set()
+    if (fromLegacy && did !== 'guest') {
+      try {
+        localStorage.setItem(key, JSON.stringify([...result]))
+      } catch {
+        // ignore
+      }
+    }
+    return result
   } catch {
     return new Set()
   }
 }
 
-function loadFeedOrder(): string[] {
+function loadFeedOrder(did: string): string[] {
   try {
-    const raw = localStorage.getItem(FEED_ORDER_KEY)
+    const key = feedOrderKey(did)
+    let raw = localStorage.getItem(key)
+    let fromLegacy = false
+    if (!raw && did !== 'guest') {
+      raw = localStorage.getItem(FEED_ORDER_PREFIX)
+      fromLegacy = !!raw
+    }
     if (!raw) return []
     const arr = JSON.parse(raw) as string[]
-    return Array.isArray(arr) ? arr : []
+    const result = Array.isArray(arr) ? arr : []
+    if (fromLegacy && did !== 'guest') {
+      try {
+        localStorage.setItem(key, JSON.stringify(result))
+      } catch {
+        // ignore
+      }
+    }
+    return result
   } catch {
     return []
   }
@@ -357,8 +393,10 @@ export default function Layout({ title, children, showNav }: Props) {
   const [feedsChevronNoTransition, setFeedsChevronNoTransition] = useState(false)
   const prevFeedsOpenRef = useRef(false)
   const [savedFeedSources, setSavedFeedSources] = useState<FeedSource[]>([])
-  const [hiddenPresetUris, setHiddenPresetUris] = useState<Set<string>>(loadHiddenPresetUris)
-  const [feedOrder, setFeedOrder] = useState<string[]>(loadFeedOrder)
+  const did = session?.did ?? 'guest'
+  const prevFeedDidRef = useRef(did)
+  const [hiddenPresetUris, setHiddenPresetUris] = useState<Set<string>>(() => loadHiddenPresetUris(did))
+  const [feedOrder, setFeedOrder] = useState<string[]>(() => loadFeedOrder(did))
   const [feedAddError, setFeedAddError] = useState<string | null>(null)
   const feedsDropdownRef = useRef<HTMLDivElement>(null)
   const feedsBtnRef = useRef<HTMLButtonElement>(null)
@@ -437,11 +475,11 @@ export default function Layout({ title, children, showNav }: Props) {
     const ids = ordered.map(feedSourceId).filter(Boolean)
     setFeedOrder(ids)
     try {
-      localStorage.setItem(FEED_ORDER_KEY, JSON.stringify(ids))
+      localStorage.setItem(feedOrderKey(did), JSON.stringify(ids))
     } catch {
       // ignore
     }
-  }, [])
+  }, [did])
 
   const removableSourceUris = useMemo(
     () => new Set([...savedDeduped.map((s) => s.uri).filter(Boolean) as string[], ...presetUris]),
@@ -703,7 +741,7 @@ export default function Layout({ title, children, showNav }: Props) {
             const next = new Set(prev)
             next.add(source.uri!)
             try {
-              localStorage.setItem(HIDDEN_PRESET_FEEDS_KEY, JSON.stringify([...next]))
+              localStorage.setItem(hiddenPresetKey(did), JSON.stringify([...next]))
             } catch {
               // ignore
             }
@@ -715,7 +753,7 @@ export default function Layout({ title, children, showNav }: Props) {
         // ignore
       }
     },
-    [mixEntries, toggleSource, loadSavedFeeds]
+    [mixEntries, toggleSource, loadSavedFeeds, did]
   )
 
   const handleShareFeed = useCallback(async (source: FeedSource) => {
@@ -727,6 +765,20 @@ export default function Layout({ title, children, showNav }: Props) {
       // ignore
     }
   }, [])
+
+  useEffect(() => {
+    if (prevFeedDidRef.current !== did) {
+      try {
+        localStorage.setItem(hiddenPresetKey(prevFeedDidRef.current), JSON.stringify([...hiddenPresetUris]))
+        localStorage.setItem(feedOrderKey(prevFeedDidRef.current), JSON.stringify(feedOrder))
+      } catch {
+        // ignore
+      }
+      setHiddenPresetUris(loadHiddenPresetUris(did))
+      setFeedOrder(loadFeedOrder(did))
+      prevFeedDidRef.current = did
+    }
+  }, [did, hiddenPresetUris, feedOrder])
 
   useEffect(() => {
     if (session) loadSavedFeeds()

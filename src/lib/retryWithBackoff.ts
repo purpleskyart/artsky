@@ -83,6 +83,17 @@ function defaultShouldRetry(error: unknown): boolean {
   return false
 }
 
+/** Retry on 429 rate limit (wait + retry), 5xx, and network errors. Use for read operations that may hit rate limits. */
+export function shouldRetryIncluding429(error: unknown): boolean {
+  if (defaultShouldRetry(error)) return true
+  const err = error as { status?: number; statusCode?: number; message?: string }
+  const status = err?.status ?? err?.statusCode
+  if (status === 429) return true
+  const msg = String(err?.message ?? '')
+  if (msg.toLowerCase().includes('rate limit')) return true
+  return false
+}
+
 /**
  * Sleep utility for delays
  */

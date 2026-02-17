@@ -9,9 +9,7 @@ import {
   getFeedDisplayName,
   getMixedFeed,
   isPostNsfw,
-  listStandardSiteDocumentsForForum,
   type TimelineItem,
-  type StandardSiteDocumentView,
 } from '../lib/bsky'
 import type { FeedSource } from '../types'
 import Layout, { FeedPullRefreshContext } from '../components/Layout'
@@ -411,8 +409,6 @@ export default function FeedPage() {
   seenUrisRef.current = feedState.seenUris
   const seenPostsContext = useSeenPosts()
   const [suggestedFollowsOpen, setSuggestedFollowsOpen] = useState(false)
-  const [blogDocs, setBlogDocs] = useState<StandardSiteDocumentView[]>([])
-  const [blogDocsLoading, setBlogDocsLoading] = useState(false)
   const gridRef = useRef<HTMLDivElement | null>(null)
 
   // Register clear-seen handler so that long-press on Home can bring back all hidden (seen) items.
@@ -484,24 +480,6 @@ export default function FeedPage() {
   useEffect(() => {
     loadSavedFeeds()
   }, [loadSavedFeeds])
-
-  const loadBlogDocs = useCallback(async () => {
-    if (!session?.did) return
-    setBlogDocsLoading(true)
-    try {
-      const list = await listStandardSiteDocumentsForForum()
-      setBlogDocs(list.slice(0, 15))
-    } catch {
-      setBlogDocs([])
-    } finally {
-      setBlogDocsLoading(false)
-    }
-  }, [session?.did])
-
-  useEffect(() => {
-    if (session?.did) loadBlogDocs()
-    else setBlogDocs([])
-  }, [session?.did, loadBlogDocs])
 
   // Purplesky-style: hide floating buttons + nav when scrolling down; show on scroll up or stop
   // Debounce scroll handler to reduce layout work during rapid scroll events
@@ -1424,34 +1402,6 @@ export default function FeedPage() {
             </div>
             {suggestedFollowsOpen && <SuggestedFollows />}
           </div>
-        )}
-        {session && (
-          <section className={styles.blogPostcardsSection} aria-label="Blogs from people you follow">
-            <h3 className={styles.blogPostcardsTitle}>Blogs from people you follow</h3>
-            {blogDocsLoading ? (
-              <p className={styles.blogPostcardsLoading}>Loading…</p>
-            ) : blogDocs.length === 0 ? null : (
-              <div className={styles.blogPostcardsScroll}>
-                {blogDocs.map((doc) => {
-                  const handle = doc.authorHandle ?? doc.did
-                  const title = doc.title || doc.path || 'Untitled'
-                  const preview = (doc.body ?? '').replace(/\s+/g, ' ').trim().slice(0, 80)
-                  return (
-                    <button
-                      key={doc.uri}
-                      type="button"
-                      className={styles.blogPostcard}
-                      onClick={() => openForumPostModal(doc.uri)}
-                    >
-                      <span className={styles.blogPostcardTitle}>{title}</span>
-                      <span className={styles.blogPostcardMeta}>@{handle}</span>
-                      {preview && <span className={styles.blogPostcardPreview}>{preview}{preview.length >= 80 ? '…' : ''}</span>}
-                    </button>
-                  )
-                })}
-              </div>
-            )}
-          </section>
         )}
         <div
           key={mixEntries.length === 1 ? (mixEntries[0].source.uri ?? mixEntries[0].source.label) : 'mixed'}

@@ -3,6 +3,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import type { AppBskyFeedDefs } from '@atproto/api'
 import type { AtpSessionData } from '@atproto/api'
 import { agent, publicAgent, postReply, getPostAllMedia, getPostMediaUrl, getQuotedPostView, getPostExternalLink, getSession, createQuotePost, createDownvote, deleteDownvote, listMyDownvotes, getPostThreadCached } from '../lib/bsky'
+import { getApiErrorMessage } from '../lib/apiErrors'
 import { takeInitialPostForUri, getCachedThread } from '../lib/postCache'
 import { getDownvoteCounts } from '../lib/constellation'
 import { useSession } from '../context/SessionContext'
@@ -1251,7 +1252,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
         setMyDownvotes({})
       }
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to load post')
+      setError(getApiErrorMessage(err, 'load post'))
     } finally {
       setLoading(false)
     }
