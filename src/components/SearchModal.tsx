@@ -314,7 +314,6 @@ function SearchContent({ query, onRegisterRefresh }: { query: string; onRegister
               key={colIndex}
               column={column}
               colIndex={colIndex}
-              scrollMargin={0}
               scrollRef={modalScrollRef}
               loadMoreSentinelRef={cursor ? (el) => { loadMoreSentinelRefs.current[colIndex] = el } : undefined}
               hasCursor={!!cursor}

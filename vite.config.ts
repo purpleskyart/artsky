@@ -58,7 +58,6 @@ export default defineConfig({
           // Lazy load heavy dependencies
           'atproto': ['@atproto/api', '@atproto/oauth-client-browser'],
           'video': ['hls.js'],
-          'virtual': ['@tanstack/react-virtual'],
         },
       },
     },

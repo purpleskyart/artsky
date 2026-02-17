@@ -1,5 +1,3 @@
-import { useRef } from 'react'
-import { useWindowVirtualizer } from '@tanstack/react-virtual'
 import type { FeedDisplayEntry } from '../pages/FeedPage'
 import { getPostAllMediaForDisplay, isPostNsfw } from '../lib/bsky'
 import VirtualizedPostCard from './VirtualizedPostCard'
@@ -7,52 +5,11 @@ import RepostCarouselCard from './RepostCarouselCard'
 import { setInitialPostForUri } from '../lib/postCache'
 import styles from '../pages/FeedPage.module.css'
 
-const ESTIMATE_COL_WIDTH = 280
-const CARD_CHROME = 100
-const REPOST_CAROUSEL_ESTIMATE_HEIGHT = 200
-const OVERSCAN = 15 // Keep more items rendered above/below viewport for smooth scrolling
-/** Vertical gap between cards (matches gridColumn gap: 0.35rem ≈ 6px) */
-const CARD_GAP = 6
-
-function estimateEntryHeight(entry: FeedDisplayEntry): number {
-  if (entry.type === 'carousel') return REPOST_CAROUSEL_ESTIMATE_HEIGHT
-  const allMedia = getPostAllMediaForDisplay(entry.item.post)
-  
-  // Text-only posts: estimate based on text length
-  if (allMedia.length === 0) {
-    const text = (entry.item.post.record as { text?: string })?.text || ''
-    const textLines = Math.ceil(text.length / 50) // ~50 chars per line
-    const textHeight = Math.min(textLines * 20, 200) // Cap at ~10 lines
-    return CARD_CHROME + textHeight
-  }
-  
-  // Multi-image posts stack vertically: combined aspect = 1 / sum(1/ar)
-  if (allMedia.length > 1) {
-    const totalInverseAspect = allMedia.reduce((s, m) => s + 1 / (m.aspectRatio || 1), 0)
-    const combinedAspect = 1 / totalInverseAspect
-    const mediaHeight = Math.ceil(ESTIMATE_COL_WIDTH / combinedAspect)
-    // Add extra height for multi-image layout spacing
-    return CARD_CHROME + mediaHeight + (allMedia.length - 1) * 4
-  }
-  
-  // Single image: use aspect ratio if available
-  const media = allMedia[0]
-  if (media.aspectRatio != null && media.aspectRatio > 0) {
-    const mediaHeight = Math.ceil(ESTIMATE_COL_WIDTH / media.aspectRatio)
-    // Clamp to reasonable bounds
-    return CARD_CHROME + Math.min(Math.max(mediaHeight, 150), 600)
-  }
-  
-  // Fallback for unknown aspect ratio
-  return CARD_CHROME + 220
-}
-
 type ColumnItem = { entry: FeedDisplayEntry; originalIndex: number }
 
 export interface VirtualizedFeedColumnProps {
   column: ColumnItem[]
   colIndex: number
-  scrollMargin: number
   /** Callback ref for load-more sentinel (when cursor exists) */
   loadMoreSentinelRef?: (el: HTMLDivElement | null) => void
   hasCursor?: boolean
@@ -79,7 +36,6 @@ export interface VirtualizedFeedColumnProps {
 
 export default function VirtualizedFeedColumn({
   column,
-  scrollMargin,
   loadMoreSentinelRef,
   hasCursor,
   keyboardFocusIndex,
@@ -100,64 +56,6 @@ export default function VirtualizedFeedColumn({
   onMouseEnter,
   onAddClose,
 }: VirtualizedFeedColumnProps) {
-  const virtualizer = useWindowVirtualizer({
-    count: column.length,
-    estimateSize: (i) => estimateEntryHeight(column[i].entry),
-    overscan: OVERSCAN,
-    scrollMargin,
-    gap: CARD_GAP,
-    lanes: 1,
-    // Disable scroll restoration - let browser handle scroll naturally
-    scrollToFn: () => {
-      // No-op: prevent virtualizer from adjusting scroll position
-    },
-  })
-
-  const virtualItems = virtualizer.getVirtualItems()
-  const totalSize = virtualizer.getTotalSize()
-  
-  // Track the last measured item to prevent remeasuring items far below viewport
-  const lastMeasuredIndexRef = useRef(-1)
-  const measureThrottleRef = useRef<Set<number>>(new Set())
-  const prevColumnLengthRef = useRef(column.length)
-  const newlyAddedIndices = useRef<number[]>([])
-  const prevTotalSizeRef = useRef(totalSize)
-  
-  // Preserve scroll position when new items are appended to the list
-  // This prevents the jitter where new posts appear above current position
-  if (column.length > prevColumnLengthRef.current && column.length > 0) {
-    const estimatedNewHeight = totalSize - prevTotalSizeRef.current
-    
-    // Only adjust if we're scrolled down (not at top)
-    // This preserves scroll position when loading more posts at the bottom
-    if (window.scrollY > 100 && estimatedNewHeight > 0) {
-      // Scroll down by the estimated height of newly added items
-      window.scrollBy(0, estimatedNewHeight)
-    }
-    
-    prevTotalSizeRef.current = totalSize
-  }
-  
-  // Clear measure throttle when column length changes (new items added)
-  // Measure newly added items immediately to prevent scroll jumps from inaccurate estimates
-  if (prevColumnLengthRef.current !== column.length) {
-    const newThrottle = new Set<number>()
-    for (let i = 0; i < Math.min(prevColumnLengthRef.current, column.length); i++) {
-      if (measureThrottleRef.current.has(i)) {
-        newThrottle.add(i)
-      }
-    }
-    measureThrottleRef.current = newThrottle
-    
-    // Track newly added items at the end of the column to measure them immediately
-    newlyAddedIndices.current = Array.from(
-      { length: column.length - prevColumnLengthRef.current },
-      (_, i) => prevColumnLengthRef.current + i
-    )
-    
-    prevColumnLengthRef.current = column.length
-  }
-
   if (column.length === 0) {
     return (
       <div className={styles.gridColumn}>
@@ -170,103 +68,66 @@ export default function VirtualizedFeedColumn({
 
   return (
     <div className={styles.gridColumn}>
-      <div
-        style={{
-          height: `${totalSize}px`,
-          width: '100%',
-          position: 'relative',
-        }}
-      >
-        {virtualItems.map((virtualItem) => {
-          const { entry, originalIndex } = column[virtualItem.index]
-          const key = entry.type === 'post' ? entry.item.post.uri : entry.items[0].post.uri
-          return (
-            <div
-              key={key}
-              data-index={virtualItem.index}
-              ref={(el) => {
-                if (!el) return
-                
-                const isNewlyAdded = newlyAddedIndices.current.includes(virtualItem.index)
-                
-                // Only measure newly added items or items that haven't been measured yet
-                // Once measured, don't remeasure to prevent jitter
-                if (!measureThrottleRef.current.has(virtualItem.index)) {
-                  virtualizer.measureElement(el)
-                  measureThrottleRef.current.add(virtualItem.index)
-                  lastMeasuredIndexRef.current = Math.max(lastMeasuredIndexRef.current, virtualItem.index)
-                  
-                  // Remove from newly added list once measured
-                  if (isNewlyAdded) {
-                    newlyAddedIndices.current = newlyAddedIndices.current.filter(i => i !== virtualItem.index)
-                  }
+      {column.map(({ entry, originalIndex }) => {
+        const key = entry.type === 'post' ? entry.item.post.uri : entry.items[0].post.uri
+        return (
+          <div
+            key={key}
+            ref={cardRef(originalIndex)}
+            className={styles.gridItem}
+            data-selected={focusTargets[keyboardFocusIndex]?.cardIndex === originalIndex || undefined}
+            data-post-uri={entry.type === 'post' ? entry.item.post.uri : entry.items[0].post.uri}
+            onMouseEnter={() => onMouseEnter(originalIndex)}
+          >
+            {entry.type === 'post' ? (
+              <VirtualizedPostCard
+                item={entry.item}
+                isSelected={focusTargets[keyboardFocusIndex]?.cardIndex === originalIndex}
+                focusedMediaIndex={
+                  focusTargets[keyboardFocusIndex]?.cardIndex === originalIndex &&
+                  !(focusSetByMouse && getPostAllMediaForDisplay(entry.item.post).length > 1)
+                    ? focusTargets[keyboardFocusIndex]?.mediaIndex
+                    : undefined
                 }
-                
-                // Also set this as the cardRef so IntersectionObserver can track it
-                cardRef(originalIndex)(el)
-              }}
-              className={styles.gridItem}
-              data-selected={focusTargets[keyboardFocusIndex]?.cardIndex === originalIndex || undefined}
-              data-post-uri={entry.type === 'post' ? entry.item.post.uri : entry.items[0].post.uri}
-              style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                width: '100%',
-                transform: `translateY(${virtualItem.start - virtualizer.options.scrollMargin}px)`,
-              }}
-              onMouseEnter={() => onMouseEnter(originalIndex)}
-            >
-              {entry.type === 'post' ? (
-                <VirtualizedPostCard
-                  item={entry.item}
-                  isSelected={focusTargets[keyboardFocusIndex]?.cardIndex === originalIndex}
-                  focusedMediaIndex={
-                    focusTargets[keyboardFocusIndex]?.cardIndex === originalIndex &&
-                    !(focusSetByMouse && getPostAllMediaForDisplay(entry.item.post).length > 1)
-                      ? focusTargets[keyboardFocusIndex]?.mediaIndex
-                      : undefined
-                  }
-                  onMediaRef={(mediaIndex, el) => onMediaRef(originalIndex, mediaIndex, el)}
-                  cardRef={() => {}} // No-op since we're using the wrapper div ref above
-                  openAddDropdown={focusTargets[keyboardFocusIndex]?.cardIndex === originalIndex && keyboardAddOpen}
-                  onAddClose={onAddClose}
-                  onActionsMenuOpenChange={(open) => onActionsMenuOpenChange(originalIndex, open)}
-                  cardIndex={originalIndex}
-                  actionsMenuOpenForIndex={actionsMenuOpenForIndex}
-                  onPostClick={(uri, opts) => {
-                    if (opts?.initialItem) setInitialPostForUri(uri, opts.initialItem)
-                    openPostModal(uri, opts?.openReply)
-                  }}
-                  fillCell={false}
-                  nsfwBlurred={
-                    nsfwPreference === 'blurred' &&
-                    isPostNsfw(entry.item.post) &&
-                    !unblurredUris.has(entry.item.post.uri)
-                  }
-                  onNsfwUnblur={() => setUnblurred(entry.item.post.uri, true)}
-                  likedUriOverride={likeOverrides[entry.item.post.uri]}
-                  onLikedChange={(uri, likeRecordUri) =>
-                    setLikeOverrides(uri, likeRecordUri ?? null)
-                  }
-                  seen={seenUris.has(entry.item.post.uri)}
-                />
-              ) : (
-                <RepostCarouselCard
-                  items={entry.items}
-                  onPostClick={(uri, opts) => {
-                    if (opts?.initialItem) setInitialPostForUri(uri, opts.initialItem)
-                    openPostModal(uri)
-                  }}
-                  cardRef={() => {}} // No-op since we're using the wrapper div ref above
-                  seen={seenUris.has(entry.items[0].post.uri)}
-                  data-post-uri={entry.items[0].post.uri}
-                />
-              )}
-            </div>
-          )
-        })}
-      </div>
+                onMediaRef={(mediaIndex, el) => onMediaRef(originalIndex, mediaIndex, el)}
+                cardRef={() => {}} // No-op since we're using the wrapper div ref above
+                openAddDropdown={focusTargets[keyboardFocusIndex]?.cardIndex === originalIndex && keyboardAddOpen}
+                onAddClose={onAddClose}
+                onActionsMenuOpenChange={(open) => onActionsMenuOpenChange(originalIndex, open)}
+                cardIndex={originalIndex}
+                actionsMenuOpenForIndex={actionsMenuOpenForIndex}
+                onPostClick={(uri, opts) => {
+                  if (opts?.initialItem) setInitialPostForUri(uri, opts.initialItem)
+                  openPostModal(uri, opts?.openReply)
+                }}
+                fillCell={false}
+                nsfwBlurred={
+                  nsfwPreference === 'blurred' &&
+                  isPostNsfw(entry.item.post) &&
+                  !unblurredUris.has(entry.item.post.uri)
+                }
+                onNsfwUnblur={() => setUnblurred(entry.item.post.uri, true)}
+                likedUriOverride={likeOverrides[entry.item.post.uri]}
+                onLikedChange={(uri, likeRecordUri) =>
+                  setLikeOverrides(uri, likeRecordUri ?? null)
+                }
+                seen={seenUris.has(entry.item.post.uri)}
+              />
+            ) : (
+              <RepostCarouselCard
+                items={entry.items}
+                onPostClick={(uri, opts) => {
+                  if (opts?.initialItem) setInitialPostForUri(uri, opts.initialItem)
+                  openPostModal(uri)
+                }}
+                cardRef={() => {}} // No-op since we're using the wrapper div ref above
+                seen={seenUris.has(entry.items[0].post.uri)}
+                data-post-uri={entry.items[0].post.uri}
+              />
+            )}
+          </div>
+        )
+      })}
       {hasCursor && loadMoreSentinelRef != null && (
         <div ref={loadMoreSentinelRef} className={styles.loadMoreSentinel} aria-hidden />
       )}

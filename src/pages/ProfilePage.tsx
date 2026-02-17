@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useParams, Link } from 'react-router-dom'
 import { useProfileModal } from '../context/ProfileModalContext'
@@ -218,7 +218,6 @@ export function ProfileContent({
   const { openPostModal, isModalOpen } = useProfileModal()
   const modalScrollRef = useModalScroll()
   const gridRef = useRef<HTMLDivElement | null>(null)
-  const [scrollMargin, setScrollMargin] = useState(0)
   const editProfileCtx = useEditProfile()
   const topBarSlots = useModalTopBarSlot()
   const topBarRightSlot = topBarSlots?.rightSlot ?? null
@@ -522,16 +521,6 @@ export function ProfileContent({
   const cols = viewMode === '1' ? 1 : viewMode === '2' ? 2 : 3
   profileGridItemsRef.current = profileGridItems
   keyboardFocusIndexRef.current = keyboardFocusIndex
-
-  useLayoutEffect(() => {
-    if (inModal || !gridRef.current) return
-    const el = gridRef.current
-    const update = () => setScrollMargin(el.getBoundingClientRect().top + window.scrollY)
-    update()
-    const ro = new ResizeObserver(update)
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [inModal, profileGridItems.length])
 
   useEffect(() => {
     setKeyboardFocusIndex((i) => (profileGridItems.length ? Math.min(i, profileGridItems.length - 1) : 0))
@@ -1137,7 +1126,6 @@ export function ProfileContent({
                   key={colIndex}
                   column={column}
                   colIndex={colIndex}
-                  scrollMargin={scrollMargin}
                   scrollRef={inModal ? modalScrollRef : null}
                   loadMoreSentinelRef={
                     cursor

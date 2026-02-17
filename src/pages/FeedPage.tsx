@@ -1,4 +1,4 @@
-import { useCallback, useContext, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState, startTransition, useSyncExternalStore } from 'react'
+import { useCallback, useContext, useEffect, useMemo, useReducer, useRef, useState, startTransition, useSyncExternalStore } from 'react'
 import { useLocation, useNavigate, useNavigationType } from 'react-router-dom'
 import {
   agent,
@@ -411,7 +411,6 @@ export default function FeedPage() {
   const seenPostsContext = useSeenPosts()
   const [suggestedFollowsOpen, setSuggestedFollowsOpen] = useState(false)
   const gridRef = useRef<HTMLDivElement | null>(null)
-  const [scrollMargin, setScrollMargin] = useState(0)
 
   // Register clear-seen handler so that long-press on Home can bring back all hidden (seen) items.
   useEffect(() => {
@@ -884,23 +883,6 @@ export default function FeedPage() {
   mediaItemsRef.current = displayItems
   keyboardFocusIndexRef.current = feedState.keyboardFocusIndex
   actionsMenuOpenForIndexRef.current = feedState.actionsMenuOpenForIndex
-
-  // Measure grid offset for virtualizer scroll margin (document-relative top of grid)
-  // Debounce layout recalculation to prevent excessive computation during rapid scroll/resize events
-  useLayoutEffect(() => {
-    const el = gridRef.current
-    if (!el) return
-    const update = () => {
-      const top = el.getBoundingClientRect().top + window.scrollY
-      setScrollMargin(top)
-    }
-    update()
-    // Debounce resize observer updates to reduce layout recalculation frequency during rapid events
-    const debouncedUpdate = debounce(update, 150)
-    const ro = new ResizeObserver(debouncedUpdate)
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [displayEntries.length, suggestedFollowsOpen])
 
   useEffect(() => {
     const currentIndex = feedState.keyboardFocusIndex
@@ -1426,7 +1408,6 @@ export default function FeedPage() {
                   key={`${colIndex}-${column.length}`}
                   column={column}
                   colIndex={colIndex}
-                  scrollMargin={scrollMargin}
                   loadMoreSentinelRef={feedState.cursor ? (el) => { loadMoreSentinelRefs.current[colIndex] = el } : undefined}
                   hasCursor={!!feedState.cursor}
                   keyboardFocusIndex={feedState.keyboardFocusIndex}

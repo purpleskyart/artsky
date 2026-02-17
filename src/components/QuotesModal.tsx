@@ -94,7 +94,6 @@ export default function QuotesModal({ postUri, onClose, onBack, canGoBack }: Quo
               <VirtualizedProfileColumn
                 column={items.map((item, i) => ({ item, originalIndex: i }))}
                 colIndex={0}
-                scrollMargin={0}
                 scrollRef={modalScrollRef}
                 loadMoreSentinelRef={cursor ? (el) => { (loadMoreSentinelRef as unknown as { current: HTMLDivElement | null }).current = el } : undefined}
                 hasCursor={!!cursor}
