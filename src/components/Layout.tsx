@@ -56,9 +56,9 @@ function loadHiddenPresetUris(did: string): Set<string> {
       raw = localStorage.getItem(HIDDEN_PRESET_FEEDS_PREFIX)
       fromLegacy = !!raw
     }
-    if (!raw) return new Set()
+    if (!raw) return new Set<string>()
     const arr = JSON.parse(raw) as string[]
-    const result = Array.isArray(arr) ? new Set(arr) : new Set()
+    const result = Array.isArray(arr) ? new Set<string>(arr) : new Set<string>()
     if (fromLegacy && did !== 'guest') {
       try {
         localStorage.setItem(key, JSON.stringify([...result]))
