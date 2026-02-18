@@ -25,6 +25,7 @@ import ComposerSuggestions from './ComposerSuggestions'
 import PostText from './PostText'
 import CharacterCountWithCircle from './CharacterCountWithCircle'
 import { CardDefaultIcon, CardMinimalistIcon, CardArtOnlyIcon, EyeOpenIcon, EyeHalfIcon, EyeClosedIcon } from './Icons'
+import SWUpdateToast from './SWUpdateToast'
 import styles from './Layout.module.css'
 
 const PRESET_FEED_SOURCES: FeedSource[] = [
@@ -2418,6 +2419,7 @@ export default function Layout({ title, children, showNav }: Props) {
           {toast.toastMessage}
         </div>
       )}
+      <SWUpdateToast />
       </FeedSwipeProvider>
       </FeedPullRefreshContext.Provider>
     </div>
