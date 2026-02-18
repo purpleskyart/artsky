@@ -3,7 +3,6 @@ import { Component, lazy, Suspense, useEffect } from 'react'
 import type { ErrorInfo, ReactNode } from 'react'
 import { HashRouter, Navigate, Route, Routes, useParams } from 'react-router-dom'
 import { REPO_URL } from './config/repo'
-import * as bsky from './lib/bsky'
 import { initPerformanceMetrics } from './lib/performanceMetrics'
 import { CoreProvidersGroup } from './context/CoreProvidersGroup'
 import { FeedProvidersGroup } from './context/FeedProvidersGroup'
@@ -59,11 +58,6 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error('App error:', error, info.componentStack)
-    const msg = error?.message ?? ''
-    if (/session was deleted by another process|TokenRefreshError/i.test(msg)) {
-      const oauth = bsky.getOAuthAccountsSnapshot()
-      if (oauth.activeDid) bsky.removeOAuthDid(oauth.activeDid)
-    }
   }
 
   render() {
@@ -87,18 +81,34 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
         >
           <div style={{ maxWidth: '28rem' }}>
             <h1 style={{ margin: '0 0 0.5rem', fontSize: '1.25rem' }}>
-              {isSessionDeleted ? 'You were logged out' : 'Something went wrong'}
+              {isSessionDeleted ? 'Session Error' : 'Something went wrong'}
             </h1>
             <p style={{ margin: 0, fontSize: '0.95rem' }}>
               {isSessionDeleted
-                ? 'Your session was ended (for example by signing out in another tab or device). Please sign in again.'
+                ? 'There was a problem with your session. Try refreshing the page to restore it.'
                 : this.state.error.message}
             </p>
             {isSessionDeleted && (
               <p style={{ margin: '1rem 0 0', fontSize: '0.9rem' }}>
-                <a href="#/feed" style={{ color: 'var(--accent)' }}>
-                  Back to feed
-                </a>
+                <button
+                  type="button"
+                  onClick={() => {
+                    this.setState({ error: null })
+                    window.location.hash = '#/feed'
+                  }}
+                  style={{
+                    padding: '0.5rem 1rem',
+                    fontSize: '0.95rem',
+                    cursor: 'pointer',
+                    background: 'var(--accent)',
+                    color: 'var(--bg)',
+                    border: 'none',
+                    borderRadius: 'var(--glass-radius-sm, 6px)',
+                    fontWeight: 500,
+                  }}
+                >
+                  Retry
+                </button>
               </p>
             )}
             {!isSessionDeleted && (
