@@ -825,10 +825,7 @@ export default function Layout({ title, children, showNav }: Props) {
       .then(({ notifications: list }) => {
         setNotifications(list)
         setUnreadNotificationCount(0)
-        // Advance server seenAt so the unread count clears; then refetch count so we don't show the dot if server was stale.
-        updateSeenNotifications()
-          .then(() => getUnreadNotificationCount().then(setUnreadNotificationCount))
-          .catch(() => {})
+        updateSeenNotifications().catch(() => {})
       })
       .catch(() => setNotifications([]))
       .finally(() => setNotificationsLoading(false))
@@ -911,10 +908,12 @@ export default function Layout({ title, children, showNav }: Props) {
   }, [session])
 
   /* Sync unread count when tab/window becomes visible (e.g. user read notifications in Bluesky app or another tab) */
+  const lastUnreadFetchRef = useRef(0)
   useEffect(() => {
     if (!session || typeof document === 'undefined') return
     function onVisibilityChange() {
-      if (document.visibilityState === 'visible') {
+      if (document.visibilityState === 'visible' && Date.now() - lastUnreadFetchRef.current > 120_000) {
+        lastUnreadFetchRef.current = Date.now()
         getUnreadNotificationCount()
           .then(setUnreadNotificationCount)
           .catch(() => {})

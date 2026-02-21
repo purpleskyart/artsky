@@ -661,19 +661,6 @@ function PostBlock({
               postedAt={(post.record as { createdAt?: string })?.createdAt}
               onViewQuotes={onViewQuotes}
             />
-            <button
-              type="button"
-              className={styles.commentViewQuotesBtn}
-              onClick={() => onViewQuotes?.(post.uri)}
-              title="View posts that quote this"
-              aria-label="View quotes"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                <path d="M3 21c3 0 7-1 7-8V5c0-1.25-.756-2.017-2-2H3c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2z" />
-                <path d="M15 21c3 0 7-1 7-8V5c0-1.25-.757-2.017-2-2h-5c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2z" />
-              </svg>
-              <span>View Quotes</span>
-            </button>
           </div>
         </div>
       )}

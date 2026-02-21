@@ -722,11 +722,11 @@ export default function FeedPage() {
   // Large rootMargin so we load before the user reaches the end. After each load we also schedule a
   // fallback check: if any column's sentinel is above (viewport bottom + margin) we trigger another
   // load once the cooldown expires.
-  const LOAD_MORE_COOLDOWN_MS = 1800
+  const LOAD_MORE_COOLDOWN_MS = 3000
   /** Start loading when sentinel is within this distance below the viewport (load before user reaches end). */
-  const LOAD_MORE_ROOT_MARGIN_PX = 1200
+  const LOAD_MORE_ROOT_MARGIN_PX = 600
   /** Consider a column "short" when its sentinel is above this line (trigger load before blank space visible). */
-  const LOAD_MORE_SHORT_MARGIN_PX = 600
+  const LOAD_MORE_SHORT_MARGIN_PX = 300
   loadingMoreRef.current = feedState.loadingMore
   useEffect(() => {
     if (!feedState.cursor) return

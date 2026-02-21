@@ -153,7 +153,7 @@ function PostActionsMenu({
   const dropdownRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   /** Fixed position for portaled dropdown so it appears above the trigger and isn't clipped by overflow */
-  const [dropdownPosition, setDropdownPosition] = useState<{ bottom: number; right: number } | null>(null)
+  const [dropdownPosition, setDropdownPosition] = useState<{ bottom: number; right: number; left: number; flipH: boolean } | null>(null)
 
   const isControlled = openControlled !== undefined && onOpenChange !== undefined
   const open = isControlled ? openControlled : openUncontrolled
@@ -196,9 +196,14 @@ function PostActionsMenu({
   function updateDropdownPosition() {
     if (!triggerRef.current) return null
     const rect = triggerRef.current.getBoundingClientRect()
+    const right = window.innerWidth - rect.right
+    const left = rect.left
+    const flipH = rect.right < 208
     return {
       bottom: window.innerHeight - rect.top,
-      right: window.innerWidth - rect.right,
+      right,
+      left,
+      flipH,
     }
   }
 
@@ -399,11 +404,7 @@ function PostActionsMenu({
           e.preventDefault()
           e.stopPropagation()
           if (!open && triggerRef.current) {
-            const rect = triggerRef.current.getBoundingClientRect()
-            setDropdownPosition({
-              bottom: window.innerHeight - rect.top,
-              right: window.innerWidth - rect.right,
-            })
+            setDropdownPosition(updateDropdownPosition())
           }
           setOpen(!open)
         }}
@@ -437,7 +438,9 @@ function PostActionsMenu({
             style={{
               position: 'fixed',
               bottom: dropdownPosition.bottom,
-              right: dropdownPosition.right,
+              ...(dropdownPosition.flipH
+                ? { left: dropdownPosition.left }
+                : { right: dropdownPosition.right }),
             }}
             role="menu"
           >
