@@ -82,9 +82,12 @@ export function getOAuthAccountsSnapshot(): OAuthAccountsStore {
   return getOAuthAccounts()
 }
 
+let sessionRetryTimer: ReturnType<typeof setTimeout> | null = null
+
 function persistSession(_evt: AtpSessionEvent, session: AtpSessionData | undefined) {
   const accounts = getAccounts()
   if (session) {
+    if (sessionRetryTimer) { clearTimeout(sessionRetryTimer); sessionRetryTimer = null }
     accounts.sessions[session.did] = session
     accounts.activeDid = session.did
     saveAccounts(accounts)
@@ -94,20 +97,11 @@ function persistSession(_evt: AtpSessionEvent, session: AtpSessionData | undefin
       // ignore
     }
   } else {
-    if (accounts.activeDid) {
-      delete accounts.sessions[accounts.activeDid]
-      const remaining = Object.keys(accounts.sessions)
-      accounts.activeDid = remaining[0] ?? null
-      saveAccounts(accounts)
-    }
-    try {
-      if (accounts.activeDid) {
-        localStorage.setItem(SESSION_KEY, JSON.stringify(accounts.sessions[accounts.activeDid]))
-      } else {
-        localStorage.removeItem(SESSION_KEY)
-      }
-    } catch {
-      // ignore
+    if (!sessionRetryTimer) {
+      sessionRetryTimer = setTimeout(async () => {
+        sessionRetryTimer = null
+        try { await credentialAgent.resumeSession(getStoredSession()!) } catch { /* will retry via next API call */ }
+      }, 30_000)
     }
   }
 }
@@ -262,11 +256,11 @@ export async function resumeSession(): Promise<boolean> {
   try {
     await credentialAgent.resumeSession(session)
     return true
-  } catch {
-    try {
-      localStorage.removeItem(SESSION_KEY)
-    } catch {
-      // ignore
+  } catch (err) {
+    const status = (err as { status?: number; statusCode?: number })?.status
+      ?? (err as { status?: number; statusCode?: number })?.statusCode
+    if (status === 401 || status === 400) {
+      try { localStorage.removeItem(SESSION_KEY) } catch { /* ignore */ }
     }
     return false
   }

@@ -1,0 +1,91 @@
+.toast {
+  position: fixed;
+  bottom: max(env(safe-area-inset-bottom, 0px), 12px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--glass-radius);
+  box-shadow: var(--shadow-lg);
+  font-size: 0.9rem;
+  animation: slideUp 0.3s ease-out;
+}
+
+.message {
+  color: var(--text);
+}
+
+.actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.updateBtn,
+.dismissBtn {
+  padding: 0.4rem 0.75rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  border-radius: var(--glass-radius-sm);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.updateBtn {
+  background: var(--accent);
+  color: var(--bg);
+  border: none;
+}
+
+.updateBtn:hover {
+  filter: brightness(1.1);
+}
+
+.dismissBtn {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--glass-border);
+}
+
+.dismissBtn:hover {
+  background: var(--glass-hover);
+  color: var(--text);
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(1rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+@media (max-width: 480px) {
+  .toast {
+    left: 12px;
+    right: 12px;
+    transform: none;
+    flex-wrap: wrap;
+    justify-content: space-between;
+  }
+
+  @keyframes slideUp {
+    from {
+      opacity: 0;
+      transform: translateY(1rem);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}

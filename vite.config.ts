@@ -14,7 +14,8 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
+      registerType: 'prompt',
+      includeAssets: ['favicon.ico', 'icon.svg', 'icon-pwa.svg'],
       manifest: {
         name: 'ArtSky',
         short_name: 'ArtSky',
