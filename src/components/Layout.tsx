@@ -367,6 +367,7 @@ export default function Layout({ title, children, showNav }: Props) {
     }
     let cancelled = false
     sessionsList.forEach((s) => {
+      if (accountProfiles[s.did] && accountProfilesVersion === 0) return
       publicAgent.getProfile({ actor: s.did }).then((res) => {
         if (cancelled) return
         const data = res.data as { avatar?: string; handle?: string }

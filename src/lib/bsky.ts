@@ -229,9 +229,14 @@ export async function getGuestFeed(
   const need = offset + limit
   const perHandle = Math.ceil(need / GUEST_FEED_HANDLES.length) + 5
   const results = await Promise.all(
-    GUEST_FEED_HANDLES.map((actor) =>
-      publicAgent.getAuthorFeed({ actor, limit: perHandle }).catch(() => ({ data: { feed: [] } })),
-    ),
+    GUEST_FEED_HANDLES.map((actor) => {
+      const cacheKey = `guest:${actor}:${perHandle}`
+      const cached = responseCache.get<{ data: { feed: TimelineItem[] } }>(cacheKey)
+      if (cached) return cached
+      return publicAgent.getAuthorFeed({ actor, limit: perHandle })
+        .then((res) => { responseCache.set(cacheKey, res, 300_000); return res })
+        .catch(() => ({ data: { feed: [] } }))
+    }),
   )
   const all = results.flatMap((r) => (r.data.feed || []) as TimelineItem[])
   const seen = new Set<string>()
@@ -378,75 +383,56 @@ export async function getMixedFeed(
     return { feed: [], cursors: {} }
   }
   const fetchLimit = Math.max(limit, 50)
-  const results = await Promise.all(
-    entries.map(async (entry) => {
-      const key = entry.source.kind === 'timeline' ? 'timeline' : (entry.source.uri ?? '')
-      const cursor = cursors?.[key]
-      try {
-        // Check if request was cancelled
-        if (signal?.aborted) {
-          throw new Error('Request cancelled')
+  const results: { key: string; feed: TimelineItem[]; nextCursor: string | undefined }[] = []
+  for (const entry of entries) {
+    const key = entry.source.kind === 'timeline' ? 'timeline' : (entry.source.uri ?? '')
+    const cursor = cursors?.[key]
+    try {
+      if (signal?.aborted) throw new Error('Request cancelled')
+
+      if (entry.source.kind === 'timeline') {
+        const cacheKey = `timeline:${fetchLimit}:${cursor ?? 'initial'}`
+        const cached = responseCache.get<{ feed: TimelineItem[]; cursor?: string }>(cacheKey)
+        if (cached) {
+          results.push({ key, feed: cached.feed, nextCursor: cached.cursor })
+          continue
         }
-        
-        if (entry.source.kind === 'timeline') {
-          // Use deduplication and caching for timeline requests
-          const cacheKey = `timeline:${fetchLimit}:${cursor ?? 'initial'}`
-          
-          // Check cache first
-          const cached = responseCache.get<{ feed: TimelineItem[]; cursor?: string }>(cacheKey)
-          if (cached) {
-            return { key, feed: cached.feed, nextCursor: cached.cursor }
-          }
-          
-          // Deduplicate concurrent requests with retry logic and custom error handling
-          const res = await requestDeduplicator.dedupe(
-            cacheKey,
-            () => retryWithBackoff(
-              () => agent.getTimeline({ limit: fetchLimit, cursor }),
-              { shouldRetry: shouldRetryError }
-            )
+        const res = await requestDeduplicator.dedupe(
+          cacheKey,
+          () => retryWithBackoff(
+            () => agent.getTimeline({ limit: fetchLimit, cursor }),
+            { shouldRetry: shouldRetryError }
           )
-          
-          const result = { feed: res.data.feed, cursor: res.data.cursor ?? undefined }
-          
-          // Cache the response (1 minute TTL)
-          responseCache.set(cacheKey, result, 60000)
-          
-          return { key, feed: result.feed, nextCursor: result.cursor }
-        }
-        if (entry.source.uri) {
-          // Use deduplication and caching for feed requests
-          const cacheKey = `feed:${entry.source.uri}:${fetchLimit}:${cursor ?? 'initial'}`
-          
-          // Check cache first
-          const cached = responseCache.get<{ feed: TimelineItem[]; cursor?: string }>(cacheKey)
-          if (cached) {
-            return { key, feed: cached.feed, nextCursor: cached.cursor }
-          }
-          
-          // Deduplicate concurrent requests with retry logic and custom error handling
-          const res = await requestDeduplicator.dedupe(
-            cacheKey,
-            () => retryWithBackoff(
-              () => agent.app.bsky.feed.getFeed({ feed: entry.source.uri!, limit: fetchLimit, cursor }),
-              { shouldRetry: shouldRetryError }
-            )
-          )
-          
-          const result = { feed: res.data.feed, cursor: res.data.cursor }
-          
-          // Cache the response (1 minute TTL)
-          responseCache.set(cacheKey, result, 60000)
-          
-          return { key, feed: result.feed, nextCursor: result.cursor }
-        }
-      } catch (error) {
-        // Log user-friendly error message but don't fail the entire feed
-        console.warn(getApiErrorMessage(error, `load ${key} feed`))
+        )
+        const result = { feed: res.data.feed, cursor: res.data.cursor ?? undefined }
+        responseCache.set(cacheKey, result, 300_000)
+        results.push({ key, feed: result.feed, nextCursor: result.cursor })
+        continue
       }
-      return { key, feed: [] as TimelineItem[], nextCursor: undefined }
-    })
-  )
+      if (entry.source.uri) {
+        const cacheKey = `feed:${entry.source.uri}:${fetchLimit}:${cursor ?? 'initial'}`
+        const cached = responseCache.get<{ feed: TimelineItem[]; cursor?: string }>(cacheKey)
+        if (cached) {
+          results.push({ key, feed: cached.feed, nextCursor: cached.cursor })
+          continue
+        }
+        const res = await requestDeduplicator.dedupe(
+          cacheKey,
+          () => retryWithBackoff(
+            () => agent.app.bsky.feed.getFeed({ feed: entry.source.uri!, limit: fetchLimit, cursor }),
+            { shouldRetry: shouldRetryError }
+          )
+        )
+        const result = { feed: res.data.feed, cursor: res.data.cursor }
+        responseCache.set(cacheKey, result, 300_000)
+        results.push({ key, feed: result.feed, nextCursor: result.cursor })
+        continue
+      }
+    } catch (error) {
+      console.warn(getApiErrorMessage(error, `load ${key} feed`))
+    }
+    results.push({ key, feed: [] as TimelineItem[], nextCursor: undefined })
+  }
   const takePerEntry = results.map((_, i) => {
     const pct = entries[i]?.percent ?? 0
     return Math.round((limit * pct) / totalPercent)
