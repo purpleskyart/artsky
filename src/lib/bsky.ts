@@ -173,9 +173,26 @@ export async function switchAccount(did: string): Promise<boolean> {
   }
 }
 
+let rateLimitUntil = 0
+const RATE_LIMIT_BACKOFF_MS = 30_000
+
+function rateLimitFetchHandler(reqUri: string, reqInit?: RequestInit): Promise<Response> {
+  const now = Date.now()
+  if (now < rateLimitUntil) {
+    return Promise.reject(Object.assign(new Error('Rate limited — backing off'), { status: 429 }))
+  }
+  return fetch(reqUri, reqInit).then((res) => {
+    if (res.status === 429) {
+      rateLimitUntil = Date.now() + RATE_LIMIT_BACKOFF_MS
+    }
+    return res
+  })
+}
+
 const credentialAgent = new AtpAgent({
   service: BSKY_SERVICE,
   persistSession,
+  fetch: rateLimitFetchHandler,
 })
 
 let oauthAgentInstance: Agent | null = null
@@ -215,7 +232,7 @@ export const agent = new Proxy(credentialAgent, {
 })
 
 /** Agent for unauthenticated reads (profiles, author feeds). Use when no session. */
-export const publicAgent = new AtpAgent({ service: PUBLIC_BSKY })
+export const publicAgent = new AtpAgent({ service: PUBLIC_BSKY, fetch: rateLimitFetchHandler })
 
 /** Handles for the guest feed (from config). Re-exported for convenience. */
 export const GUEST_FEED_HANDLES = GUEST_FEED_ACCOUNTS.map((a) => a.handle)
@@ -2263,10 +2280,16 @@ export async function addSavedFeed(uri: string): Promise<void> {
   await a.app.bsky.actor.putPreferences({ preferences: updated as AppBskyActorDefs.Preferences })
 }
 
+const feedNameCache = new Map<string, string>()
+
 /** Get display name for a feed URI. */
 export async function getFeedDisplayName(uri: string): Promise<string> {
+  const cached = feedNameCache.get(uri)
+  if (cached) return cached
   const res = await agent.app.bsky.feed.getFeedGenerator({ feed: uri })
-  return (res.data?.view as { displayName?: string })?.displayName ?? uri
+  const name = (res.data?.view as { displayName?: string })?.displayName ?? uri
+  feedNameCache.set(uri, name)
+  return name
 }
 
 /** Get a shareable bsky.app URL for a feed (at://...). */

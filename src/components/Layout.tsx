@@ -782,8 +782,12 @@ export default function Layout({ title, children, showNav }: Props) {
     }
   }, [did, hiddenPresetUris, feedOrder])
 
+  const savedFeedsLoadedRef = useRef(false)
   useEffect(() => {
-    if (session) loadSavedFeeds()
+    if (!session) { savedFeedsLoadedRef.current = false; return }
+    if (savedFeedsLoadedRef.current) return
+    savedFeedsLoadedRef.current = true
+    loadSavedFeeds()
   }, [session, loadSavedFeeds])
 
   useEffect(() => {
