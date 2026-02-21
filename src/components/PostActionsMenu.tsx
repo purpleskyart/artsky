@@ -22,6 +22,15 @@ function LinkIcon() {
     </svg>
   )
 }
+function ShareIcon() {
+  return (
+    <svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
+      <polyline points="16 6 12 2 8 6" />
+      <line x1="12" y1="2" x2="12" y2="15" />
+    </svg>
+  )
+}
 function QuotesIcon() {
   return (
     <svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -378,6 +387,17 @@ function PostActionsMenu({
     )
   }, [postUri, showSuccess, showError])
 
+  const canShare = typeof navigator !== 'undefined' && !!navigator.share
+
+  const handleShare = useCallback(() => {
+    const base = typeof window !== 'undefined' ? window.location.origin + (import.meta.env.BASE_URL || '/').replace(/\/$/, '') : ''
+    const url = `${base}/post/${encodeURIComponent(postUri)}`
+    navigator.share({ url }).then(
+      () => setOpen(false),
+      () => {}
+    )
+  }, [postUri])
+
   const handleDelete = useCallback(async () => {
     if (!session?.did || !isOwnPost) return
     setLoading('delete')
@@ -484,6 +504,17 @@ function PostActionsMenu({
                 >
                   <span className={styles.itemIcon}><QuotesIcon /></span>
                   View Quotes
+                </button>
+              )}
+              {canShare && (
+                <button
+                  type="button"
+                  className={styles.item}
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleShare() }}
+                  role="menuitem"
+                >
+                  <span className={styles.itemIcon}><ShareIcon /></span>
+                  Share post
                 </button>
               )}
               <button
@@ -630,6 +661,17 @@ function PostActionsMenu({
                 >
                   <span className={styles.itemIcon}><QuotesIcon /></span>
                   View Quotes
+                </button>
+              )}
+              {canShare && (
+                <button
+                  type="button"
+                  className={styles.item}
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleShare() }}
+                  role="menuitem"
+                >
+                  <span className={styles.itemIcon}><ShareIcon /></span>
+                  Share post
                 </button>
               )}
               <button

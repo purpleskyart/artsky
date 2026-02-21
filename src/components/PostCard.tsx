@@ -824,6 +824,29 @@ function PostCard({ item, isSelected, cardRef: cardRefProp, addButtonRef: _addBu
             </div>
           )}
         </div>
+        {artOnly && !minimalist && (
+          <div className={styles.artOnlyActions} onClick={(e) => e.stopPropagation()}>
+            <PostActionsMenu
+              postUri={post.uri}
+              postCid={post.cid}
+              authorDid={post.author.did}
+              rootUri={post.uri}
+              isOwnPost={isOwnPost}
+              compact
+              verticalIcon
+              className={styles.cardActionsMenu}
+              open={actionsMenuOpen}
+              onOpenChange={(open) => {
+                setActionsMenuOpen(open)
+                onActionsMenuOpenChange?.(open)
+              }}
+              dropdownRef={actionsMenuDropdownRef}
+              feedLabel={feedLabel}
+              postedAt={(post.record as { createdAt?: string })?.createdAt}
+              onViewQuotes={openQuotesModal}
+            />
+          </div>
+        )}
         {(!artOnly || minimalist) && (
         <div className={styles.meta}>
           <div className={styles.cardActionRow} onClick={(e) => e.stopPropagation()}>
