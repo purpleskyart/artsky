@@ -150,11 +150,9 @@ export function shouldRetryError(error: unknown): boolean {
     const status = err.status ?? err.statusCode
 
     if (status !== undefined) {
-      // Retry on 5xx server errors and 408 (timeout)
-      if ((status >= 500 && status < 600) || status === 408) {
+      if ((status >= 500 && status < 600) || status === 408 || status === 429) {
         return true
       }
-      // Don't retry on 4xx client errors (except 408)
       if (status >= 400 && status < 500) {
         return false
       }

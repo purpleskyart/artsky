@@ -409,8 +409,8 @@ export default function Layout({ title, children, showNav }: Props) {
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false)
   const [composeOpen, setComposeOpen] = useState(false)
   const [composeOverlayBottom, setComposeOverlayBottom] = useState(0)
-  type ComposeSegment = { text: string; images: File[]; imageAlts: string[] }
-  const [composeSegments, setComposeSegments] = useState<ComposeSegment[]>([{ text: '', images: [], imageAlts: [] }])
+  type ComposeSegment = { id: string; text: string; images: File[]; imageAlts: string[] }
+  const [composeSegments, setComposeSegments] = useState<ComposeSegment[]>([{ id: Math.random().toString(36).slice(2), text: '', images: [], imageAlts: [] }])
   const [composeSegmentIndex, setComposeSegmentIndex] = useState(0)
   const [composePosting, setComposePosting] = useState(false)
   const [composeError, setComposeError] = useState<string | null>(null)
@@ -961,7 +961,7 @@ export default function Layout({ title, children, showNav }: Props) {
     }
     update()
     viewport.addEventListener('resize', update)
-    viewport.addEventListener('scroll', update)
+    viewport.addEventListener('scroll', update, { passive: true })
     return () => {
       viewport.removeEventListener('resize', update)
       viewport.removeEventListener('scroll', update)
@@ -987,7 +987,7 @@ export default function Layout({ title, children, showNav }: Props) {
     }
     update()
     viewport.addEventListener('resize', update)
-    viewport.addEventListener('scroll', update)
+    viewport.addEventListener('scroll', update, { passive: true })
     return () => {
       viewport.removeEventListener('resize', update)
       viewport.removeEventListener('scroll', update)
@@ -1052,7 +1052,7 @@ export default function Layout({ title, children, showNav }: Props) {
 
   function openCompose() {
     setComposeOpen(true)
-    setComposeSegments([{ text: '', images: [], imageAlts: [] }])
+    setComposeSegments([{ id: Math.random().toString(36).slice(2), text: '', images: [], imageAlts: [] }])
     setComposeSegmentIndex(0)
     setComposeError(null)
     setComposeOverlayBottom(0)
@@ -1099,7 +1099,7 @@ export default function Layout({ title, children, showNav }: Props) {
   }
 
   function addComposeThreadSegment() {
-    setComposeSegments((prev) => [...prev, { text: '', images: [], imageAlts: [] }])
+    setComposeSegments((prev) => [...prev, { id: Math.random().toString(36).slice(2), text: '', images: [], imageAlts: [] }])
     setComposeSegmentIndex((prev) => prev + 1)
   }
 
@@ -1130,7 +1130,7 @@ export default function Layout({ title, children, showNav }: Props) {
           parentCid = r.cid
         }
       }
-      setComposeSegments([{ text: '', images: [], imageAlts: [] }])
+      setComposeSegments([{ id: Math.random().toString(36).slice(2), text: '', images: [], imageAlts: [] }])
       setComposeSegmentIndex(0)
       closeCompose()
       navigate('/feed')
@@ -2178,12 +2178,13 @@ export default function Layout({ title, children, showNav }: Props) {
                 className={`${styles.composeOverlay} ${!isDesktop ? styles.composeOverlayMobile : ''}`}
                 role="dialog"
                 aria-label="New post"
-                onClick={closeCompose}
+                onClick={(e) => { if (e.target === e.currentTarget) closeCompose() }}
+                onKeyDown={(e) => { if (e.key === 'Escape') closeCompose() }}
                 onDragOver={handleComposeDragOver}
                 onDrop={handleComposeDrop}
                 style={!isDesktop ? { bottom: composeOverlayBottom } : undefined}
               >
-                <div className={styles.composeCard} onClick={(e) => e.stopPropagation()}>
+                <div className={styles.composeCard}>
                   <header className={styles.composeHeader}>
                     <button type="button" className={styles.composeCancel} onClick={closeCompose} disabled={composePosting}>
                       Cancel
@@ -2215,7 +2216,7 @@ export default function Layout({ title, children, showNav }: Props) {
                             {composeSegments.map((seg, i) =>
                               i === composeSegmentIndex ? null : (
                                 <button
-                                  key={i}
+                                  key={seg.id}
                                   type="button"
                                   className={styles.composePreviousPostCard}
                                   onClick={() => setComposeSegmentIndex(i)}
@@ -2260,8 +2261,8 @@ export default function Layout({ title, children, showNav }: Props) {
                       {currentSegment.images.length > 0 && (
                         <div className={styles.composeMediaSection}>
                           <div className={styles.composePreviews}>
-                            {currentSegment.images.map((_, i) => (
-                              <div key={i} className={styles.composePreviewWrap}>
+                            {currentSegment.images.map((img, i) => (
+                              <div key={`${img.name}-${img.size}-${img.lastModified}`} className={styles.composePreviewWrap}>
                                 <img
                                   src={composePreviewUrls[i]}
                                   alt=""
@@ -2281,8 +2282,8 @@ export default function Layout({ title, children, showNav }: Props) {
                           </div>
                           <p className={styles.composeAltPrompt}>Describe each image for accessibility (alt text).</p>
                           <div className={styles.composeAltFields}>
-                            {currentSegment.images.map((_, i) => (
-                              <div key={i} className={styles.composeAltRow}>
+                            {currentSegment.images.map((img, i) => (
+                              <div key={`${img.name}-${img.size}-${img.lastModified}`} className={styles.composeAltRow}>
                                 <label htmlFor={`compose-alt-${composeSegmentIndex}-${i}`} className={styles.composeAltLabel}>
                                   Image {i + 1}
                                 </label>
@@ -2376,9 +2377,10 @@ export default function Layout({ title, children, showNav }: Props) {
                 className={styles.aboutOverlay}
                 role="dialog"
                 aria-label="About ArtSky"
-                onClick={() => setAboutOpen(false)}
+                onClick={(e) => { if (e.target === e.currentTarget) setAboutOpen(false) }}
+                onKeyDown={(e) => { if (e.key === 'Escape') setAboutOpen(false) }}
               >
-                <div className={styles.aboutCard} onClick={(e) => e.stopPropagation()}>
+                <div className={styles.aboutCard}>
                   <h2 className={styles.aboutTitle}>ArtSky</h2>
                   <p className={styles.aboutIntro}>
                     A Bluesky client focused on art.
