@@ -175,12 +175,23 @@ export async function switchAccount(did: string): Promise<boolean> {
 
 let rateLimitUntil = 0
 const RATE_LIMIT_BACKOFF_MS = 30_000
+const RATE_WINDOW_MS = 60_000
+const MAX_REQUESTS_PER_WINDOW = 55
+const requestTimestamps: number[] = []
 
 function rateLimitFetchHandler(reqUri: string, reqInit?: RequestInit): Promise<Response> {
   const now = Date.now()
   if (now < rateLimitUntil) {
     return Promise.reject(Object.assign(new Error('Rate limited — backing off'), { status: 429 }))
   }
+  while (requestTimestamps.length > 0 && requestTimestamps[0] < now - RATE_WINDOW_MS) {
+    requestTimestamps.shift()
+  }
+  if (requestTimestamps.length >= MAX_REQUESTS_PER_WINDOW) {
+    rateLimitUntil = now + 10_000
+    return Promise.reject(Object.assign(new Error('Too many requests — slowing down'), { status: 429 }))
+  }
+  requestTimestamps.push(now)
   return fetch(reqUri, reqInit).then((res) => {
     if (res.status === 429) {
       rateLimitUntil = Date.now() + RATE_LIMIT_BACKOFF_MS
