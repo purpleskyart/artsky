@@ -6,6 +6,7 @@ import { requestDeduplicator } from './RequestDeduplicator'
 import { responseCache } from './ResponseCache'
 import { retryWithBackoff, shouldRetryIncluding429 } from './retryWithBackoff'
 import { getApiErrorMessage, shouldRetryError } from './apiErrors'
+import { rateLimiter } from './RateLimiter'
 
 const BSKY_SERVICE = 'https://bsky.social'
 /** Public AppView for unauthenticated reads (profiles, feeds). */
@@ -173,37 +174,39 @@ export async function switchAccount(did: string): Promise<boolean> {
   }
 }
 
-let rateLimitUntil = 0
-const RATE_LIMIT_BACKOFF_MS = 30_000
-const RATE_WINDOW_MS = 60_000
-const MAX_REQUESTS_PER_WINDOW = 55
-const requestTimestamps: number[] = []
-
-function rateLimitFetchHandler(reqUri: string, reqInit?: RequestInit): Promise<Response> {
-  const now = Date.now()
-  if (now < rateLimitUntil) {
-    return Promise.reject(Object.assign(new Error('Rate limited — backing off'), { status: 429 }))
-  }
-  while (requestTimestamps.length > 0 && requestTimestamps[0] < now - RATE_WINDOW_MS) {
-    requestTimestamps.shift()
-  }
-  if (requestTimestamps.length >= MAX_REQUESTS_PER_WINDOW) {
-    rateLimitUntil = now + 10_000
-    return Promise.reject(Object.assign(new Error('Too many requests — slowing down'), { status: 429 }))
-  }
-  requestTimestamps.push(now)
-  return fetch(reqUri, reqInit).then((res) => {
-    if (res.status === 429) {
-      rateLimitUntil = Date.now() + RATE_LIMIT_BACKOFF_MS
+/**
+ * Create a rate-limited fetch handler for a specific agent
+ * Uses the new RateLimiter with per-agent tracking and Retry-After support
+ */
+function createRateLimitedFetch(agentId: string) {
+  return async (input: URL | RequestInfo, init?: RequestInit): Promise<Response> => {
+    const limitCheck = rateLimiter.checkRateLimit(agentId)
+    if (!limitCheck.allowed) {
+      const error = Object.assign(
+        new Error(`Rate limited — backing off for ${Math.ceil(limitCheck.backoffMs / 1000)}s`),
+        { status: 429 }
+      )
+      throw error
     }
-    return res
-  })
+
+    const response = await fetch(input, init)
+
+    if (response.status === 429) {
+      rateLimiter.handle429Response(agentId, response)
+    }
+
+    return response
+  }
 }
+
+// Create separate fetch handlers for each agent
+const credentialAgentFetch = createRateLimitedFetch('credential')
+const publicAgentFetch = createRateLimitedFetch('public')
 
 const credentialAgent = new AtpAgent({
   service: BSKY_SERVICE,
   persistSession,
-  fetch: rateLimitFetchHandler,
+  fetch: credentialAgentFetch,
 })
 
 let oauthAgentInstance: Agent | null = null
@@ -243,7 +246,7 @@ export const agent = new Proxy(credentialAgent, {
 })
 
 /** Agent for unauthenticated reads (profiles, author feeds). Use when no session. */
-export const publicAgent = new AtpAgent({ service: PUBLIC_BSKY, fetch: rateLimitFetchHandler })
+export const publicAgent = new AtpAgent({ service: PUBLIC_BSKY, fetch: publicAgentFetch })
 
 /** Handles for the guest feed (from config). Re-exported for convenience. */
 export const GUEST_FEED_HANDLES = GUEST_FEED_ACCOUNTS.map((a) => a.handle)
@@ -262,7 +265,11 @@ export async function getGuestFeed(
       const cached = responseCache.get<{ data: { feed: TimelineItem[] } }>(cacheKey)
       if (cached) return cached
       return publicAgent.getAuthorFeed({ actor, limit: perHandle })
-        .then((res) => { responseCache.set(cacheKey, res, 300_000); return res })
+        .then((res) => { 
+          // Guest feed: 5 min TTL + 5 min stale-while-revalidate
+          responseCache.set(cacheKey, res, 300_000, 300_000); 
+          return res 
+        })
         .catch(() => ({ data: { feed: [] } }))
     }),
   )
@@ -384,6 +391,69 @@ export type PostView = TimelineItem['post']
 /** NSFW/adult label values (self-labels or from labeler) that we treat as sensitive. */
 const NSFW_LABEL_VALS = new Set(['porn', 'sexual', 'nudity', 'graphic-media'])
 
+/**
+ * Cached profile fetcher with longer TTL (10 min + 5 min stale-while-revalidate)
+ * Profiles rarely change, so we can cache them longer than feeds
+ */
+export async function getProfileCached(
+  actor: string,
+  usePublic = false
+): Promise<{ handle?: string; displayName?: string; avatar?: string; did?: string }> {
+  const cacheKey = `profile:${actor}`
+  const client = usePublic ? publicAgent : (getSession() ? agent : publicAgent)
+  
+  // Try to get from cache with revalidation support
+  const cached = responseCache.get<{ handle?: string; displayName?: string; avatar?: string; did?: string }>(
+    cacheKey,
+    () => client.getProfile({ actor }).then((p) => {
+      const data = p.data as { handle?: string; displayName?: string; avatar?: string; did?: string }
+      return data
+    })
+  )
+  
+  if (cached) return cached
+  
+  // Fetch and cache with 10 min TTL + 5 min stale-while-revalidate
+  const profile = await client.getProfile({ actor })
+  const data = profile.data as { handle?: string; displayName?: string; avatar?: string; did?: string }
+  responseCache.set(cacheKey, data, 600_000, 300_000)
+  return data
+}
+
+/**
+ * Batch fetch posts using app.bsky.feed.getPosts (up to 25 posts per call)
+ * More efficient than calling getPostThread individually for each post
+ */
+export async function getPostsBatch(uris: string[]): Promise<Map<string, PostView>> {
+  if (uris.length === 0) return new Map()
+  
+  const result = new Map<string, PostView>()
+  const client = getSession() ? agent : publicAgent
+  
+  // Split into batches of 25 (API limit)
+  const batches: string[][] = []
+  for (let i = 0; i < uris.length; i += 25) {
+    batches.push(uris.slice(i, i + 25))
+  }
+  
+  // Fetch all batches
+  await Promise.all(
+    batches.map(async (batch) => {
+      try {
+        const res = await client.app.bsky.feed.getPosts({ uris: batch })
+        const posts = (res.data.posts || []) as PostView[]
+        for (const post of posts) {
+          result.set(post.uri, post)
+        }
+      } catch (error) {
+        console.warn('Failed to fetch post batch:', error)
+      }
+    })
+  )
+  
+  return result
+}
+
 /** True if the post has NSFW/adult content labels (self-labels on record or labels on post view). */
 export function isPostNsfw(post: PostView): boolean {
   const record = post.record as { labels?: { values?: { val: string }[] } } | undefined
@@ -433,7 +503,8 @@ export async function getMixedFeed(
           )
         )
         const result = { feed: res.data.feed, cursor: res.data.cursor ?? undefined }
-        responseCache.set(cacheKey, result, 300_000)
+        // Feeds: 5 min TTL + 5 min stale-while-revalidate
+        responseCache.set(cacheKey, result, 300_000, 300_000)
         results.push({ key, feed: result.feed, nextCursor: result.cursor })
         continue
       }
@@ -452,7 +523,8 @@ export async function getMixedFeed(
           )
         )
         const result = { feed: res.data.feed, cursor: res.data.cursor }
-        responseCache.set(cacheKey, result, 300_000)
+        // Custom feeds: 5 min TTL + 5 min stale-while-revalidate
+        responseCache.set(cacheKey, result, 300_000, 300_000)
         results.push({ key, feed: result.feed, nextCursor: result.cursor })
         continue
       }

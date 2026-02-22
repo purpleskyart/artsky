@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState, useCallback, useLayoutEffect, useMemo, memo } from 'react'
 import { createPortal } from 'react-dom'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import type Hls from 'hls.js'
 import { loadHls } from '../lib/loadHls'
 import { getPostMediaInfoForDisplay, getPostAllMediaForDisplay, getPostMediaUrlForDisplay, getPostExternalLink, agent, type TimelineItem } from '../lib/bsky'
@@ -562,7 +562,8 @@ function PostCard({ item, isSelected, cardRef: cardRefProp, addButtonRef: _addBu
       return
     }
     /* On touch devices the synthetic click fires ~300ms after touchEnd; we delay open by 400ms so double-tap can register. Ignore this click and let the timer open. */
-    if (touchSessionRef.current) return
+    if (touchSessionRef.current) { e.preventDefault(); return }
+    e.preventDefault()
     if (onPostClick) {
       onPostClick(post.uri, { initialItem: item })
     } else {
@@ -620,13 +621,13 @@ function PostCard({ item, isSelected, cardRef: cardRefProp, addButtonRef: _addBu
 
   return (
     <div ref={setCardRef} data-post-uri={post.uri} className={`${styles.card} ${isSelected ? styles.cardSelected : ''} ${showTransFlagOutline ? styles.cardTransFlag : ''} ${!showTransFlagOutline && isLiked ? styles.cardLiked : ''} ${!showTransFlagOutline && inAnyArtboard ? styles.cardInArtboard : ''} ${seen && !isSelected ? styles.cardSeen : ''} ${fillCell ? styles.cardFillCell : ''} ${artOnly ? styles.cardArtOnly : ''} ${minimalist ? styles.cardMinimalist : ''}`}>
-      <div
-        role="button"
-        tabIndex={0}
+      <Link
+        to={`/post/${encodeURIComponent(post.uri)}`}
         className={styles.cardLink}
         onClick={handleCardClick}
         onKeyDown={(e) => {
           if (e.key !== 'Enter') return
+          e.preventDefault()
           if (onPostClick) onPostClick(post.uri, { initialItem: item })
           else navigate(`/post/${encodeURIComponent(post.uri)}`)
         }}
@@ -1091,7 +1092,7 @@ function PostCard({ item, isSelected, cardRef: cardRefProp, addButtonRef: _addBu
           ) : null}
         </div>
         )}
-      </div>
+      </Link>
     </div>
   )
 }

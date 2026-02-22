@@ -559,11 +559,13 @@ export default function Layout({ title, children, showNav }: Props) {
     }
   }, [session, accountProfiles, openProfileModal])
 
-  const homeBtnClick = useCallback(() => {
+  const homeBtnClick = useCallback((e: React.MouseEvent) => {
     if (homeLongPressTriggeredRef.current) {
       homeLongPressTriggeredRef.current = false
+      e.preventDefault()
       return
     }
+    e.preventDefault()
     if (isModalOpen) {
       closeAllModals()
       if (path !== '/feed') navigate('/feed')
@@ -1611,8 +1613,8 @@ export default function Layout({ title, children, showNav }: Props) {
                   </div>
                 </div>
               )}
-              <button
-                type="button"
+              <Link
+                to="/feed"
                 className={styles.logoLink}
                 aria-label="ArtSky – back to feed"
                 title={path === '/feed' ? 'Home (hold to show all read posts)' : 'Back to feed'}
@@ -1627,7 +1629,7 @@ export default function Layout({ title, children, showNav }: Props) {
                 {import.meta.env.VITE_APP_ENV === 'dev' && (
                   <span className={styles.logoDev}> dev</span>
                 )}
-              </button>
+              </Link>
             </div>
             <div className={styles.headerCenter}>
               {isDesktop ? (

@@ -13,53 +13,83 @@ export interface CacheEntry<T> {
   timestamp: number
   ttl: number
   hits: number
+  staleWhileRevalidate?: number // Additional time to serve stale data while revalidating
+  revalidating?: boolean // Flag to prevent duplicate revalidation requests
 }
 
 export class ResponseCache {
   private cache = new Map<string, CacheEntry<unknown>>()
   
   /**
-   * Get a cached response
+   * Get a cached response with stale-while-revalidate support
    * 
    * Returns the cached data if it exists and hasn't expired.
-   * Returns null if the cache entry doesn't exist or has expired.
+   * If data is stale but within staleWhileRevalidate window, returns stale data
+   * and triggers revalidation in the background.
+   * Returns null if the cache entry doesn't exist or is beyond stale window.
    * 
    * @param key - Cache key (e.g., "feed:at://did:plc:xyz/app.bsky.feed.generator/abc:50:cursor123")
+   * @param revalidate - Optional function to revalidate stale data in background
    * @returns Cached data or null if not found/expired
    */
-  get<T>(key: string): T | null {
+  get<T>(key: string, revalidate?: () => Promise<T>): T | null {
     const entry = this.cache.get(key) as CacheEntry<T> | undefined
     if (!entry) return null
     
-    // Check if entry has expired
     const now = Date.now()
-    if (now - entry.timestamp > entry.ttl) {
-      // Entry expired, remove it
-      this.cache.delete(key)
-      return null
+    const age = now - entry.timestamp
+    
+    // Check if entry is fresh
+    if (age <= entry.ttl) {
+      entry.hits++
+      return entry.data
     }
     
-    // Increment hit counter for cache statistics
-    entry.hits++
+    // Check if entry is stale but within staleWhileRevalidate window
+    const staleWindow = entry.staleWhileRevalidate ?? 0
+    if (staleWindow > 0 && age <= entry.ttl + staleWindow) {
+      entry.hits++
+      
+      // Trigger background revalidation if not already revalidating
+      if (revalidate && !entry.revalidating) {
+        entry.revalidating = true
+        revalidate()
+          .then((freshData) => {
+            // Update cache with fresh data
+            this.set(key, freshData, entry.ttl, staleWindow)
+          })
+          .catch(() => {
+            // Keep stale data on revalidation failure
+            entry.revalidating = false
+          })
+      }
+      
+      return entry.data
+    }
     
-    return entry.data
+    // Entry expired beyond stale window, remove it
+    this.cache.delete(key)
+    return null
   }
   
   /**
-   * Set a cache entry
+   * Set a cache entry with optional stale-while-revalidate support
    * 
    * Stores the data with the specified TTL (in milliseconds).
    * 
    * @param key - Cache key
    * @param data - Data to cache
    * @param ttl - Time to live in milliseconds (default: 60000 = 1 minute)
+   * @param staleWhileRevalidate - Additional time to serve stale data while revalidating (default: 0)
    */
-  set<T>(key: string, data: T, ttl: number = 60000): void {
+  set<T>(key: string, data: T, ttl: number = 60000, staleWhileRevalidate: number = 0): void {
     this.cache.set(key, {
       data,
       timestamp: Date.now(),
       ttl,
       hits: 0,
+      staleWhileRevalidate,
+      revalidating: false,
     })
   }
   
