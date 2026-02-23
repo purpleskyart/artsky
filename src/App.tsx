@@ -9,6 +9,8 @@ import { FeedProvidersGroup } from './context/FeedProvidersGroup'
 import { ModalProvidersGroup } from './context/ModalProvidersGroup'
 import { ModerationProvider } from './context/ModerationContext'
 import { ChunkLoadError } from './components/ChunkLoadError'
+import { ModalErrorBoundary } from './components/ModalErrorBoundary'
+import OfflineIndicator from './components/OfflineIndicator'
 
 // Lazy load route components for code splitting
 const FeedPage = lazy(() => import('./pages/FeedPage'))
@@ -186,9 +188,9 @@ function AppRoutes() {
           <Route path="/consensus" element={<ConsensusPage />} />
           <Route path="/artboards" element={<Navigate to="/feed?artboards=1" replace />} />
           <Route path="/artboard/:id" element={<ArtboardRedirect />} />
-          <Route path="/post/:uri" element={<PostDetailPage />} />
-          <Route path="/profile/:handle" element={<ProfilePage />} />
-          <Route path="/tag/:tag" element={<TagPage />} />
+          <Route path="/post/:uri" element={<ModalErrorBoundary><PostDetailPage /></ModalErrorBoundary>} />
+          <Route path="/profile/:handle" element={<ModalErrorBoundary><ProfilePage /></ModalErrorBoundary>} />
+          <Route path="/tag/:tag" element={<ModalErrorBoundary><TagPage /></ModalErrorBoundary>} />
           <Route path="/forum/post/*" element={<ForumPostRedirect />} />
           <Route path="/" element={<Navigate to="/feed" replace />} />
           <Route path="*" element={<Navigate to="/feed" replace />} />
@@ -207,6 +209,7 @@ export default function App() {
   return (
     <ErrorBoundary>
       <HashRouter>
+        <OfflineIndicator />
         <CoreProvidersGroup>
           <FeedProvidersGroup>
             <ModalProvidersGroup>

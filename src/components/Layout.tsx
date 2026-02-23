@@ -886,7 +886,7 @@ export default function Layout({ title, children, showNav }: Props) {
       })
       markSeenObserverCleanupRef.current = () => {
         if (markSeenDebounceRef.current) clearTimeout(markSeenDebounceRef.current)
-        observed.forEach((el) => observer.unobserve(el))
+        observer.disconnect()
       }
     }, 0)
     return () => {

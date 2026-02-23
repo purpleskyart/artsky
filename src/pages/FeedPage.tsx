@@ -1200,11 +1200,15 @@ export default function FeedPage() {
         if (currentLikeUri) {
           agent.deleteLike(currentLikeUri).then(() => {
             setLikeOverride(uri, null)
-          }).catch(() => {})
+          }).catch((err) => {
+            console.error('Failed to unlike post:', err)
+          })
         } else {
           agent.like(uri, item.post.cid).then((res) => {
             setLikeOverride(uri, res.uri)
-          }).catch(() => {})
+          }).catch((err) => {
+            console.error('Failed to like post:', err)
+          })
         }
         return
       }
@@ -1238,7 +1242,9 @@ export default function FeedPage() {
                     }
                   })
               })
-            }).catch(() => {})
+            }).catch((err) => {
+              console.error('Failed to unfollow:', err)
+            })
           } else {
             agent.follow(author.did).then((res) => {
               dispatch({
@@ -1260,7 +1266,9 @@ export default function FeedPage() {
                     }
                   })
               })
-            }).catch(() => {})
+            }).catch((err) => {
+              console.error('Failed to follow:', err)
+            })
           }
         }
       }

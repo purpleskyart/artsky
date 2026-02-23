@@ -82,7 +82,9 @@ export function ReplyAsRow({
         if (cancelled) return
         const data = res.data as { avatar?: string; handle?: string }
         setAccountProfiles((prev) => ({ ...prev, [s.did]: { avatar: data.avatar, handle: data.handle } }))
-      }).catch(() => {})
+      }).catch((err) => {
+        console.error(`Failed to fetch profile for ${s.did}:`, err)
+      })
     })
     return () => { cancelled = true }
   }, [sessionsDidKey, sessionsList])
