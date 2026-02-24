@@ -19,6 +19,7 @@ export default function ArtboardsModal({ onClose, onBack, canGoBack }: Artboards
       onBack={onBack}
       canGoBack={canGoBack}
       onPullToRefresh={refreshFn ? () => refreshFn() : undefined}
+      scrollKey="collections"
     >
       <div className={styles.modalBetaAlert} role="status">BETA</div>
       <CollectionsModalTopBar />

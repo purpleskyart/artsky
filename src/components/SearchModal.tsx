@@ -409,6 +409,7 @@ export default function SearchModal({ query, onClose, onBack, canGoBack }: Searc
       onBack={onBack}
       canGoBack={canGoBack}
       onPullToRefresh={refreshFn ? () => refreshFn() : undefined}
+      scrollKey={query}
     >
       <MediaModalTopBar
         centerContent={

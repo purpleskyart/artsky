@@ -24,6 +24,7 @@ export default function ForumPostModal({ documentUri, onClose, onBack, canGoBack
       onBack={onBack}
       canGoBack={canGoBack}
       onPullToRefresh={refreshFn ? () => refreshFn() : undefined}
+      scrollKey={documentUri}
     >
       {isArtSky ? (
         <ArtSkyForumPostContent documentUri={documentUri} onClose={onClose} onRegisterRefresh={(fn) => setRefreshFn(() => fn)} />
