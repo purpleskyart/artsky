@@ -464,12 +464,17 @@ export default function FeedPage() {
     try {
       const list = await getSavedFeedsFromPreferences()
       const feeds = list.filter((f) => f.type === 'feed' && f.pinned)
+      
+      // Load feed names in parallel, using cached names when available
       const withLabels = await Promise.all(
-        feeds.map(async (f) => ({
-          kind: 'custom' as const,
-          label: await getFeedDisplayName(f.value).catch(() => f.value),
-          uri: f.value,
-        }))
+        feeds.map(async (f) => {
+          try {
+            const label = await getFeedDisplayName(f.value)
+            return { kind: 'custom' as const, label, uri: f.value }
+          } catch {
+            return { kind: 'custom' as const, label: f.value, uri: f.value }
+          }
+        })
       )
       setSavedFeedSources(withLabels)
     } catch {
