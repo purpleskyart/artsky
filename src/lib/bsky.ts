@@ -2557,3 +2557,292 @@ export async function postReply(
   })
 }
 
+
+// ============================================================================
+// API Request Lifecycle Management - New Functions
+// ============================================================================
+
+/**
+ * Get timeline feed with full lifecycle management
+ */
+export async function getTimelineWithLifecycle(
+  limit: number = 30,
+  cursor?: string,
+  signal?: AbortSignal
+): Promise<TimelineResponse> {
+  const cacheKey = `timeline:${limit}:${cursor ?? 'initial'}`
+  const cached = responseCache.get<{ feed: TimelineItem[]; cursor?: string }>(cacheKey)
+  if (cached) {
+    return { data: { feed: cached.feed, cursor: cached.cursor } }
+  }
+  const result = await apiRequestManager.execute(
+    `timeline:${limit}:${cursor ?? 'initial'}`,
+    () => agent.getTimeline({ limit, cursor }),
+    { priority: RequestPriority.MEDIUM, ttl: 300_000, staleWhileRevalidate: 300_000, cacheKey, timeout: 30000 }
+  )
+  return result
+}
+
+/**
+ * Get custom feed with full lifecycle management
+ */
+export async function getFeedWithLifecycle(
+  feedUri: string,
+  limit: number = 30,
+  cursor?: string,
+  signal?: AbortSignal
+): Promise<Awaited<ReturnType<typeof agent.app.bsky.feed.getFeed>>> {
+  const cacheKey = `feed:${feedUri}:${limit}:${cursor ?? 'initial'}`
+  const cached = responseCache.get<{ feed: TimelineItem[]; cursor?: string }>(cacheKey)
+  if (cached) {
+    return { data: { feed: cached.feed, cursor: cached.cursor } }
+  }
+  const result = await apiRequestManager.execute(
+    `feed:${feedUri}:${limit}:${cursor ?? 'initial'}`,
+    () => agent.app.bsky.feed.getFeed({ feed: feedUri, limit, cursor }),
+    { priority: RequestPriority.MEDIUM, ttl: 300_000, staleWhileRevalidate: 300_000, cacheKey, timeout: 30000 }
+  )
+  return result
+}
+
+/**
+ * Get profile with full lifecycle management
+ */
+export async function getProfileWithLifecycle(
+  actor: string,
+  signal?: AbortSignal
+): Promise<Awaited<ReturnType<typeof agent.getProfile>>> {
+  const cacheKey = `profile:${actor}`
+  const cached = responseCache.get<{ data: any }>(cacheKey)
+  if (cached) return cached.data
+  const result = await apiRequestManager.execute(
+    `profile:${actor}`,
+    () => agent.getProfile({ actor }),
+    { priority: RequestPriority.MEDIUM, ttl: 600_000, staleWhileRevalidate: 300_000, cacheKey, timeout: 30000 }
+  )
+  return result
+}
+
+/**
+ * Get followers list with full lifecycle management
+ */
+export async function getFollowersWithLifecycle(
+  actor: string,
+  limit: number = 50,
+  cursor?: string,
+  signal?: AbortSignal
+): Promise<Awaited<ReturnType<typeof agent.app.bsky.graph.getFollowers>>> {
+  const cacheKey = `followers:${actor}:${limit}:${cursor ?? 'initial'}`
+  const cached = responseCache.get<{ followers: any[]; cursor?: string }>(cacheKey)
+  if (cached) {
+    return { data: { followers: cached.followers, cursor: cached.cursor } }
+  }
+  const result = await apiRequestManager.execute(
+    `followers:${actor}:${limit}:${cursor ?? 'initial'}`,
+    () => agent.app.bsky.graph.getFollowers({ actor, limit, cursor }),
+    { priority: RequestPriority.LOW, ttl: 300_000, cacheKey, timeout: 30000 }
+  )
+  return result
+}
+
+/**
+ * Get follows list with full lifecycle management
+ */
+export async function getFollowsWithLifecycle(
+  actor: string,
+  limit: number = 50,
+  cursor?: string,
+  signal?: AbortSignal
+): Promise<Awaited<ReturnType<typeof agent.app.bsky.graph.getFollows>>> {
+  const cacheKey = `follows:${actor}:${limit}:${cursor ?? 'initial'}`
+  const cached = responseCache.get<{ follows: any[]; cursor?: string }>(cacheKey)
+  if (cached) {
+    return { data: { follows: cached.follows, cursor: cached.cursor } }
+  }
+  const result = await apiRequestManager.execute(
+    `follows:${actor}:${limit}:${cursor ?? 'initial'}`,
+    () => agent.app.bsky.graph.getFollows({ actor, limit, cursor }),
+    { priority: RequestPriority.LOW, ttl: 300_000, cacheKey, timeout: 30000 }
+  )
+  return result
+}
+
+/**
+ * Get notifications with full lifecycle management
+ */
+export async function getNotificationsWithLifecycle(
+  limit: number = 30,
+  cursor?: string,
+  signal?: AbortSignal
+): Promise<Awaited<ReturnType<typeof agent.listNotifications>>> {
+  const cacheKey = `notifications:${limit}:${cursor ?? 'initial'}`
+  const cached = responseCache.get<{ notifications: any[]; cursor?: string }>(cacheKey)
+  if (cached) {
+    return { data: { notifications: cached.notifications, cursor: cached.cursor } }
+  }
+  const result = await apiRequestManager.execute(
+    `notifications:${limit}:${cursor ?? 'initial'}`,
+    () => agent.listNotifications({ limit, cursor }),
+    { priority: RequestPriority.HIGH, ttl: 60_000, cacheKey, timeout: 30000 }
+  )
+  return result
+}
+
+// ============================================================================
+// WRITE OPERATIONS - With Cache Invalidation
+// ============================================================================
+
+/**
+ * Like a post with cache invalidation
+ */
+export async function likePostWithLifecycle(uri: string, cid: string, signal?: AbortSignal): Promise<void> {
+  await apiRequestManager.execute(`like:${uri}`, () => agent.like(uri, cid), { priority: RequestPriority.HIGH, timeout: 30000 })
+  invalidateAfterPostLiked()
+}
+
+/**
+ * Unlike a post with cache invalidation
+ */
+export async function unlikePostWithLifecycle(likeUri: string, signal?: AbortSignal): Promise<void> {
+  await apiRequestManager.execute(`unlike:${likeUri}`, () => agent.deleteLike(likeUri), { priority: RequestPriority.HIGH, timeout: 30000 })
+  invalidateAfterPostUnliked()
+}
+
+/**
+ * Repost a post with cache invalidation
+ */
+export async function repostPostWithLifecycle(uri: string, cid: string, signal?: AbortSignal): Promise<void> {
+  await apiRequestManager.execute(`repost:${uri}`, () => agent.repost(uri, cid), { priority: RequestPriority.HIGH, timeout: 30000 })
+  invalidateAfterPostReposted()
+}
+
+/**
+ * Delete a repost with cache invalidation
+ */
+export async function deleteRepostWithLifecycle(repostUri: string, signal?: AbortSignal): Promise<void> {
+  await apiRequestManager.execute(`unrepost:${repostUri}`, () => agent.deleteRepost(repostUri), { priority: RequestPriority.HIGH, timeout: 30000 })
+  invalidateAfterPostReposted()
+}
+
+/**
+ * Follow an account with cache invalidation
+ */
+export async function followAccountWithLifecycle(did: string, signal?: AbortSignal): Promise<void> {
+  await apiRequestManager.execute(`follow:${did}`, () => agent.follow(did), { priority: RequestPriority.HIGH, timeout: 30000 })
+  invalidateAfterFollowing()
+}
+
+/**
+ * Unfollow an account with cache invalidation
+ */
+export async function unfollowAccountWithLifecycle(followUri: string, signal?: AbortSignal): Promise<void> {
+  await apiRequestManager.execute(`unfollow:${followUri}`, () => agent.deleteFollow(followUri), { priority: RequestPriority.HIGH, timeout: 30000 })
+  invalidateAfterUnfollowing()
+}
+
+/**
+ * Block an account with cache invalidation
+ */
+export async function blockAccountWithLifecycle(did: string, signal?: AbortSignal): Promise<{ uri: string }> {
+  const result = await apiRequestManager.execute(`block:${did}`, () => agent.app.bsky.graph.block.create({ repo: agent.did }, { subject: did, createdAt: new Date().toISOString() }), { priority: RequestPriority.HIGH, timeout: 30000 })
+  invalidateAfterBlocking()
+  return result
+}
+
+/**
+ * Unblock an account with cache invalidation
+ */
+export async function unblockAccountWithLifecycle(blockUri: string, signal?: AbortSignal): Promise<void> {
+  await apiRequestManager.execute(`unblock:${blockUri}`, () => agent.app.bsky.graph.block.delete({ repo: agent.did, rkey: blockUri.split('/').pop()! }), { priority: RequestPriority.HIGH, timeout: 30000 })
+  invalidateAfterUnblocking()
+}
+
+/**
+ * Mute an account with cache invalidation
+ */
+export async function muteAccountWithLifecycle(did: string, signal?: AbortSignal): Promise<void> {
+  await apiRequestManager.execute(`mute:${did}`, () => agent.app.bsky.graph.muteActor({ actor: did }), { priority: RequestPriority.HIGH, timeout: 30000 })
+  invalidateAfterMuting()
+}
+
+/**
+ * Unmute an account with cache invalidation
+ */
+export async function unmuteAccountWithLifecycle(did: string, signal?: AbortSignal): Promise<void> {
+  await apiRequestManager.execute(`unmute:${did}`, () => agent.app.bsky.graph.unmuteActor({ actor: did }), { priority: RequestPriority.HIGH, timeout: 30000 })
+  invalidateAfterUnmuting()
+}
+
+/**
+ * Create a post with cache invalidation
+ */
+export async function createPostWithLifecycle(text: string, signal?: AbortSignal): Promise<{ uri: string; cid: string }> {
+  const result = await apiRequestManager.execute(`createPost`, () => agent.post({ text, createdAt: new Date().toISOString() }), { priority: RequestPriority.HIGH, timeout: 30000 })
+  invalidateAfterPostCreated()
+  return result
+}
+
+/**
+ * Delete a post with cache invalidation
+ */
+export async function deletePostWithLifecycle(uri: string, signal?: AbortSignal): Promise<void> {
+  const rkey = uri.split('/').pop()!
+  await apiRequestManager.execute(`deletePost:${uri}`, () => agent.com.atproto.repo.deleteRecord({ repo: agent.did, collection: 'app.bsky.feed.post', rkey }), { priority: RequestPriority.HIGH, timeout: 30000 })
+  invalidateAfterPostDeleted()
+}
+
+/**
+ * Update muted words with cache invalidation
+ */
+export async function updateMutedWordsWithLifecycle(words: Array<{ id?: string; value: string; targets?: string[]; actorTarget?: string; expiresAt?: string }>, signal?: AbortSignal): Promise<void> {
+  await apiRequestManager.execute(`updateMutedWords`, () => agent.app.bsky.actor.putPreferences({ preferences: [{ $type: 'app.bsky.actor.defs#mutedWordsPref', items: words.map(w => ({ ...(w.id ? { id: w.id } : {}), value: w.value, targets: w.targets?.length ? w.targets : ['content', 'tag'], ...(w.actorTarget ? { actorTarget: w.actorTarget } : { actorTarget: 'all' }), ...(w.expiresAt ? { expiresAt: w.expiresAt } : {}) })) }] }), { priority: RequestPriority.MEDIUM, timeout: 30000 })
+  invalidateAfterPreferencesUpdated()
+}
+
+/**
+ * Add a saved feed with cache invalidation
+ */
+export async function addSavedFeedWithLifecycle(uri: string, signal?: AbortSignal): Promise<void> {
+  await apiRequestManager.execute(`addSavedFeed:${uri}`, () => agent.app.bsky.actor.putPreferences({ preferences: [{ $type: 'app.bsky.actor.defs#savedFeedsPrefV2', items: [{ id: `artsky-${Date.now()}`, type: 'feed' as const, value: uri, pinned: true }] }] }), { priority: RequestPriority.MEDIUM, timeout: 30000 })
+  invalidateAfterPreferencesUpdated()
+}
+
+/**
+ * Remove a saved feed with cache invalidation
+ */
+export async function removeSavedFeedWithLifecycle(feedId: string, signal?: AbortSignal): Promise<void> {
+  await apiRequestManager.execute(`removeSavedFeed:${feedId}`, () => agent.app.bsky.actor.putPreferences({ preferences: [{ $type: 'app.bsky.actor.defs#savedFeedsPrefV2', items: [] }] }), { priority: RequestPriority.MEDIUM, timeout: 30000 })
+  invalidateAfterPreferencesUpdated()
+}
+
+// ============================================================================
+// Utility Functions
+// ============================================================================
+
+/**
+ * Cancel a pending request
+ */
+export function cancelRequest(key: string): void {
+  apiRequestManager.cancel(key)
+}
+
+/**
+ * Get current request metrics
+ */
+export function getRequestMetrics() {
+  return apiRequestManager.getMetrics()
+}
+
+/**
+ * Reset request metrics
+ */
+export function resetRequestMetrics(): void {
+  apiRequestManager.resetMetrics()
+}
+
+/**
+ * Invalidate cache entries matching pattern
+ */
+export function invalidateCache(pattern: string | RegExp): void {
+  apiRequestManager.invalidateCache(pattern)
+}
