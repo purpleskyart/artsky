@@ -1870,7 +1870,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                           if (onClose) {
                             openPostModal(parentPost.uri)
                           } else {
-                            navigate(`/post/${encodeURIComponent(parentPost.uri)}`)
+                            navigate(`/feed?post=${encodeURIComponent(parentPost.uri)}`)
                           }
                         }}
                       >
@@ -2029,7 +2029,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                           if (onClose) {
                             openPostModal(quoted.uri)
                           } else {
-                            navigate(`/post/${encodeURIComponent(quoted.uri)}`)
+                            navigate(`/feed?post=${encodeURIComponent(quoted.uri)}`)
                           }
                         }}
                       >

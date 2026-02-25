@@ -205,7 +205,7 @@ export function TagContent({ tag, inModal = false, onRegisterRefresh }: { tag: s
         const item = items[i]
         if (item) {
           if (inModal) openPostModal(item.post.uri)
-          else navigate(`/post/${encodeURIComponent(item.post.uri)}`)
+          else navigate(`/feed?post=${encodeURIComponent(item.post.uri)}`)
         }
         return
       }
@@ -278,7 +278,7 @@ export function TagContent({ tag, inModal = false, onRegisterRefresh }: { tag: s
                 openPostModal={
                   inModal
                     ? openPostModal
-                    : (uri) => navigate(`/post/${encodeURIComponent(uri)}`)
+                    : (uri) => navigate(`/feed?post=${encodeURIComponent(uri)}`)
                 }
                 cardRef={(index) => (el) => { cardRefsRef.current[index] = el }}
                 onActionsMenuOpenChange={() => {}}

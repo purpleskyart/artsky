@@ -567,13 +567,13 @@ function PostCard({ item, isSelected, cardRef: cardRefProp, addButtonRef: _addBu
     if (onPostClick) {
       onPostClick(post.uri, { initialItem: item })
     } else {
-      navigate(`/post/${encodeURIComponent(post.uri)}`)
+      navigate(`/feed?post=${encodeURIComponent(post.uri)}`)
     }
   }, [didDoubleTapRef, touchSessionRef, onPostClick, post.uri, item, navigate])
 
   const openPost = useCallback(() => {
     if (onPostClick) onPostClick(post.uri, { initialItem: item })
-    else navigate(`/post/${encodeURIComponent(post.uri)}`)
+    else navigate(`/feed?post=${encodeURIComponent(post.uri)}`)
   }, [onPostClick, post.uri, item, navigate])
 
   const handleMediaDoubleTapLike = useCallback(() => {
@@ -629,7 +629,7 @@ function PostCard({ item, isSelected, cardRef: cardRefProp, addButtonRef: _addBu
           if (e.key !== 'Enter') return
           e.preventDefault()
           if (onPostClick) onPostClick(post.uri, { initialItem: item })
-          else navigate(`/post/${encodeURIComponent(post.uri)}`)
+          else navigate(`/feed?post=${encodeURIComponent(post.uri)}`)
         }}
         onTouchStart={(e) => {
           touchSessionRef.current = true
