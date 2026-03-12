@@ -405,6 +405,8 @@ export default function FeedPage() {
   const blockCancelRef = useRef<HTMLButtonElement>(null)
   const blockConfirmRef = useRef<HTMLButtonElement>(null)
   const prevPathnameRef = useRef(location.pathname)
+  const locationSearchRef = useRef(location.search)
+  locationSearchRef.current = location.search
   const seenUrisRef = useRef(feedState.seenUris)
   seenUrisRef.current = feedState.seenUris
   const seenPostsContext = useSeenPosts()
@@ -1072,8 +1074,9 @@ export default function FeedPage() {
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      /* Never affect feed when a popup is open */
-      if (isModalOpen) return
+      /* Never affect feed when a popup is open: check both context and URL (URL covers first render after open). */
+      const hasContentModalInUrl = /[?&](post|profile|tag|forumPost|artboard)=/.test(locationSearchRef.current)
+      if (isModalOpen || hasContentModalInUrl) return
       const eventTarget = e.target as HTMLElement
       if (eventTarget.tagName === 'INPUT' || eventTarget.tagName === 'TEXTAREA' || eventTarget.tagName === 'SELECT' || eventTarget.isContentEditable) {
         if (e.key === 'Escape') {
