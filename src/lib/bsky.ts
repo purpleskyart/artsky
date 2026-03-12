@@ -1910,18 +1910,23 @@ export async function getSuggestedFollows(
 
   const countByDid = new Map<string, number>()
   const handleByDid = new Map<string, string>()
-  for (const did of sample) {
-    try {
-      const { dids: theirDids, handles: theirHandles } = await getFollows(client, did, {
-        limit: SUGGESTED_FOLLOWS_THEIR_LIMIT,
-      })
+  
+  // Batch fetch follows for all sample DIDs in parallel
+  const followsResults = await Promise.allSettled(
+    sample.map((did) =>
+      getFollows(client, did, { limit: SUGGESTED_FOLLOWS_THEIR_LIMIT })
+    )
+  )
+
+  for (let i = 0; i < followsResults.length; i++) {
+    const result = followsResults[i]
+    if (result.status === 'fulfilled') {
+      const { dids: theirDids, handles: theirHandles } = result.value
       theirHandles.forEach((h, d) => handleByDid.set(d, h))
       for (const d of theirDids) {
         if (myFollowSet.has(d)) continue
         countByDid.set(d, (countByDid.get(d) ?? 0) + 1)
       }
-    } catch {
-      // skip this followee on error
     }
   }
 
@@ -1935,15 +1940,18 @@ export async function getSuggestedFollows(
     const handle = handleByDid.get(did) ?? did
     results.push({ did, handle, count })
   }
-  const profiles = await Promise.all(
-    results.map((r) =>
-      client.getProfile({ actor: r.did }).then((res) => res.data as { displayName?: string; avatar?: string }).catch(() => null)
-    )
+
+  // Use batch profile fetch instead of individual calls
+  const profilesMap = await getProfilesBatch(
+    results.map((r) => r.did),
+    false
   )
-  profiles.forEach((p, i) => {
-    if (p && results[i]) {
-      results[i].displayName = p.displayName
-      results[i].avatar = p.avatar
+  
+  results.forEach((r) => {
+    const profile = profilesMap.get(r.did)
+    if (profile) {
+      r.displayName = profile.displayName
+      r.avatar = profile.avatar
     }
   })
   return results
@@ -1970,18 +1978,23 @@ export async function getSuggestedFollowsByMutuals(
 
   const countByDid = new Map<string, number>()
   const handleByDid = new Map<string, string>()
-  for (const did of mutualDids) {
-    try {
-      const { dids: theirDids, handles: theirHandles } = await getFollows(client, did, {
-        limit: SUGGESTED_FOLLOWS_THEIR_LIMIT,
-      })
+  
+  // Batch fetch follows for all mutual DIDs in parallel
+  const followsResults = await Promise.allSettled(
+    mutualDids.map((did) =>
+      getFollows(client, did, { limit: SUGGESTED_FOLLOWS_THEIR_LIMIT })
+    )
+  )
+
+  for (let i = 0; i < followsResults.length; i++) {
+    const result = followsResults[i]
+    if (result.status === 'fulfilled') {
+      const { dids: theirDids, handles: theirHandles } = result.value
       theirHandles.forEach((h, d) => handleByDid.set(d, h))
       for (const d of theirDids) {
         if (myFollowSet.has(d)) continue
         countByDid.set(d, (countByDid.get(d) ?? 0) + 1)
       }
-    } catch {
-      // skip this mutual on error
     }
   }
 
@@ -1995,15 +2008,18 @@ export async function getSuggestedFollowsByMutuals(
     const handle = handleByDid.get(did) ?? did
     results.push({ did, handle, count })
   }
-  const profiles = await Promise.all(
-    results.map((r) =>
-      client.getProfile({ actor: r.did }).then((res) => res.data as { displayName?: string; avatar?: string }).catch(() => null)
-    )
+
+  // Use batch profile fetch instead of individual calls
+  const profilesMap = await getProfilesBatch(
+    results.map((r) => r.did),
+    false
   )
-  profiles.forEach((p, i) => {
-    if (p && results[i]) {
-      results[i].displayName = p.displayName
-      results[i].avatar = p.avatar
+  
+  results.forEach((r) => {
+    const profile = profilesMap.get(r.did)
+    if (profile) {
+      r.displayName = profile.displayName
+      r.avatar = profile.avatar
     }
   })
   return results
@@ -2043,31 +2059,37 @@ export async function getSuggestedFollowDetail(
             .slice(0, SUGGESTED_FOLLOWS_SAMPLE)
   }
 
+  // Batch fetch follows for all sample DIDs in parallel
+  const followsResults = await Promise.allSettled(
+    sampleDids.map((did) =>
+      getFollows(client, did, { limit: SUGGESTED_FOLLOWS_THEIR_LIMIT })
+    )
+  )
+
   const followeeDidsWhoFollow: string[] = []
-  for (const did of sampleDids) {
-    try {
-      const { dids: theirDids } = await getFollows(client, did, {
-        limit: SUGGESTED_FOLLOWS_THEIR_LIMIT,
-      })
-      if (theirDids.includes(suggestedDid)) followeeDidsWhoFollow.push(did)
-    } catch {
-      // skip
+  for (let i = 0; i < followsResults.length; i++) {
+    const result = followsResults[i]
+    if (result.status === 'fulfilled') {
+      const { dids: theirDids } = result.value
+      if (theirDids.includes(suggestedDid)) {
+        followeeDidsWhoFollow.push(sampleDids[i])
+      }
     }
   }
 
-  const profiles = await Promise.all(
-    followeeDidsWhoFollow.map((did) =>
-      client.getProfile({ actor: did }).then((res) => {
-        const d = res.data as { did?: string; handle?: string; displayName?: string; avatar?: string }
-        return {
-          did: d.did ?? did,
-          handle: d.handle ?? did,
-          displayName: d.displayName,
-          avatar: d.avatar,
-        }
-      })
-    )
-  )
+  // Use batch profile fetch instead of individual calls
+  const profilesMap = await getProfilesBatch(followeeDidsWhoFollow, false)
+  
+  const profiles = followeeDidsWhoFollow.map((did) => {
+    const profile = profilesMap.get(did)
+    return {
+      did: profile?.did ?? did,
+      handle: profile?.handle ?? did,
+      displayName: profile?.displayName,
+      avatar: profile?.avatar,
+    }
+  })
+
   return { count: followeeDidsWhoFollow.length, followedBy: profiles, fromMutuals }
 }
 

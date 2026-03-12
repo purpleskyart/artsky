@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useProfileModal } from '../context/ProfileModalContext'
-import { searchActorsTypeahead, getSuggestedFeeds, publicAgent } from '../lib/bsky'
+import { searchActorsTypeahead, getSuggestedFeeds, publicAgent, getProfileCached } from '../lib/bsky'
 import type { FeedSource } from '../types'
 import type { AppBskyActorDefs, AppBskyFeedDefs } from '@atproto/api'
 import styles from './SearchBar.module.css'
@@ -192,8 +192,8 @@ export default function SearchBar({ onSelectFeed, inputRef: externalInputRef, co
     } else {
       setResolvingPost(true)
       try {
-        const res = await publicAgent.getProfile({ actor: post.handle })
-        uri = `at://${res.data.did}/app.bsky.feed.post/${post.rkey}`
+        const profile = await getProfileCached(post.handle, true)
+        uri = `at://${profile.did}/app.bsky.feed.post/${post.rkey}`
       } catch {
         openProfileModal(post.handle)
         return
