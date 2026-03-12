@@ -1,0 +1,92 @@
+# Implementation Plan
+
+- [x] 1. Write bug condition exploration test
+  - **Property 1: Fault Condition** - Post Card Click Opens Modal Only
+  - **CRITICAL**: This test MUST FAIL on unfixed code - failure confirms the bug exists
+  - **DO NOT attempt to fix the test or the code when it fails**
+  - **NOTE**: This test encodes the expected behavior - it will validate the fix when it passes after implementation
+  - **GOAL**: Surface counterexamples that demonstrate the bug exists
+  - **Scoped PBT Approach**: For deterministic bugs, scope the property to the concrete failing case(s) to ensure reproducibility
+  - Test implementation details from Fault Condition in design:
+    - Simulate clicking a post card on the homepage
+    - Assert that the route does NOT change to `/post/:uri`
+    - Assert that the modal opens with the correct post
+    - Assert that PostDetailPage does NOT render as a full page
+  - The test assertions should match the Expected Behavior Properties from design:
+    - Post should open only in a modal without triggering a route navigation to `/post/:uri`
+    - Page should remain on the current route
+  - Run test on UNFIXED code
+  - **EXPECTED OUTCOME**: Test FAILS (this is correct - it proves the bug exists)
+  - Document counterexamples found to understand root cause:
+    - Route changes to `/post/:uri` when clicking post card
+    - PostDetailPage renders while modal is also open
+    - Browser history accumulates `/post/:uri` entries
+  - Mark task complete when test is written, run, and failure is documented
+  - _Requirements: 2.1, 2.2_
+
+- [x] 2. Write preservation property tests (BEFORE implementing fix)
+  - **Property 2: Preservation** - Non-Post-Card Click Behavior
+  - **IMPORTANT**: Follow observation-first methodology
+  - Observe behavior on UNFIXED code for non-buggy inputs:
+    - Clicking profile links should navigate to profile without double-opening
+    - Clicking modal close button should close the modal
+    - Touch interactions on non-post elements should work as expected
+    - Keyboard navigation should work as expected
+  - Write property-based tests capturing observed behavior patterns from Preservation Requirements:
+    - Profile links must continue to work correctly without double-opening
+    - Button display and styling must remain unchanged
+    - Modal open/close functionality must continue to work as expected
+    - Other navigation elements must continue to function as expected
+    - Touch interactions and double-tap like functionality must continue to work
+  - Property-based testing generates many test cases for stronger guarantees
+  - Run tests on UNFIXED code
+  - **EXPECTED OUTCOME**: Tests PASS (this confirms baseline behavior to preserve)
+  - Mark task complete when tests are written, run, and passing on unfixed code
+  - _Requirements: 3.1, 3.2, 3.3_
+
+- [x] 3. Fix for post double-open bug
+
+  - [x] 3.1 Implement the fix
+    - Change Link component's `to` attribute from `/post/{encodeURIComponent(post.uri)}` to `#` in PostCard.tsx (line 625)
+    - This prevents React Router from navigating to the `/post/:uri` route
+    - The `#` value is a no-op navigation target that doesn't trigger route changes
+    - Verify `handleCardClick` is properly calling `onPostClick` or navigating to `/feed?post=...` (already correct)
+    - Verify touch event handlers continue to work correctly (already correct)
+    - _Bug_Condition: isBugCondition(input) where input is a click event on PostCard Link element with to=/post/{uri}_
+    - _Expected_Behavior: Modal opens with correct post, route does NOT change to /post/:uri, page remains on current route_
+    - _Preservation: Profile links work correctly, modal open/close works, touch interactions work, keyboard navigation works_
+    - _Requirements: 2.1, 2.2, 3.1, 3.2, 3.3_
+
+  - [x] 3.2 Verify bug condition exploration test now passes
+    - **Property 1: Expected Behavior** - Post Card Click Opens Modal Only
+    - **IMPORTANT**: Re-run the SAME test from task 1 - do NOT write a new test
+    - The test from task 1 encodes the expected behavior
+    - When this test passes, it confirms the expected behavior is satisfied
+    - Run bug condition exploration test from step 1
+    - **EXPECTED OUTCOME**: Test PASSES (confirms bug is fixed)
+    - Verify that:
+      - Route does NOT change to `/post/:uri`
+      - Modal opens with the correct post
+      - PostDetailPage does NOT render as a full page
+    - _Requirements: 2.1, 2.2_
+
+  - [x] 3.3 Verify preservation tests still pass
+    - **Property 2: Preservation** - Non-Post-Card Click Behavior
+    - **IMPORTANT**: Re-run the SAME tests from task 2 - do NOT write new tests
+    - Run preservation property tests from step 2
+    - **EXPECTED OUTCOME**: Tests PASS (confirms no regressions)
+    - Confirm all tests still pass after fix (no regressions):
+      - Profile links continue to work correctly
+      - Modal open/close functionality continues to work
+      - Touch interactions continue to work
+      - Keyboard navigation continues to work
+    - _Requirements: 3.1, 3.2, 3.3_
+
+- [x] 4. Checkpoint - Ensure all tests pass
+  - Verify all tests pass:
+    - Property 1: Fault Condition test passes (bug is fixed)
+    - Property 2: Preservation tests pass (no regressions)
+    - All unit tests pass
+    - All integration tests pass
+  - Ensure no new issues were introduced by the fix
+  - Ask the user if questions arise
