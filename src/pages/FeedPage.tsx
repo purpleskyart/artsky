@@ -1,12 +1,10 @@
 import { useCallback, useContext, useEffect, useMemo, useReducer, useRef, useState, startTransition, useSyncExternalStore } from 'react'
 import { useLocation, useNavigate, useNavigationType } from 'react-router-dom'
 import {
-  agent,
   getPostMediaInfo,
   getPostAllMediaForDisplay,
   getGuestFeed,
   getSavedFeedsFromPreferences,
-  getFeedDisplayName,
   getFeedDisplayNamesBatch,
   getMixedFeed,
   isPostNsfw,
@@ -32,7 +30,6 @@ import FeedColumn from '../components/FeedColumn'
 import { feedReducer, type FeedState } from './feedReducer'
 import { debounce } from '../lib/utils'
 import { asyncStorage } from '../lib/AsyncStorage'
-import { requestDeduplicator } from '../lib/RequestDeduplicator'
 import styles from './FeedPage.module.css'
 
 /** Dedupe feed items by post URI (keep first). Stops the same post appearing as both original and repost. */

@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect } from 'react'
-import { blockAccount, unblockAccount, agent, publicAgent, getSession, getProfileCached } from '../lib/bsky'
+import { blockAccount, unblockAccount, getSession, getProfileCached } from '../lib/bsky'
 import { formatExactDateTimeLongMonth } from '../lib/date'
 import styles from './ProfileActionsMenu.module.css'
 

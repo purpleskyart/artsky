@@ -236,13 +236,15 @@ export function ProfileContent({
     getProfileCached(handle, !session)
       .then((data) => {
         if (cancelled) return
+        const profileData = data as { did?: string; displayName?: string; avatar?: string; description?: string; viewer?: { following?: string }; verification?: { verifiedStatus?: string } }
+        if (!profileData.did) return
         setProfile({
-          displayName: data.displayName,
-          avatar: data.avatar,
-          description: (data as { description?: string }).description,
-          did: data.did,
-          viewer: (data as { viewer?: { following?: string } }).viewer,
-          verification: (data as { verification?: { verifiedStatus?: string } }).verification,
+          displayName: profileData.displayName,
+          avatar: profileData.avatar,
+          description: profileData.description,
+          did: profileData.did,
+          viewer: profileData.viewer,
+          verification: profileData.verification,
         })
       })
       .catch(() => {})
