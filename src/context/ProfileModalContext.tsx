@@ -205,7 +205,8 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
     setModalStack((prev) => {
       const top = prev[prev.length - 1]
       if (top && modalItemsMatch(top, urlTop)) return prev
-      return [...prev, urlTop]
+      // Replace the entire stack with just the new modal (don't append)
+      return [urlTop]
     })
   }, [location.search])
 
