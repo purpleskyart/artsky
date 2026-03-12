@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { agent, getSession } from '../lib/bsky'
+import { agent, getSession, getProfileCached } from '../lib/bsky'
 import { useScrollLock } from '../context/ScrollLockContext'
 import styles from './EditProfileModal.module.css'
 
@@ -41,14 +41,12 @@ export default function EditProfileModal({ onClose, onSaved }: EditProfileModalP
     let cancelled = false
     setLoading(true)
     setError(null)
-    agent
-      .getProfile({ actor: session.did })
-      .then((res) => {
+    getProfileCached(session.did, false)
+      .then((d) => {
         if (cancelled) return
-        const d = res.data as { displayName?: string; handle?: string; description?: string; avatar?: string }
         setDisplayName(d.displayName ?? '')
         setHandle(d.handle ?? '')
-        setDescription(d.description ?? '')
+        setDescription((d as any).description ?? '')
         setAvatarUrl(d.avatar ?? null)
       })
       .catch(() => {
@@ -119,7 +117,7 @@ export default function EditProfileModal({ onClose, onSaved }: EditProfileModalP
     setError(null)
     setSaving(true)
     try {
-      const currentProfile = await agent.getProfile({ actor: session.did }).then((r) => r.data as { handle?: string })
+      const currentProfile = await getProfileCached(session.did, false)
       if (newHandle && newHandle !== (currentProfile.handle ?? '')) {
         await agent.updateHandle({ handle: newHandle })
       }

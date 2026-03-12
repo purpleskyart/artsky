@@ -27,7 +27,6 @@ import { useSeenPosts } from '../context/SeenPostsContext'
 import { useLikeOverrides } from '../context/LikeOverridesContext'
 import { usePullToRefresh } from '../hooks/usePullToRefresh'
 import { useColumnCount } from '../hooks/useViewportWidth'
-import SuggestedFollows from '../components/SuggestedFollows'
 import FeedColumn from '../components/FeedColumn'
 import { feedReducer, type FeedState } from './feedReducer'
 import { debounce } from '../lib/utils'
@@ -409,7 +408,6 @@ export default function FeedPage() {
   const seenUrisRef = useRef(feedState.seenUris)
   seenUrisRef.current = feedState.seenUris
   const seenPostsContext = useSeenPosts()
-  const [suggestedFollowsOpen, setSuggestedFollowsOpen] = useState(false)
   const gridRef = useRef<HTMLDivElement | null>(null)
 
   // Register clear-seen handler so that long-press on Home can bring back all hidden (seen) items.
@@ -1401,22 +1399,6 @@ export default function FeedPage() {
             transform: `translateY(${pullRefresh.pullDistance}px)`,
           }}
         >
-        {session && (
-          <div className={styles.suggestedFollowsSection}>
-            <div className={styles.suggestedFollowsSectionInner}>
-              <button
-                type="button"
-                className={styles.suggestedFollowsToggle}
-                onClick={() => setSuggestedFollowsOpen((open) => !open)}
-                aria-expanded={suggestedFollowsOpen}
-                aria-label={suggestedFollowsOpen ? 'Hide suggestions' : 'Discover accounts to follow'}
-              >
-                {suggestedFollowsOpen ? 'Hide suggestions' : 'Discover accounts'}
-              </button>
-            </div>
-            {suggestedFollowsOpen && <SuggestedFollows />}
-          </div>
-        )}
         <div
           key={mixEntries.length === 1 ? (mixEntries[0].source.uri ?? mixEntries[0].source.label) : 'mixed'}
           className={styles.feedContentTransition}
