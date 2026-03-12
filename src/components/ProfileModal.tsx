@@ -22,6 +22,7 @@ export default function ProfileModal({ handle, onClose, onBack, canGoBack }: Pro
       canGoBack={canGoBack}
       hideTopBar
       onPullToRefresh={refreshFn ? () => refreshFn() : undefined}
+      scrollKey={handle}
     >
       <ProfileContent
         handle={handle}

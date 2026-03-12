@@ -81,6 +81,7 @@ export default function QuotesModal({ postUri, onClose, onBack, canGoBack }: Quo
       onBack={onBack}
       canGoBack={canGoBack}
       onPullToRefresh={refreshFn ? () => refreshFn() : undefined}
+      scrollKey={postUri}
     >
       <div className={styles.wrap}>
         {error && <p className={styles.error}>{error}</p>}

@@ -39,19 +39,22 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let cancelled = false
     const maxWaitMs = 6000
-    const oauthTimeoutMs = 1500
+    const oauthTimeoutMs = 5000
 
     const finish = (ok: boolean) => {
       if (cancelled) return
       try {
-        setSession(ok ? bsky.getSession() : null)
+        if (ok) {
+          setSession(bsky.getSession())
+        } else if (!bsky.getStoredSession()) {
+          setSession(null)
+        }
       } catch {
         setSession(null)
       }
     }
 
     async function init() {
-      // Try OAuth initialization first
       const oauthAccounts = bsky.getOAuthAccountsSnapshot()
       try {
         const search = typeof window !== 'undefined' ? window.location.search : ''
@@ -75,7 +78,6 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         }
       } catch (err) {
         // Don't auto-logout on token refresh errors - keep session data so user can retry
-        // OAuth init failed; fall back to credential
       }
       const ok = await Promise.race([
         bsky.resumeSession(),

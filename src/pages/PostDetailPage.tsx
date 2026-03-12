@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import type { AppBskyFeedDefs } from '@atproto/api'
 import type { AtpSessionData } from '@atproto/api'
-import { agent, publicAgent, postReply, getPostAllMedia, getPostMediaUrl, getQuotedPostView, getPostExternalLink, getSession, createQuotePost, createDownvote, deleteDownvote, listMyDownvotes, getPostThreadCached } from '../lib/bsky'
+import { agent, publicAgent, postReply, getPostAllMedia, getPostMediaUrl, getQuotedPostView, getPostExternalLink, getSession, createQuotePost, createDownvote, deleteDownvote, listMyDownvotes, getPostThreadCached, getProfilesBatch } from '../lib/bsky'
 import { getApiErrorMessage } from '../lib/apiErrors'
 import { takeInitialPostForUri, getCachedThread } from '../lib/postCache'
 import { getDownvoteCounts } from '../lib/constellation'
@@ -77,12 +77,16 @@ export function ReplyAsRow({
       return
     }
     let cancelled = false
-    sessionsList.forEach((s) => {
-      publicAgent.getProfile({ actor: s.did }).then((res) => {
-        if (cancelled) return
-        const data = res.data as { avatar?: string; handle?: string }
-        setAccountProfiles((prev) => ({ ...prev, [s.did]: { avatar: data.avatar, handle: data.handle } }))
-      }).catch(() => {})
+    const dids = sessionsList.map((s) => s.did)
+    getProfilesBatch(dids, true).then((profiles) => {
+      if (cancelled) return
+      const updated: Record<string, { avatar?: string; handle?: string }> = {}
+      for (const [did, profile] of profiles.entries()) {
+        updated[did] = { avatar: profile.avatar, handle: profile.handle }
+      }
+      setAccountProfiles(updated)
+    }).catch((err) => {
+      console.warn('Failed to fetch account profiles:', err)
     })
     return () => { cancelled = true }
   }, [sessionsDidKey, sessionsList])
@@ -661,19 +665,6 @@ function PostBlock({
               postedAt={(post.record as { createdAt?: string })?.createdAt}
               onViewQuotes={onViewQuotes}
             />
-            <button
-              type="button"
-              className={styles.commentViewQuotesBtn}
-              onClick={() => onViewQuotes?.(post.uri)}
-              title="View posts that quote this"
-              aria-label="View quotes"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                <path d="M3 21c3 0 7-1 7-8V5c0-1.25-.756-2.017-2-2H3c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2z" />
-                <path d="M15 21c3 0 7-1 7-8V5c0-1.25-.757-2.017-2-2h-5c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2z" />
-              </svg>
-              <span>View Quotes</span>
-            </button>
           </div>
         </div>
       )}
@@ -1881,7 +1872,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                           if (onClose) {
                             openPostModal(parentPost.uri)
                           } else {
-                            navigate(`/post/${encodeURIComponent(parentPost.uri)}`)
+                            navigate(`/feed?post=${encodeURIComponent(parentPost.uri)}`)
                           }
                         }}
                       >
@@ -2040,7 +2031,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                           if (onClose) {
                             openPostModal(quoted.uri)
                           } else {
-                            navigate(`/post/${encodeURIComponent(quoted.uri)}`)
+                            navigate(`/feed?post=${encodeURIComponent(quoted.uri)}`)
                           }
                         }}
                       >

@@ -39,6 +39,7 @@ export default function PostDetailModal({ uri, openReply, focusUri, onClose, onB
       transparentTopBar
       onSwipeLeft={authorHandle ? handleSwipeLeft : undefined}
       onPullToRefresh={refreshFn ? () => refreshFn() : undefined}
+      scrollKey={uri}
     >
       <PostDetailContent
         uri={uri}

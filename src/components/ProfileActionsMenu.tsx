@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect } from 'react'
-import { blockAccount, unblockAccount, agent, publicAgent, getSession } from '../lib/bsky'
+import { blockAccount, unblockAccount, agent, publicAgent, getSession, getProfileCached } from '../lib/bsky'
 import { formatExactDateTimeLongMonth } from '../lib/date'
 import styles from './ProfileActionsMenu.module.css'
 
@@ -41,19 +41,23 @@ export default function ProfileActionsMenu({
 
   useEffect(() => {
     if (!open) return
-    const client = getSession() ? agent : publicAgent
     let cancelled = false
-    client.getProfile({ actor: profileDid }).then((res) => {
+    getProfileCached(profileDid, !getSession()).then((data) => {
       if (cancelled) return
-      const data = res.data as {
-        viewer?: { blocking?: string }
-        createdAt?: string
-        indexedAt?: string
-      }
-      setAuthorBlockingUri(data.viewer?.blocking ?? null)
       setProfileMeta({
         createdAt: data.createdAt ?? undefined,
         indexedAt: data.indexedAt ?? undefined,
+      })
+      // Fetch viewer-specific data (blocking status) separately if needed
+      const client = getSession() ? agent : publicAgent
+      client.getProfile({ actor: profileDid }).then((res) => {
+        if (cancelled) return
+        const viewerData = res.data as { viewer?: { blocking?: string } }
+        setAuthorBlockingUri(viewerData.viewer?.blocking ?? null)
+      }).catch(() => {
+        if (!cancelled) {
+          setAuthorBlockingUri(null)
+        }
       })
     }).catch(() => {
       if (!cancelled) {

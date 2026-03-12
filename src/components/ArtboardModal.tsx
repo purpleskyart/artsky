@@ -18,6 +18,7 @@ export default function ArtboardModal({ id, onClose, onBack, canGoBack }: Artboa
       onBack={onBack}
       canGoBack={canGoBack}
       onPullToRefresh={refreshFn ? () => refreshFn() : undefined}
+      scrollKey={id}
     >
       <ArtboardDetailContent id={id} inModal onRegisterRefresh={(fn) => setRefreshFn(() => fn)} />
     </AppModal>

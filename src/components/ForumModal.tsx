@@ -21,6 +21,7 @@ export default function ForumModal({ onClose, onBack, canGoBack }: ForumModalPro
       onBack={onBack}
       canGoBack={canGoBack}
       onPullToRefresh={refreshFn ? () => refreshFn() : undefined}
+      scrollKey="forums"
     >
       <div className={styles.modalBetaAlert} role="status">BETA</div>
       <ForumContent inModal onRegisterRefresh={onRegisterRefresh} />

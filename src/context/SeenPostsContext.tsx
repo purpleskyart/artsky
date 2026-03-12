@@ -1,4 +1,4 @@
-import { createContext, useCallback, useRef, useContext, type ReactNode } from 'react'
+import { createContext, useCallback, useRef, useContext, useEffect, type ReactNode } from 'react'
 import { useToast } from './ToastContext'
 
 type SeenPostsContextValue = {
@@ -54,6 +54,15 @@ export function SeenPostsProvider({ children }: { children: ReactNode }) {
   const announceShowSeen = useCallback((_anchor?: HTMLElement) => {
     toast?.showToast('Read posts restored')
   }, [toast])
+
+  // Cleanup refs on unmount to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      handlerRef.current = null
+      homeClickRef.current = null
+      hideSeenOnlyRef.current = null
+    }
+  }, [])
 
   const value: SeenPostsContextValue = {
     setClearSeenHandler,

@@ -150,7 +150,7 @@ export function shouldRetryError(error: unknown): boolean {
     const status = err.status ?? err.statusCode
 
     if (status !== undefined) {
-      if ((status >= 500 && status < 600) || status === 408 || status === 429) {
+      if ((status >= 500 && status < 600) || status === 408) {
         return true
       }
       if (status >= 400 && status < 500) {

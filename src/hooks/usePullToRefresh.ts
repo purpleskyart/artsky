@@ -46,6 +46,7 @@ export function usePullToRefresh({
   enabled = true,
   maxTouchStartY,
 }: UsePullToRefreshOptions): UsePullToRefreshResult {
+  const startXRef = useRef(0)
   const startYRef = useRef(0)
   const startScrollTopRef = useRef(0)
   const pullingRef = useRef(false)
@@ -71,8 +72,10 @@ export function usePullToRefresh({
       if (!enabled || e.touches.length !== 1) return
       pullingRef.current = false
       setPullDistance(0)
+      const x = e.touches[0].clientX
       const y = e.touches[0].clientY
       if (maxTouchStartY != null && y > maxTouchStartY) return
+      startXRef.current = x
       startYRef.current = y
       startScrollTopRef.current = getScrollTop(scrollRef)
     },
@@ -83,7 +86,13 @@ export function usePullToRefresh({
     (e: React.TouchEvent) => {
       if (!enabled || e.touches.length !== 1) return
       const scrollTop = getScrollTop(scrollRef)
+      const dx = e.touches[0].clientX - startXRef.current
       const dy = e.touches[0].clientY - startYRef.current
+      
+      // Don't pull if this is clearly a horizontal swipe (swiping back)
+      if (Math.abs(dx) > Math.abs(dy) * 2) {
+        return
+      }
 
       if (!pullingRef.current) {
         if (scrollTop <= 2 && dy > PULL_COMMIT_PX) {
@@ -129,12 +138,22 @@ export function usePullToRefresh({
     const el = touchTargetRef?.current ?? scrollRef?.current
     if (!enabled || !el) return
     const onStart = (e: TouchEvent) => {
-      if (e.touches.length === 1) startYRef.current = e.touches[0].clientY
+      if (e.touches.length === 1) {
+        startXRef.current = e.touches[0].clientX
+        startYRef.current = e.touches[0].clientY
+      }
     }
     const onMove = (e: TouchEvent) => {
       if (e.touches.length !== 1) return
       const scrollTop = getScrollTop(scrollRef)
+      const dx = e.touches[0].clientX - startXRef.current
       const dy = e.touches[0].clientY - startYRef.current
+      
+      // Don't pull if this is clearly a horizontal swipe (swiping back)
+      if (Math.abs(dx) > Math.abs(dy) * 2) {
+        return
+      }
+      
       if (maxTouchStartY != null && startYRef.current > maxTouchStartY) return
       if (!pullingRef.current) {
         if (scrollTop <= 2 && dy > PULL_COMMIT_PX) pullingRef.current = true

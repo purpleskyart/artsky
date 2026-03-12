@@ -26,8 +26,8 @@ export function useSWUpdate(): SWUpdateState {
           })
           setUpdateServiceWorkerFn(() => updateSW)
         })
-        .catch(() => {
-          // SW registration failed (dev mode or unsupported)
+        .catch((err) => {
+          console.error('Service worker registration failed:', err)
         })
     }
   }, [])

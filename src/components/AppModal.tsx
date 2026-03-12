@@ -37,6 +37,8 @@ interface AppModalProps {
   onSwipeLeft?: () => void
   /** Optional: when provided, pull-to-refresh at top of modal scroll triggers this (e.g. refresh post, profile). */
   onPullToRefresh?: () => void | Promise<void>
+  /** Optional: when provided, scroll resets when this value changes */
+  scrollKey?: string
 }
 
 export default function AppModal({
@@ -50,6 +52,7 @@ export default function AppModal({
   compact = false,
   onSwipeLeft,
   onPullToRefresh,
+  scrollKey,
 }: AppModalProps) {
   const overlayRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -133,6 +136,14 @@ export default function AppModal({
   useEffect(() => {
     if (isMobile) setExpanded(true)
   }, [isMobile, setExpanded])
+
+  /* Reset scroll position when scrollKey changes (e.g., when opening a new post) */
+  useEffect(() => {
+    const scrollEl = scrollRef.current
+    if (scrollEl) {
+      scrollEl.scrollTop = 0
+    }
+  }, [scrollKey])
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {

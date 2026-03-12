@@ -6,6 +6,23 @@ import { requestDeduplicator } from './RequestDeduplicator'
 import { responseCache } from './ResponseCache'
 import { retryWithBackoff, shouldRetryIncluding429 } from './retryWithBackoff'
 import { getApiErrorMessage, shouldRetryError } from './apiErrors'
+import { rateLimiter } from './RateLimiter'
+import { apiRequestManager } from './apiRequestManager'
+import { RequestPriority } from './RequestQueue'
+import {
+  invalidateAfterPostCreated,
+  invalidateAfterPostDeleted,
+  invalidateAfterPostLiked,
+  invalidateAfterPostUnliked,
+  invalidateAfterPostReposted,
+  invalidateAfterFollowing,
+  invalidateAfterUnfollowing,
+  invalidateAfterBlocking,
+  invalidateAfterUnblocking,
+  invalidateAfterMuting,
+  invalidateAfterUnmuting,
+  invalidateAfterPreferencesUpdated,
+} from './cacheInvalidation'
 
 const BSKY_SERVICE = 'https://bsky.social'
 /** Public AppView for unauthenticated reads (profiles, feeds). */
@@ -173,9 +190,39 @@ export async function switchAccount(did: string): Promise<boolean> {
   }
 }
 
+/**
+ * Create a rate-limited fetch handler for a specific agent
+ * Uses the new RateLimiter with per-agent tracking and Retry-After support
+ */
+function createRateLimitedFetch(agentId: string) {
+  return async (input: URL | RequestInfo, init?: RequestInit): Promise<Response> => {
+    const limitCheck = rateLimiter.checkRateLimit(agentId)
+    if (!limitCheck.allowed) {
+      const error = Object.assign(
+        new Error(`Rate limited — backing off for ${Math.ceil(limitCheck.backoffMs / 1000)}s`),
+        { status: 429 }
+      )
+      throw error
+    }
+
+    const response = await fetch(input, init)
+
+    if (response.status === 429) {
+      rateLimiter.handle429Response(agentId, response)
+    }
+
+    return response
+  }
+}
+
+// Create separate fetch handlers for each agent
+const credentialAgentFetch = createRateLimitedFetch('credential')
+const publicAgentFetch = createRateLimitedFetch('public')
+
 const credentialAgent = new AtpAgent({
   service: BSKY_SERVICE,
   persistSession,
+  fetch: credentialAgentFetch,
 })
 
 let oauthAgentInstance: Agent | null = null
@@ -215,7 +262,7 @@ export const agent = new Proxy(credentialAgent, {
 })
 
 /** Agent for unauthenticated reads (profiles, author feeds). Use when no session. */
-export const publicAgent = new AtpAgent({ service: PUBLIC_BSKY })
+export const publicAgent = new AtpAgent({ service: PUBLIC_BSKY, fetch: publicAgentFetch })
 
 /** Handles for the guest feed (from config). Re-exported for convenience. */
 export const GUEST_FEED_HANDLES = GUEST_FEED_ACCOUNTS.map((a) => a.handle)
@@ -229,9 +276,18 @@ export async function getGuestFeed(
   const need = offset + limit
   const perHandle = Math.ceil(need / GUEST_FEED_HANDLES.length) + 5
   const results = await Promise.all(
-    GUEST_FEED_HANDLES.map((actor) =>
-      publicAgent.getAuthorFeed({ actor, limit: perHandle }).catch(() => ({ data: { feed: [] } })),
-    ),
+    GUEST_FEED_HANDLES.map((actor) => {
+      const cacheKey = `guest:${actor}:${perHandle}`
+      const cached = responseCache.get<{ data: { feed: TimelineItem[] } }>(cacheKey)
+      if (cached) return cached
+      return publicAgent.getAuthorFeed({ actor, limit: perHandle })
+        .then((res) => { 
+          // Guest feed: 5 min TTL + 5 min stale-while-revalidate
+          responseCache.set(cacheKey, res, 300_000, 300_000); 
+          return res 
+        })
+        .catch(() => ({ data: { feed: [] } }))
+    }),
   )
   const all = results.flatMap((r) => (r.data.feed || []) as TimelineItem[])
   const seen = new Set<string>()
@@ -351,6 +407,119 @@ export type PostView = TimelineItem['post']
 /** NSFW/adult label values (self-labels or from labeler) that we treat as sensitive. */
 const NSFW_LABEL_VALS = new Set(['porn', 'sexual', 'nudity', 'graphic-media'])
 
+/**
+ * Cached profile fetcher with longer TTL (10 min + 5 min stale-while-revalidate)
+ * Profiles rarely change, so we can cache them longer than feeds
+ */
+export async function getProfileCached(
+  actor: string,
+  usePublic = false
+): Promise<{ handle?: string; displayName?: string; avatar?: string; did?: string; createdAt?: string; indexedAt?: string }> {
+  const cacheKey = `profile:${actor}`
+  const client = usePublic ? publicAgent : (getSession() ? agent : publicAgent)
+  
+  // Try to get from cache with revalidation support
+  const cached = responseCache.get<{ handle?: string; displayName?: string; avatar?: string; did?: string; createdAt?: string; indexedAt?: string }>(
+    cacheKey,
+    () => client.getProfile({ actor }).then((p) => {
+      const data = p.data as { handle?: string; displayName?: string; avatar?: string; did?: string; createdAt?: string; indexedAt?: string }
+      return data
+    })
+  )
+  
+  if (cached) return cached
+  
+  // Fetch and cache with 10 min TTL + 5 min stale-while-revalidate
+  const profile = await client.getProfile({ actor })
+  const data = profile.data as { handle?: string; displayName?: string; avatar?: string; did?: string; createdAt?: string; indexedAt?: string }
+  responseCache.set(cacheKey, data, 600_000, 300_000)
+  return data
+}
+
+/**
+ * Batch fetch posts using app.bsky.feed.getPosts (up to 25 posts per call)
+ * More efficient than calling getPostThread individually for each post
+ */
+export async function getPostsBatch(uris: string[]): Promise<Map<string, PostView>> {
+  if (uris.length === 0) return new Map()
+  
+  const result = new Map<string, PostView>()
+  const client = getSession() ? agent : publicAgent
+  
+  // Split into batches of 25 (API limit)
+  const batches: string[][] = []
+  for (let i = 0; i < uris.length; i += 25) {
+    batches.push(uris.slice(i, i + 25))
+  }
+  
+  // Fetch all batches
+  await Promise.all(
+    batches.map(async (batch) => {
+      try {
+        const res = await client.app.bsky.feed.getPosts({ uris: batch })
+        const posts = (res.data.posts || []) as PostView[]
+        for (const post of posts) {
+          result.set(post.uri, post)
+        }
+      } catch (error) {
+        console.warn('Failed to fetch post batch:', error)
+      }
+    })
+  )
+  
+  return result
+}
+/**
+ * Batch fetch profiles using app.bsky.actor.getProfiles (up to 25 profiles per call)
+ * More efficient than calling getProfile individually for each actor
+ *
+ * @param actors - Array of actor identifiers (DIDs or handles)
+ * @param usePublic - Whether to use public agent (default: false, uses authenticated agent if available)
+ * @returns Map of actor identifier to profile data
+ *
+ * @example
+ * const profiles = await getProfilesBatch(['did:plc:abc123', 'did:plc:xyz789'])
+ * const profile1 = profiles.get('did:plc:abc123')
+ * console.log(profile1?.displayName, profile1?.avatar)
+ */
+export async function getProfilesBatch(
+  actors: string[],
+  usePublic = false
+): Promise<Map<string, { handle?: string; displayName?: string; avatar?: string; did?: string }>> {
+  if (actors.length === 0) return new Map()
+
+  const result = new Map<string, { handle?: string; displayName?: string; avatar?: string; did?: string }>()
+  const client = usePublic ? publicAgent : (getSession() ? agent : publicAgent)
+
+  // Split into batches of 25 (API limit)
+  const batches: string[][] = []
+  for (let i = 0; i < actors.length; i += 25) {
+    batches.push(actors.slice(i, i + 25))
+  }
+
+  // Fetch all batches in parallel
+  await Promise.all(
+    batches.map(async (batch) => {
+      try {
+        const res = await client.app.bsky.actor.getProfiles({ actors: batch })
+        const profiles = (res.data.profiles || []) as Array<{ handle?: string; displayName?: string; avatar?: string; did?: string }>
+        for (const profile of profiles) {
+          result.set(profile.did || profile.handle || '', {
+            handle: profile.handle,
+            displayName: profile.displayName,
+            avatar: profile.avatar,
+            did: profile.did
+          })
+        }
+      } catch (error) {
+        console.warn('Failed to fetch profile batch:', error)
+      }
+    })
+  )
+
+  return result
+}
+
 /** True if the post has NSFW/adult content labels (self-labels on record or labels on post view). */
 export function isPostNsfw(post: PostView): boolean {
   const record = post.record as { labels?: { values?: { val: string }[] } } | undefined
@@ -378,75 +547,58 @@ export async function getMixedFeed(
     return { feed: [], cursors: {} }
   }
   const fetchLimit = Math.max(limit, 50)
-  const results = await Promise.all(
-    entries.map(async (entry) => {
-      const key = entry.source.kind === 'timeline' ? 'timeline' : (entry.source.uri ?? '')
-      const cursor = cursors?.[key]
-      try {
-        // Check if request was cancelled
-        if (signal?.aborted) {
-          throw new Error('Request cancelled')
+  const results: { key: string; feed: TimelineItem[]; nextCursor: string | undefined }[] = []
+  for (const entry of entries) {
+    const key = entry.source.kind === 'timeline' ? 'timeline' : (entry.source.uri ?? '')
+    const cursor = cursors?.[key]
+    try {
+      if (signal?.aborted) throw new Error('Request cancelled')
+
+      if (entry.source.kind === 'timeline') {
+        const cacheKey = `timeline:${fetchLimit}:${cursor ?? 'initial'}`
+        const cached = responseCache.get<{ feed: TimelineItem[]; cursor?: string }>(cacheKey)
+        if (cached) {
+          results.push({ key, feed: cached.feed, nextCursor: cached.cursor })
+          continue
         }
-        
-        if (entry.source.kind === 'timeline') {
-          // Use deduplication and caching for timeline requests
-          const cacheKey = `timeline:${fetchLimit}:${cursor ?? 'initial'}`
-          
-          // Check cache first
-          const cached = responseCache.get<{ feed: TimelineItem[]; cursor?: string }>(cacheKey)
-          if (cached) {
-            return { key, feed: cached.feed, nextCursor: cached.cursor }
-          }
-          
-          // Deduplicate concurrent requests with retry logic and custom error handling
-          const res = await requestDeduplicator.dedupe(
-            cacheKey,
-            () => retryWithBackoff(
-              () => agent.getTimeline({ limit: fetchLimit, cursor }),
-              { shouldRetry: shouldRetryError }
-            )
+        const res = await requestDeduplicator.dedupe(
+          cacheKey,
+          () => retryWithBackoff(
+            () => agent.getTimeline({ limit: fetchLimit, cursor }),
+            { shouldRetry: shouldRetryError }
           )
-          
-          const result = { feed: res.data.feed, cursor: res.data.cursor ?? undefined }
-          
-          // Cache the response (1 minute TTL)
-          responseCache.set(cacheKey, result, 60000)
-          
-          return { key, feed: result.feed, nextCursor: result.cursor }
-        }
-        if (entry.source.uri) {
-          // Use deduplication and caching for feed requests
-          const cacheKey = `feed:${entry.source.uri}:${fetchLimit}:${cursor ?? 'initial'}`
-          
-          // Check cache first
-          const cached = responseCache.get<{ feed: TimelineItem[]; cursor?: string }>(cacheKey)
-          if (cached) {
-            return { key, feed: cached.feed, nextCursor: cached.cursor }
-          }
-          
-          // Deduplicate concurrent requests with retry logic and custom error handling
-          const res = await requestDeduplicator.dedupe(
-            cacheKey,
-            () => retryWithBackoff(
-              () => agent.app.bsky.feed.getFeed({ feed: entry.source.uri!, limit: fetchLimit, cursor }),
-              { shouldRetry: shouldRetryError }
-            )
-          )
-          
-          const result = { feed: res.data.feed, cursor: res.data.cursor }
-          
-          // Cache the response (1 minute TTL)
-          responseCache.set(cacheKey, result, 60000)
-          
-          return { key, feed: result.feed, nextCursor: result.cursor }
-        }
-      } catch (error) {
-        // Log user-friendly error message but don't fail the entire feed
-        console.warn(getApiErrorMessage(error, `load ${key} feed`))
+        )
+        const result = { feed: res.data.feed, cursor: res.data.cursor ?? undefined }
+        // Feeds: 5 min TTL + 5 min stale-while-revalidate
+        responseCache.set(cacheKey, result, 300_000, 300_000)
+        results.push({ key, feed: result.feed, nextCursor: result.cursor })
+        continue
       }
-      return { key, feed: [] as TimelineItem[], nextCursor: undefined }
-    })
-  )
+      if (entry.source.uri) {
+        const cacheKey = `feed:${entry.source.uri}:${fetchLimit}:${cursor ?? 'initial'}`
+        const cached = responseCache.get<{ feed: TimelineItem[]; cursor?: string }>(cacheKey)
+        if (cached) {
+          results.push({ key, feed: cached.feed, nextCursor: cached.cursor })
+          continue
+        }
+        const res = await requestDeduplicator.dedupe(
+          cacheKey,
+          () => retryWithBackoff(
+            () => agent.app.bsky.feed.getFeed({ feed: entry.source.uri!, limit: fetchLimit, cursor }),
+            { shouldRetry: shouldRetryError }
+          )
+        )
+        const result = { feed: res.data.feed, cursor: res.data.cursor }
+        // Custom feeds: 5 min TTL + 5 min stale-while-revalidate
+        responseCache.set(cacheKey, result, 300_000, 300_000)
+        results.push({ key, feed: result.feed, nextCursor: result.cursor })
+        continue
+      }
+    } catch (error) {
+      console.warn(getApiErrorMessage(error, `load ${key} feed`))
+    }
+    results.push({ key, feed: [] as TimelineItem[], nextCursor: undefined })
+  }
   const takePerEntry = results.map((_, i) => {
     const pct = entries[i]?.percent ?? 0
     return Math.round((limit * pct) / totalPercent)
@@ -2277,10 +2429,16 @@ export async function addSavedFeed(uri: string): Promise<void> {
   await a.app.bsky.actor.putPreferences({ preferences: updated as AppBskyActorDefs.Preferences })
 }
 
+const feedNameCache = new Map<string, string>()
+
 /** Get display name for a feed URI. */
 export async function getFeedDisplayName(uri: string): Promise<string> {
+  const cached = feedNameCache.get(uri)
+  if (cached) return cached
   const res = await agent.app.bsky.feed.getFeedGenerator({ feed: uri })
-  return (res.data?.view as { displayName?: string })?.displayName ?? uri
+  const name = (res.data?.view as { displayName?: string })?.displayName ?? uri
+  feedNameCache.set(uri, name)
+  return name
 }
 
 /** Get a shareable bsky.app URL for a feed (at://...). */
@@ -2465,3 +2623,286 @@ export async function postReply(
   })
 }
 
+
+// ============================================================================
+// API Request Lifecycle Management - New Functions
+// ============================================================================
+
+/**
+ * Get timeline feed with full lifecycle management
+ */
+export async function getTimelineWithLifecycle(
+  limit: number = 30,
+  cursor?: string
+): Promise<Awaited<ReturnType<typeof agent.getTimeline>>> {
+  const cacheKey = `timeline:${limit}:${cursor ?? 'initial'}`
+  const cached = responseCache.get<{ feed: TimelineItem[]; cursor?: string }>(cacheKey)
+  if (cached) {
+    return { data: { feed: cached.feed, cursor: cached.cursor } } as any
+  }
+  const result = await apiRequestManager.execute(
+    `timeline:${limit}:${cursor ?? 'initial'}`,
+    () => agent.getTimeline({ limit, cursor }),
+    { priority: RequestPriority.MEDIUM, ttl: 300_000, staleWhileRevalidate: 300_000, cacheKey, timeout: 30000 }
+  )
+  return result
+}
+
+/**
+ * Get custom feed with full lifecycle management
+ */
+export async function getFeedWithLifecycle(
+  feedUri: string,
+  limit: number = 30,
+  cursor?: string
+): Promise<Awaited<ReturnType<typeof agent.app.bsky.feed.getFeed>>> {
+  const cacheKey = `feed:${feedUri}:${limit}:${cursor ?? 'initial'}`
+  const cached = responseCache.get<{ feed: TimelineItem[]; cursor?: string }>(cacheKey)
+  if (cached) {
+    return { data: { feed: cached.feed, cursor: cached.cursor } } as any
+  }
+  const result = await apiRequestManager.execute(
+    `feed:${feedUri}:${limit}:${cursor ?? 'initial'}`,
+    () => agent.app.bsky.feed.getFeed({ feed: feedUri, limit, cursor }),
+    { priority: RequestPriority.MEDIUM, ttl: 300_000, staleWhileRevalidate: 300_000, cacheKey, timeout: 30000 }
+  )
+  return result
+}
+
+/**
+ * Get profile with full lifecycle management
+ */
+export async function getProfileWithLifecycle(
+  actor: string
+): Promise<Awaited<ReturnType<typeof agent.getProfile>>> {
+  const cacheKey = `profile:${actor}`
+  const cached = responseCache.get<{ data: any }>(cacheKey)
+  if (cached) return cached.data
+  const result = await apiRequestManager.execute(
+    `profile:${actor}`,
+    () => agent.getProfile({ actor }),
+    { priority: RequestPriority.MEDIUM, ttl: 600_000, staleWhileRevalidate: 300_000, cacheKey, timeout: 30000 }
+  )
+  return result
+}
+
+/**
+ * Get followers list with full lifecycle management
+ */
+export async function getFollowersWithLifecycle(
+  actor: string,
+  limit: number = 50,
+  cursor?: string
+): Promise<Awaited<ReturnType<typeof agent.app.bsky.graph.getFollowers>>> {
+  const cacheKey = `followers:${actor}:${limit}:${cursor ?? 'initial'}`
+  const cached = responseCache.get<{ followers: any[]; cursor?: string }>(cacheKey)
+  if (cached) {
+    return { data: { followers: cached.followers, cursor: cached.cursor } } as any
+  }
+  const result = await apiRequestManager.execute(
+    `followers:${actor}:${limit}:${cursor ?? 'initial'}`,
+    () => agent.app.bsky.graph.getFollowers({ actor, limit, cursor }),
+    { priority: RequestPriority.LOW, ttl: 300_000, cacheKey, timeout: 30000 }
+  )
+  return result
+}
+
+/**
+ * Get follows list with full lifecycle management
+ */
+export async function getFollowsWithLifecycle(
+  actor: string,
+  limit: number = 50,
+  cursor?: string
+): Promise<Awaited<ReturnType<typeof agent.app.bsky.graph.getFollows>>> {
+  const cacheKey = `follows:${actor}:${limit}:${cursor ?? 'initial'}`
+  const cached = responseCache.get<{ follows: any[]; cursor?: string }>(cacheKey)
+  if (cached) {
+    return { data: { follows: cached.follows, cursor: cached.cursor } } as any
+  }
+  const result = await apiRequestManager.execute(
+    `follows:${actor}:${limit}:${cursor ?? 'initial'}`,
+    () => agent.app.bsky.graph.getFollows({ actor, limit, cursor }),
+    { priority: RequestPriority.LOW, ttl: 300_000, cacheKey, timeout: 30000 }
+  )
+  return result
+}
+
+/**
+ * Get notifications with full lifecycle management
+ */
+export async function getNotificationsWithLifecycle(
+  limit: number = 30,
+  cursor?: string
+): Promise<Awaited<ReturnType<typeof agent.listNotifications>>> {
+  const cacheKey = `notifications:${limit}:${cursor ?? 'initial'}`
+  const cached = responseCache.get<{ notifications: any[]; cursor?: string }>(cacheKey)
+  if (cached) {
+    return { data: { notifications: cached.notifications, cursor: cached.cursor } } as any
+  }
+  const result = await apiRequestManager.execute(
+    `notifications:${limit}:${cursor ?? 'initial'}`,
+    () => agent.listNotifications({ limit, cursor }),
+    { priority: RequestPriority.HIGH, ttl: 60_000, cacheKey, timeout: 30000 }
+  )
+  return result
+}
+
+// ============================================================================
+// WRITE OPERATIONS - With Cache Invalidation
+// ============================================================================
+
+/**
+ * Like a post with cache invalidation
+ */
+export async function likePostWithLifecycle(uri: string, cid: string): Promise<void> {
+  await apiRequestManager.execute(`like:${uri}`, () => agent.like(uri, cid), { priority: RequestPriority.HIGH, timeout: 30000 })
+  invalidateAfterPostLiked()
+}
+
+/**
+ * Unlike a post with cache invalidation
+ */
+export async function unlikePostWithLifecycle(likeUri: string): Promise<void> {
+  await apiRequestManager.execute(`unlike:${likeUri}`, () => agent.deleteLike(likeUri), { priority: RequestPriority.HIGH, timeout: 30000 })
+  invalidateAfterPostUnliked()
+}
+
+/**
+ * Repost a post with cache invalidation
+ */
+export async function repostPostWithLifecycle(uri: string, cid: string): Promise<void> {
+  await apiRequestManager.execute(`repost:${uri}`, () => agent.repost(uri, cid), { priority: RequestPriority.HIGH, timeout: 30000 })
+  invalidateAfterPostReposted()
+}
+
+/**
+ * Delete a repost with cache invalidation
+ */
+export async function deleteRepostWithLifecycle(repostUri: string): Promise<void> {
+  await apiRequestManager.execute(`unrepost:${repostUri}`, () => agent.deleteRepost(repostUri), { priority: RequestPriority.HIGH, timeout: 30000 })
+  invalidateAfterPostReposted()
+}
+
+/**
+ * Follow an account with cache invalidation
+ */
+export async function followAccountWithLifecycle(did: string): Promise<void> {
+  await apiRequestManager.execute(`follow:${did}`, () => agent.follow(did), { priority: RequestPriority.HIGH, timeout: 30000 })
+  invalidateAfterFollowing()
+}
+
+/**
+ * Unfollow an account with cache invalidation
+ */
+export async function unfollowAccountWithLifecycle(followUri: string): Promise<void> {
+  await apiRequestManager.execute(`unfollow:${followUri}`, () => agent.deleteFollow(followUri), { priority: RequestPriority.HIGH, timeout: 30000 })
+  invalidateAfterUnfollowing()
+}
+
+/**
+ * Block an account with cache invalidation
+ */
+export async function blockAccountWithLifecycle(did: string): Promise<{ uri: string }> {
+  const result = await apiRequestManager.execute(`block:${did}`, () => agent.app.bsky.graph.block.create({ repo: agent.did ?? '' }, { subject: did, createdAt: new Date().toISOString() }), { priority: RequestPriority.HIGH, timeout: 30000 })
+  invalidateAfterBlocking()
+  return result
+}
+
+/**
+ * Unblock an account with cache invalidation
+ */
+export async function unblockAccountWithLifecycle(blockUri: string): Promise<void> {
+  await apiRequestManager.execute(`unblock:${blockUri}`, () => agent.app.bsky.graph.block.delete({ repo: agent.did ?? '', rkey: blockUri.split('/').pop() ?? '' }), { priority: RequestPriority.HIGH, timeout: 30000 })
+  invalidateAfterUnblocking()
+}
+
+/**
+ * Mute an account with cache invalidation
+ */
+export async function muteAccountWithLifecycle(did: string): Promise<void> {
+  await apiRequestManager.execute(`mute:${did}`, () => agent.app.bsky.graph.muteActor({ actor: did }), { priority: RequestPriority.HIGH, timeout: 30000 })
+  invalidateAfterMuting()
+}
+
+/**
+ * Unmute an account with cache invalidation
+ */
+export async function unmuteAccountWithLifecycle(did: string): Promise<void> {
+  await apiRequestManager.execute(`unmute:${did}`, () => agent.app.bsky.graph.unmuteActor({ actor: did }), { priority: RequestPriority.HIGH, timeout: 30000 })
+  invalidateAfterUnmuting()
+}
+
+/**
+ * Create a post with cache invalidation
+ */
+export async function createPostWithLifecycle(text: string): Promise<{ uri: string; cid: string }> {
+  const result = await apiRequestManager.execute(`createPost`, () => agent.post({ text, createdAt: new Date().toISOString() }), { priority: RequestPriority.HIGH, timeout: 30000 })
+  invalidateAfterPostCreated()
+  return result
+}
+
+/**
+ * Delete a post with cache invalidation
+ */
+export async function deletePostWithLifecycle(uri: string): Promise<void> {
+  const rkey = uri.split('/').pop() ?? ''
+  await apiRequestManager.execute(`deletePost:${uri}`, () => agent.com.atproto.repo.deleteRecord({ repo: agent.did ?? '', collection: 'app.bsky.feed.post', rkey }), { priority: RequestPriority.HIGH, timeout: 30000 })
+  invalidateAfterPostDeleted()
+}
+
+/**
+ * Update muted words with cache invalidation
+ */
+export async function updateMutedWordsWithLifecycle(words: Array<{ id?: string; value: string; targets?: string[]; actorTarget?: string; expiresAt?: string }>): Promise<void> {
+  await apiRequestManager.execute(`updateMutedWords`, () => agent.app.bsky.actor.putPreferences({ preferences: [{ $type: 'app.bsky.actor.defs#mutedWordsPref', items: words.map(w => ({ ...(w.id ? { id: w.id } : {}), value: w.value, targets: w.targets?.length ? w.targets : ['content', 'tag'], ...(w.actorTarget ? { actorTarget: w.actorTarget } : { actorTarget: 'all' }), ...(w.expiresAt ? { expiresAt: w.expiresAt } : {}) })) }] }), { priority: RequestPriority.MEDIUM, timeout: 30000 })
+  invalidateAfterPreferencesUpdated()
+}
+
+/**
+ * Add a saved feed with cache invalidation
+ */
+export async function addSavedFeedWithLifecycle(uri: string): Promise<void> {
+  await apiRequestManager.execute(`addSavedFeed:${uri}`, () => agent.app.bsky.actor.putPreferences({ preferences: [{ $type: 'app.bsky.actor.defs#savedFeedsPrefV2', items: [{ id: `artsky-${Date.now()}`, type: 'feed' as const, value: uri, pinned: true }] }] }), { priority: RequestPriority.MEDIUM, timeout: 30000 })
+  invalidateAfterPreferencesUpdated()
+}
+
+/**
+ * Remove a saved feed with cache invalidation
+ */
+export async function removeSavedFeedWithLifecycle(feedId: string): Promise<void> {
+  await apiRequestManager.execute(`removeSavedFeed:${feedId}`, () => agent.app.bsky.actor.putPreferences({ preferences: [{ $type: 'app.bsky.actor.defs#savedFeedsPrefV2', items: [] }] }), { priority: RequestPriority.MEDIUM, timeout: 30000 })
+  invalidateAfterPreferencesUpdated()
+}
+
+// ============================================================================
+// Utility Functions
+// ============================================================================
+
+/**
+ * Cancel a pending request
+ */
+export function cancelRequest(key: string): void {
+  apiRequestManager.cancel(key)
+}
+
+/**
+ * Get current request metrics
+ */
+export function getRequestMetrics() {
+  return apiRequestManager.getMetrics()
+}
+
+/**
+ * Reset request metrics
+ */
+export function resetRequestMetrics(): void {
+  apiRequestManager.resetMetrics()
+}
+
+/**
+ * Invalidate cache entries matching pattern
+ */
+export function invalidateCache(pattern: string | RegExp): void {
+  apiRequestManager.invalidateCache(pattern)
+}

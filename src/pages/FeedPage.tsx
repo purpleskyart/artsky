@@ -32,6 +32,7 @@ import FeedColumn from '../components/FeedColumn'
 import { feedReducer, type FeedState } from './feedReducer'
 import { debounce } from '../lib/utils'
 import { asyncStorage } from '../lib/AsyncStorage'
+import { requestDeduplicator } from '../lib/RequestDeduplicator'
 import styles from './FeedPage.module.css'
 
 /** Dedupe feed items by post URI (keep first). Stops the same post appearing as both original and repost. */
@@ -464,12 +465,17 @@ export default function FeedPage() {
     try {
       const list = await getSavedFeedsFromPreferences()
       const feeds = list.filter((f) => f.type === 'feed' && f.pinned)
+      
+      // Load feed names in parallel, using cached names when available
       const withLabels = await Promise.all(
-        feeds.map(async (f) => ({
-          kind: 'custom' as const,
-          label: await getFeedDisplayName(f.value).catch(() => f.value),
-          uri: f.value,
-        }))
+        feeds.map(async (f) => {
+          try {
+            const label = await requestDeduplicator.dedupe(`feed-name:${f.value}`, () => getFeedDisplayName(f.value))
+            return { kind: 'custom' as const, label, uri: f.value }
+          } catch {
+            return { kind: 'custom' as const, label: f.value, uri: f.value }
+          }
+        })
       )
       setSavedFeedSources(withLabels)
     } catch {
@@ -722,11 +728,11 @@ export default function FeedPage() {
   // Large rootMargin so we load before the user reaches the end. After each load we also schedule a
   // fallback check: if any column's sentinel is above (viewport bottom + margin) we trigger another
   // load once the cooldown expires.
-  const LOAD_MORE_COOLDOWN_MS = 1800
+  const LOAD_MORE_COOLDOWN_MS = 5000
   /** Start loading when sentinel is within this distance below the viewport (load before user reaches end). */
-  const LOAD_MORE_ROOT_MARGIN_PX = 1200
+  const LOAD_MORE_ROOT_MARGIN_PX = 600
   /** Consider a column "short" when its sentinel is above this line (trigger load before blank space visible). */
-  const LOAD_MORE_SHORT_MARGIN_PX = 600
+  const LOAD_MORE_SHORT_MARGIN_PX = 300
   loadingMoreRef.current = feedState.loadingMore
   useEffect(() => {
     if (!feedState.cursor) return
@@ -1200,11 +1206,15 @@ export default function FeedPage() {
         if (currentLikeUri) {
           agent.deleteLike(currentLikeUri).then(() => {
             setLikeOverride(uri, null)
-          }).catch(() => {})
+          }).catch((err) => {
+            console.error('Failed to unlike post:', err)
+          })
         } else {
           agent.like(uri, item.post.cid).then((res) => {
             setLikeOverride(uri, res.uri)
-          }).catch(() => {})
+          }).catch((err) => {
+            console.error('Failed to like post:', err)
+          })
         }
         return
       }
@@ -1238,7 +1248,9 @@ export default function FeedPage() {
                     }
                   })
               })
-            }).catch(() => {})
+            }).catch((err) => {
+              console.error('Failed to unfollow:', err)
+            })
           } else {
             agent.follow(author.did).then((res) => {
               dispatch({
@@ -1260,7 +1272,9 @@ export default function FeedPage() {
                     }
                   })
               })
-            }).catch(() => {})
+            }).catch((err) => {
+              console.error('Failed to follow:', err)
+            })
           }
         }
       }

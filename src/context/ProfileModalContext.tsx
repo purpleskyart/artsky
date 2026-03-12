@@ -121,6 +121,11 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
     if (modalStack.length === 0) setModalScrollHidden(false)
   }, [modalStack.length])
 
+  /* Reset scroll hidden state when modal changes to ensure back button is visible */
+  useEffect(() => {
+    if (modalStack.length > 0) setModalScrollHidden(false)
+  }, [modalStack.length, modalStack[modalStack.length - 1]])
+
   /** Open modal: push onto stack and navigate to update URL */
   const openPostModal = useCallback((uri: string, openReply?: boolean, focusUri?: string) => {
     const item: ModalItem = { type: 'post', uri, openReply, focusUri }

@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect, useLayoutEffect, memo, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { blockAccount, unblockAccount, reportPost, muteThread, deletePost, agent } from '../lib/bsky'
+import { blockAccount, unblockAccount, reportPost, muteThread, deletePost, getProfileCached } from '../lib/bsky'
 import { getSession } from '../lib/bsky'
 import { formatRelativeTimeTitle, formatExactDateTime } from '../lib/date'
 import styles from './PostActionsMenu.module.css'
@@ -19,6 +19,15 @@ function LinkIcon() {
     <svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
       <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+    </svg>
+  )
+}
+function ShareIcon() {
+  return (
+    <svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
+      <polyline points="16 6 12 2 8 6" />
+      <line x1="12" y1="2" x2="12" y2="15" />
     </svg>
   )
 }
@@ -153,7 +162,7 @@ function PostActionsMenu({
   const dropdownRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   /** Fixed position for portaled dropdown so it appears above the trigger and isn't clipped by overflow */
-  const [dropdownPosition, setDropdownPosition] = useState<{ bottom: number; right: number } | null>(null)
+  const [dropdownPosition, setDropdownPosition] = useState<{ bottom: number; right: number; left: number; flipH: boolean } | null>(null)
 
   const isControlled = openControlled !== undefined && onOpenChange !== undefined
   const open = isControlled ? openControlled : openUncontrolled
@@ -179,11 +188,11 @@ function PostActionsMenu({
   useEffect(() => {
     if (!open || !session?.did || isOwnPost) return
     let cancelled = false
-    agent.getProfile({ actor: authorDid }).then((res) => {
+    getProfileCached(authorDid).then((data) => {
       if (cancelled) return
-      const data = res.data as { viewer?: { blocking?: string }; handle?: string }
-      setAuthorBlockingUri(data.viewer?.blocking ?? null)
-      setAuthorHandle(data.handle ?? null)
+      const profileData = data as { viewer?: { blocking?: string }; handle?: string }
+      setAuthorBlockingUri(profileData.viewer?.blocking ?? null)
+      setAuthorHandle(profileData.handle ?? null)
     }).catch(() => {
       if (!cancelled) {
         setAuthorBlockingUri(null)
@@ -196,9 +205,14 @@ function PostActionsMenu({
   function updateDropdownPosition() {
     if (!triggerRef.current) return null
     const rect = triggerRef.current.getBoundingClientRect()
+    const right = window.innerWidth - rect.right
+    const left = rect.left
+    const flipH = rect.right < 208
     return {
       bottom: window.innerHeight - rect.top,
-      right: window.innerWidth - rect.right,
+      right,
+      left,
+      flipH,
     }
   }
 
@@ -373,6 +387,17 @@ function PostActionsMenu({
     )
   }, [postUri, showSuccess, showError])
 
+  const canShare = typeof navigator !== 'undefined' && !!navigator.share
+
+  const handleShare = useCallback(() => {
+    const base = typeof window !== 'undefined' ? window.location.origin + (import.meta.env.BASE_URL || '/').replace(/\/$/, '') : ''
+    const url = `${base}/post/${encodeURIComponent(postUri)}`
+    navigator.share({ url }).then(
+      () => setOpen(false),
+      () => {}
+    )
+  }, [postUri])
+
   const handleDelete = useCallback(async () => {
     if (!session?.did || !isOwnPost) return
     setLoading('delete')
@@ -399,11 +424,7 @@ function PostActionsMenu({
           e.preventDefault()
           e.stopPropagation()
           if (!open && triggerRef.current) {
-            const rect = triggerRef.current.getBoundingClientRect()
-            setDropdownPosition({
-              bottom: window.innerHeight - rect.top,
-              right: window.innerWidth - rect.right,
-            })
+            setDropdownPosition(updateDropdownPosition())
           }
           setOpen(!open)
         }}
@@ -437,7 +458,9 @@ function PostActionsMenu({
             style={{
               position: 'fixed',
               bottom: dropdownPosition.bottom,
-              right: dropdownPosition.right,
+              ...(dropdownPosition.flipH
+                ? { left: dropdownPosition.left }
+                : { right: dropdownPosition.right }),
             }}
             role="menu"
           >
@@ -481,6 +504,17 @@ function PostActionsMenu({
                 >
                   <span className={styles.itemIcon}><QuotesIcon /></span>
                   View Quotes
+                </button>
+              )}
+              {canShare && (
+                <button
+                  type="button"
+                  className={styles.item}
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleShare() }}
+                  role="menuitem"
+                >
+                  <span className={styles.itemIcon}><ShareIcon /></span>
+                  Share post
                 </button>
               )}
               <button
@@ -627,6 +661,17 @@ function PostActionsMenu({
                 >
                   <span className={styles.itemIcon}><QuotesIcon /></span>
                   View Quotes
+                </button>
+              )}
+              {canShare && (
+                <button
+                  type="button"
+                  className={styles.item}
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleShare() }}
+                  role="menuitem"
+                >
+                  <span className={styles.itemIcon}><ShareIcon /></span>
+                  Share post
                 </button>
               )}
               <button

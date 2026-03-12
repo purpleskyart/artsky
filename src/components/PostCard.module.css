@@ -828,6 +828,25 @@ html[data-theme="dark"] [data-view-mode="1"] .card:focus-within:not(:has(.mediaG
   border-radius: var(--glass-radius);
 }
 
+.artOnlyActions {
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  z-index: 10;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.card:hover .artOnlyActions,
+.card:focus-within .artOnlyActions,
+.artOnlyActions:focus-within {
+  opacity: 1;
+}
+@media (hover: none) {
+  .artOnlyActions {
+    opacity: 1;
+  }
+}
+
 /* Ensure media wrap clips the extended blur overlay so no overflow shows */
 .mediaWrap {
   isolation: isolate;
@@ -1278,7 +1297,13 @@ html[data-theme="dark"] [data-view-mode="1"] .card:focus-within:not(:has(.mediaG
 }
 
 .handleLinkWrapLiked {
-  display: inline;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 0.8rem;
   color: #ec4899;
 }
 

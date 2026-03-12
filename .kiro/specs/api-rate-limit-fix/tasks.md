@@ -1,0 +1,173 @@
+# Implementation Plan
+
+- [x] 1. Write bug condition exploration test
+  - **Property 1: Fault Condition** - Inefficient API Request Patterns Trigger Rate Limits
+  - **CRITICAL**: This test MUST FAIL on unfixed code - failure confirms the bug exists
+  - **DO NOT attempt to fix the test or the code when it fails**
+  - **NOTE**: This test encodes the expected behavior - it will validate the fix when it passes after implementation
+  - **GOAL**: Surface counterexamples that demonstrate excessive API calls and rate limit errors
+  - **Scoped PBT Approach**: Test concrete scenarios - uncached profile fetches, sequential loops, missing deduplication
+  - Test implementation details from Fault Condition in design:
+    - Monitor API calls when PostActionsMenu opens multiple times for same author (should show redundant calls)
+    - Monitor API calls when Layout loads with multiple sessions (should show sequential waterfall)
+    - Monitor API calls when FeedPage has duplicate feed URIs (should show duplicate concurrent requests)
+    - Trigger rapid profile fetches and monitor for HTTP 429 responses
+  - The test assertions should match the Expected Behavior Properties from design:
+    - Profile requests should use caching (getProfileCached)
+    - Multiple profile requests should use batching (getProfilesBatch)
+    - Feed display name requests should use deduplication (requestDeduplicator.dedupe)
+    - API call count should be minimized
+    - No HTTP 429 rate limit errors should occur
+  - Run test on UNFIXED code
+  - **EXPECTED OUTCOME**: Test FAILS (this is correct - it proves the bug exists)
+  - Document counterexamples found:
+    - PostActionsMenu makes fresh API call every time (no cache hit)
+    - Layout makes N sequential profile API calls instead of 1 batched call
+    - FeedPage makes duplicate concurrent requests for same feed URI
+    - Rapid fetching triggers HTTP 429 rate limit errors
+  - Mark task complete when test is written, run, and failure is documented
+  - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5_
+
+- [x] 2. Write preservation property tests (BEFORE implementing fix)
+  - **Property 2: Preservation** - Non-Profile API Requests and UI Behavior
+  - **IMPORTANT**: Follow observation-first methodology
+  - Observe behavior on UNFIXED code for non-buggy requests:
+    - Profile data display (avatar, handle, displayName) renders correctly
+    - Post fetching with getPostsBatch() works as expected
+    - Feed content fetching works as expected
+    - Error handling (network errors, invalid actors) works as expected
+    - Cache TTL (10 min + 5 min stale) works as expected
+    - RateLimiter tracks rate limits and handles Retry-After headers correctly
+  - Write property-based tests capturing observed behavior patterns from Preservation Requirements:
+    - For all non-profile API requests, behavior should remain unchanged
+    - For all profile display scenarios, UI should render identically
+    - For all cache operations, TTL behavior should be preserved
+    - For all rate limit scenarios, RateLimiter behavior should be preserved
+  - Property-based testing generates many test cases for stronger guarantees
+  - Run tests on UNFIXED code
+  - **EXPECTED OUTCOME**: Tests PASS (this confirms baseline behavior to preserve)
+  - Mark task complete when tests are written, run, and passing on unfixed code
+  - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6_
+
+- [ ] 3. Fix for API rate limit errors due to inefficient request patterns
+
+  - [x] 3.1 Add profile batching infrastructure (src/lib/bsky.ts)
+    - Create `getProfilesBatch(actors: string[], usePublic = false)` function following `getPostsBatch()` pattern
+    - Accept array of actor identifiers (DIDs or handles)
+    - Use `app.bsky.actor.getProfiles` API endpoint
+    - Batch up to 25 profiles per API call (API limit)
+    - Split actors into batches of 25 and fetch in parallel
+    - Return `Map<string, ProfileView>` for easy lookup
+    - Handle errors gracefully (log warning, continue with partial results)
+    - Use appropriate client (authenticated agent or publicAgent based on usePublic parameter)
+    - Export `getProfilesBatch` from module
+    - Add JSDoc documentation with usage example
+    - _Bug_Condition: request.type == 'profile' AND request.count > 1 AND NOT request.usesBatching_
+    - _Expected_Behavior: Profile batching function batches up to 25 profiles per API call, minimizing API load_
+    - _Preservation: Existing getPostsBatch() and other API functions remain unchanged_
+    - _Requirements: 2.2, 2.4_
+
+  - [x] 3.2 Fix uncached profile fetch in PostActionsMenu (src/components/PostActionsMenu.tsx)
+    - Import `getProfileCached` from `../lib/bsky`
+    - Replace `agent.getProfile({ actor: authorDid })` with `getProfileCached(authorDid)` at line 191
+    - Maintain existing error handling and cancellation logic
+    - Note: viewer-specific data (blocking status) may still require fresh fetch if needed
+    - _Bug_Condition: request.type == 'profile' AND request.method == 'agent.getProfile' AND NOT request.usesCaching_
+    - _Expected_Behavior: Profile requests use getProfileCached() to leverage 10-minute TTL cache_
+    - _Preservation: Menu UI and functionality remain unchanged_
+    - _Requirements: 2.1_
+
+  - [x] 3.3 Fix uncached profile fetch in ProfileActionsMenu (src/components/ProfileActionsMenu.tsx)
+    - Import `getProfileCached` from `../lib/bsky`
+    - Replace `client.getProfile({ actor: profileDid })` with `getProfileCached(profileDid, !getSession())` at line 50
+    - Pass `!getSession()` as usePublic parameter to determine if public agent should be used
+    - Maintain existing error handling and cancellation logic
+    - _Bug_Condition: request.type == 'profile' AND request.method == 'agent.getProfile' AND NOT request.usesCaching_
+    - _Expected_Behavior: Profile requests use getProfileCached() to leverage 10-minute TTL cache_
+    - _Preservation: Menu UI and functionality remain unchanged_
+    - _Requirements: 2.1_
+
+  - [x] 3.4 Fix sequential profile fetches in Layout (src/components/Layout.tsx)
+    - Import `getProfilesBatch` from `../lib/bsky`
+    - Replace `sessionsList.forEach((s) => { publicAgent.getProfile(...) })` pattern at line 371
+    - Collect DIDs: `const dids = sessionsList.map(s => s.did)`
+    - Call `getProfilesBatch(dids, true)` once to fetch all profiles (usePublic=true)
+    - Map results to `accountProfiles` state object
+    - Maintain existing cancellation logic with `cancelled` flag
+    - Maintain existing error handling (log warning, don't break UI)
+    - _Bug_Condition: request.type == 'profile' AND request.pattern == 'sequential' AND request.count > 1_
+    - _Expected_Behavior: Multiple profile requests use getProfilesBatch() to fetch all profiles in single batched call_
+    - _Preservation: Account switcher UI and functionality remain unchanged_
+    - _Requirements: 2.2, 2.4_
+
+  - [x] 3.5 Fix sequential profile fetches in PostDetailPage (src/pages/PostDetailPage.tsx)
+    - Import `getProfilesBatch` from `../lib/bsky`
+    - Replace `sessionsList.forEach((s) => { publicAgent.getProfile(...) })` pattern at line 81
+    - Collect DIDs: `const dids = sessionsList.map(s => s.did)`
+    - Call `getProfilesBatch(dids, true)` once to fetch all profiles (usePublic=true)
+    - Map results to `accountProfiles` state object
+    - Maintain existing cancellation logic with `cancelled` flag
+    - Maintain existing error handling (log warning, don't break UI)
+    - _Bug_Condition: request.type == 'profile' AND request.pattern == 'sequential' AND request.count > 1_
+    - _Expected_Behavior: Multiple profile requests use getProfilesBatch() to fetch all profiles in single batched call_
+    - _Preservation: Post detail page UI and functionality remain unchanged_
+    - _Requirements: 2.2, 2.4_
+
+  - [x] 3.6 Add request deduplication in FeedPage (src/pages/FeedPage.tsx)
+    - Import `requestDeduplicator` from `../lib/RequestDeduplicator`
+    - Wrap `getFeedDisplayName(f.value)` with `requestDeduplicator.dedupe(\`feed-name:\${f.value}\`, () => getFeedDisplayName(f.value))` at line 472
+    - Maintain existing error handling in try-catch logic
+    - _Bug_Condition: request.type == 'feedDisplayName' AND request.pattern == 'concurrent' AND NOT request.usesDeduplication_
+    - _Expected_Behavior: Feed display name requests use requestDeduplicator.dedupe() to prevent duplicate concurrent requests_
+    - _Preservation: Feed page UI and functionality remain unchanged_
+    - _Requirements: 2.3_
+
+  - [x] 3.7 Add request deduplication in Layout feed name calls (src/components/Layout.tsx)
+    - Import `requestDeduplicator` from `../lib/RequestDeduplicator`
+    - Wrap each `getFeedDisplayName(uri)` call with `requestDeduplicator.dedupe(\`feed-name:\${uri}\`, () => getFeedDisplayName(uri))` at lines 687, 722, 1670, 1738, 1932, 2109
+    - Maintain existing `.catch()` fallback logic for error handling
+    - _Bug_Condition: request.type == 'feedDisplayName' AND request.pattern == 'concurrent' AND NOT request.usesDeduplication_
+    - _Expected_Behavior: Feed display name requests use requestDeduplicator.dedupe() to prevent duplicate concurrent requests_
+    - _Preservation: Layout UI and functionality remain unchanged_
+    - _Requirements: 2.3_
+
+  - [x] 3.8 Verify bug condition exploration test now passes
+    - **Property 1: Expected Behavior** - Efficient API Request Patterns Prevent Rate Limits
+    - **IMPORTANT**: Re-run the SAME test from task 1 - do NOT write a new test
+    - The test from task 1 encodes the expected behavior
+    - When this test passes, it confirms the expected behavior is satisfied
+    - Run bug condition exploration test from step 1
+    - Verify:
+      - PostActionsMenu uses cache (second open has no API call)
+      - Layout uses batched fetch (1 API call instead of N sequential calls)
+      - FeedPage deduplicates requests (no duplicate concurrent calls)
+      - Rapid fetching does NOT trigger HTTP 429 errors
+    - **EXPECTED OUTCOME**: Test PASSES (confirms bug is fixed)
+    - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5_
+
+  - [x] 3.9 Verify preservation tests still pass
+    - **Property 2: Preservation** - Non-Profile API Requests and UI Behavior
+    - **IMPORTANT**: Re-run the SAME tests from task 2 - do NOT write new tests
+    - Run preservation property tests from step 2
+    - Verify:
+      - Profile data display (avatar, handle, displayName) renders identically
+      - Post fetching with getPostsBatch() works unchanged
+      - Feed content fetching works unchanged
+      - Error handling works identically
+      - Cache TTL behavior preserved
+      - RateLimiter behavior preserved
+    - **EXPECTED OUTCOME**: Tests PASS (confirms no regressions)
+    - Confirm all tests still pass after fix (no regressions)
+    - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6_
+
+- [x] 4. Checkpoint - Ensure all tests pass
+  - Run all unit tests for getProfilesBatch() with various input sizes (0, 1, 25, 50, 100 profiles)
+  - Run all unit tests for getProfilesBatch() error handling (invalid actors, network errors)
+  - Run all integration tests for component updates (PostActionsMenu, ProfileActionsMenu, Layout, PostDetailPage, FeedPage)
+  - Run all property-based tests for preservation checking
+  - Verify no HTTP 429 rate limit errors occur during normal usage
+  - Verify profile data displays correctly in all components
+  - Verify cache hit rates are improved (monitor cache metrics)
+  - Verify API call counts are reduced (monitor API metrics)
+  - If any issues arise, ask the user for guidance
+  - _Requirements: All requirements (1.1-3.6)_

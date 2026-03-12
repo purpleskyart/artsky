@@ -19,6 +19,7 @@ export default function TagModal({ tag, onClose, onBack, canGoBack }: TagModalPr
       onBack={onBack}
       canGoBack={canGoBack}
       onPullToRefresh={refreshFn ? () => refreshFn() : undefined}
+      scrollKey={tag}
     >
       <TagContent tag={tag} inModal onRegisterRefresh={(fn) => setRefreshFn(() => fn)} />
     </AppModal>
