@@ -4,7 +4,7 @@ import { useParams, Link } from 'react-router-dom'
 import { useProfileModal } from '../context/ProfileModalContext'
 import { useEditProfile } from '../context/EditProfileContext'
 import { useModalTopBarSlot } from '../context/ModalTopBarSlotContext'
-import { agent, publicAgent, getAgent, getPostMediaInfo, getPostMediaInfoForDisplay, getSession, getActorFeeds, listStandardSiteDocumentsForAuthor, listActivitySubscriptions, putActivitySubscription, isPostNsfw, getFolloweesWhoFollowTarget, type TimelineItem, type StandardSiteDocumentView, type ProfileViewBasic } from '../lib/bsky'
+import { agent, publicAgent, getAgent, getPostMediaInfo, getPostMediaInfoForDisplay, getSession, getActorFeeds, listStandardSiteDocumentsForAuthor, listActivitySubscriptions, putActivitySubscription, isPostNsfw, getFolloweesWhoFollowTarget, getProfileCached, type TimelineItem, type StandardSiteDocumentView, type ProfileViewBasic } from '../lib/bsky'
 import { setInitialPostForUri } from '../lib/postCache'
 import type { AtpAgent } from '@atproto/api'
 import { formatRelativeTime, formatExactDateTime } from '../lib/date'
@@ -232,10 +232,10 @@ export function ProfileContent({
 
   useEffect(() => {
     if (!handle) return
-    readAgent
-      .getProfile({ actor: handle })
-      .then((res) => {
-        const data = res.data
+    let cancelled = false
+    getProfileCached(handle, !session)
+      .then((data) => {
+        if (cancelled) return
         setProfile({
           displayName: data.displayName,
           avatar: data.avatar,
@@ -246,7 +246,8 @@ export function ProfileContent({
         })
       })
       .catch(() => {})
-  }, [handle, readAgent, editSavedVersion])
+    return () => { cancelled = true }
+  }, [handle, session, editSavedVersion])
 
   useEffect(() => {
     if (!session || !profile) {

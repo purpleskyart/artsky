@@ -274,7 +274,8 @@ export async function getGuestFeed(
 ): Promise<{ feed: TimelineItem[]; cursor: string | undefined }> {
   const offset = cursor ? parseInt(cursor, 10) || 0 : 0
   const need = offset + limit
-  const perHandle = Math.ceil(need / GUEST_FEED_HANDLES.length) + 5
+  // Only fetch as many posts as needed, not extra buffer
+  const perHandle = Math.ceil(need / GUEST_FEED_HANDLES.length)
   const results = await Promise.all(
     GUEST_FEED_HANDLES.map((actor) => {
       const cacheKey = `guest:${actor}:${perHandle}`
@@ -2384,12 +2385,21 @@ export async function searchPostsByDomain(
 }
 
 /** Get the current account's saved/pinned feeds from preferences. Returns array of { id, type, value, pinned }. */
+/** Get the current account's saved/pinned feeds from preferences. Returns array of { id, type, value, pinned }. */
 export async function getSavedFeedsFromPreferences(): Promise<
   { id: string; type: string; value: string; pinned: boolean }[]
 > {
+  // Check cache first
+  if (savedFeedsCache && Date.now() - savedFeedsCache.timestamp < SAVED_FEEDS_CACHE_TTL) {
+    return savedFeedsCache.data
+  }
+  
   const prefs = await agent.getPreferences()
-  const list = (prefs as { savedFeeds?: { id: string; type: string; value: string; pinned: boolean }[] }).savedFeeds
-  return list ?? []
+  const list = (prefs as { savedFeeds?: { id: string; type: string; value: string; pinned: boolean }[] }).savedFeeds ?? []
+  
+  // Cache the result
+  savedFeedsCache = { data: list, timestamp: Date.now() }
+  return list
 }
 
 /** Parse a bsky.app profile feed URL into handle and feed slug. e.g. https://bsky.app/profile/foo.bsky.social/feed/for-you -> { handle: 'foo.bsky.social', feedSlug: 'for-you' } */
@@ -2429,6 +2439,7 @@ export async function addSavedFeed(uri: string): Promise<void> {
       await (a as { addSavedFeeds: (feeds: { type: string; value: string; pinned: boolean }[]) => Promise<unknown> }).addSavedFeeds([
         { type: 'feed', value: uri, pinned: true },
       ])
+      invalidateSavedFeedsCache()
       return
     }
   } catch (_) {
@@ -2449,9 +2460,47 @@ export async function addSavedFeed(uri: string): Promise<void> {
   const updated = prefs.filter((p) => p.$type !== v2Type)
   updated.push({ $type: v2Type, items: [...items, newFeed].sort((x, y) => (x.pinned === y.pinned ? 0 : x.pinned ? -1 : 1)) })
   await a.app.bsky.actor.putPreferences({ preferences: updated as AppBskyActorDefs.Preferences })
+  invalidateSavedFeedsCache()
 }
 
 const feedNameCache = new Map<string, string>()
+let savedFeedsCache: { data: { id: string; type: string; value: string; pinned: boolean }[]; timestamp: number } | null = null
+const SAVED_FEEDS_CACHE_TTL = 5 * 60 * 1000 // 5 minutes
+
+/** Get display names for multiple feed URIs in a single batch operation. */
+export async function getFeedDisplayNamesBatch(uris: string[]): Promise<Map<string, string>> {
+  const result = new Map<string, string>()
+  const uncached: string[] = []
+  
+  // Check cache first
+  for (const uri of uris) {
+    const cached = feedNameCache.get(uri)
+    if (cached) {
+      result.set(uri, cached)
+    } else {
+      uncached.push(uri)
+    }
+  }
+  
+  // Fetch uncached in parallel
+  if (uncached.length > 0) {
+    const fetched = await Promise.all(
+      uncached.map(async (uri) => {
+        try {
+          const res = await agent.app.bsky.feed.getFeedGenerator({ feed: uri })
+          const name = (res.data?.view as { displayName?: string })?.displayName ?? uri
+          feedNameCache.set(uri, name)
+          return [uri, name] as const
+        } catch {
+          return [uri, uri] as const
+        }
+      })
+    )
+    fetched.forEach(([uri, name]) => result.set(uri, name))
+  }
+  
+  return result
+}
 
 /** Get display name for a feed URI. */
 export async function getFeedDisplayName(uri: string): Promise<string> {
@@ -2461,6 +2510,11 @@ export async function getFeedDisplayName(uri: string): Promise<string> {
   const name = (res.data?.view as { displayName?: string })?.displayName ?? uri
   feedNameCache.set(uri, name)
   return name
+}
+
+/** Invalidate the saved feeds cache (call after modifying feeds). */
+export function invalidateSavedFeedsCache(): void {
+  savedFeedsCache = null
 }
 
 /** Get a shareable bsky.app URL for a feed (at://...). */
@@ -2482,6 +2536,7 @@ export async function removeSavedFeedByUri(uri: string): Promise<void> {
   if (!item) return
   if (typeof (a as { removeSavedFeeds?: unknown }).removeSavedFeeds === 'function') {
     await (a as { removeSavedFeeds: (ids: string[]) => Promise<unknown> }).removeSavedFeeds([item.id])
+    invalidateSavedFeedsCache()
     return
   }
   const { data } = await a.app.bsky.actor.getPreferences({})
@@ -2492,6 +2547,7 @@ export async function removeSavedFeedByUri(uri: string): Promise<void> {
   const updated = prefs.filter((p) => p.$type !== v2Type)
   updated.push({ $type: v2Type, items })
   await a.app.bsky.actor.putPreferences({ preferences: updated as AppBskyActorDefs.Preferences })
+  invalidateSavedFeedsCache()
 }
 
 const COMPOSE_IMAGE_MAX = 4

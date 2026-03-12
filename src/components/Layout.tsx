@@ -13,7 +13,7 @@ import { useMediaOnly, MEDIA_MODE_LABELS } from '../context/MediaOnlyContext'
 import { useScrollLock } from '../context/ScrollLockContext'
 import { useSeenPosts } from '../context/SeenPostsContext'
 import { useToast } from '../context/ToastContext'
-import { createPost, postReply, getNotifications, getUnreadNotificationCount, updateSeenNotifications, getSavedFeedsFromPreferences, getFeedDisplayName, resolveFeedUri, addSavedFeed, removeSavedFeedByUri, getFeedShareUrl, getProfilesBatch } from '../lib/bsky'
+import { createPost, postReply, getNotifications, getUnreadNotificationCount, updateSeenNotifications, getSavedFeedsFromPreferences, getFeedDisplayName, getFeedDisplayNamesBatch, resolveFeedUri, addSavedFeed, removeSavedFeedByUri, getFeedShareUrl, getProfilesBatch } from '../lib/bsky'
 import { requestDeduplicator } from '../lib/RequestDeduplicator'
 import type { FeedSource } from '../types'
 import { GUEST_FEED_SOURCES, GUEST_MIX_ENTRIES } from '../config/feedSources'
@@ -686,13 +686,21 @@ export default function Layout({ title, children, showNav }: Props) {
     try {
       const list = await getSavedFeedsFromPreferences()
       const feeds = list.filter((f) => f.type === 'feed' && f.pinned)
-      const withLabels = await Promise.all(
-        feeds.map(async (f) => ({
-          kind: 'custom' as const,
-          label: await requestDeduplicator.dedupe(`feed-name:${f.value}`, () => getFeedDisplayName(f.value)).catch(() => f.value),
-          uri: f.value,
-        }))
-      )
+      
+      if (feeds.length === 0) {
+        setSavedFeedSources(appendIfMissing ? [appendIfMissing] : [])
+        return
+      }
+      
+      // Batch fetch all feed names at once
+      const feedUris = feeds.map((f) => f.value)
+      const labels = await getFeedDisplayNamesBatch(feedUris)
+      
+      const withLabels = feeds.map((f) => ({
+        kind: 'custom' as const,
+        label: labels.get(f.value) ?? f.value,
+        uri: f.value,
+      }))
       const serverUris = new Set(withLabels.map((s) => s.uri).filter(Boolean))
       setSavedFeedSources((prev) => {
         const merged: FeedSource[] = [...withLabels]
@@ -801,16 +809,7 @@ export default function Layout({ title, children, showNav }: Props) {
     if (savedFeedsLoadedRef.current) return
     savedFeedsLoadedRef.current = true
     loadSavedFeeds()
-  }, [session])
-  
-  // Secondary effect to reload feeds when dropdown opens (for manual refresh)
-  // This is kept separate to avoid unnecessary re-runs from loadSavedFeeds changes
-  useEffect(() => {
-    if (!session) return
-    if (feedsDropdownOpen && savedFeedsLoadedRef.current) {
-      loadSavedFeeds()
-    }
-  }, [feedsDropdownOpen, session, loadSavedFeeds])
+  }, [session, loadSavedFeeds])
 
   useEffect(() => {
     if (feedsDropdownOpen) setFeedAddError(null)

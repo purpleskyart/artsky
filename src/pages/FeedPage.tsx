@@ -7,6 +7,7 @@ import {
   getGuestFeed,
   getSavedFeedsFromPreferences,
   getFeedDisplayName,
+  getFeedDisplayNamesBatch,
   getMixedFeed,
   isPostNsfw,
   type TimelineItem,
@@ -466,17 +467,20 @@ export default function FeedPage() {
       const list = await getSavedFeedsFromPreferences()
       const feeds = list.filter((f) => f.type === 'feed' && f.pinned)
       
-      // Load feed names in parallel, using cached names when available
-      const withLabels = await Promise.all(
-        feeds.map(async (f) => {
-          try {
-            const label = await requestDeduplicator.dedupe(`feed-name:${f.value}`, () => getFeedDisplayName(f.value))
-            return { kind: 'custom' as const, label, uri: f.value }
-          } catch {
-            return { kind: 'custom' as const, label: f.value, uri: f.value }
-          }
-        })
-      )
+      if (feeds.length === 0) {
+        setSavedFeedSources([])
+        return
+      }
+      
+      // Batch fetch all feed names at once
+      const feedUris = feeds.map((f) => f.value)
+      const labels = await getFeedDisplayNamesBatch(feedUris)
+      
+      const withLabels = feeds.map((f) => ({
+        kind: 'custom' as const,
+        label: labels.get(f.value) ?? f.value,
+        uri: f.value,
+      }))
       setSavedFeedSources(withLabels)
     } catch {
       setSavedFeedSources([])

@@ -48,17 +48,9 @@ export default function ProfileActionsMenu({
         createdAt: data.createdAt ?? undefined,
         indexedAt: data.indexedAt ?? undefined,
       })
-      // Fetch viewer-specific data (blocking status) separately if needed
-      const client = getSession() ? agent : publicAgent
-      client.getProfile({ actor: profileDid }).then((res) => {
-        if (cancelled) return
-        const viewerData = res.data as { viewer?: { blocking?: string } }
-        setAuthorBlockingUri(viewerData.viewer?.blocking ?? null)
-      }).catch(() => {
-        if (!cancelled) {
-          setAuthorBlockingUri(null)
-        }
-      })
+      // Extract viewer-specific data from cached profile if available
+      const viewerData = data as { viewer?: { blocking?: string } }
+      setAuthorBlockingUri(viewerData.viewer?.blocking ?? null)
     }).catch(() => {
       if (!cancelled) {
         setAuthorBlockingUri(null)
