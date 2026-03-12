@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { getSession, publicAgent } from '../lib/bsky'
+import { getSession, publicAgent, getProfileCached } from '../lib/bsky'
 import { listForumPostsFromFollowedAndDiscovery, listForumPosts, createForumPost, saveDraft } from '../lib/forum'
 import { formatRelativeTime, formatExactDateTime } from '../lib/date'
 import { useListKeyboardNav } from '../hooks/useListKeyboardNav'
@@ -60,10 +60,9 @@ export function ForumContent({ inModal = false, onRegisterRefresh }: { inModal?:
       return
     }
     let cancelled = false
-    publicAgent.getProfile({ actor: session.did }).then((res) => {
+    getProfileCached(session.did, true).then((res) => {
       if (cancelled) return
-      const data = res.data as { handle?: string; avatar?: string }
-      setReplyAs({ handle: data.handle ?? session.did, avatar: data.avatar })
+      setReplyAs({ handle: res.handle ?? session.did, avatar: res.avatar })
     }).catch(() => {
       if (!cancelled) setReplyAs({ handle: (session as { handle?: string }).handle ?? session.did })
     })

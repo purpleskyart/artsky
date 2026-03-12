@@ -736,14 +736,13 @@ export default function Layout({ title, children, showNav }: Props) {
         const normalized: FeedSource = { kind: 'custom', label, uri }
         setSavedFeedSources((prev) => (prev.some((s) => s.uri === uri) ? prev : [...prev, normalized]))
         handleFeedsToggleSource(normalized)
-        await loadSavedFeeds(normalized)
         navigate('/feed', { state: { feedSource: normalized } })
       } catch (err) {
         setFeedAddError(err instanceof Error ? err.message : 'Could not add feed. Try again.')
         navigate('/feed', { state: { feedSource: source } })
       }
     },
-    [session, navigate, handleFeedsToggleSource, loadSavedFeeds]
+    [session, navigate, handleFeedsToggleSource]
   )
 
   const handleRemoveFeed = useCallback(
@@ -765,12 +764,11 @@ export default function Layout({ title, children, showNav }: Props) {
             return next
           })
         }
-        await loadSavedFeeds()
       } catch {
         // ignore
       }
     },
-    [mixEntries, toggleSource, loadSavedFeeds, did]
+    [mixEntries, toggleSource, did]
   )
 
   const handleShareFeed = useCallback(async (source: FeedSource) => {
@@ -804,12 +802,38 @@ export default function Layout({ title, children, showNav }: Props) {
   useEffect(() => {
     if (!session) { 
       savedFeedsLoadedRef.current = false
+      setSavedFeedSources([])
       return 
     }
     if (savedFeedsLoadedRef.current) return
     savedFeedsLoadedRef.current = true
-    loadSavedFeeds()
-  }, [session, loadSavedFeeds])
+    
+    // Load feeds immediately when session becomes available
+    (async () => {
+      try {
+        const list = await getSavedFeedsFromPreferences()
+        const feeds = list.filter((f) => f.type === 'feed' && f.pinned)
+        
+        if (feeds.length === 0) {
+          setSavedFeedSources([])
+          return
+        }
+        
+        // Batch fetch all feed names at once
+        const feedUris = feeds.map((f) => f.value)
+        const labels = await getFeedDisplayNamesBatch(feedUris)
+        
+        const withLabels = feeds.map((f) => ({
+          kind: 'custom' as const,
+          label: labels.get(f.value) ?? f.value,
+          uri: f.value,
+        }))
+        setSavedFeedSources(withLabels)
+      } catch {
+        setSavedFeedSources([])
+      }
+    })()
+  }, [session])
 
   useEffect(() => {
     if (feedsDropdownOpen) setFeedAddError(null)
@@ -1686,7 +1710,6 @@ export default function Layout({ title, children, showNav }: Props) {
                                 const source: FeedSource = { kind: 'custom', label, uri }
                                 setSavedFeedSources((prev) => (prev.some((s) => s.uri === uri) ? prev : [...prev, source]))
                                 handleFeedsToggleSource(source)
-                                await loadSavedFeeds(source)
                               } catch (err) {
                                 setFeedAddError(err instanceof Error ? err.message : 'Could not add feed. Try again.')
                               }
@@ -1754,7 +1777,6 @@ export default function Layout({ title, children, showNav }: Props) {
                               const source: FeedSource = { kind: 'custom', label, uri }
                               setSavedFeedSources((prev) => (prev.some((s) => s.uri === uri) ? prev : [...prev, source]))
                               handleFeedsToggleSource(source)
-                              await loadSavedFeeds(source)
                             } catch (err) {
                               setFeedAddError(err instanceof Error ? err.message : 'Could not add feed. Try again.')
                             }
@@ -1948,7 +1970,6 @@ export default function Layout({ title, children, showNav }: Props) {
                     const source: FeedSource = { kind: 'custom', label, uri }
                     setSavedFeedSources((prev) => (prev.some((s) => s.uri === uri) ? prev : [...prev, source]))
                     handleFeedsToggleSource(source)
-                    await loadSavedFeeds(source)
                   } catch (err) {
                     setFeedAddError(err instanceof Error ? err.message : 'Could not add feed. Try again.')
                   }
@@ -2125,7 +2146,6 @@ export default function Layout({ title, children, showNav }: Props) {
                   const source: FeedSource = { kind: 'custom', label, uri }
                   setSavedFeedSources((prev) => (prev.some((s) => s.uri === uri) ? prev : [...prev, source]))
                   handleFeedsToggleSource(source)
-                  await loadSavedFeeds(source)
                 } catch (err) {
                   setFeedAddError(err instanceof Error ? err.message : 'Could not add feed. Try again.')
                 }

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import type { AppBskyFeedDefs } from '@atproto/api'
 import type { AtpSessionData } from '@atproto/api'
-import { agent, publicAgent, postReply, getPostAllMedia, getPostMediaUrl, getQuotedPostView, getPostExternalLink, getSession, createQuotePost, createDownvote, deleteDownvote, listMyDownvotes, getPostThreadCached, getProfilesBatch } from '../lib/bsky'
+import { agent, publicAgent, postReply, getPostAllMedia, getPostMediaUrl, getQuotedPostView, getPostExternalLink, getSession, createQuotePost, createDownvote, deleteDownvote, listMyDownvotes, getPostThreadCached, getProfilesBatch, getProfileCached } from '../lib/bsky'
 import { getApiErrorMessage } from '../lib/apiErrors'
 import { takeInitialPostForUri, getCachedThread } from '../lib/postCache'
 import { getDownvoteCounts } from '../lib/constellation'
@@ -1050,8 +1050,8 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
       return
     }
     const handle = (s as { handle?: string }).handle ?? s.did
-    agent.getProfile({ actor: s.did })
-      .then((res) => setReplyAsProfile({ handle: res.data.handle ?? handle, avatar: res.data.avatar }))
+    getProfileCached(s.did)
+      .then((res) => setReplyAsProfile({ handle: res.handle ?? handle, avatar: res.avatar }))
       .catch(() => setReplyAsProfile({ handle }))
   }, [sessionFromContext?.did, session?.did])
 
