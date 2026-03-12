@@ -1,0 +1,104 @@
+# Implementation Plan
+
+- [ ] 1. Write bug condition exploration test
+  - **Property 1: Fault Condition** - Remove Specific Feed Only
+  - **CRITICAL**: This test MUST FAIL on unfixed code - failure confirms the bug exists
+  - **DO NOT attempt to fix the test or the code when it fails**
+  - **NOTE**: This test encodes the expected behavior - it will validate the fix when it passes after implementation
+  - **GOAL**: Surface counterexamples that demonstrate the bug exists
+  - **Scoped PBT Approach**: For deterministic bugs, scope the property to concrete failing cases to ensure reproducibility
+  - Test that when removing a feed from a list of multiple feeds, only that specific feed is removed and others are preserved
+  - Test cases from Fault Condition in design:
+    - Remove Feed B from [Feed A, Feed B, Feed C] → result should be [Feed A, Feed C]
+    - Remove Feed X from [Feed X] → result should be []
+    - Remove non-existent feed from [Feed A, Feed B] → result should be [Feed A, Feed B]
+    - Remove Feed 2 from [Feed 1, Feed 2, Feed 3, Feed 4] → result should be [Feed 1, Feed 3, Feed 4] with order preserved
+  - The test assertions should match the Expected Behavior Properties from design: only the specific feed is removed, all others are preserved
+  - Run test on UNFIXED code
+  - **EXPECTED OUTCOME**: Test FAILS (this is correct - it proves the bug exists)
+  - Document counterexamples found to understand root cause (e.g., "all feeds cleared instead of filtering")
+  - Mark task complete when test is written, run, and failure is documented
+  - _Requirements: 2.1, 2.2, 2.3_
+
+- [ ] 2. Write preservation property tests (BEFORE implementing fix)
+  - **Property 2: Preservation** - Non-Removal Operations and Edge Cases
+  - **IMPORTANT**: Follow observation-first methodology
+  - Observe behavior on UNFIXED code for non-removal operations (adding feeds, pinning, reordering, viewing)
+  - Write property-based tests capturing observed behavior patterns from Preservation Requirements in design:
+    - Adding new custom feeds continues to work correctly
+    - Pinning/unpinning feeds continues to work correctly
+    - Reordering feeds continues to work correctly
+    - Cache invalidation continues to work correctly
+    - Removing a feed that doesn't exist handles gracefully
+    - Removing the only custom feed leaves only default feeds
+    - Feed order and properties are preserved for remaining feeds
+  - Property-based testing generates many test cases for stronger guarantees
+  - Run tests on UNFIXED code
+  - **EXPECTED OUTCOME**: Tests PASS (this confirms baseline behavior to preserve)
+  - Mark task complete when tests are written, run, and passing on unfixed code
+  - _Requirements: 3.1, 3.2, 3.3, 3.4_
+
+- [ ] 3. Fix for custom feeds disappearing when removing a feed
+
+  - [ ] 3.1 Implement the fix in removeSavedFeedWithLifecycle
+    - File: `src/lib/bsky.ts` (line 2873)
+    - Fetch current preferences using `getPreferences()`
+    - Find the existing `app.bsky.actor.defs#savedFeedsPrefV2` entry in preferences
+    - Filter the items array to exclude the feed being removed (by URI or ID)
+    - Reconstruct preferences by removing old savedFeedsPrefV2 entry and adding back updated one with filtered items
+    - Call `putPreferences()` with reconstructed preferences array containing filtered items
+    - Maintain `invalidateAfterPreferencesUpdated()` call for cache invalidation
+    - Follow the correct pattern from `removeSavedFeedByUri` (line 2456)
+    - _Bug_Condition: When user removes a custom feed via removeSavedFeedWithLifecycle, isBugCondition returns true_
+    - _Expected_Behavior: Fetch current saved feeds, filter out only the specific feed being removed, update preferences with remaining feeds intact_
+    - _Preservation: Cache invalidation, error handling, and API request management continue to function properly_
+    - _Requirements: 2.1, 2.2, 2.3_
+
+  - [ ] 3.2 Implement the fix in removeSavedFeed
+    - File: `src/lib/bsky-updates.ts` (line 561)
+    - Fetch current preferences using `getPreferences()`
+    - Find the existing `app.bsky.actor.defs#savedFeedsPrefV2` entry in preferences
+    - Filter the items array to exclude the feed being removed (by URI or ID)
+    - Reconstruct preferences by removing old savedFeedsPrefV2 entry and adding back updated one with filtered items
+    - Call `putPreferences()` with reconstructed preferences array containing filtered items
+    - Maintain `invalidateAfterPreferencesUpdated()` call for cache invalidation
+    - Follow the correct pattern from `removeSavedFeedByUri` (line 2456)
+    - _Bug_Condition: When user removes a custom feed via removeSavedFeed, isBugCondition returns true_
+    - _Expected_Behavior: Fetch current saved feeds, filter out only the specific feed being removed, update preferences with remaining feeds intact_
+    - _Preservation: Cache invalidation, error handling, and API request management continue to function properly_
+    - _Requirements: 2.1, 2.2, 2.3_
+
+  - [ ] 3.3 Verify bug condition exploration test now passes
+    - **Property 1: Expected Behavior** - Remove Specific Feed Only
+    - **IMPORTANT**: Re-run the SAME test from task 1 - do NOT write a new test
+    - The test from task 1 encodes the expected behavior
+    - When this test passes, it confirms the expected behavior is satisfied
+    - Run bug condition exploration test from step 1 against the fixed code
+    - **EXPECTED OUTCOME**: Test PASSES (confirms bug is fixed)
+    - Verify that all feed removal scenarios now work correctly:
+      - Removing one feed from multiple feeds leaves others intact
+      - Removing the only feed leaves empty list
+      - Removing non-existent feed handles gracefully
+      - Feed order is preserved
+    - _Requirements: 2.1, 2.2, 2.3_
+
+  - [ ] 3.4 Verify preservation tests still pass
+    - **Property 2: Preservation** - Non-Removal Operations and Edge Cases
+    - **IMPORTANT**: Re-run the SAME tests from task 2 - do NOT write new tests
+    - Run preservation property tests from step 2 against the fixed code
+    - **EXPECTED OUTCOME**: Tests PASS (confirms no regressions)
+    - Confirm all non-removal operations continue to work correctly:
+      - Adding feeds still works
+      - Pinning/unpinning still works
+      - Reordering still works
+      - Cache invalidation still works
+    - Confirm no regressions were introduced by the fix
+    - _Requirements: 3.1, 3.2, 3.3, 3.4_
+
+- [ ] 4. Checkpoint - Ensure all tests pass
+  - Verify all exploration tests pass (Property 1: Expected Behavior)
+  - Verify all preservation tests pass (Property 2: Preservation)
+  - Verify unit tests pass for both functions
+  - Verify integration tests pass for full feed removal flow
+  - Confirm no regressions in other preference-related functionality
+  - Ask the user if questions arise

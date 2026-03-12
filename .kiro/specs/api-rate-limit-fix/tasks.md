@@ -49,7 +49,7 @@
   - Mark task complete when tests are written, run, and passing on unfixed code
   - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6_
 
-- [ ] 3. Fix for API rate limit errors due to inefficient request patterns
+- [x] 3. Fix for API rate limit errors due to inefficient request patterns
 
   - [x] 3.1 Add profile batching infrastructure (src/lib/bsky.ts)
     - Create `getProfilesBatch(actors: string[], usePublic = false)` function following `getPostsBatch()` pattern
