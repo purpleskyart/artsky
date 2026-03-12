@@ -13,7 +13,8 @@ import { useMediaOnly, MEDIA_MODE_LABELS } from '../context/MediaOnlyContext'
 import { useScrollLock } from '../context/ScrollLockContext'
 import { useSeenPosts } from '../context/SeenPostsContext'
 import { useToast } from '../context/ToastContext'
-import { publicAgent, createPost, postReply, getNotifications, getUnreadNotificationCount, updateSeenNotifications, getSavedFeedsFromPreferences, getFeedDisplayName, resolveFeedUri, addSavedFeed, removeSavedFeedByUri, getFeedShareUrl } from '../lib/bsky'
+import { publicAgent, createPost, postReply, getNotifications, getUnreadNotificationCount, updateSeenNotifications, getSavedFeedsFromPreferences, getFeedDisplayName, resolveFeedUri, addSavedFeed, removeSavedFeedByUri, getFeedShareUrl, getProfilesBatch } from '../lib/bsky'
+import { requestDeduplicator } from '../lib/RequestDeduplicator'
 import type { FeedSource } from '../types'
 import { GUEST_FEED_SOURCES, GUEST_MIX_ENTRIES } from '../config/feedSources'
 import { useFeedMix } from '../context/FeedMixContext'
@@ -366,13 +367,17 @@ export default function Layout({ title, children, showNav }: Props) {
       return
     }
     let cancelled = false
-    sessionsList.forEach((s) => {
-      if (accountProfiles[s.did] && accountProfilesVersion === 0) return
-      publicAgent.getProfile({ actor: s.did }).then((res) => {
-        if (cancelled) return
-        const data = res.data as { avatar?: string; handle?: string }
-        setAccountProfiles((prev) => ({ ...prev, [s.did]: { avatar: data.avatar, handle: data.handle } }))
-      }).catch(() => {})
+    const dids = sessionsList.map(s => s.did)
+    getProfilesBatch(dids, true).then((profiles) => {
+      if (cancelled) return
+      const updated: Record<string, { avatar?: string; handle?: string }> = {}
+      for (const [did, profile] of profiles.entries()) {
+        updated[did] = { avatar: profile.avatar, handle: profile.handle }
+      }
+      setAccountProfiles(updated)
+    }).catch(() => {
+      // Log warning but don't break UI
+      console.warn('Failed to fetch account profiles')
     })
     return () => { cancelled = true }
   }, [sessionsDidKey, sessionsList, accountProfilesVersion])
@@ -684,7 +689,7 @@ export default function Layout({ title, children, showNav }: Props) {
       const withLabels = await Promise.all(
         feeds.map(async (f) => ({
           kind: 'custom' as const,
-          label: await getFeedDisplayName(f.value).catch(() => f.value),
+          label: await requestDeduplicator.dedupe(`feed-name:${f.value}`, () => getFeedDisplayName(f.value)).catch(() => f.value),
           uri: f.value,
         }))
       )
@@ -719,7 +724,7 @@ export default function Layout({ title, children, showNav }: Props) {
       try {
         const uri = await resolveFeedUri(source.uri)
         await addSavedFeed(uri)
-        const label = source.label ?? (await getFeedDisplayName(uri))
+        const label = source.label ?? (await requestDeduplicator.dedupe(`feed-name:${uri}`, () => getFeedDisplayName(uri)))
         const normalized: FeedSource = { kind: 'custom', label, uri }
         setSavedFeedSources((prev) => (prev.some((s) => s.uri === uri) ? prev : [...prev, normalized]))
         handleFeedsToggleSource(normalized)
@@ -1667,7 +1672,7 @@ export default function Layout({ title, children, showNav }: Props) {
                                 const isFeedSource = typeof input === 'object' && input !== null && 'uri' in input
                                 const uri = isFeedSource ? await resolveFeedUri((input as FeedSource).uri!) : await resolveFeedUri(input as string)
                                 await addSavedFeed(uri)
-                                const label = isFeedSource ? (input as FeedSource).label ?? await getFeedDisplayName(uri) : await getFeedDisplayName(uri)
+                                const label = isFeedSource ? (input as FeedSource).label ?? await requestDeduplicator.dedupe(`feed-name:${uri}`, () => getFeedDisplayName(uri)) : await requestDeduplicator.dedupe(`feed-name:${uri}`, () => getFeedDisplayName(uri))
                                 const source: FeedSource = { kind: 'custom', label, uri }
                                 setSavedFeedSources((prev) => (prev.some((s) => s.uri === uri) ? prev : [...prev, source]))
                                 handleFeedsToggleSource(source)
@@ -1735,7 +1740,7 @@ export default function Layout({ title, children, showNav }: Props) {
                               const isFeedSource = typeof input === 'object' && input !== null && 'uri' in input
                               const uri = isFeedSource ? await resolveFeedUri((input as FeedSource).uri!) : await resolveFeedUri(input as string)
                               await addSavedFeed(uri)
-                              const label = isFeedSource ? (input as FeedSource).label ?? await getFeedDisplayName(uri) : await getFeedDisplayName(uri)
+                              const label = isFeedSource ? (input as FeedSource).label ?? await requestDeduplicator.dedupe(`feed-name:${uri}`, () => getFeedDisplayName(uri)) : await requestDeduplicator.dedupe(`feed-name:${uri}`, () => getFeedDisplayName(uri))
                               const source: FeedSource = { kind: 'custom', label, uri }
                               setSavedFeedSources((prev) => (prev.some((s) => s.uri === uri) ? prev : [...prev, source]))
                               handleFeedsToggleSource(source)
@@ -1929,7 +1934,7 @@ export default function Layout({ title, children, showNav }: Props) {
                     const isFeedSource = typeof input === 'object' && input !== null && 'uri' in input
                     const uri = isFeedSource ? await resolveFeedUri((input as FeedSource).uri!) : await resolveFeedUri(input as string)
                     await addSavedFeed(uri)
-                    const label = isFeedSource ? (input as FeedSource).label ?? await getFeedDisplayName(uri) : await getFeedDisplayName(uri)
+                    const label = isFeedSource ? (input as FeedSource).label ?? await requestDeduplicator.dedupe(`feed-name:${uri}`, () => getFeedDisplayName(uri)) : await requestDeduplicator.dedupe(`feed-name:${uri}`, () => getFeedDisplayName(uri))
                     const source: FeedSource = { kind: 'custom', label, uri }
                     setSavedFeedSources((prev) => (prev.some((s) => s.uri === uri) ? prev : [...prev, source]))
                     handleFeedsToggleSource(source)
@@ -2106,7 +2111,7 @@ export default function Layout({ title, children, showNav }: Props) {
                   const isFeedSource = typeof input === 'object' && input !== null && 'uri' in input
                   const uri = isFeedSource ? await resolveFeedUri((input as FeedSource).uri!) : await resolveFeedUri(input as string)
                   await addSavedFeed(uri)
-                  const label = isFeedSource ? (input as FeedSource).label ?? await getFeedDisplayName(uri) : await getFeedDisplayName(uri)
+                  const label = isFeedSource ? (input as FeedSource).label ?? await requestDeduplicator.dedupe(`feed-name:${uri}`, () => getFeedDisplayName(uri)) : await requestDeduplicator.dedupe(`feed-name:${uri}`, () => getFeedDisplayName(uri))
                   const source: FeedSource = { kind: 'custom', label, uri }
                   setSavedFeedSources((prev) => (prev.some((s) => s.uri === uri) ? prev : [...prev, source]))
                   handleFeedsToggleSource(source)

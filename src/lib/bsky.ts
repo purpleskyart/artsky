@@ -453,6 +453,56 @@ export async function getPostsBatch(uris: string[]): Promise<Map<string, PostVie
   
   return result
 }
+/**
+ * Batch fetch profiles using app.bsky.actor.getProfiles (up to 25 profiles per call)
+ * More efficient than calling getProfile individually for each actor
+ *
+ * @param actors - Array of actor identifiers (DIDs or handles)
+ * @param usePublic - Whether to use public agent (default: false, uses authenticated agent if available)
+ * @returns Map of actor identifier to profile data
+ *
+ * @example
+ * const profiles = await getProfilesBatch(['did:plc:abc123', 'did:plc:xyz789'])
+ * const profile1 = profiles.get('did:plc:abc123')
+ * console.log(profile1?.displayName, profile1?.avatar)
+ */
+export async function getProfilesBatch(
+  actors: string[],
+  usePublic = false
+): Promise<Map<string, { handle?: string; displayName?: string; avatar?: string; did?: string }>> {
+  if (actors.length === 0) return new Map()
+
+  const result = new Map<string, { handle?: string; displayName?: string; avatar?: string; did?: string }>()
+  const client = usePublic ? publicAgent : (getSession() ? agent : publicAgent)
+
+  // Split into batches of 25 (API limit)
+  const batches: string[][] = []
+  for (let i = 0; i < actors.length; i += 25) {
+    batches.push(actors.slice(i, i + 25))
+  }
+
+  // Fetch all batches in parallel
+  await Promise.all(
+    batches.map(async (batch) => {
+      try {
+        const res = await client.app.bsky.actor.getProfiles({ actors: batch })
+        const profiles = (res.data.profiles || []) as Array<{ handle?: string; displayName?: string; avatar?: string; did?: string }>
+        for (const profile of profiles) {
+          result.set(profile.did || profile.handle || '', {
+            handle: profile.handle,
+            displayName: profile.displayName,
+            avatar: profile.avatar,
+            did: profile.did
+          })
+        }
+      } catch (error) {
+        console.warn('Failed to fetch profile batch:', error)
+      }
+    })
+  )
+
+  return result
+}
 
 /** True if the post has NSFW/adult content labels (self-labels on record or labels on post view). */
 export function isPostNsfw(post: PostView): boolean {

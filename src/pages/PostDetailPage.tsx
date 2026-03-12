@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import type { AppBskyFeedDefs } from '@atproto/api'
 import type { AtpSessionData } from '@atproto/api'
-import { agent, publicAgent, postReply, getPostAllMedia, getPostMediaUrl, getQuotedPostView, getPostExternalLink, getSession, createQuotePost, createDownvote, deleteDownvote, listMyDownvotes, getPostThreadCached } from '../lib/bsky'
+import { agent, publicAgent, postReply, getPostAllMedia, getPostMediaUrl, getQuotedPostView, getPostExternalLink, getSession, createQuotePost, createDownvote, deleteDownvote, listMyDownvotes, getPostThreadCached, getProfilesBatch } from '../lib/bsky'
 import { getApiErrorMessage } from '../lib/apiErrors'
 import { takeInitialPostForUri, getCachedThread } from '../lib/postCache'
 import { getDownvoteCounts } from '../lib/constellation'
@@ -77,14 +77,16 @@ export function ReplyAsRow({
       return
     }
     let cancelled = false
-    sessionsList.forEach((s) => {
-      publicAgent.getProfile({ actor: s.did }).then((res) => {
-        if (cancelled) return
-        const data = res.data as { avatar?: string; handle?: string }
-        setAccountProfiles((prev) => ({ ...prev, [s.did]: { avatar: data.avatar, handle: data.handle } }))
-      }).catch((err) => {
-        console.error(`Failed to fetch profile for ${s.did}:`, err)
-      })
+    const dids = sessionsList.map((s) => s.did)
+    getProfilesBatch(dids, true).then((profiles) => {
+      if (cancelled) return
+      const updated: Record<string, { avatar?: string; handle?: string }> = {}
+      for (const [did, profile] of profiles.entries()) {
+        updated[did] = { avatar: profile.avatar, handle: profile.handle }
+      }
+      setAccountProfiles(updated)
+    }).catch((err) => {
+      console.warn('Failed to fetch account profiles:', err)
     })
     return () => { cancelled = true }
   }, [sessionsDidKey, sessionsList])

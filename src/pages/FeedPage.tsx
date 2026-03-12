@@ -32,6 +32,7 @@ import FeedColumn from '../components/FeedColumn'
 import { feedReducer, type FeedState } from './feedReducer'
 import { debounce } from '../lib/utils'
 import { asyncStorage } from '../lib/AsyncStorage'
+import { requestDeduplicator } from '../lib/RequestDeduplicator'
 import styles from './FeedPage.module.css'
 
 /** Dedupe feed items by post URI (keep first). Stops the same post appearing as both original and repost. */
@@ -469,7 +470,7 @@ export default function FeedPage() {
       const withLabels = await Promise.all(
         feeds.map(async (f) => {
           try {
-            const label = await getFeedDisplayName(f.value)
+            const label = await requestDeduplicator.dedupe(`feed-name:${f.value}`, () => getFeedDisplayName(f.value))
             return { kind: 'custom' as const, label, uri: f.value }
           } catch {
             return { kind: 'custom' as const, label: f.value, uri: f.value }

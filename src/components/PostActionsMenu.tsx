@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect, useLayoutEffect, memo, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { blockAccount, unblockAccount, reportPost, muteThread, deletePost, agent } from '../lib/bsky'
+import { blockAccount, unblockAccount, reportPost, muteThread, deletePost, agent, getProfileCached } from '../lib/bsky'
 import { getSession } from '../lib/bsky'
 import { formatRelativeTimeTitle, formatExactDateTime } from '../lib/date'
 import styles from './PostActionsMenu.module.css'
@@ -188,11 +188,11 @@ function PostActionsMenu({
   useEffect(() => {
     if (!open || !session?.did || isOwnPost) return
     let cancelled = false
-    agent.getProfile({ actor: authorDid }).then((res) => {
+    getProfileCached(authorDid).then((data) => {
       if (cancelled) return
-      const data = res.data as { viewer?: { blocking?: string }; handle?: string }
-      setAuthorBlockingUri(data.viewer?.blocking ?? null)
-      setAuthorHandle(data.handle ?? null)
+      const profileData = data as { viewer?: { blocking?: string }; handle?: string }
+      setAuthorBlockingUri(profileData.viewer?.blocking ?? null)
+      setAuthorHandle(profileData.handle ?? null)
     }).catch(() => {
       if (!cancelled) {
         setAuthorBlockingUri(null)
