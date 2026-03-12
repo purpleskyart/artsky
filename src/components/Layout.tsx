@@ -678,44 +678,6 @@ export default function Layout({ title, children, showNav }: Props) {
     return () => document.removeEventListener('mousedown', onDocClick)
   }, [notificationsOpen])
 
-  const loadSavedFeeds = useCallback(async (appendIfMissing?: FeedSource) => {
-    if (!session) {
-      setSavedFeedSources([])
-      return
-    }
-    try {
-      const list = await getSavedFeedsFromPreferences()
-      const feeds = list.filter((f) => f.type === 'feed' && f.pinned)
-      
-      if (feeds.length === 0) {
-        setSavedFeedSources(appendIfMissing ? [appendIfMissing] : [])
-        return
-      }
-      
-      // Batch fetch all feed names at once
-      const feedUris = feeds.map((f) => f.value)
-      const labels = await getFeedDisplayNamesBatch(feedUris)
-      
-      const withLabels = feeds.map((f) => ({
-        kind: 'custom' as const,
-        label: labels.get(f.value) ?? f.value,
-        uri: f.value,
-      }))
-      const serverUris = new Set(withLabels.map((s) => s.uri).filter(Boolean))
-      setSavedFeedSources((prev) => {
-        const merged: FeedSource[] = [...withLabels]
-        for (const s of prev) {
-          if (s.uri && !serverUris.has(s.uri) && !merged.some((m) => m.uri === s.uri)) merged.push(s)
-        }
-        if (appendIfMissing?.uri && !merged.some((m) => m.uri === appendIfMissing.uri)) {
-          merged.push(appendIfMissing)
-        }
-        return merged
-      })
-    } catch {
-      setSavedFeedSources([])
-    }
-  }, [session])
 
   /** When user selects a feed from the header search bar: add to saved list, enable it, then go to feed so the pill appears. */
   const handleSelectFeedFromSearch = useCallback(
