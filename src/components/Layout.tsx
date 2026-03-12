@@ -452,7 +452,7 @@ export default function Layout({ title, children, showNav }: Props) {
   const toast = useToast()
   const HOME_HOLD_MS = 500
   const { entries: mixEntries, setEntryPercent, toggleSource, addEntry, setSingleFeed } = useFeedMix()
-  const presetUris = new Set((PRESET_FEED_SOURCES.map((s) => s.uri).filter(Boolean) as string[]))
+  const presetUris = new Set((PRESET_FEED_SOURCES.map((s) => s.uri).filter((uri): uri is string => !!uri)))
   const visiblePresets = PRESET_FEED_SOURCES.filter((s) => !s.uri || !hiddenPresetUris.has(s.uri))
   const savedDeduped = savedFeedSources.filter((s) => !s.uri || !presetUris.has(s.uri))
   const allFeedSources = useMemo(() => {
@@ -479,7 +479,7 @@ export default function Layout({ title, children, showNav }: Props) {
   )
 
   const handleReorderFeeds = useCallback((ordered: FeedSource[]) => {
-    const ids = ordered.map(feedSourceId).filter(Boolean)
+    const ids = ordered.map(feedSourceId).filter((id): id is string => !!id)
     setFeedOrder(ids)
     try {
       localStorage.setItem(feedOrderKey(did), JSON.stringify(ids))
@@ -489,7 +489,7 @@ export default function Layout({ title, children, showNav }: Props) {
   }, [did])
 
   const removableSourceUris = useMemo(
-    () => new Set([...savedDeduped.map((s) => s.uri).filter(Boolean) as string[], ...presetUris]),
+    () => new Set([...savedDeduped.map((s) => s.uri).filter((uri): uri is string => !!uri), ...presetUris]),
     [savedDeduped]
   )
 

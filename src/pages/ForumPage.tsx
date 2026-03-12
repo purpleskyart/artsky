@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { getSession, publicAgent, getProfileCached } from '../lib/bsky'
+import { getSession, getProfileCached } from '../lib/bsky'
 import { listForumPostsFromFollowedAndDiscovery, listForumPosts, createForumPost, saveDraft } from '../lib/forum'
 import { formatRelativeTime, formatExactDateTime } from '../lib/date'
 import { useListKeyboardNav } from '../hooks/useListKeyboardNav'

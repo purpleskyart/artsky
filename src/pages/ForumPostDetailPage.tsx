@@ -9,7 +9,6 @@ import {
   listStandardSiteRepliesForDocument,
   createStandardSiteComment,
   agent,
-  publicAgent,
   getProfileCached,
   type StandardSiteDocumentView,
   type StandardSiteDocumentBlobRef,
