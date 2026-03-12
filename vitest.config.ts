@@ -18,4 +18,9 @@ export default defineConfig({
       ],
     },
   },
+  resolve: {
+    alias: {
+      'virtual:pwa-register': '/dev/null',
+    },
+  },
 })

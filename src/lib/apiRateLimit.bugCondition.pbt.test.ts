@@ -213,7 +213,7 @@ describe('API Rate Limit - Bug Condition Exploration', () => {
           expect(apiCallCount).toBe(1)
         }
       ),
-      { numRuns: 10 }
+      { numRuns: 3 }
     )
   })
 

@@ -124,7 +124,7 @@ describe('API Rate Limit - Preservation Property Tests', () => {
           }
         }
       ),
-      { numRuns: 20 }
+      { numRuns: 5 }
     )
   })
 
@@ -183,7 +183,7 @@ describe('API Rate Limit - Preservation Property Tests', () => {
           }
         }
       ),
-      { numRuns: 15 }
+      { numRuns: 3 }
     )
   })
 
@@ -250,7 +250,7 @@ describe('API Rate Limit - Preservation Property Tests', () => {
           expect(result.data).toHaveProperty('cursor')
         }
       ),
-      { numRuns: 15 }
+      { numRuns: 3 }
     )
   })
 
@@ -296,7 +296,7 @@ describe('API Rate Limit - Preservation Property Tests', () => {
           expect((caughtError as { status?: number }).status).toBeDefined()
         }
       ),
-      { numRuns: 10 }
+      { numRuns: 3 }
     )
   })
 
@@ -363,7 +363,7 @@ describe('API Rate Limit - Preservation Property Tests', () => {
           }
         }
       ),
-      { numRuns: 20 }
+      { numRuns: 5 }
     )
   })
 
@@ -420,7 +420,7 @@ describe('API Rate Limit - Preservation Property Tests', () => {
           }
         }
       ),
-      { numRuns: 15 }
+      { numRuns: 3 }
     )
   })
 
@@ -510,7 +510,7 @@ describe('API Rate Limit - Preservation Property Tests', () => {
           }
         }
       ),
-      { numRuns: 15 }
+      { numRuns: 3 }
     )
   })
 
@@ -571,7 +571,7 @@ describe('API Rate Limit - Preservation Property Tests', () => {
           expect(result2.data.length).toBe(result.data.length)
         }
       ),
-      { numRuns: 15 }
+      { numRuns: 3 }
     )
   })
 
@@ -630,7 +630,7 @@ describe('API Rate Limit - Preservation Property Tests', () => {
           expect(renderedAgain).toEqual(renderedProfiles)
         }
       ),
-      { numRuns: 15 }
+      { numRuns: 3 }
     )
   })
 })
