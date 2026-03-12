@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useProfileModal } from '../context/ProfileModalContext'
-import { searchActorsTypeahead, getSuggestedFeeds, publicAgent, getProfileCached } from '../lib/bsky'
+import { searchActorsTypeahead, getSuggestedFeeds, getProfileCached } from '../lib/bsky'
 import type { FeedSource } from '../types'
 import type { AppBskyActorDefs, AppBskyFeedDefs } from '@atproto/api'
 import styles from './SearchBar.module.css'
