@@ -7,6 +7,22 @@ import { responseCache } from './ResponseCache'
 import { retryWithBackoff, shouldRetryIncluding429 } from './retryWithBackoff'
 import { getApiErrorMessage, shouldRetryError } from './apiErrors'
 import { rateLimiter } from './RateLimiter'
+import { apiRequestManager } from './apiRequestManager'
+import { RequestPriority } from './RequestQueue'
+import {
+  invalidateAfterPostCreated,
+  invalidateAfterPostDeleted,
+  invalidateAfterPostLiked,
+  invalidateAfterPostUnliked,
+  invalidateAfterPostReposted,
+  invalidateAfterFollowing,
+  invalidateAfterUnfollowing,
+  invalidateAfterBlocking,
+  invalidateAfterUnblocking,
+  invalidateAfterMuting,
+  invalidateAfterUnmuting,
+  invalidateAfterPreferencesUpdated,
+} from './cacheInvalidation'
 
 const BSKY_SERVICE = 'https://bsky.social'
 /** Public AppView for unauthenticated reads (profiles, feeds). */
@@ -398,15 +414,15 @@ const NSFW_LABEL_VALS = new Set(['porn', 'sexual', 'nudity', 'graphic-media'])
 export async function getProfileCached(
   actor: string,
   usePublic = false
-): Promise<{ handle?: string; displayName?: string; avatar?: string; did?: string }> {
+): Promise<{ handle?: string; displayName?: string; avatar?: string; did?: string; createdAt?: string; indexedAt?: string }> {
   const cacheKey = `profile:${actor}`
   const client = usePublic ? publicAgent : (getSession() ? agent : publicAgent)
   
   // Try to get from cache with revalidation support
-  const cached = responseCache.get<{ handle?: string; displayName?: string; avatar?: string; did?: string }>(
+  const cached = responseCache.get<{ handle?: string; displayName?: string; avatar?: string; did?: string; createdAt?: string; indexedAt?: string }>(
     cacheKey,
     () => client.getProfile({ actor }).then((p) => {
-      const data = p.data as { handle?: string; displayName?: string; avatar?: string; did?: string }
+      const data = p.data as { handle?: string; displayName?: string; avatar?: string; did?: string; createdAt?: string; indexedAt?: string }
       return data
     })
   )
@@ -415,7 +431,7 @@ export async function getProfileCached(
   
   // Fetch and cache with 10 min TTL + 5 min stale-while-revalidate
   const profile = await client.getProfile({ actor })
-  const data = profile.data as { handle?: string; displayName?: string; avatar?: string; did?: string }
+  const data = profile.data as { handle?: string; displayName?: string; avatar?: string; did?: string; createdAt?: string; indexedAt?: string }
   responseCache.set(cacheKey, data, 600_000, 300_000)
   return data
 }
@@ -2617,13 +2633,12 @@ export async function postReply(
  */
 export async function getTimelineWithLifecycle(
   limit: number = 30,
-  cursor?: string,
-  signal?: AbortSignal
-): Promise<TimelineResponse> {
+  cursor?: string
+): Promise<Awaited<ReturnType<typeof agent.getTimeline>>> {
   const cacheKey = `timeline:${limit}:${cursor ?? 'initial'}`
   const cached = responseCache.get<{ feed: TimelineItem[]; cursor?: string }>(cacheKey)
   if (cached) {
-    return { data: { feed: cached.feed, cursor: cached.cursor } }
+    return { data: { feed: cached.feed, cursor: cached.cursor } } as any
   }
   const result = await apiRequestManager.execute(
     `timeline:${limit}:${cursor ?? 'initial'}`,
@@ -2639,13 +2654,12 @@ export async function getTimelineWithLifecycle(
 export async function getFeedWithLifecycle(
   feedUri: string,
   limit: number = 30,
-  cursor?: string,
-  signal?: AbortSignal
+  cursor?: string
 ): Promise<Awaited<ReturnType<typeof agent.app.bsky.feed.getFeed>>> {
   const cacheKey = `feed:${feedUri}:${limit}:${cursor ?? 'initial'}`
   const cached = responseCache.get<{ feed: TimelineItem[]; cursor?: string }>(cacheKey)
   if (cached) {
-    return { data: { feed: cached.feed, cursor: cached.cursor } }
+    return { data: { feed: cached.feed, cursor: cached.cursor } } as any
   }
   const result = await apiRequestManager.execute(
     `feed:${feedUri}:${limit}:${cursor ?? 'initial'}`,
@@ -2659,8 +2673,7 @@ export async function getFeedWithLifecycle(
  * Get profile with full lifecycle management
  */
 export async function getProfileWithLifecycle(
-  actor: string,
-  signal?: AbortSignal
+  actor: string
 ): Promise<Awaited<ReturnType<typeof agent.getProfile>>> {
   const cacheKey = `profile:${actor}`
   const cached = responseCache.get<{ data: any }>(cacheKey)
@@ -2679,13 +2692,12 @@ export async function getProfileWithLifecycle(
 export async function getFollowersWithLifecycle(
   actor: string,
   limit: number = 50,
-  cursor?: string,
-  signal?: AbortSignal
+  cursor?: string
 ): Promise<Awaited<ReturnType<typeof agent.app.bsky.graph.getFollowers>>> {
   const cacheKey = `followers:${actor}:${limit}:${cursor ?? 'initial'}`
   const cached = responseCache.get<{ followers: any[]; cursor?: string }>(cacheKey)
   if (cached) {
-    return { data: { followers: cached.followers, cursor: cached.cursor } }
+    return { data: { followers: cached.followers, cursor: cached.cursor } } as any
   }
   const result = await apiRequestManager.execute(
     `followers:${actor}:${limit}:${cursor ?? 'initial'}`,
@@ -2701,13 +2713,12 @@ export async function getFollowersWithLifecycle(
 export async function getFollowsWithLifecycle(
   actor: string,
   limit: number = 50,
-  cursor?: string,
-  signal?: AbortSignal
+  cursor?: string
 ): Promise<Awaited<ReturnType<typeof agent.app.bsky.graph.getFollows>>> {
   const cacheKey = `follows:${actor}:${limit}:${cursor ?? 'initial'}`
   const cached = responseCache.get<{ follows: any[]; cursor?: string }>(cacheKey)
   if (cached) {
-    return { data: { follows: cached.follows, cursor: cached.cursor } }
+    return { data: { follows: cached.follows, cursor: cached.cursor } } as any
   }
   const result = await apiRequestManager.execute(
     `follows:${actor}:${limit}:${cursor ?? 'initial'}`,
@@ -2722,13 +2733,12 @@ export async function getFollowsWithLifecycle(
  */
 export async function getNotificationsWithLifecycle(
   limit: number = 30,
-  cursor?: string,
-  signal?: AbortSignal
+  cursor?: string
 ): Promise<Awaited<ReturnType<typeof agent.listNotifications>>> {
   const cacheKey = `notifications:${limit}:${cursor ?? 'initial'}`
   const cached = responseCache.get<{ notifications: any[]; cursor?: string }>(cacheKey)
   if (cached) {
-    return { data: { notifications: cached.notifications, cursor: cached.cursor } }
+    return { data: { notifications: cached.notifications, cursor: cached.cursor } } as any
   }
   const result = await apiRequestManager.execute(
     `notifications:${limit}:${cursor ?? 'initial'}`,
@@ -2745,7 +2755,7 @@ export async function getNotificationsWithLifecycle(
 /**
  * Like a post with cache invalidation
  */
-export async function likePostWithLifecycle(uri: string, cid: string, signal?: AbortSignal): Promise<void> {
+export async function likePostWithLifecycle(uri: string, cid: string): Promise<void> {
   await apiRequestManager.execute(`like:${uri}`, () => agent.like(uri, cid), { priority: RequestPriority.HIGH, timeout: 30000 })
   invalidateAfterPostLiked()
 }
@@ -2753,7 +2763,7 @@ export async function likePostWithLifecycle(uri: string, cid: string, signal?: A
 /**
  * Unlike a post with cache invalidation
  */
-export async function unlikePostWithLifecycle(likeUri: string, signal?: AbortSignal): Promise<void> {
+export async function unlikePostWithLifecycle(likeUri: string): Promise<void> {
   await apiRequestManager.execute(`unlike:${likeUri}`, () => agent.deleteLike(likeUri), { priority: RequestPriority.HIGH, timeout: 30000 })
   invalidateAfterPostUnliked()
 }
@@ -2761,7 +2771,7 @@ export async function unlikePostWithLifecycle(likeUri: string, signal?: AbortSig
 /**
  * Repost a post with cache invalidation
  */
-export async function repostPostWithLifecycle(uri: string, cid: string, signal?: AbortSignal): Promise<void> {
+export async function repostPostWithLifecycle(uri: string, cid: string): Promise<void> {
   await apiRequestManager.execute(`repost:${uri}`, () => agent.repost(uri, cid), { priority: RequestPriority.HIGH, timeout: 30000 })
   invalidateAfterPostReposted()
 }
@@ -2769,7 +2779,7 @@ export async function repostPostWithLifecycle(uri: string, cid: string, signal?:
 /**
  * Delete a repost with cache invalidation
  */
-export async function deleteRepostWithLifecycle(repostUri: string, signal?: AbortSignal): Promise<void> {
+export async function deleteRepostWithLifecycle(repostUri: string): Promise<void> {
   await apiRequestManager.execute(`unrepost:${repostUri}`, () => agent.deleteRepost(repostUri), { priority: RequestPriority.HIGH, timeout: 30000 })
   invalidateAfterPostReposted()
 }
@@ -2777,7 +2787,7 @@ export async function deleteRepostWithLifecycle(repostUri: string, signal?: Abor
 /**
  * Follow an account with cache invalidation
  */
-export async function followAccountWithLifecycle(did: string, signal?: AbortSignal): Promise<void> {
+export async function followAccountWithLifecycle(did: string): Promise<void> {
   await apiRequestManager.execute(`follow:${did}`, () => agent.follow(did), { priority: RequestPriority.HIGH, timeout: 30000 })
   invalidateAfterFollowing()
 }
@@ -2785,7 +2795,7 @@ export async function followAccountWithLifecycle(did: string, signal?: AbortSign
 /**
  * Unfollow an account with cache invalidation
  */
-export async function unfollowAccountWithLifecycle(followUri: string, signal?: AbortSignal): Promise<void> {
+export async function unfollowAccountWithLifecycle(followUri: string): Promise<void> {
   await apiRequestManager.execute(`unfollow:${followUri}`, () => agent.deleteFollow(followUri), { priority: RequestPriority.HIGH, timeout: 30000 })
   invalidateAfterUnfollowing()
 }
@@ -2793,8 +2803,8 @@ export async function unfollowAccountWithLifecycle(followUri: string, signal?: A
 /**
  * Block an account with cache invalidation
  */
-export async function blockAccountWithLifecycle(did: string, signal?: AbortSignal): Promise<{ uri: string }> {
-  const result = await apiRequestManager.execute(`block:${did}`, () => agent.app.bsky.graph.block.create({ repo: agent.did }, { subject: did, createdAt: new Date().toISOString() }), { priority: RequestPriority.HIGH, timeout: 30000 })
+export async function blockAccountWithLifecycle(did: string): Promise<{ uri: string }> {
+  const result = await apiRequestManager.execute(`block:${did}`, () => agent.app.bsky.graph.block.create({ repo: agent.did ?? '' }, { subject: did, createdAt: new Date().toISOString() }), { priority: RequestPriority.HIGH, timeout: 30000 })
   invalidateAfterBlocking()
   return result
 }
@@ -2802,15 +2812,15 @@ export async function blockAccountWithLifecycle(did: string, signal?: AbortSigna
 /**
  * Unblock an account with cache invalidation
  */
-export async function unblockAccountWithLifecycle(blockUri: string, signal?: AbortSignal): Promise<void> {
-  await apiRequestManager.execute(`unblock:${blockUri}`, () => agent.app.bsky.graph.block.delete({ repo: agent.did, rkey: blockUri.split('/').pop()! }), { priority: RequestPriority.HIGH, timeout: 30000 })
+export async function unblockAccountWithLifecycle(blockUri: string): Promise<void> {
+  await apiRequestManager.execute(`unblock:${blockUri}`, () => agent.app.bsky.graph.block.delete({ repo: agent.did ?? '', rkey: blockUri.split('/').pop() ?? '' }), { priority: RequestPriority.HIGH, timeout: 30000 })
   invalidateAfterUnblocking()
 }
 
 /**
  * Mute an account with cache invalidation
  */
-export async function muteAccountWithLifecycle(did: string, signal?: AbortSignal): Promise<void> {
+export async function muteAccountWithLifecycle(did: string): Promise<void> {
   await apiRequestManager.execute(`mute:${did}`, () => agent.app.bsky.graph.muteActor({ actor: did }), { priority: RequestPriority.HIGH, timeout: 30000 })
   invalidateAfterMuting()
 }
@@ -2818,7 +2828,7 @@ export async function muteAccountWithLifecycle(did: string, signal?: AbortSignal
 /**
  * Unmute an account with cache invalidation
  */
-export async function unmuteAccountWithLifecycle(did: string, signal?: AbortSignal): Promise<void> {
+export async function unmuteAccountWithLifecycle(did: string): Promise<void> {
   await apiRequestManager.execute(`unmute:${did}`, () => agent.app.bsky.graph.unmuteActor({ actor: did }), { priority: RequestPriority.HIGH, timeout: 30000 })
   invalidateAfterUnmuting()
 }
@@ -2826,7 +2836,7 @@ export async function unmuteAccountWithLifecycle(did: string, signal?: AbortSign
 /**
  * Create a post with cache invalidation
  */
-export async function createPostWithLifecycle(text: string, signal?: AbortSignal): Promise<{ uri: string; cid: string }> {
+export async function createPostWithLifecycle(text: string): Promise<{ uri: string; cid: string }> {
   const result = await apiRequestManager.execute(`createPost`, () => agent.post({ text, createdAt: new Date().toISOString() }), { priority: RequestPriority.HIGH, timeout: 30000 })
   invalidateAfterPostCreated()
   return result
@@ -2835,16 +2845,16 @@ export async function createPostWithLifecycle(text: string, signal?: AbortSignal
 /**
  * Delete a post with cache invalidation
  */
-export async function deletePostWithLifecycle(uri: string, signal?: AbortSignal): Promise<void> {
-  const rkey = uri.split('/').pop()!
-  await apiRequestManager.execute(`deletePost:${uri}`, () => agent.com.atproto.repo.deleteRecord({ repo: agent.did, collection: 'app.bsky.feed.post', rkey }), { priority: RequestPriority.HIGH, timeout: 30000 })
+export async function deletePostWithLifecycle(uri: string): Promise<void> {
+  const rkey = uri.split('/').pop() ?? ''
+  await apiRequestManager.execute(`deletePost:${uri}`, () => agent.com.atproto.repo.deleteRecord({ repo: agent.did ?? '', collection: 'app.bsky.feed.post', rkey }), { priority: RequestPriority.HIGH, timeout: 30000 })
   invalidateAfterPostDeleted()
 }
 
 /**
  * Update muted words with cache invalidation
  */
-export async function updateMutedWordsWithLifecycle(words: Array<{ id?: string; value: string; targets?: string[]; actorTarget?: string; expiresAt?: string }>, signal?: AbortSignal): Promise<void> {
+export async function updateMutedWordsWithLifecycle(words: Array<{ id?: string; value: string; targets?: string[]; actorTarget?: string; expiresAt?: string }>): Promise<void> {
   await apiRequestManager.execute(`updateMutedWords`, () => agent.app.bsky.actor.putPreferences({ preferences: [{ $type: 'app.bsky.actor.defs#mutedWordsPref', items: words.map(w => ({ ...(w.id ? { id: w.id } : {}), value: w.value, targets: w.targets?.length ? w.targets : ['content', 'tag'], ...(w.actorTarget ? { actorTarget: w.actorTarget } : { actorTarget: 'all' }), ...(w.expiresAt ? { expiresAt: w.expiresAt } : {}) })) }] }), { priority: RequestPriority.MEDIUM, timeout: 30000 })
   invalidateAfterPreferencesUpdated()
 }
@@ -2852,7 +2862,7 @@ export async function updateMutedWordsWithLifecycle(words: Array<{ id?: string; 
 /**
  * Add a saved feed with cache invalidation
  */
-export async function addSavedFeedWithLifecycle(uri: string, signal?: AbortSignal): Promise<void> {
+export async function addSavedFeedWithLifecycle(uri: string): Promise<void> {
   await apiRequestManager.execute(`addSavedFeed:${uri}`, () => agent.app.bsky.actor.putPreferences({ preferences: [{ $type: 'app.bsky.actor.defs#savedFeedsPrefV2', items: [{ id: `artsky-${Date.now()}`, type: 'feed' as const, value: uri, pinned: true }] }] }), { priority: RequestPriority.MEDIUM, timeout: 30000 })
   invalidateAfterPreferencesUpdated()
 }
@@ -2860,7 +2870,7 @@ export async function addSavedFeedWithLifecycle(uri: string, signal?: AbortSigna
 /**
  * Remove a saved feed with cache invalidation
  */
-export async function removeSavedFeedWithLifecycle(feedId: string, signal?: AbortSignal): Promise<void> {
+export async function removeSavedFeedWithLifecycle(feedId: string): Promise<void> {
   await apiRequestManager.execute(`removeSavedFeed:${feedId}`, () => agent.app.bsky.actor.putPreferences({ preferences: [{ $type: 'app.bsky.actor.defs#savedFeedsPrefV2', items: [] }] }), { priority: RequestPriority.MEDIUM, timeout: 30000 })
   invalidateAfterPreferencesUpdated()
 }

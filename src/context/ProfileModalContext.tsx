@@ -124,7 +124,7 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
   /* Reset scroll hidden state when modal changes to ensure back button is visible */
   useEffect(() => {
     if (modalStack.length > 0) setModalScrollHidden(false)
-  }, [modalStack.length, modalStack[modalStack.length - 1]?.uri ?? modalStack[modalStack.length - 1]?.handle ?? modalStack[modalStack.length - 1]?.tag ?? modalStack[modalStack.length - 1]?.query])
+  }, [modalStack.length, modalStack[modalStack.length - 1]])
 
   /** Open modal: push onto stack and navigate to update URL */
   const openPostModal = useCallback((uri: string, openReply?: boolean, focusUri?: string) => {

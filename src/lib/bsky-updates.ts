@@ -9,12 +9,27 @@
  * - Timeout handling
  */
 
-import { Agent, AtpAgent } from '@atproto/api'
+import { AtpAgent } from '@atproto/api'
 import { responseCache } from './ResponseCache'
-import { requestQueue, RequestPriority } from './RequestQueue'
+import { RequestPriority } from './RequestQueue'
 import { apiRequestManager } from './apiRequestManager'
-import { invalidateAfterPostLiked, invalidateAfterPostUnliked, invalidateAfterPostReposted, invalidateAfterFollowing, invalidateAfterUnfollowing, invalidateAfterBlocking, invalidateAfterUnblocking, invalidateAfterMuting, invalidateAfterUnmuting, invalidateAfterPostCreated, invalidateAfterPostDeleted, invalidateAfterPreferencesUpdated, invalidateAfterDownvoteCreated, invalidateAfterDownvoteDeleted } from './cacheInvalidation'
-import { getApiErrorMessage } from './apiErrors'
+import {
+  invalidateAfterPostLiked,
+  invalidateAfterPostUnliked,
+  invalidateAfterPostReposted,
+  invalidateAfterFollowing,
+  invalidateAfterUnfollowing,
+  invalidateAfterBlocking,
+  invalidateAfterUnblocking,
+  invalidateAfterMuting,
+  invalidateAfterUnmuting,
+  invalidateAfterPostCreated,
+  invalidateAfterPostDeleted,
+  invalidateAfterPreferencesUpdated,
+} from './cacheInvalidation'
+
+// Note: This file requires 'agent' to be passed in or imported from bsky.ts
+// For now, these are reference implementations
 
 // ============================================================================
 // READ OPERATIONS - With AbortController, RequestQueue, and Caching
@@ -24,9 +39,9 @@ import { getApiErrorMessage } from './apiErrors'
  * Get timeline feed with full lifecycle management
  */
 export async function getTimeline(
+  agent: AtpAgent,
   limit: number = 30,
-  cursor?: string,
-  signal?: AbortSignal
+  cursor?: string
 ) {
   const cacheKey = `timeline:${limit}:${cursor ?? 'initial'}`
   
@@ -54,10 +69,10 @@ export async function getTimeline(
  * Get custom feed with full lifecycle management
  */
 export async function getFeed(
+  agent: AtpAgent,
   feedUri: string,
   limit: number = 30,
-  cursor?: string,
-  signal?: AbortSignal
+  cursor?: string
 ) {
   const cacheKey = `feed:${feedUri}:${limit}:${cursor ?? 'initial'}`
 
@@ -83,8 +98,8 @@ export async function getFeed(
  * Get profile with full lifecycle management
  */
 export async function getProfile(
-  actor: string,
-  signal?: AbortSignal
+  agent: AtpAgent,
+  actor: string
 ) {
   const cacheKey = `profile:${actor}`
 
@@ -110,10 +125,10 @@ export async function getProfile(
  * Get followers list with full lifecycle management
  */
 export async function getFollowers(
+  agent: AtpAgent,
   actor: string,
   limit: number = 50,
-  cursor?: string,
-  signal?: AbortSignal
+  cursor?: string
 ) {
   const cacheKey = `followers:${actor}:${limit}:${cursor ?? 'initial'}`
 
@@ -138,10 +153,10 @@ export async function getFollowers(
  * Get follows list with full lifecycle management
  */
 export async function getFollows(
+  agent: AtpAgent,
   actor: string,
   limit: number = 50,
-  cursor?: string,
-  signal?: AbortSignal
+  cursor?: string
 ) {
   const cacheKey = `follows:${actor}:${limit}:${cursor ?? 'initial'}`
 
@@ -166,9 +181,9 @@ export async function getFollows(
  * Get notifications with full lifecycle management
  */
 export async function getNotifications(
+  agent: AtpAgent,
   limit: number = 30,
-  cursor?: string,
-  signal?: AbortSignal
+  cursor?: string
 ) {
   const cacheKey = `notifications:${limit}:${cursor ?? 'initial'}`
 
@@ -197,9 +212,9 @@ export async function getNotifications(
  * Like a post with cache invalidation
  */
 export async function likePost(
+  agent: AtpAgent,
   uri: string,
-  cid: string,
-  signal?: AbortSignal
+  cid: string
 ) {
   const result = await apiRequestManager.execute(
     `like:${uri}`,
@@ -220,8 +235,8 @@ export async function likePost(
  * Unlike a post with cache invalidation
  */
 export async function unlikePost(
-  likeUri: string,
-  signal?: AbortSignal
+  agent: AtpAgent,
+  likeUri: string
 ) {
   const result = await apiRequestManager.execute(
     `unlike:${likeUri}`,
@@ -242,9 +257,9 @@ export async function unlikePost(
  * Repost a post with cache invalidation
  */
 export async function repostPost(
+  agent: AtpAgent,
   uri: string,
-  cid: string,
-  signal?: AbortSignal
+  cid: string
 ) {
   const result = await apiRequestManager.execute(
     `repost:${uri}`,
@@ -265,8 +280,8 @@ export async function repostPost(
  * Delete a repost with cache invalidation
  */
 export async function deleteRepost(
-  repostUri: string,
-  signal?: AbortSignal
+  agent: AtpAgent,
+  repostUri: string
 ) {
   const result = await apiRequestManager.execute(
     `unrepost:${repostUri}`,
@@ -287,8 +302,8 @@ export async function deleteRepost(
  * Follow an account with cache invalidation
  */
 export async function followAccount(
-  did: string,
-  signal?: AbortSignal
+  agent: AtpAgent,
+  did: string
 ) {
   const result = await apiRequestManager.execute(
     `follow:${did}`,
@@ -309,8 +324,8 @@ export async function followAccount(
  * Unfollow an account with cache invalidation
  */
 export async function unfollowAccount(
-  followUri: string,
-  signal?: AbortSignal
+  agent: AtpAgent,
+  followUri: string
 ) {
   const result = await apiRequestManager.execute(
     `unfollow:${followUri}`,
@@ -331,13 +346,13 @@ export async function unfollowAccount(
  * Block an account with cache invalidation
  */
 export async function blockAccount(
-  did: string,
-  signal?: AbortSignal
+  agent: AtpAgent,
+  did: string
 ) {
   const result = await apiRequestManager.execute(
     `block:${did}`,
     () => agent.app.bsky.graph.block.create(
-      { repo: agent.did },
+      { repo: agent.did ?? '' },
       { subject: did, createdAt: new Date().toISOString() }
     ),
     {
@@ -356,14 +371,14 @@ export async function blockAccount(
  * Unblock an account with cache invalidation
  */
 export async function unblockAccount(
-  blockUri: string,
-  signal?: AbortSignal
+  agent: AtpAgent,
+  blockUri: string
 ) {
   const result = await apiRequestManager.execute(
     `unblock:${blockUri}`,
     () => agent.app.bsky.graph.block.delete({
-      repo: agent.did,
-      rkey: blockUri.split('/').pop()!,
+      repo: agent.did ?? '',
+      rkey: blockUri.split('/').pop() ?? '',
     }),
     {
       priority: RequestPriority.HIGH,
@@ -381,8 +396,8 @@ export async function unblockAccount(
  * Mute an account with cache invalidation
  */
 export async function muteAccount(
-  did: string,
-  signal?: AbortSignal
+  agent: AtpAgent,
+  did: string
 ) {
   const result = await apiRequestManager.execute(
     `mute:${did}`,
@@ -403,8 +418,8 @@ export async function muteAccount(
  * Unmute an account with cache invalidation
  */
 export async function unmuteAccount(
-  did: string,
-  signal?: AbortSignal
+  agent: AtpAgent,
+  did: string
 ) {
   const result = await apiRequestManager.execute(
     `unmute:${did}`,
@@ -425,8 +440,8 @@ export async function unmuteAccount(
  * Create a post with cache invalidation
  */
 export async function createPost(
-  text: string,
-  signal?: AbortSignal
+  agent: AtpAgent,
+  text: string
 ) {
   const result = await apiRequestManager.execute(
     `createPost`,
@@ -450,16 +465,16 @@ export async function createPost(
  * Delete a post with cache invalidation
  */
 export async function deletePost(
-  uri: string,
-  signal?: AbortSignal
+  agent: AtpAgent,
+  uri: string
 ) {
   const parsed = uri.split('/')
-  const rkey = parsed.pop()!
+  const rkey = parsed.pop() ?? ''
 
   const result = await apiRequestManager.execute(
     `deletePost:${uri}`,
     () => agent.com.atproto.repo.deleteRecord({
-      repo: agent.did,
+      repo: agent.did ?? '',
       collection: 'app.bsky.feed.post',
       rkey,
     }),
@@ -479,8 +494,8 @@ export async function deletePost(
  * Update muted words with cache invalidation
  */
 export async function updateMutedWords(
-  words: Array<{ id?: string; value: string; targets?: string[]; actorTarget?: string; expiresAt?: string }>,
-  signal?: AbortSignal
+  agent: AtpAgent,
+  words: Array<{ id?: string; value: string; targets?: string[]; actorTarget?: string; expiresAt?: string }>
 ) {
   const result = await apiRequestManager.execute(
     `updateMutedWords`,
@@ -512,8 +527,8 @@ export async function updateMutedWords(
  * Add a saved feed with cache invalidation
  */
 export async function addSavedFeed(
-  uri: string,
-  signal?: AbortSignal
+  agent: AtpAgent,
+  uri: string
 ) {
   const result = await apiRequestManager.execute(
     `addSavedFeed:${uri}`,
@@ -544,8 +559,8 @@ export async function addSavedFeed(
  * Remove a saved feed with cache invalidation
  */
 export async function removeSavedFeed(
-  feedId: string,
-  signal?: AbortSignal
+  agent: AtpAgent,
+  feedId: string
 ) {
   const result = await apiRequestManager.execute(
     `removeSavedFeed:${feedId}`,

@@ -9,12 +9,8 @@
  * - Timeout handling
  */
 
-import { Agent, AtpAgent } from '@atproto/api'
 import { requestQueue, RequestPriority } from './RequestQueue'
 import { responseCache } from './ResponseCache'
-import { requestDeduplicator } from './RequestDeduplicator'
-import { rateLimiter } from './RateLimiter'
-import { getApiErrorMessage } from './apiErrors'
 
 // Request metrics
 export interface RequestMetrics {
@@ -39,7 +35,6 @@ export class ApiRequestManager {
   }
 
   private abortControllers = new Map<string, AbortController>()
-  private requestStartTimes = new Map<string, number>()
   private durationHistorySize = 100
 
   /**
@@ -70,7 +65,7 @@ export class ApiRequestManager {
 
     // Check cache first
     if (cacheKey) {
-      const cached = responseCache.get(cacheKey)
+      const cached = responseCache.get<T>(cacheKey)
       if (cached) {
         this.metrics.cachedRequests++
         return cached

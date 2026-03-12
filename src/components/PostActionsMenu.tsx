@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect, useLayoutEffect, memo, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { blockAccount, unblockAccount, reportPost, muteThread, deletePost, agent, getProfileCached } from '../lib/bsky'
+import { blockAccount, unblockAccount, reportPost, muteThread, deletePost, getProfileCached } from '../lib/bsky'
 import { getSession } from '../lib/bsky'
 import { formatRelativeTimeTitle, formatExactDateTime } from '../lib/date'
 import styles from './PostActionsMenu.module.css'

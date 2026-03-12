@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useSWUpdate } from '../hooks/useSWUpdate'
 import styles from './SWUpdateToast.module.css'
 
