@@ -122,9 +122,42 @@ The build should now complete successfully with:
 - ✅ No type errors
 - ✅ Vite build ready to proceed
 
+### 4. Type Errors in FeedPage.tsx (Lines 662-705, 1208-1276)
+**Error**: `Cannot find name 'agent'` and `'res' is of type 'unknown'`
+
+**Fix**: 
+1. Re-added `agent` import (it was actually used in the code)
+2. Added explicit type annotations to `withTimeout` generic calls
+3. Added type annotations to `.then()` and `.catch()` callbacks
+
+**Changed**:
+```typescript
+// Before
+const res = await withTimeout(agent.getTimeline({ limit, cursor: nextCursor }), FEED_LOAD_TIMEOUT_MS)
+
+// After
+const res = await withTimeout<{ data: { feed: TimelineItem[]; cursor?: string } }>(
+  agent.getTimeline({ limit, cursor: nextCursor }), 
+  FEED_LOAD_TIMEOUT_MS
+)
+
+// Before
+.catch((err) => { console.error('Failed:', err) })
+
+// After
+.catch((err: unknown) => { console.error('Failed:', err) })
+
+// Before
+.then((res) => { setLikeOverride(uri, res.uri) })
+
+// After
+.then((res: { uri: string }) => { setLikeOverride(uri, res.uri) })
+```
+
 ## Notes
 
 - All changes are minimal and focused on fixing build errors
 - No functional changes to the application
 - All optimizations from the previous implementation remain intact
 - The fixes maintain backward compatibility
+- All TypeScript diagnostics now pass with zero errors

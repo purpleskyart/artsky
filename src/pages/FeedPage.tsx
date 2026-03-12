@@ -1,6 +1,7 @@
 import { useCallback, useContext, useEffect, useMemo, useReducer, useRef, useState, startTransition, useSyncExternalStore } from 'react'
 import { useLocation, useNavigate, useNavigationType } from 'react-router-dom'
 import {
+  agent,
   getPostMediaInfo,
   getPostAllMediaForDisplay,
   getGuestFeed,
@@ -659,7 +660,7 @@ export default function FeedPage() {
       } else if (mixEntries.length === 1) {
         const single = mixEntries[0].source
         if (single.kind === 'timeline') {
-          const res = await withTimeout(agent.getTimeline({ limit, cursor: nextCursor }), FEED_LOAD_TIMEOUT_MS)
+          const res = await withTimeout<{ data: { feed: TimelineItem[]; cursor?: string } }>(agent.getTimeline({ limit, cursor: nextCursor }), FEED_LOAD_TIMEOUT_MS)
           const apply = () => {
             const items = dedupeFeedByPostUri(nextCursor ? [...feedItemsRef.current, ...res.data.feed] : res.data.feed)
             if (nextCursor) {
@@ -671,7 +672,7 @@ export default function FeedPage() {
           if (nextCursor) startTransition(apply)
           else apply()
         } else if (single.uri) {
-          const res = await withTimeout(agent.app.bsky.feed.getFeed({ feed: single.uri, limit, cursor: nextCursor }), FEED_LOAD_TIMEOUT_MS)
+          const res = await withTimeout<{ data: { feed: TimelineItem[]; cursor?: string } }>(agent.app.bsky.feed.getFeed({ feed: single.uri, limit, cursor: nextCursor }), FEED_LOAD_TIMEOUT_MS)
           const apply = () => {
             const items = dedupeFeedByPostUri(nextCursor ? [...feedItemsRef.current, ...res.data.feed] : res.data.feed)
             if (nextCursor) {
@@ -684,7 +685,7 @@ export default function FeedPage() {
           else apply()
         }
       } else if (source.kind === 'timeline') {
-        const res = await withTimeout(agent.getTimeline({ limit, cursor: nextCursor }), FEED_LOAD_TIMEOUT_MS)
+        const res = await withTimeout<{ data: { feed: TimelineItem[]; cursor?: string } }>(agent.getTimeline({ limit, cursor: nextCursor }), FEED_LOAD_TIMEOUT_MS)
         const apply = () => {
           const items = dedupeFeedByPostUri(nextCursor ? [...feedItemsRef.current, ...res.data.feed] : res.data.feed)
           if (nextCursor) {
@@ -696,7 +697,7 @@ export default function FeedPage() {
         if (nextCursor) startTransition(apply)
         else apply()
       } else if (source.uri) {
-        const res = await withTimeout(agent.app.bsky.feed.getFeed({ feed: source.uri, limit, cursor: nextCursor }), FEED_LOAD_TIMEOUT_MS)
+        const res = await withTimeout<{ data: { feed: TimelineItem[]; cursor?: string } }>(agent.app.bsky.feed.getFeed({ feed: source.uri, limit, cursor: nextCursor }), FEED_LOAD_TIMEOUT_MS)
         const apply = () => {
           const items = dedupeFeedByPostUri(nextCursor ? [...feedItemsRef.current, ...res.data.feed] : res.data.feed)
           if (nextCursor) {
@@ -1207,13 +1208,13 @@ export default function FeedPage() {
         if (currentLikeUri) {
           agent.deleteLike(currentLikeUri).then(() => {
             setLikeOverride(uri, null)
-          }).catch((err) => {
+          }).catch((err: unknown) => {
             console.error('Failed to unlike post:', err)
           })
         } else {
-          agent.like(uri, item.post.cid).then((res) => {
+          agent.like(uri, item.post.cid).then((res: { uri: string }) => {
             setLikeOverride(uri, res.uri)
-          }).catch((err) => {
+          }).catch((err: unknown) => {
             console.error('Failed to like post:', err)
           })
         }
@@ -1249,11 +1250,11 @@ export default function FeedPage() {
                     }
                   })
               })
-            }).catch((err) => {
+            }).catch((err: unknown) => {
               console.error('Failed to unfollow:', err)
             })
           } else {
-            agent.follow(author.did).then((res) => {
+            agent.follow(author.did).then((res: { uri: string }) => {
               dispatch({
                 type: 'UPDATE_ITEMS',
                 updater: (prev) =>
@@ -1273,7 +1274,7 @@ export default function FeedPage() {
                     }
                   })
               })
-            }).catch((err) => {
+            }).catch((err: unknown) => {
               console.error('Failed to follow:', err)
             })
           }
