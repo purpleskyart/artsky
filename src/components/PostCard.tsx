@@ -622,7 +622,7 @@ function PostCard({ item, isSelected, cardRef: cardRefProp, addButtonRef: _addBu
   return (
     <div ref={setCardRef} data-post-uri={post.uri} className={`${styles.card} ${isSelected ? styles.cardSelected : ''} ${showTransFlagOutline ? styles.cardTransFlag : ''} ${!showTransFlagOutline && isLiked ? styles.cardLiked : ''} ${!showTransFlagOutline && inAnyArtboard ? styles.cardInArtboard : ''} ${seen && !isSelected ? styles.cardSeen : ''} ${fillCell ? styles.cardFillCell : ''} ${artOnly ? styles.cardArtOnly : ''} ${minimalist ? styles.cardMinimalist : ''}`}>
       <Link
-        to={`/post/${encodeURIComponent(post.uri)}`}
+        to="#"
         className={styles.cardLink}
         onClick={handleCardClick}
         onKeyDown={(e) => {
