@@ -757,7 +757,7 @@ export default function Layout({ title, children, showNav }: Props) {
     }
   }, [did, hiddenPresetUris, feedOrder])
 
-  const savedFeedsLoadedRef = useRef(false)
+  const savedFeedsLoadedRef = useRef<boolean>(false)
   
   // Early effect to load saved feeds as soon as session is available
   // This runs before other effects to ensure feeds are available on initial render
@@ -768,7 +768,7 @@ export default function Layout({ title, children, showNav }: Props) {
       return 
     }
     if (savedFeedsLoadedRef.current) return
-    savedFeedsLoadedRef.current = true
+    savedFeedsLoadedRef.current = true;
     
     // Load feeds immediately when session becomes available
     (async () => {
