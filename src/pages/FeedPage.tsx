@@ -1072,9 +1072,8 @@ export default function FeedPage() {
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      /* Never affect feed when a popup is open: check both context and URL (URL covers first render after open). */
-      const hasContentModalInUrl = /[?&](post|profile|tag|forumPost|artboard)=/.test(location.search)
-      if (isModalOpen || hasContentModalInUrl) return
+      /* Never affect feed when a popup is open */
+      if (isModalOpen) return
       const eventTarget = e.target as HTMLElement
       if (eventTarget.tagName === 'INPUT' || eventTarget.tagName === 'TEXTAREA' || eventTarget.tagName === 'SELECT' || eventTarget.isContentEditable) {
         if (e.key === 'Escape') {
@@ -1279,7 +1278,7 @@ export default function FeedPage() {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [location.search, cols, isModalOpen, openPostModal, blockConfirm, session, likeOverrides, feedState.actionsMenuOpenForIndex, focusTargets, firstFocusIndexForCard, lastFocusIndexForCard])
+  }, [cols, isModalOpen, openPostModal, blockConfirm, session, likeOverrides, feedState.actionsMenuOpenForIndex, focusTargets, firstFocusIndexForCard, lastFocusIndexForCard])
 
   useEffect(() => {
     if (blockConfirm) blockCancelRef.current?.focus()
