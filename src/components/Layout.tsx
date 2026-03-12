@@ -790,15 +790,26 @@ export default function Layout({ title, children, showNav }: Props) {
   }, [did, hiddenPresetUris, feedOrder])
 
   const savedFeedsLoadedRef = useRef(false)
+  
+  // Early effect to load saved feeds as soon as session is available
+  // This runs before other effects to ensure feeds are available on initial render
   useEffect(() => {
-    if (!session) { savedFeedsLoadedRef.current = false; return }
+    if (!session) { 
+      savedFeedsLoadedRef.current = false
+      return 
+    }
     if (savedFeedsLoadedRef.current) return
     savedFeedsLoadedRef.current = true
     loadSavedFeeds()
-  }, [session, loadSavedFeeds])
-
+  }, [session])
+  
+  // Secondary effect to reload feeds when dropdown opens (for manual refresh)
+  // This is kept separate to avoid unnecessary re-runs from loadSavedFeeds changes
   useEffect(() => {
-    if (feedsDropdownOpen && session) loadSavedFeeds()
+    if (!session) return
+    if (feedsDropdownOpen && savedFeedsLoadedRef.current) {
+      loadSavedFeeds()
+    }
   }, [feedsDropdownOpen, session, loadSavedFeeds])
 
   useEffect(() => {

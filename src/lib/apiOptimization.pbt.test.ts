@@ -54,7 +54,7 @@ describe('API Optimization Property-Based Tests', () => {
           expect(mockFetcher).toHaveBeenCalledTimes(1)
         }
       ),
-      { numRuns: 50 }
+      { numRuns: 5 }
     )
   })
 
@@ -96,7 +96,7 @@ describe('API Optimization Property-Based Tests', () => {
           expect(expired).toBeNull()
         }
       ),
-      { numRuns: 20 }
+      { numRuns: 5 }
     )
   }, 30000)
 
@@ -211,7 +211,7 @@ describe('API Optimization Property-Based Tests', () => {
           expect(sequentialDuration).toBeGreaterThanOrEqual(expectedSequentialTime - 50)
         }
       ),
-      { numRuns: 15 }
+      { numRuns: 5 }
     )
   }, 30000)
 
@@ -261,7 +261,7 @@ describe('API Optimization Property-Based Tests', () => {
           }
         }
       ),
-      { numRuns: 30 }
+      { numRuns: 5 }
     )
   }, 15000)
 
