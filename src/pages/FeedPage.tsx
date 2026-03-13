@@ -8,6 +8,8 @@ import {
   getSavedFeedsFromPreferences,
   getFeedDisplayNamesBatch,
   getMixedFeed,
+  getTimelineWithLifecycle,
+  getFeedWithLifecycle,
   isPostNsfw,
   likePostWithLifecycle,
   unlikePostWithLifecycle,
@@ -671,7 +673,7 @@ export default function FeedPage() {
       } else if (mixEntries.length === 1) {
         const single = mixEntries[0].source
         if (single.kind === 'timeline') {
-          const res = await withTimeout<{ data: { feed: TimelineItem[]; cursor?: string } }>(agent.getTimeline({ limit, cursor: nextCursor }), FEED_LOAD_TIMEOUT_MS)
+          const res = await withTimeout(getTimelineWithLifecycle(limit, nextCursor), FEED_LOAD_TIMEOUT_MS)
           const apply = () => {
             const items = dedupeFeedByPostUri(nextCursor ? [...feedItemsRef.current, ...res.data.feed] : res.data.feed)
             if (nextCursor) {
@@ -683,7 +685,7 @@ export default function FeedPage() {
           if (nextCursor) startTransition(apply)
           else apply()
         } else if (single.uri) {
-          const res = await withTimeout<{ data: { feed: TimelineItem[]; cursor?: string } }>(agent.app.bsky.feed.getFeed({ feed: single.uri, limit, cursor: nextCursor }), FEED_LOAD_TIMEOUT_MS)
+          const res = await withTimeout(getFeedWithLifecycle(single.uri, limit, nextCursor), FEED_LOAD_TIMEOUT_MS)
           const apply = () => {
             const items = dedupeFeedByPostUri(nextCursor ? [...feedItemsRef.current, ...res.data.feed] : res.data.feed)
             if (nextCursor) {
@@ -696,7 +698,7 @@ export default function FeedPage() {
           else apply()
         }
       } else if (source.kind === 'timeline') {
-        const res = await withTimeout<{ data: { feed: TimelineItem[]; cursor?: string } }>(agent.getTimeline({ limit, cursor: nextCursor }), FEED_LOAD_TIMEOUT_MS)
+        const res = await withTimeout(getTimelineWithLifecycle(limit, nextCursor), FEED_LOAD_TIMEOUT_MS)
         const apply = () => {
           const items = dedupeFeedByPostUri(nextCursor ? [...feedItemsRef.current, ...res.data.feed] : res.data.feed)
           if (nextCursor) {
@@ -708,7 +710,7 @@ export default function FeedPage() {
         if (nextCursor) startTransition(apply)
         else apply()
       } else if (source.uri) {
-        const res = await withTimeout<{ data: { feed: TimelineItem[]; cursor?: string } }>(agent.app.bsky.feed.getFeed({ feed: source.uri, limit, cursor: nextCursor }), FEED_LOAD_TIMEOUT_MS)
+        const res = await withTimeout(getFeedWithLifecycle(source.uri, limit, nextCursor), FEED_LOAD_TIMEOUT_MS)
         const apply = () => {
           const items = dedupeFeedByPostUri(nextCursor ? [...feedItemsRef.current, ...res.data.feed] : res.data.feed)
           if (nextCursor) {

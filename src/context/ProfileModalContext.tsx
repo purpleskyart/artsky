@@ -52,31 +52,38 @@ const ProfileModalContext = createContext<ProfileModalContextValue | null>(null)
 
 /**
  * URL ↔ modal stack: single source of truth for all popups.
- * To add a new modal type: add the variant to ModalItem, then in parseSearchToModalItem (read param)
+ * To add a new modal type: add the variant to ModalItem, then in parseSearchToModalStack (read param)
  * and modalItemToSearch (write param), and in modalItemsMatch. openXxx() just navigates; effect syncs URL → stack.
+ * When both profile= and post= are in the URL, stack is [profile, post] so back from post returns to profile.
  */
-function parseSearchToModalItem(search: string): ModalItem | null {
+function parseSearchToModalStack(search: string): ModalItem[] {
   const params = new URLSearchParams(search)
+  const stack: ModalItem[] = []
+  const profileHandle = params.get('profile')
+  if (profileHandle) stack.push({ type: 'profile', handle: profileHandle })
   const postUri = params.get('post')
   if (postUri) {
     const focusUri = params.get('focus') ?? undefined
-    return { type: 'post', uri: postUri, openReply: params.get('reply') === '1', focusUri: focusUri ?? undefined }
+    stack.push({ type: 'post', uri: postUri, openReply: params.get('reply') === '1', focusUri: focusUri ?? undefined })
   }
-  const profileHandle = params.get('profile')
-  if (profileHandle) return { type: 'profile', handle: profileHandle }
+  if (stack.length > 0) return stack
   const tag = params.get('tag')
-  if (tag) return { type: 'tag', tag }
+  if (tag) return [{ type: 'tag', tag }]
   const searchQuery = params.get('search')
-  if (searchQuery) return { type: 'search', query: searchQuery }
+  if (searchQuery) return [{ type: 'search', query: searchQuery }]
   const quotesUri = params.get('quotes')
-  if (quotesUri) return { type: 'quotes', uri: quotesUri }
-  if (params.get('forum') === '1') return { type: 'forum' }
+  if (quotesUri) return [{ type: 'quotes', uri: quotesUri }]
+  if (params.get('forum') === '1') return [{ type: 'forum' }]
   const forumPostUri = params.get('forumPost')
-  if (forumPostUri) return { type: 'forumPost', documentUri: forumPostUri }
-  if (params.get('artboards') === '1') return { type: 'artboards' }
+  if (forumPostUri) return [{ type: 'forumPost', documentUri: forumPostUri }]
+  if (params.get('artboards') === '1') return [{ type: 'artboards' }]
   const artboardId = params.get('artboard')
-  if (artboardId) return { type: 'artboard', id: artboardId }
-  return null
+  if (artboardId) return [{ type: 'artboard', id: artboardId }]
+  return []
+}
+
+function modalStackToSearch(stack: ModalItem[]): string {
+  return stack.map(modalItemToSearch).join('&')
 }
 
 function modalItemToSearch(item: ModalItem): string {
@@ -126,12 +133,17 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
     if (modalStack.length > 0) setModalScrollHidden(false)
   }, [modalStack.length, modalStack[modalStack.length - 1]])
 
-  /** Open modal: push onto stack and navigate to update URL */
+  /** Open modal: when on a profile (page or modal), push [profile, post] so back returns to profile. */
   const openPostModal = useCallback((uri: string, openReply?: boolean, focusUri?: string) => {
-    const item: ModalItem = { type: 'post', uri, openReply, focusUri }
-    const search = `?${modalItemToSearch(item)}`
+    const postItem: ModalItem = { type: 'post', uri, openReply, focusUri }
+    const params = new URLSearchParams(location.search)
+    const profileFromSearch = params.get('profile')
+    const profileFromPath = location.pathname.match(/^\/profile\/([^/]+)/)?.[1]
+    const profileHandle = profileFromSearch ?? (profileFromPath ? decodeURIComponent(profileFromPath) : null)
+    const stack: ModalItem[] = profileHandle ? [{ type: 'profile', handle: profileHandle }, postItem] : [postItem]
+    const search = stack.length > 0 ? `?${modalStackToSearch(stack)}` : ''
     navigate({ pathname: location.pathname, search }, { replace: true })
-  }, [location.pathname, navigate])
+  }, [location.pathname, location.search, navigate])
 
   const openProfileModal = useCallback((handle: string) => {
     const item: ModalItem = { type: 'profile', handle }
@@ -184,7 +196,7 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
   const closeModal = useCallback(() => {
     setModalStack((prev) => {
       const next = prev.length > 1 ? prev.slice(0, -1) : []
-      const search = next.length > 0 ? `?${modalItemToSearch(next[next.length - 1])}` : ''
+      const search = next.length > 0 ? `?${modalStackToSearch(next)}` : ''
       navigate({ pathname: location.pathname, search }, { replace: true })
       return next
     })
@@ -197,16 +209,16 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
 
   /** Single source of truth: URL drives which modal(s) are open. One effect syncs URL → stack for all modal types. */
   useEffect(() => {
-    const urlTop = parseSearchToModalItem(location.search)
-    if (!urlTop) {
-      setModalStack((prev) => prev.length === 0 ? prev : [])
+    const urlStack = parseSearchToModalStack(location.search)
+    if (urlStack.length === 0) {
+      setModalStack((prev) => (prev.length === 0 ? prev : []))
       return
     }
     setModalStack((prev) => {
       const top = prev[prev.length - 1]
-      if (top && modalItemsMatch(top, urlTop)) return prev
-      // Replace the entire stack with just the new modal (don't append)
-      return [urlTop]
+      const urlTop = urlStack[urlStack.length - 1]
+      if (prev.length === urlStack.length && top && urlTop && modalItemsMatch(top, urlTop)) return prev
+      return urlStack
     })
   }, [location.search])
 
