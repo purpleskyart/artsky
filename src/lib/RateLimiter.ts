@@ -157,9 +157,10 @@ export class RateLimiter {
   }
 }
 
-// Singleton instance: stay under typical server limits to avoid 429s
+// Singleton: allow enough headroom for normal usage (feed, profiles, threads, notifications).
+// Caching and batching keep actual API calls low; this avoids hitting our own limit before the server.
 export const rateLimiter = new RateLimiter({
-  maxRequestsPerWindow: 40,
+  maxRequestsPerWindow: 100,
   windowMs: 60_000, // 1 minute
   defaultBackoffMs: 30_000, // 30 seconds
 })

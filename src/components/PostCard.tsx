@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { Link, useNavigate } from 'react-router-dom'
 import type Hls from 'hls.js'
 import { loadHls } from '../lib/loadHls'
-import { getPostMediaInfoForDisplay, getPostAllMediaForDisplay, getPostMediaUrlForDisplay, getPostExternalLink, agent, type TimelineItem } from '../lib/bsky'
+import { getPostMediaInfoForDisplay, getPostAllMediaForDisplay, getPostMediaUrlForDisplay, getPostExternalLink, agent, likePostWithLifecycle, unlikePostWithLifecycle, followAccountWithLifecycle, type TimelineItem } from '../lib/bsky'
 import { getArtboards, createArtboard, addPostToArtboard, isPostInArtboard, isPostInAnyArtboard, getArtboard } from '../lib/artboards'
 import { putArtboardOnPds } from '../lib/artboardsPds'
 import { useSession } from '../context/SessionContext'
@@ -233,7 +233,7 @@ function PostCard({ item, isSelected, cardRef: cardRefProp, addButtonRef: _addBu
     setFollowUriOverride(pendingUri)
     
     try {
-      const res = await agent.follow(post.author.did)
+      const res = await followAccountWithLifecycle(post.author.did)
       setFollowUriOverride(res.uri)
     } catch {
       // Revert optimistic update on failure
@@ -261,10 +261,10 @@ function PostCard({ item, isSelected, cardRef: cardRefProp, addButtonRef: _addBu
     }
     try {
       if (wasLiked) {
-        await agent.deleteLike(previousLikedUri!)
+        await unlikePostWithLifecycle(previousLikedUri!)
         setLikedUri(undefined)
       } else {
-        const res = await agent.like(post.uri, post.cid)
+        const res = await likePostWithLifecycle(post.uri, post.cid)
         setLikedUri(res.uri)
       }
     } catch {
@@ -594,12 +594,12 @@ function PostCard({ item, isSelected, cardRef: cardRefProp, addButtonRef: _addBu
     }
     if (effectiveLikedUri) {
       setLikedUri(undefined)
-      agent.deleteLike(effectiveLikedUri).then(() => {
+      unlikePostWithLifecycle(effectiveLikedUri).then(() => {
         onLikedChange?.(post.uri, null)
       }).catch(() => setLikedUri(effectiveLikedUri))
     } else {
       setLikedUri('pending')
-      agent.like(post.uri, post.cid).then((res) => {
+      likePostWithLifecycle(post.uri, post.cid).then((res) => {
         setLikedUri(res.uri)
         onLikedChange?.(post.uri, res.uri)
       }).catch(() => setLikedUri(undefined))
@@ -677,12 +677,12 @@ function PostCard({ item, isSelected, cardRef: cardRefProp, addButtonRef: _addBu
             e.preventDefault()
             if (effectiveLikedUri) {
               setLikedUri(undefined)
-              agent.deleteLike(effectiveLikedUri).then(() => {
+              unlikePostWithLifecycle(effectiveLikedUri).then(() => {
                 onLikedChange?.(post.uri, null)
               }).catch(() => setLikedUri(effectiveLikedUri))
             } else {
               setLikedUri('pending')
-              agent.like(post.uri, post.cid).then((res) => {
+              likePostWithLifecycle(post.uri, post.cid).then((res) => {
                 setLikedUri(res.uri)
                 onLikedChange?.(post.uri, res.uri)
               }).catch(() => setLikedUri(undefined))
@@ -819,6 +819,7 @@ function PostCard({ item, isSelected, cardRef: cardRefProp, addButtonRef: _addBu
           {nsfwBlurred && onNsfwUnblur && hasMedia && (
             <div
               className={styles.nsfwOverlay}
+              onPointerEnter={() => onNsfwUnblur()}
               onPointerDown={(e) => {
                 e.preventDefault()
                 e.stopPropagation()

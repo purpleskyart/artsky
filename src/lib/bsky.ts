@@ -475,9 +475,12 @@ export async function getPostsBatch(uris: string[]): Promise<Map<string, PostVie
   
   return result
 }
+const PROFILE_CACHE_TTL_MS = 600_000   // 10 min (match getProfileCached)
+const PROFILE_CACHE_STALE_MS = 300_000 // 5 min stale-while-revalidate
+
 /**
  * Batch fetch profiles using app.bsky.actor.getProfiles (up to 25 profiles per call)
- * More efficient than calling getProfile individually for each actor
+ * Uses responseCache so repeated calls for same DIDs (e.g. Layout, PostDetail) don't hit the API.
  *
  * @param actors - Array of actor identifiers (DIDs or handles)
  * @param usePublic - Whether to use public agent (default: false, uses authenticated agent if available)
@@ -497,25 +500,44 @@ export async function getProfilesBatch(
   const result = new Map<string, { handle?: string; displayName?: string; avatar?: string; did?: string }>()
   const client = usePublic ? publicAgent : (getSession() ? agent : publicAgent)
 
-  // Split into batches of 25 (API limit)
-  const batches: string[][] = []
-  for (let i = 0; i < actors.length; i += 25) {
-    batches.push(actors.slice(i, i + 25))
+  // Fill from cache first to avoid API calls for recently fetched profiles
+  const uncached: string[] = []
+  for (const actor of actors) {
+    const cacheKey = `profile:${actor}`
+    const cached = responseCache.get<{ handle?: string; displayName?: string; avatar?: string; did?: string }>(cacheKey)
+    if (cached) {
+      result.set(actor, cached)
+    } else {
+      uncached.push(actor)
+    }
   }
 
-  // Fetch all batches in parallel
+  if (uncached.length === 0) return result
+
+  // Split uncached into batches of 25 (API limit)
+  const batches: string[][] = []
+  for (let i = 0; i < uncached.length; i += 25) {
+    batches.push(uncached.slice(i, i + 25))
+  }
+
   await Promise.all(
     batches.map(async (batch) => {
       try {
         const res = await client.app.bsky.actor.getProfiles({ actors: batch })
         const profiles = (res.data.profiles || []) as Array<{ handle?: string; displayName?: string; avatar?: string; did?: string }>
         for (const profile of profiles) {
-          result.set(profile.did || profile.handle || '', {
+          const key = profile.did || profile.handle || ''
+          const data = {
             handle: profile.handle,
             displayName: profile.displayName,
             avatar: profile.avatar,
             did: profile.did
-          })
+          }
+          result.set(key, data)
+          responseCache.set(`profile:${key}`, data, PROFILE_CACHE_TTL_MS, PROFILE_CACHE_STALE_MS)
+          if (profile.handle && profile.handle !== key) {
+            responseCache.set(`profile:${profile.handle}`, data, PROFILE_CACHE_TTL_MS, PROFILE_CACHE_STALE_MS)
+          }
         }
       } catch (error) {
         console.warn('Failed to fetch profile batch:', error)
@@ -1907,21 +1929,25 @@ export async function getFeedDisplayNamesBatch(uris: string[]): Promise<Map<stri
     }
   }
   
-  // Fetch uncached in parallel
+  // Fetch uncached with limited concurrency to avoid rate limits (batch size 4)
+  const BATCH_SIZE = 4
   if (uncached.length > 0) {
-    const fetched = await Promise.all(
-      uncached.map(async (uri) => {
-        try {
-          const res = await agent.app.bsky.feed.getFeedGenerator({ feed: uri })
-          const name = (res.data?.view as { displayName?: string })?.displayName ?? uri
-          feedNameCache.set(uri, name)
-          return [uri, name] as const
-        } catch {
-          return [uri, uri] as const
-        }
-      })
-    )
-    fetched.forEach(([uri, name]) => result.set(uri, name))
+    for (let i = 0; i < uncached.length; i += BATCH_SIZE) {
+      const batch = uncached.slice(i, i + BATCH_SIZE)
+      const fetched = await Promise.all(
+        batch.map(async (uri) => {
+          try {
+            const res = await agent.app.bsky.feed.getFeedGenerator({ feed: uri })
+            const name = (res.data?.view as { displayName?: string })?.displayName ?? uri
+            feedNameCache.set(uri, name)
+            return [uri, name] as const
+          } catch {
+            return [uri, uri] as const
+          }
+        })
+      )
+      fetched.forEach(([uri, name]) => result.set(uri, name))
+    }
   }
   
   return result
@@ -2049,11 +2075,19 @@ export async function createQuotePost(
   return { uri: res.uri, cid: res.cid }
 }
 
-/** List notifications for the current account. */
+const NOTIFICATIONS_CACHE_TTL_MS = 60_000   // 1 min
+const UNREAD_COUNT_CACHE_TTL_MS = 30_000   // 30 s
+
+/** List notifications for the current account. Cached 1 min to avoid rate limits when opening panel repeatedly. */
 export async function getNotifications(limit = 30, cursor?: string): Promise<{
   notifications: { uri: string; author: { handle?: string; did: string; avatar?: string; displayName?: string }; reason: string; reasonSubject?: string; isRead: boolean; indexedAt: string; replyPreview?: string }[]
   cursor?: string
 }> {
+  const cacheKey = `notifications:${limit}:${cursor ?? 'initial'}`
+  type NotifResult = { notifications: { uri: string; author: { handle?: string; did: string; avatar?: string; displayName?: string }; reason: string; reasonSubject?: string; isRead: boolean; indexedAt: string; replyPreview?: string }[]; cursor?: string }
+  const cached = responseCache.get<NotifResult>(cacheKey)
+  if (cached) return cached
+
   const res = await agent.listNotifications({ limit, cursor })
   const notifications = (res.data.notifications || []).map((n) => {
     const record = (n as { record?: { text?: string } }).record
@@ -2070,19 +2104,28 @@ export async function getNotifications(limit = 30, cursor?: string): Promise<{
       replyPreview,
     }
   })
-  return { notifications, cursor: res.data.cursor }
+  const data = { notifications, cursor: res.data.cursor }
+  responseCache.set(cacheKey, data, NOTIFICATIONS_CACHE_TTL_MS)
+  return data
 }
 
-/** Get unread notification count. */
+/** Get unread notification count. Cached 30 s to avoid rate limits on visibility change + initial load. */
 export async function getUnreadNotificationCount(): Promise<number> {
+  const cacheKey = 'unreadNotificationCount'
+  const cached = responseCache.get<number>(cacheKey)
+  if (cached !== null && cached !== undefined) return cached
+
   const res = await agent.countUnreadNotifications()
-  return res.data.count ?? 0
+  const count = res.data.count ?? 0
+  responseCache.set(cacheKey, count, UNREAD_COUNT_CACHE_TTL_MS)
+  return count
 }
 
 /** Mark notifications as seen (read) up to the given time. Server uses this to clear unread count. Requires session. */
 export async function updateSeenNotifications(seenAt?: string): Promise<void> {
   const ts = seenAt ?? new Date().toISOString()
   await agent.app.bsky.notification.updateSeen({ seenAt: ts })
+  responseCache.invalidate('unreadNotificationCount')
 }
 
 /** List accounts the user receives activity notifications from (posts/replies). Requires session. */
@@ -2256,11 +2299,12 @@ export async function getNotificationsWithLifecycle(
 // ============================================================================
 
 /**
- * Like a post with cache invalidation
+ * Like a post with cache invalidation. Returns the like record URI for optimistic UI.
  */
-export async function likePostWithLifecycle(uri: string, cid: string): Promise<void> {
-  await apiRequestManager.execute(`like:${uri}`, () => agent.like(uri, cid), { priority: RequestPriority.HIGH, timeout: 30000 })
+export async function likePostWithLifecycle(uri: string, cid: string): Promise<{ uri: string }> {
+  const result = await apiRequestManager.execute(`like:${uri}`, () => agent.like(uri, cid), { priority: RequestPriority.HIGH, timeout: 30000 })
   invalidateAfterPostLiked()
+  return result
 }
 
 /**
@@ -2272,11 +2316,12 @@ export async function unlikePostWithLifecycle(likeUri: string): Promise<void> {
 }
 
 /**
- * Repost a post with cache invalidation
+ * Repost a post with cache invalidation. Returns the repost record URI for optimistic UI.
  */
-export async function repostPostWithLifecycle(uri: string, cid: string): Promise<void> {
-  await apiRequestManager.execute(`repost:${uri}`, () => agent.repost(uri, cid), { priority: RequestPriority.HIGH, timeout: 30000 })
+export async function repostPostWithLifecycle(uri: string, cid: string): Promise<{ uri: string }> {
+  const result = await apiRequestManager.execute(`repost:${uri}`, () => agent.repost(uri, cid), { priority: RequestPriority.HIGH, timeout: 30000 })
   invalidateAfterPostReposted()
+  return result
 }
 
 /**
@@ -2288,11 +2333,12 @@ export async function deleteRepostWithLifecycle(repostUri: string): Promise<void
 }
 
 /**
- * Follow an account with cache invalidation
+ * Follow an account with cache invalidation. Returns the follow record URI for optimistic UI.
  */
-export async function followAccountWithLifecycle(did: string): Promise<void> {
-  await apiRequestManager.execute(`follow:${did}`, () => agent.follow(did), { priority: RequestPriority.HIGH, timeout: 30000 })
+export async function followAccountWithLifecycle(did: string): Promise<{ uri: string }> {
+  const result = await apiRequestManager.execute(`follow:${did}`, () => agent.follow(did), { priority: RequestPriority.HIGH, timeout: 30000 })
   invalidateAfterFollowing()
+  return result
 }
 
 /**

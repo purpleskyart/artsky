@@ -37,6 +37,11 @@ export function getCachedThread(uri: string): ThreadData | null {
   return c.data
 }
 
+/** Invalidate cached thread for a post URI so the next load fetches fresh data (e.g. after posting a reply). */
+export function invalidateThreadCache(uri: string): void {
+  cache.delete(uri)
+}
+
 /** Store thread in cache. */
 export function setCachedThread(uri: string, data: ThreadData): void {
   cache.set(uri, { data, at: Date.now() })

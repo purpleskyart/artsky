@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { agent, getSession, type SuggestedFollow, type SuggestedFollowDetail } from '../lib/bsky'
+import { getSession, followAccountWithLifecycle, type SuggestedFollow, type SuggestedFollowDetail } from '../lib/bsky'
 import { markRecommendationsShown } from '../lib/recommendationStorage'
 import { useProfileModal } from '../context/ProfileModalContext'
 import styles from './SuggestedFollows.module.css'
@@ -42,7 +42,7 @@ export default function SuggestedFollows() {
     async (did: string, _handle: string) => {
       setFollowLoadingDid(did)
       try {
-        await agent.follow(did)
+        await followAccountWithLifecycle(did)
         setSuggestions((prev) => prev.filter((s) => s.did !== did))
       } catch {
         // leave in list so user can retry

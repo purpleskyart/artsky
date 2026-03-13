@@ -419,12 +419,14 @@
   max-width: 90vw;
   max-height: 70vh;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 0;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--glass-radius-sm);
   box-shadow: var(--shadow-dropdown);
   z-index: 100;
+  -webkit-overflow-scrolling: touch;
 }
 
 .feedAddError {
@@ -1769,6 +1771,20 @@ button.logoLink {
   margin: 0 auto;
   padding-left: env(safe-area-inset-left);
   padding-right: env(safe-area-inset-right);
+}
+
+/* Keep feed selector (pills + Add Custom Feed) visible when scrolling the homepage */
+.feedSelectorStickyWrap {
+  position: sticky;
+  top: 3.5rem;
+  z-index: 5;
+  background: var(--bg);
+}
+
+@media (max-width: 767px) {
+  .feedSelectorStickyWrap {
+    top: calc(max(0.5rem, env(safe-area-inset-top, 59px)) + 3.5rem);
+  }
 }
 
 /* Mobile only: column + NSFW + card toggle in account menu (icon + label per button) */

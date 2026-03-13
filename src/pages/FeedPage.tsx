@@ -1,14 +1,19 @@
 import { useCallback, useContext, useEffect, useMemo, useReducer, useRef, useState, startTransition, useSyncExternalStore } from 'react'
 import { useLocation, useNavigate, useNavigationType } from 'react-router-dom'
 import {
-  agent,
   getPostMediaInfo,
   getPostAllMediaForDisplay,
   getGuestFeed,
   getSavedFeedsFromPreferences,
   getFeedDisplayNamesBatch,
   getMixedFeed,
+  getTimelineWithLifecycle,
+  getFeedWithLifecycle,
   isPostNsfw,
+  likePostWithLifecycle,
+  unlikePostWithLifecycle,
+  followAccountWithLifecycle,
+  unfollowAccountWithLifecycle,
   type TimelineItem,
 } from '../lib/bsky'
 import type { FeedSource } from '../types'
@@ -461,19 +466,19 @@ export default function FeedPage() {
       setSavedFeedSources([])
       return
     }
+    let feeds: { type: string; value: string }[] = []
     try {
       const list = await getSavedFeedsFromPreferences()
-      const feeds = list.filter((f) => f.type === 'feed' && f.pinned)
-      
+      feeds = list.filter((f) => f.type === 'feed' && f.pinned)
+
       if (feeds.length === 0) {
         setSavedFeedSources([])
         return
       }
-      
-      // Batch fetch all feed names at once
+
       const feedUris = feeds.map((f) => f.value)
       const labels = await getFeedDisplayNamesBatch(feedUris)
-      
+
       const withLabels = feeds.map((f) => ({
         kind: 'custom' as const,
         label: labels.get(f.value) ?? f.value,
@@ -481,7 +486,11 @@ export default function FeedPage() {
       }))
       setSavedFeedSources(withLabels)
     } catch {
-      setSavedFeedSources([])
+      setSavedFeedSources(
+        feeds.length > 0
+          ? feeds.map((f) => ({ kind: 'custom' as const, label: f.value, uri: f.value }))
+          : []
+      )
     }
   }, [session])
 
@@ -663,7 +672,7 @@ export default function FeedPage() {
       } else if (mixEntries.length === 1) {
         const single = mixEntries[0].source
         if (single.kind === 'timeline') {
-          const res = await withTimeout<{ data: { feed: TimelineItem[]; cursor?: string } }>(agent.getTimeline({ limit, cursor: nextCursor }), FEED_LOAD_TIMEOUT_MS)
+          const res = await withTimeout(getTimelineWithLifecycle(limit, nextCursor), FEED_LOAD_TIMEOUT_MS)
           const apply = () => {
             const items = dedupeFeedByPostUri(nextCursor ? [...feedItemsRef.current, ...res.data.feed] : res.data.feed)
             if (nextCursor) {
@@ -675,7 +684,7 @@ export default function FeedPage() {
           if (nextCursor) startTransition(apply)
           else apply()
         } else if (single.uri) {
-          const res = await withTimeout<{ data: { feed: TimelineItem[]; cursor?: string } }>(agent.app.bsky.feed.getFeed({ feed: single.uri, limit, cursor: nextCursor }), FEED_LOAD_TIMEOUT_MS)
+          const res = await withTimeout(getFeedWithLifecycle(single.uri, limit, nextCursor), FEED_LOAD_TIMEOUT_MS)
           const apply = () => {
             const items = dedupeFeedByPostUri(nextCursor ? [...feedItemsRef.current, ...res.data.feed] : res.data.feed)
             if (nextCursor) {
@@ -688,7 +697,7 @@ export default function FeedPage() {
           else apply()
         }
       } else if (source.kind === 'timeline') {
-        const res = await withTimeout<{ data: { feed: TimelineItem[]; cursor?: string } }>(agent.getTimeline({ limit, cursor: nextCursor }), FEED_LOAD_TIMEOUT_MS)
+        const res = await withTimeout(getTimelineWithLifecycle(limit, nextCursor), FEED_LOAD_TIMEOUT_MS)
         const apply = () => {
           const items = dedupeFeedByPostUri(nextCursor ? [...feedItemsRef.current, ...res.data.feed] : res.data.feed)
           if (nextCursor) {
@@ -700,7 +709,7 @@ export default function FeedPage() {
         if (nextCursor) startTransition(apply)
         else apply()
       } else if (source.uri) {
-        const res = await withTimeout<{ data: { feed: TimelineItem[]; cursor?: string } }>(agent.app.bsky.feed.getFeed({ feed: source.uri, limit, cursor: nextCursor }), FEED_LOAD_TIMEOUT_MS)
+        const res = await withTimeout(getFeedWithLifecycle(source.uri, limit, nextCursor), FEED_LOAD_TIMEOUT_MS)
         const apply = () => {
           const items = dedupeFeedByPostUri(nextCursor ? [...feedItemsRef.current, ...res.data.feed] : res.data.feed)
           if (nextCursor) {
@@ -1209,13 +1218,13 @@ export default function FeedPage() {
         const uri = item.post.uri
         const currentLikeUri = uri in likeOverrides ? (likeOverrides[uri] ?? undefined) : (item.post as { viewer?: { like?: string } }).viewer?.like
         if (currentLikeUri) {
-          agent.deleteLike(currentLikeUri).then(() => {
+          unlikePostWithLifecycle(currentLikeUri).then(() => {
             setLikeOverride(uri, null)
           }).catch((err: unknown) => {
             console.error('Failed to unlike post:', err)
           })
         } else {
-          agent.like(uri, item.post.cid).then((res: { uri: string }) => {
+          likePostWithLifecycle(uri, item.post.cid).then((res) => {
             setLikeOverride(uri, res.uri)
           }).catch((err: unknown) => {
             console.error('Failed to like post:', err)
@@ -1233,7 +1242,7 @@ export default function FeedPage() {
         if (author && session?.did && session.did !== author.did && postUri) {
           const followingUri = author.viewer?.following
           if (followingUri) {
-            agent.deleteFollow(followingUri).then(() => {
+            unfollowAccountWithLifecycle(followingUri).then(() => {
               dispatch({
                 type: 'UPDATE_ITEMS',
                 updater: (prev) =>
@@ -1257,7 +1266,7 @@ export default function FeedPage() {
               console.error('Failed to unfollow:', err)
             })
           } else {
-            agent.follow(author.did).then((res: { uri: string }) => {
+            followAccountWithLifecycle(author.did).then((res) => {
               dispatch({
                 type: 'UPDATE_ITEMS',
                 updater: (prev) =>
