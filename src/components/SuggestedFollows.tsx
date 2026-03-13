@@ -1,11 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { agent, getSession, type SuggestedFollow, type SuggestedFollowDetail } from '../lib/bsky'
-import { getRecommendationsShown, markRecommendationsShown, getRotationCutoff } from '../lib/recommendationStorage'
+import { markRecommendationsShown } from '../lib/recommendationStorage'
 import { useProfileModal } from '../context/ProfileModalContext'
 import styles from './SuggestedFollows.module.css'
-
-const DISPLAY_COUNT = 8
 
 export type SuggestedFollowSort = 'count' | 'mutuals'
 
@@ -14,7 +12,7 @@ export default function SuggestedFollows() {
   const [suggestions, setSuggestions] = useState<SuggestedFollow[]>([])
   const [loading, setLoading] = useState(false)
   const [followLoadingDid, setFollowLoadingDid] = useState<string | null>(null)
-  const [dismissedDids, setDismissedDids] = useState<Set<string>>(() => new Set())
+  const [, setDismissedDids] = useState<Set<string>>(() => new Set())
   const [sortBy, setSortBy] = useState<SuggestedFollowSort>('count')
   const [infoOpenForDid, setInfoOpenForDid] = useState<string | null>(null)
   const [detail, setDetail] = useState<SuggestedFollowDetail | null>(null)

@@ -1737,7 +1737,7 @@ export async function resolvePublicationDidFromWellKnown(baseUrl: string): Promi
 }
 
 /** Search forum (standard.site) documents by title/body/path/author. For % typeahead in composer. Returns empty to avoid heavy API usage. */
-export async function searchForumDocuments(q: string, limit = 10): Promise<StandardSiteDocumentView[]> {
+export async function searchForumDocuments(_q: string, _limit = 10): Promise<StandardSiteDocumentView[]> {
   return []
 }
 
