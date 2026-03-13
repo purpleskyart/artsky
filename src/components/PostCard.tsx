@@ -163,6 +163,8 @@ function PostCard({ item, isSelected, cardRef: cardRefProp, addButtonRef: _addBu
   const openDelayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const touchStartRef = useRef<{ x: number; y: number } | null>(null)
   const nsfwOverlayHandledRef = useRef(false)
+  /** On mobile, first tap on NSFW overlay only unblurs; set so synthetic click doesn't open. */
+  const nsfwTouchUnblurOnlyRef = useRef(false)
   /* Close ... menu when parent says focus moved to another card (e.g. A/D) */
   useEffect(() => {
     if (cardIndex == null) return
@@ -823,19 +825,36 @@ function PostCard({ item, isSelected, cardRef: cardRefProp, addButtonRef: _addBu
             <div
               className={styles.nsfwOverlay}
               onPointerEnter={() => onNsfwUnblur()}
+              onTouchStart={(e) => {
+                e.stopPropagation()
+              }}
+              onTouchEnd={(e) => {
+                e.stopPropagation()
+                onNsfwUnblur()
+                nsfwTouchUnblurOnlyRef.current = true
+              }}
               onPointerDown={(e) => {
                 e.preventDefault()
                 e.stopPropagation()
+                if (e.pointerType === 'touch') {
+                  onNsfwUnblur()
+                  nsfwTouchUnblurOnlyRef.current = true
+                  return
+                }
                 if (nsfwOverlayHandledRef.current) return
                 nsfwOverlayHandledRef.current = true
                 onNsfwUnblur()
                 openPost()
-                /* Reset after delay so synthetic click from same tap doesn't open again */
                 setTimeout(() => { nsfwOverlayHandledRef.current = false }, 400)
               }}
               onClick={(e) => {
                 e.preventDefault()
                 e.stopPropagation()
+                if (nsfwTouchUnblurOnlyRef.current) {
+                  onNsfwUnblur()
+                  nsfwTouchUnblurOnlyRef.current = false
+                  return
+                }
                 if (nsfwOverlayHandledRef.current) return
                 nsfwOverlayHandledRef.current = true
                 onNsfwUnblur()
