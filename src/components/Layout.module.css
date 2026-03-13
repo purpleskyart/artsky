@@ -419,12 +419,14 @@
   max-width: 90vw;
   max-height: 70vh;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 0;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--glass-radius-sm);
   box-shadow: var(--shadow-dropdown);
   z-index: 100;
+  -webkit-overflow-scrolling: touch;
 }
 
 .feedAddError {

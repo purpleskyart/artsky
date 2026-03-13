@@ -758,48 +758,58 @@ export default function Layout({ title, children, showNav }: Props) {
   }, [did, hiddenPresetUris, feedOrder])
 
   const savedFeedsLoadedRef = useRef<boolean>(false)
-  
-  // Early effect to load saved feeds as soon as session is available
-  // This runs before other effects to ensure feeds are available on initial render
-  useEffect(() => {
-    if (!session) { 
-      savedFeedsLoadedRef.current = false
+
+  const loadSavedFeeds = useCallback(async () => {
+    if (!session) {
       setSavedFeedSources([])
-      return 
+      return
     }
-    if (savedFeedsLoadedRef.current) return
-    savedFeedsLoadedRef.current = true;
-    
-    // Load feeds immediately when session becomes available
-    (async () => {
-      try {
-        const list = await getSavedFeedsFromPreferences()
-        const feeds = list.filter((f) => f.type === 'feed' && f.pinned)
-        
-        if (feeds.length === 0) {
-          setSavedFeedSources([])
-          return
-        }
-        
-        // Batch fetch all feed names at once
-        const feedUris = feeds.map((f) => f.value)
-        const labels = await getFeedDisplayNamesBatch(feedUris)
-        
-        const withLabels = feeds.map((f) => ({
-          kind: 'custom' as const,
-          label: labels.get(f.value) ?? f.value,
-          uri: f.value,
-        }))
-        setSavedFeedSources(withLabels)
-      } catch {
+    let feeds: { type: string; value: string }[] = []
+    try {
+      const list = await getSavedFeedsFromPreferences()
+      feeds = list.filter((f) => f.type === 'feed' && f.pinned)
+
+      if (feeds.length === 0) {
         setSavedFeedSources([])
+        return
       }
-    })()
+
+      const feedUris = feeds.map((f) => f.value)
+      const labels = await getFeedDisplayNamesBatch(feedUris)
+
+      const withLabels = feeds.map((f) => ({
+        kind: 'custom' as const,
+        label: labels.get(f.value) ?? f.value,
+        uri: f.value,
+      }))
+      setSavedFeedSources(withLabels)
+      savedFeedsLoadedRef.current = true
+    } catch {
+      savedFeedsLoadedRef.current = false
+      setSavedFeedSources(
+        feeds.length > 0
+          ? feeds.map((f) => ({ kind: 'custom' as const, label: f.value, uri: f.value }))
+          : []
+      )
+    }
   }, [session])
 
   useEffect(() => {
-    if (feedsDropdownOpen) setFeedAddError(null)
-  }, [feedsDropdownOpen])
+    if (!session) {
+      savedFeedsLoadedRef.current = false
+      setSavedFeedSources([])
+      return
+    }
+    if (savedFeedsLoadedRef.current) return
+    loadSavedFeeds()
+  }, [session, loadSavedFeeds])
+
+  useEffect(() => {
+    if (feedsDropdownOpen) {
+      setFeedAddError(null)
+      if (session) loadSavedFeeds()
+    }
+  }, [feedsDropdownOpen, session, loadSavedFeeds])
 
   useEffect(() => {
     if (prevFeedsOpenRef.current && !feedsDropdownOpen) setFeedsClosingAngle(360)

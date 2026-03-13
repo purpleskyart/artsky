@@ -819,6 +819,7 @@ function PostCard({ item, isSelected, cardRef: cardRefProp, addButtonRef: _addBu
           {nsfwBlurred && onNsfwUnblur && hasMedia && (
             <div
               className={styles.nsfwOverlay}
+              onPointerEnter={() => onNsfwUnblur()}
               onPointerDown={(e) => {
                 e.preventDefault()
                 e.stopPropagation()

@@ -465,19 +465,19 @@ export default function FeedPage() {
       setSavedFeedSources([])
       return
     }
+    let feeds: { type: string; value: string }[] = []
     try {
       const list = await getSavedFeedsFromPreferences()
-      const feeds = list.filter((f) => f.type === 'feed' && f.pinned)
-      
+      feeds = list.filter((f) => f.type === 'feed' && f.pinned)
+
       if (feeds.length === 0) {
         setSavedFeedSources([])
         return
       }
-      
-      // Batch fetch all feed names at once
+
       const feedUris = feeds.map((f) => f.value)
       const labels = await getFeedDisplayNamesBatch(feedUris)
-      
+
       const withLabels = feeds.map((f) => ({
         kind: 'custom' as const,
         label: labels.get(f.value) ?? f.value,
@@ -485,7 +485,11 @@ export default function FeedPage() {
       }))
       setSavedFeedSources(withLabels)
     } catch {
-      setSavedFeedSources([])
+      setSavedFeedSources(
+        feeds.length > 0
+          ? feeds.map((f) => ({ kind: 'custom' as const, label: f.value, uri: f.value }))
+          : []
+      )
     }
   }, [session])
 
