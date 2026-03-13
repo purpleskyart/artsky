@@ -1135,10 +1135,8 @@ export function ProfileContent({
                   cardRef={(index) => (el) => { cardRefsRef.current[index] = el }}
                   onActionsMenuOpenChange={(index, open) => setActionsMenuOpenForIndex(open ? index : null)}
                   onMouseEnter={(originalIndex) => {
-                    if (mouseMovedRef.current) {
-                      mouseMovedRef.current = false
-                      setKeyboardFocusIndex(originalIndex)
-                    }
+                    mouseMovedRef.current = false
+                    setKeyboardFocusIndex(originalIndex)
                   }}
                   onAddClose={() => setKeyboardAddOpen(false)}
                   constrainMediaHeight={cols === 1}

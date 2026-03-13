@@ -1807,7 +1807,6 @@ export async function searchPostsByDomain(
 }
 
 /** Get the current account's saved/pinned feeds from preferences. Returns array of { id, type, value, pinned }. */
-/** Get the current account's saved/pinned feeds from preferences. Returns array of { id, type, value, pinned }. */
 export async function getSavedFeedsFromPreferences(): Promise<
   { id: string; type: string; value: string; pinned: boolean }[]
 > {
@@ -1815,10 +1814,14 @@ export async function getSavedFeedsFromPreferences(): Promise<
   if (savedFeedsCache && Date.now() - savedFeedsCache.timestamp < SAVED_FEEDS_CACHE_TTL) {
     return savedFeedsCache.data
   }
-  
-  const prefs = await agent.getPreferences()
-  const list = (prefs as { savedFeeds?: { id: string; type: string; value: string; pinned: boolean }[] }).savedFeeds ?? []
-  
+
+  // Read same format we write: app.bsky.actor.getPreferences returns preferences array; saved feeds are in savedFeedsPrefV2
+  const { data } = await agent.app.bsky.actor.getPreferences({})
+  const prefs = (data?.preferences ?? []) as { $type?: string; items?: { id: string; type: string; value: string; pinned: boolean }[] }[]
+  const v2Type = 'app.bsky.actor.defs#savedFeedsPrefV2'
+  const existing = prefs.find((p) => p.$type === v2Type)
+  const list = existing?.items ?? []
+
   // Cache the result
   savedFeedsCache = { data: list, timestamp: Date.now() }
   return list

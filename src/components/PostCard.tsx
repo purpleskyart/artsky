@@ -160,6 +160,7 @@ function PostCard({ item, isSelected, cardRef: cardRefProp, addButtonRef: _addBu
   const mediaClickFromTouchRef = useRef(false)
   const openDelayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const touchStartRef = useRef<{ x: number; y: number } | null>(null)
+  const nsfwOverlayHandledRef = useRef(false)
   /* Close ... menu when parent says focus moved to another card (e.g. A/D) */
   useEffect(() => {
     if (cardIndex == null) return
@@ -818,11 +819,24 @@ function PostCard({ item, isSelected, cardRef: cardRefProp, addButtonRef: _addBu
           {nsfwBlurred && onNsfwUnblur && hasMedia && (
             <div
               className={styles.nsfwOverlay}
+              onPointerDown={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                if (nsfwOverlayHandledRef.current) return
+                nsfwOverlayHandledRef.current = true
+                onNsfwUnblur()
+                openPost()
+                /* Reset after delay so synthetic click from same tap doesn't open again */
+                setTimeout(() => { nsfwOverlayHandledRef.current = false }, 400)
+              }}
               onClick={(e) => {
                 e.preventDefault()
                 e.stopPropagation()
+                if (nsfwOverlayHandledRef.current) return
+                nsfwOverlayHandledRef.current = true
                 onNsfwUnblur()
                 openPost()
+                setTimeout(() => { nsfwOverlayHandledRef.current = false }, 400)
               }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
