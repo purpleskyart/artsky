@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { publicAgent, getFollowers, getFollowsList, getMutualsList, getFolloweesWhoFollowTarget, type ProfileViewBasic } from '../lib/bsky'
+import { publicAgent, getFollowers, getFollowsList, type ProfileViewBasic } from '../lib/bsky'
 import type { AtpAgent } from '@atproto/api'
 import { useProfileModal } from '../context/ProfileModalContext'
 import styles from './FollowListModal.module.css'
 
-const PAGE_SIZE = 50
+const PAGE_SIZE = 25
 
 export type FollowListSortBy = 'handle' | 'displayName' | 'date'
 export type FollowListOrder = 'asc' | 'desc'
@@ -28,11 +28,12 @@ export function FollowListModal({
   const { openProfileModal } = useProfileModal()
   const [list, setList] = useState<ProfileViewBasic[]>([])
   const [cursor, setCursor] = useState<string | undefined>()
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false) // Changed to false - don't load on mount
   const [loadingMore, setLoadingMore] = useState(false)
   const [search, setSearch] = useState('')
   const [sortBy, setSortBy] = useState<FollowListSortBy>('handle')
   const [order, setOrder] = useState<FollowListOrder>('asc')
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false) // Track if we've loaded data
 
   const load = useCallback(
     async (nextCursor?: string) => {
@@ -40,13 +41,8 @@ export function FollowListModal({
       if (isFirst) setLoading(true)
       else setLoadingMore(true)
       try {
-        if (mode === 'mutuals') {
-          const { list: mutualList } = await getMutualsList(publicAgent, actor)
-          setList(mutualList)
-          setCursor(undefined)
-        } else if (mode === 'followedByFollows' && viewerDid && authenticatedClient) {
-          const { list: followeesList } = await getFolloweesWhoFollowTarget(authenticatedClient, viewerDid, actor)
-          setList(followeesList)
+        if (mode === 'mutuals' || mode === 'followedByFollows') {
+          setList([])
           setCursor(undefined)
         } else {
           const fetcher = mode === 'followers' ? getFollowers : getFollowsList
@@ -57,6 +53,7 @@ export function FollowListModal({
           setList((prev) => (isFirst ? page : [...prev, ...page]))
           setCursor(next)
         }
+        if (isFirst) setHasLoadedOnce(true)
       } catch {
         if (isFirst) setList([])
       } finally {
@@ -68,13 +65,12 @@ export function FollowListModal({
   )
 
   useEffect(() => {
+    // Don't load on mount - wait for user to click "Load" button
     if (mode === 'followedByFollows' && (!viewerDid || !authenticatedClient)) {
       setLoading(false)
       setList([])
-      return
     }
-    load()
-  }, [load, mode, viewerDid, authenticatedClient])
+  }, [mode, viewerDid, authenticatedClient])
 
   const filteredAndSorted = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -178,7 +174,21 @@ export function FollowListModal({
           </button>
         </div>
         <div className={styles.body}>
-          {loading && list.length === 0 ? (
+          {!hasLoadedOnce ? (
+            <div className={styles.loadPrompt}>
+              <p className={styles.loadPromptText}>
+                Click "Load {mode === 'followers' ? 'Followers' : mode === 'following' ? 'Following' : mode === 'followedByFollows' ? 'List' : 'Mutuals'}" to view the list
+              </p>
+              <button
+                type="button"
+                className={styles.loadBtn}
+                onClick={() => load()}
+                disabled={loading}
+              >
+                {loading ? 'Loading…' : `Load ${mode === 'followers' ? 'Followers' : mode === 'following' ? 'Following' : mode === 'followedByFollows' ? 'List' : 'Mutuals'}`}
+              </button>
+            </div>
+          ) : loading && list.length === 0 ? (
             <p className={styles.loading}>Loading…</p>
           ) : filteredAndSorted.length === 0 ? (
             <p className={styles.empty}>

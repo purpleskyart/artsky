@@ -286,6 +286,13 @@ function PostCard({ item, isSelected, cardRef: cardRefProp, addButtonRef: _addBu
     }
   }, [])
 
+  // Reset touch state when modal opens/closes to prevent stuck touch sessions
+  useEffect(() => {
+    touchSessionRef.current = false
+    mediaClickFromTouchRef.current = false
+    didDoubleTapRef.current = false
+  }, [isModalOpen])
+
   const prevAddOpenRef = useRef(addOpen)
   useEffect(() => {
     if (prevAddOpenRef.current && !addOpen) onAddClose?.()
@@ -562,14 +569,17 @@ function PostCard({ item, isSelected, cardRef: cardRefProp, addButtonRef: _addBu
       return
     }
     /* On touch devices the synthetic click fires ~300ms after touchEnd; we delay open by 400ms so double-tap can register. Ignore this click and let the timer open. */
-    if (touchSessionRef.current) { e.preventDefault(); return }
+    if (touchSessionRef.current) { 
+      e.preventDefault()
+      return 
+    }
     e.preventDefault()
     if (onPostClick) {
       onPostClick(post.uri, { initialItem: item })
     } else {
       navigate(`/feed?post=${encodeURIComponent(post.uri)}`)
     }
-  }, [didDoubleTapRef, touchSessionRef, onPostClick, post.uri, item, navigate])
+  }, [onPostClick, post.uri, item, navigate])
 
   const openPost = useCallback(() => {
     if (onPostClick) onPostClick(post.uri, { initialItem: item })
@@ -676,7 +686,11 @@ function PostCard({ item, isSelected, cardRef: cardRefProp, addButtonRef: _addBu
                 onLikedChange?.(post.uri, res.uri)
               }).catch(() => setLikedUri(undefined))
             }
-            setTimeout(() => { touchSessionRef.current = false; mediaClickFromTouchRef.current = false }, 500)
+            setTimeout(() => { 
+              touchSessionRef.current = false
+              mediaClickFromTouchRef.current = false
+              didDoubleTapRef.current = false
+            }, 500)
           } else {
             lastTapRef.current = now
             if (openDelayTimerRef.current) clearTimeout(openDelayTimerRef.current)

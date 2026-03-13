@@ -9,7 +9,7 @@ import {
   listStandardSiteRepliesForDocument,
   createStandardSiteComment,
   agent,
-  publicAgent,
+  getProfileCached,
   type StandardSiteDocumentView,
   type StandardSiteDocumentBlobRef,
   type ForumReplyView,
@@ -128,10 +128,9 @@ export function ForumPostContent({ documentUri, onClose, onRegisterRefresh }: Fo
       return
     }
     let cancelled = false
-    publicAgent.getProfile({ actor: session.did }).then((res) => {
+    getProfileCached(session.did, true).then((res) => {
       if (cancelled) return
-      const data = res.data as { handle?: string; avatar?: string }
-      setReplyAs({ handle: data.handle ?? session.did, avatar: data.avatar })
+      setReplyAs({ handle: res.handle ?? session.did, avatar: res.avatar })
     }).catch(() => {
       if (!cancelled) setReplyAs({ handle: (session as { handle?: string }).handle ?? session.did })
     })

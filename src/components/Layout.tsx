@@ -13,7 +13,7 @@ import { useMediaOnly, MEDIA_MODE_LABELS } from '../context/MediaOnlyContext'
 import { useScrollLock } from '../context/ScrollLockContext'
 import { useSeenPosts } from '../context/SeenPostsContext'
 import { useToast } from '../context/ToastContext'
-import { createPost, postReply, getNotifications, getUnreadNotificationCount, updateSeenNotifications, getSavedFeedsFromPreferences, getFeedDisplayName, resolveFeedUri, addSavedFeed, removeSavedFeedByUri, getFeedShareUrl, getProfilesBatch } from '../lib/bsky'
+import { createPost, postReply, getNotifications, getUnreadNotificationCount, updateSeenNotifications, getSavedFeedsFromPreferences, getFeedDisplayName, getFeedDisplayNamesBatch, resolveFeedUri, addSavedFeed, removeSavedFeedByUri, getFeedShareUrl, getProfilesBatch } from '../lib/bsky'
 import { requestDeduplicator } from '../lib/RequestDeduplicator'
 import type { FeedSource } from '../types'
 import { GUEST_FEED_SOURCES, GUEST_MIX_ENTRIES } from '../config/feedSources'
@@ -452,7 +452,7 @@ export default function Layout({ title, children, showNav }: Props) {
   const toast = useToast()
   const HOME_HOLD_MS = 500
   const { entries: mixEntries, setEntryPercent, toggleSource, addEntry, setSingleFeed } = useFeedMix()
-  const presetUris = new Set((PRESET_FEED_SOURCES.map((s) => s.uri).filter(Boolean) as string[]))
+  const presetUris = new Set((PRESET_FEED_SOURCES.map((s) => s.uri).filter((uri): uri is string => !!uri)))
   const visiblePresets = PRESET_FEED_SOURCES.filter((s) => !s.uri || !hiddenPresetUris.has(s.uri))
   const savedDeduped = savedFeedSources.filter((s) => !s.uri || !presetUris.has(s.uri))
   const allFeedSources = useMemo(() => {
@@ -479,7 +479,7 @@ export default function Layout({ title, children, showNav }: Props) {
   )
 
   const handleReorderFeeds = useCallback((ordered: FeedSource[]) => {
-    const ids = ordered.map(feedSourceId).filter(Boolean)
+    const ids = ordered.map(feedSourceId).filter((id): id is string => !!id)
     setFeedOrder(ids)
     try {
       localStorage.setItem(feedOrderKey(did), JSON.stringify(ids))
@@ -489,7 +489,7 @@ export default function Layout({ title, children, showNav }: Props) {
   }, [did])
 
   const removableSourceUris = useMemo(
-    () => new Set([...savedDeduped.map((s) => s.uri).filter(Boolean) as string[], ...presetUris]),
+    () => new Set([...savedDeduped.map((s) => s.uri).filter((uri): uri is string => !!uri), ...presetUris]),
     [savedDeduped]
   )
 
@@ -678,36 +678,6 @@ export default function Layout({ title, children, showNav }: Props) {
     return () => document.removeEventListener('mousedown', onDocClick)
   }, [notificationsOpen])
 
-  const loadSavedFeeds = useCallback(async (appendIfMissing?: FeedSource) => {
-    if (!session) {
-      setSavedFeedSources([])
-      return
-    }
-    try {
-      const list = await getSavedFeedsFromPreferences()
-      const feeds = list.filter((f) => f.type === 'feed' && f.pinned)
-      const withLabels = await Promise.all(
-        feeds.map(async (f) => ({
-          kind: 'custom' as const,
-          label: await requestDeduplicator.dedupe(`feed-name:${f.value}`, () => getFeedDisplayName(f.value)).catch(() => f.value),
-          uri: f.value,
-        }))
-      )
-      const serverUris = new Set(withLabels.map((s) => s.uri).filter(Boolean))
-      setSavedFeedSources((prev) => {
-        const merged: FeedSource[] = [...withLabels]
-        for (const s of prev) {
-          if (s.uri && !serverUris.has(s.uri) && !merged.some((m) => m.uri === s.uri)) merged.push(s)
-        }
-        if (appendIfMissing?.uri && !merged.some((m) => m.uri === appendIfMissing.uri)) {
-          merged.push(appendIfMissing)
-        }
-        return merged
-      })
-    } catch {
-      setSavedFeedSources([])
-    }
-  }, [session])
 
   /** When user selects a feed from the header search bar: add to saved list, enable it, then go to feed so the pill appears. */
   const handleSelectFeedFromSearch = useCallback(
@@ -728,14 +698,13 @@ export default function Layout({ title, children, showNav }: Props) {
         const normalized: FeedSource = { kind: 'custom', label, uri }
         setSavedFeedSources((prev) => (prev.some((s) => s.uri === uri) ? prev : [...prev, normalized]))
         handleFeedsToggleSource(normalized)
-        await loadSavedFeeds(normalized)
         navigate('/feed', { state: { feedSource: normalized } })
       } catch (err) {
         setFeedAddError(err instanceof Error ? err.message : 'Could not add feed. Try again.')
         navigate('/feed', { state: { feedSource: source } })
       }
     },
-    [session, navigate, handleFeedsToggleSource, loadSavedFeeds]
+    [session, navigate, handleFeedsToggleSource]
   )
 
   const handleRemoveFeed = useCallback(
@@ -757,12 +726,11 @@ export default function Layout({ title, children, showNav }: Props) {
             return next
           })
         }
-        await loadSavedFeeds()
       } catch {
         // ignore
       }
     },
-    [mixEntries, toggleSource, loadSavedFeeds, did]
+    [mixEntries, toggleSource, did]
   )
 
   const handleShareFeed = useCallback(async (source: FeedSource) => {
@@ -789,28 +757,45 @@ export default function Layout({ title, children, showNav }: Props) {
     }
   }, [did, hiddenPresetUris, feedOrder])
 
-  const savedFeedsLoadedRef = useRef(false)
+  const savedFeedsLoadedRef = useRef<boolean>(false)
   
   // Early effect to load saved feeds as soon as session is available
   // This runs before other effects to ensure feeds are available on initial render
   useEffect(() => {
     if (!session) { 
       savedFeedsLoadedRef.current = false
+      setSavedFeedSources([])
       return 
     }
     if (savedFeedsLoadedRef.current) return
-    savedFeedsLoadedRef.current = true
-    loadSavedFeeds()
+    savedFeedsLoadedRef.current = true;
+    
+    // Load feeds immediately when session becomes available
+    (async () => {
+      try {
+        const list = await getSavedFeedsFromPreferences()
+        const feeds = list.filter((f) => f.type === 'feed' && f.pinned)
+        
+        if (feeds.length === 0) {
+          setSavedFeedSources([])
+          return
+        }
+        
+        // Batch fetch all feed names at once
+        const feedUris = feeds.map((f) => f.value)
+        const labels = await getFeedDisplayNamesBatch(feedUris)
+        
+        const withLabels = feeds.map((f) => ({
+          kind: 'custom' as const,
+          label: labels.get(f.value) ?? f.value,
+          uri: f.value,
+        }))
+        setSavedFeedSources(withLabels)
+      } catch {
+        setSavedFeedSources([])
+      }
+    })()
   }, [session])
-  
-  // Secondary effect to reload feeds when dropdown opens (for manual refresh)
-  // This is kept separate to avoid unnecessary re-runs from loadSavedFeeds changes
-  useEffect(() => {
-    if (!session) return
-    if (feedsDropdownOpen && savedFeedsLoadedRef.current) {
-      loadSavedFeeds()
-    }
-  }, [feedsDropdownOpen, session, loadSavedFeeds])
 
   useEffect(() => {
     if (feedsDropdownOpen) setFeedAddError(null)
@@ -1687,7 +1672,6 @@ export default function Layout({ title, children, showNav }: Props) {
                                 const source: FeedSource = { kind: 'custom', label, uri }
                                 setSavedFeedSources((prev) => (prev.some((s) => s.uri === uri) ? prev : [...prev, source]))
                                 handleFeedsToggleSource(source)
-                                await loadSavedFeeds(source)
                               } catch (err) {
                                 setFeedAddError(err instanceof Error ? err.message : 'Could not add feed. Try again.')
                               }
@@ -1755,7 +1739,6 @@ export default function Layout({ title, children, showNav }: Props) {
                               const source: FeedSource = { kind: 'custom', label, uri }
                               setSavedFeedSources((prev) => (prev.some((s) => s.uri === uri) ? prev : [...prev, source]))
                               handleFeedsToggleSource(source)
-                              await loadSavedFeeds(source)
                             } catch (err) {
                               setFeedAddError(err instanceof Error ? err.message : 'Could not add feed. Try again.')
                             }
@@ -1949,7 +1932,6 @@ export default function Layout({ title, children, showNav }: Props) {
                     const source: FeedSource = { kind: 'custom', label, uri }
                     setSavedFeedSources((prev) => (prev.some((s) => s.uri === uri) ? prev : [...prev, source]))
                     handleFeedsToggleSource(source)
-                    await loadSavedFeeds(source)
                   } catch (err) {
                     setFeedAddError(err instanceof Error ? err.message : 'Could not add feed. Try again.')
                   }
@@ -2126,7 +2108,6 @@ export default function Layout({ title, children, showNav }: Props) {
                   const source: FeedSource = { kind: 'custom', label, uri }
                   setSavedFeedSources((prev) => (prev.some((s) => s.uri === uri) ? prev : [...prev, source]))
                   handleFeedsToggleSource(source)
-                  await loadSavedFeeds(source)
                 } catch (err) {
                   setFeedAddError(err instanceof Error ? err.message : 'Could not add feed. Try again.')
                 }

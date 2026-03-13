@@ -6,7 +6,7 @@ import {
   getPostAllMediaForDisplay,
   getGuestFeed,
   getSavedFeedsFromPreferences,
-  getFeedDisplayName,
+  getFeedDisplayNamesBatch,
   getMixedFeed,
   isPostNsfw,
   type TimelineItem,
@@ -31,7 +31,6 @@ import FeedColumn from '../components/FeedColumn'
 import { feedReducer, type FeedState } from './feedReducer'
 import { debounce } from '../lib/utils'
 import { asyncStorage } from '../lib/AsyncStorage'
-import { requestDeduplicator } from '../lib/RequestDeduplicator'
 import styles from './FeedPage.module.css'
 
 /** Dedupe feed items by post URI (keep first). Stops the same post appearing as both original and repost. */
@@ -466,17 +465,20 @@ export default function FeedPage() {
       const list = await getSavedFeedsFromPreferences()
       const feeds = list.filter((f) => f.type === 'feed' && f.pinned)
       
-      // Load feed names in parallel, using cached names when available
-      const withLabels = await Promise.all(
-        feeds.map(async (f) => {
-          try {
-            const label = await requestDeduplicator.dedupe(`feed-name:${f.value}`, () => getFeedDisplayName(f.value))
-            return { kind: 'custom' as const, label, uri: f.value }
-          } catch {
-            return { kind: 'custom' as const, label: f.value, uri: f.value }
-          }
-        })
-      )
+      if (feeds.length === 0) {
+        setSavedFeedSources([])
+        return
+      }
+      
+      // Batch fetch all feed names at once
+      const feedUris = feeds.map((f) => f.value)
+      const labels = await getFeedDisplayNamesBatch(feedUris)
+      
+      const withLabels = feeds.map((f) => ({
+        kind: 'custom' as const,
+        label: labels.get(f.value) ?? f.value,
+        uri: f.value,
+      }))
       setSavedFeedSources(withLabels)
     } catch {
       setSavedFeedSources([])
@@ -574,7 +576,7 @@ export default function FeedPage() {
 
   const load = useCallback(async (nextCursor?: string, signal?: AbortSignal) => {
     const cols = Math.min(3, Math.max(1, viewMode === '1' ? 1 : viewMode === '2' ? 2 : 3))
-    const limit = cols >= 2 ? cols * 10 : 30
+    const limit = cols >= 2 ? cols * 10 : 20
     
     // Don't refresh feed (load new items at top) if user is scrolled down
     if (!nextCursor && window.scrollY > 100) {
@@ -629,9 +631,12 @@ export default function FeedPage() {
             cursorsToUse = undefined
           }
         }
+        const capped = mixEntries.slice(0, 2)
+        const totalPct = capped.reduce((s, e) => s + e.percent, 0)
+        const normalized = totalPct > 0 ? capped.map((e) => ({ source: e.source, percent: (e.percent / totalPct) * 100 })) : capped.map((e) => ({ source: e.source, percent: e.percent }))
         const { feed, cursors: nextCursors } = await withTimeout(
           getMixedFeed(
-            mixEntries.map((e) => ({ source: e.source, percent: e.percent })),
+            normalized,
             limit,
             cursorsToUse,
             signal
@@ -658,7 +663,7 @@ export default function FeedPage() {
       } else if (mixEntries.length === 1) {
         const single = mixEntries[0].source
         if (single.kind === 'timeline') {
-          const res = await withTimeout(agent.getTimeline({ limit, cursor: nextCursor }), FEED_LOAD_TIMEOUT_MS)
+          const res = await withTimeout<{ data: { feed: TimelineItem[]; cursor?: string } }>(agent.getTimeline({ limit, cursor: nextCursor }), FEED_LOAD_TIMEOUT_MS)
           const apply = () => {
             const items = dedupeFeedByPostUri(nextCursor ? [...feedItemsRef.current, ...res.data.feed] : res.data.feed)
             if (nextCursor) {
@@ -670,7 +675,7 @@ export default function FeedPage() {
           if (nextCursor) startTransition(apply)
           else apply()
         } else if (single.uri) {
-          const res = await withTimeout(agent.app.bsky.feed.getFeed({ feed: single.uri, limit, cursor: nextCursor }), FEED_LOAD_TIMEOUT_MS)
+          const res = await withTimeout<{ data: { feed: TimelineItem[]; cursor?: string } }>(agent.app.bsky.feed.getFeed({ feed: single.uri, limit, cursor: nextCursor }), FEED_LOAD_TIMEOUT_MS)
           const apply = () => {
             const items = dedupeFeedByPostUri(nextCursor ? [...feedItemsRef.current, ...res.data.feed] : res.data.feed)
             if (nextCursor) {
@@ -683,7 +688,7 @@ export default function FeedPage() {
           else apply()
         }
       } else if (source.kind === 'timeline') {
-        const res = await withTimeout(agent.getTimeline({ limit, cursor: nextCursor }), FEED_LOAD_TIMEOUT_MS)
+        const res = await withTimeout<{ data: { feed: TimelineItem[]; cursor?: string } }>(agent.getTimeline({ limit, cursor: nextCursor }), FEED_LOAD_TIMEOUT_MS)
         const apply = () => {
           const items = dedupeFeedByPostUri(nextCursor ? [...feedItemsRef.current, ...res.data.feed] : res.data.feed)
           if (nextCursor) {
@@ -695,7 +700,7 @@ export default function FeedPage() {
         if (nextCursor) startTransition(apply)
         else apply()
       } else if (source.uri) {
-        const res = await withTimeout(agent.app.bsky.feed.getFeed({ feed: source.uri, limit, cursor: nextCursor }), FEED_LOAD_TIMEOUT_MS)
+        const res = await withTimeout<{ data: { feed: TimelineItem[]; cursor?: string } }>(agent.app.bsky.feed.getFeed({ feed: source.uri, limit, cursor: nextCursor }), FEED_LOAD_TIMEOUT_MS)
         const apply = () => {
           const items = dedupeFeedByPostUri(nextCursor ? [...feedItemsRef.current, ...res.data.feed] : res.data.feed)
           if (nextCursor) {
@@ -1206,13 +1211,13 @@ export default function FeedPage() {
         if (currentLikeUri) {
           agent.deleteLike(currentLikeUri).then(() => {
             setLikeOverride(uri, null)
-          }).catch((err) => {
+          }).catch((err: unknown) => {
             console.error('Failed to unlike post:', err)
           })
         } else {
-          agent.like(uri, item.post.cid).then((res) => {
+          agent.like(uri, item.post.cid).then((res: { uri: string }) => {
             setLikeOverride(uri, res.uri)
-          }).catch((err) => {
+          }).catch((err: unknown) => {
             console.error('Failed to like post:', err)
           })
         }
@@ -1248,11 +1253,11 @@ export default function FeedPage() {
                     }
                   })
               })
-            }).catch((err) => {
+            }).catch((err: unknown) => {
               console.error('Failed to unfollow:', err)
             })
           } else {
-            agent.follow(author.did).then((res) => {
+            agent.follow(author.did).then((res: { uri: string }) => {
               dispatch({
                 type: 'UPDATE_ITEMS',
                 updater: (prev) =>
@@ -1272,7 +1277,7 @@ export default function FeedPage() {
                     }
                   })
               })
-            }).catch((err) => {
+            }).catch((err: unknown) => {
               console.error('Failed to follow:', err)
             })
           }

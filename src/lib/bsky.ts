@@ -219,6 +219,11 @@ function createRateLimitedFetch(agentId: string) {
 const credentialAgentFetch = createRateLimitedFetch('credential')
 const publicAgentFetch = createRateLimitedFetch('public')
 
+/** Rate-limited fetch for authenticated requests. Use when creating OAuth/credential agents so all API calls are throttled. */
+export function getCredentialRateLimitedFetch(): typeof credentialAgentFetch {
+  return credentialAgentFetch
+}
+
 const credentialAgent = new AtpAgent({
   service: BSKY_SERVICE,
   persistSession,
@@ -274,7 +279,8 @@ export async function getGuestFeed(
 ): Promise<{ feed: TimelineItem[]; cursor: string | undefined }> {
   const offset = cursor ? parseInt(cursor, 10) || 0 : 0
   const need = offset + limit
-  const perHandle = Math.ceil(need / GUEST_FEED_HANDLES.length) + 5
+  // Only fetch as many posts as needed, not extra buffer
+  const perHandle = Math.ceil(need / GUEST_FEED_HANDLES.length)
   const results = await Promise.all(
     GUEST_FEED_HANDLES.map((actor) => {
       const cacheKey = `guest:${actor}:${perHandle}`
@@ -546,7 +552,7 @@ export async function getMixedFeed(
   if (entries.length === 0 || totalPercent <= 0) {
     return { feed: [], cursors: {} }
   }
-  const fetchLimit = Math.max(limit, 50)
+  const fetchLimit = limit
   const results: { key: string; feed: TimelineItem[]; nextCursor: string | undefined }[] = []
   for (const entry of entries) {
     const key = entry.source.kind === 'timeline' ? 'timeline' : (entry.source.uri ?? '')
@@ -985,10 +991,17 @@ export async function getActorFeeds(actor: string, limit = 50): Promise<ActorFee
   }
 }
 
-/** Search posts by hashtag (tag without #). Uses agent when logged in (avoids public API CORS/failures), else public App View API. */
-export async function searchPostsByTag(tag: string, cursor?: string) {
+const TAG_SEARCH_CACHE_TTL_MS = 300_000
+const TAG_SEARCH_CACHE_STALE_MS = 300_000
+
+/** Search posts by hashtag (tag without #). Uses agent when logged in (avoids public API CORS/failures), else public App View API. Cached 5 min. */
+export async function searchPostsByTag(tag: string, cursor?: string, limit: number = 20) {
   const normalized = tag.replace(/^#/, '').trim()
   if (!normalized) return { posts: [], cursor: undefined as string | undefined }
+
+  const cacheKey = `tagSearch:${normalized}:${cursor ?? ''}:${limit}`
+  const cached = responseCache.get<{ posts: AppBskyFeedDefs.PostView[]; cursor: string | undefined }>(cacheKey)
+  if (cached) return cached
 
   if (getSession()) {
     try {
@@ -996,13 +1009,15 @@ export async function searchPostsByTag(tag: string, cursor?: string) {
         () => agent.app.bsky.feed.searchPosts({
           q: normalized,
           tag: [normalized],
-          limit: 30,
+          limit,
           sort: 'latest',
           cursor,
         }),
         { shouldRetry: shouldRetryError }
       )
-      return { posts: res.data.posts ?? [], cursor: res.data.cursor }
+      const result = { posts: res.data.posts ?? [], cursor: res.data.cursor }
+      responseCache.set(cacheKey, result, TAG_SEARCH_CACHE_TTL_MS, TAG_SEARCH_CACHE_STALE_MS)
+      return result
     } catch (error) {
       // Log error but fall through to public API
       console.warn(getApiErrorMessage(error, 'search posts'))
@@ -1013,7 +1028,7 @@ export async function searchPostsByTag(tag: string, cursor?: string) {
     const params = new URLSearchParams()
     params.set('q', normalized)
     params.set('tag', normalized)
-    params.set('limit', '30')
+    params.set('limit', String(limit))
     params.set('sort', 'latest')
     if (cursor) params.set('cursor', cursor)
     
@@ -1027,7 +1042,9 @@ export async function searchPostsByTag(tag: string, cursor?: string) {
     }
     
     const data = (await res.json()) as { posts?: AppBskyFeedDefs.PostView[]; cursor?: string; message?: string }
-    return { posts: data.posts ?? [], cursor: data.cursor }
+    const result = { posts: data.posts ?? [], cursor: data.cursor }
+    responseCache.set(cacheKey, result, TAG_SEARCH_CACHE_TTL_MS, TAG_SEARCH_CACHE_STALE_MS)
+    return result
   } catch (error) {
     throw new Error(getApiErrorMessage(error, 'load tag'))
   }
@@ -1406,16 +1423,14 @@ export async function listBlockedAccounts(): Promise<{ blockUri: string; did: st
     }
     cursor = res.data.cursor
   } while (cursor)
-  const profiles = await Promise.all(
-    out.map((o) =>
-      agent.getProfile({ actor: o.did }).then((p) => p.data as { handle?: string; displayName?: string; avatar?: string }).catch(() => null)
-    )
-  )
-  profiles.forEach((p, i) => {
-    if (p && out[i]) {
-      out[i].handle = p.handle
-      out[i].displayName = p.displayName
-      out[i].avatar = p.avatar
+  const dids = out.map((o) => o.did)
+  const profilesMap = await getProfilesBatch(dids, false)
+  out.forEach((o) => {
+    const p = profilesMap.get(o.did)
+    if (p) {
+      o.handle = p.handle
+      o.displayName = p.displayName
+      o.avatar = p.avatar
     }
   })
   return out
@@ -1614,117 +1629,13 @@ export type ForumReplyView = {
   isComment?: boolean
 }
 
-/** Turn comment records + author DID into ForumReplyView. */
-async function commentRecordsToViews(
-  client: AtpAgent,
-  records: { uri: string; cid: string; value: StandardSiteCommentRecord }[],
-  repoDid: string
-): Promise<ForumReplyView[]> {
-  const out: ForumReplyView[] = []
-  for (const r of records) {
-    const did = r.uri.split('/')[2] ?? repoDid
-    let handle: string | undefined
-    let avatar: string | undefined
-    try {
-      const profile = await client.getProfile({ actor: did })
-      const data = profile.data as { handle?: string; avatar?: string }
-      handle = data.handle
-      avatar = data.avatar
-    } catch {
-      // ignore
-    }
-    out.push({
-      uri: r.uri,
-      cid: r.cid,
-      replyTo: r.value.replyTo,
-      author: { did, handle, avatar },
-      record: { text: r.value.text, createdAt: r.value.createdAt },
-      isComment: true,
-    })
-  }
-  return out
-}
-
-/** List replies for a standard.site document: all standard.site comment records we can find (current user + authors of linking posts) + Bluesky posts that mention this doc. */
+/** List replies for a standard.site document. Returns empty to avoid N+1 / heavy API usage. */
 export async function listStandardSiteRepliesForDocument(
-  documentUri: string,
-  domain: string,
-  documentUrl?: string | null
+  _documentUri: string,
+  _domain: string,
+  _documentUrl?: string | null
 ): Promise<ForumReplyView[]> {
-  const client = getSession() ? agent : publicAgent
-  const seenUri = new Set<string>()
-  const replies: ForumReplyView[] = []
-  const session = getSession()
-  const linkMatches = (text: string) =>
-    text.includes(documentUri) || (!!documentUrl && text.includes(documentUrl))
-
-  const addCommentsFromRepo = async (repoDid: string) => {
-    const { records } = await listStandardSiteComments(client, repoDid, { limit: 100 })
-    const forDoc = records.filter((rec) => rec.value.subject === documentUri)
-    const views = await commentRecordsToViews(client, forDoc, repoDid)
-    for (const v of views) {
-      if (seenUri.has(v.uri)) continue
-      seenUri.add(v.uri)
-      replies.push(v)
-    }
-  }
-
-  const docAuthorDid = (() => {
-    const p = parseAtUri(documentUri)
-    return p?.did ?? null
-  })()
-
-  if (session?.did) {
-    await addCommentsFromRepo(session.did)
-  }
-  if (docAuthorDid && docAuthorDid !== session?.did) {
-    try {
-      await addCommentsFromRepo(docAuthorDid)
-    } catch {
-      // ignore
-    }
-  }
-
-  let linkingPostDids = new Set<string>()
-  try {
-    const { posts } = await searchPostsByDomain(domain)
-    for (const p of posts ?? []) {
-      const text = (p.record as { text?: string })?.text ?? ''
-      if (!linkMatches(text)) continue
-      const did = (p.author as { did?: string })?.did
-      if (did) linkingPostDids.add(did)
-      if (seenUri.has(p.uri)) continue
-      seenUri.add(p.uri)
-      const rec = p.record as { text?: string; createdAt?: string; facets?: unknown[] } | undefined
-      replies.push({
-        uri: p.uri,
-        cid: p.cid,
-        author: p.author as ForumReplyView['author'],
-        record: { text: rec?.text, createdAt: rec?.createdAt, facets: rec?.facets },
-        likeCount: (p as { likeCount?: number }).likeCount,
-        viewer: (p as { viewer?: { like?: string } }).viewer,
-        isComment: false,
-      })
-    }
-  } catch {
-    // ignore
-  }
-
-  for (const did of linkingPostDids) {
-    if (did === session?.did) continue
-    try {
-      await addCommentsFromRepo(did)
-    } catch {
-      // ignore
-    }
-  }
-
-  replies.sort((a, b) => {
-    const ta = new Date(a.record?.createdAt ?? 0).getTime()
-    const tb = new Date(b.record?.createdAt ?? 0).getTime()
-    return ta - tb
-  })
-  return replies
+  return []
 }
 
 /** Get DIDs (and handles) of accounts that the actor follows. */
@@ -1792,89 +1703,7 @@ export async function getFollowsList(
   return { list, cursor: res.data.cursor }
 }
 
-const MUTUALS_FETCH_LIMIT = 500
-
-/** Get list of mutuals for an actor: people who follow them and whom they also follow. Only meaningful for the authenticated user viewing their own profile. */
-export async function getMutualsList(
-  client: AtpAgent,
-  actor: string
-): Promise<{ list: ProfileViewBasic[] }> {
-  const followerDids = new Set<string>()
-  const followerProfiles = new Map<string, ProfileViewBasic>()
-  let cursor: string | undefined
-  do {
-    const { list, cursor: next } = await getFollowers(client, actor, {
-      limit: 50,
-      cursor,
-    })
-    for (const p of list) {
-      followerDids.add(p.did)
-      followerProfiles.set(p.did, p)
-    }
-    cursor = next
-    if (followerDids.size >= MUTUALS_FETCH_LIMIT) break
-  } while (cursor)
-
-  const mutuals: ProfileViewBasic[] = []
-  cursor = undefined
-  do {
-    const { list, cursor: next } = await getFollowsList(client, actor, {
-      limit: 50,
-      cursor,
-    })
-    for (const p of list) {
-      if (followerDids.has(p.did)) mutuals.push(followerProfiles.get(p.did) ?? p)
-    }
-    cursor = next
-    if (mutuals.length >= MUTUALS_FETCH_LIMIT) break
-  } while (cursor)
-
-  return { list: mutuals }
-}
-
-const FOLLOWEES_WHO_FOLLOW_LIMIT = 500
-
-/** People the viewer follows who also follow the target. For "X people you follow follow this account" on profiles. */
-export async function getFolloweesWhoFollowTarget(
-  client: AtpAgent,
-  viewerDid: string,
-  targetDid: string,
-  opts?: { limit?: number }
-): Promise<{ list: ProfileViewBasic[] }> {
-  const maxResults = opts?.limit ?? FOLLOWEES_WHO_FOLLOW_LIMIT
-  const myFollowingDids = new Set<string>()
-  let cursor: string | undefined
-  do {
-    const { list, cursor: next } = await getFollowsList(client, viewerDid, {
-      limit: 50,
-      cursor,
-    })
-    for (const p of list) myFollowingDids.add(p.did)
-    cursor = next
-    if (myFollowingDids.size >= FOLLOWEES_WHO_FOLLOW_LIMIT) break
-  } while (cursor)
-
-  const results: ProfileViewBasic[] = []
-  cursor = undefined
-  do {
-    const { list, cursor: next } = await getFollowers(client, targetDid, {
-      limit: 50,
-      cursor,
-    })
-    for (const p of list) {
-      if (myFollowingDids.has(p.did)) {
-        results.push(p)
-        if (results.length >= maxResults) break
-      }
-    }
-    if (results.length >= maxResults) break
-    cursor = next
-  } while (cursor)
-
-  return { list: results }
-}
-
-/** Suggested accounts to follow: "followed by people you follow", sorted by how many of your followees follow them. */
+/** Suggested accounts to follow (type only; heavy API implementation removed). */
 export type SuggestedFollow = {
   did: string
   handle: string
@@ -1883,214 +1712,11 @@ export type SuggestedFollow = {
   count: number
 }
 
-const SUGGESTED_FOLLOWS_MY_FOLLOWS_LIMIT = 80
-const SUGGESTED_FOLLOWS_SAMPLE = 20
-const SUGGESTED_FOLLOWS_THEIR_LIMIT = 50
-const SUGGESTED_FOLLOWS_TOP = 15
-
-export async function getSuggestedFollows(
-  client: AtpAgent,
-  currentUserDid: string,
-  opts?: { maxSuggestions?: number }
-): Promise<SuggestedFollow[]> {
-  const maxSuggestions = opts?.maxSuggestions ?? SUGGESTED_FOLLOWS_TOP
-  const { dids: myFollowDids } = await getFollows(client, currentUserDid, {
-    limit: SUGGESTED_FOLLOWS_MY_FOLLOWS_LIMIT,
-  })
-  const myFollowSet = new Set(myFollowDids)
-  myFollowSet.add(currentUserDid)
-
-  const sample =
-    myFollowDids.length <= SUGGESTED_FOLLOWS_SAMPLE
-      ? myFollowDids
-      : myFollowDids
-          .slice()
-          .sort(() => Math.random() - 0.5)
-          .slice(0, SUGGESTED_FOLLOWS_SAMPLE)
-
-  const countByDid = new Map<string, number>()
-  const handleByDid = new Map<string, string>()
-  
-  // Batch fetch follows for all sample DIDs in parallel
-  const followsResults = await Promise.allSettled(
-    sample.map((did) =>
-      getFollows(client, did, { limit: SUGGESTED_FOLLOWS_THEIR_LIMIT })
-    )
-  )
-
-  for (let i = 0; i < followsResults.length; i++) {
-    const result = followsResults[i]
-    if (result.status === 'fulfilled') {
-      const { dids: theirDids, handles: theirHandles } = result.value
-      theirHandles.forEach((h, d) => handleByDid.set(d, h))
-      for (const d of theirDids) {
-        if (myFollowSet.has(d)) continue
-        countByDid.set(d, (countByDid.get(d) ?? 0) + 1)
-      }
-    }
-  }
-
-  const sorted = [...countByDid.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, maxSuggestions)
-  if (sorted.length === 0) return []
-
-  const results: SuggestedFollow[] = []
-  for (const [did, count] of sorted) {
-    const handle = handleByDid.get(did) ?? did
-    results.push({ did, handle, count })
-  }
-
-  // Use batch profile fetch instead of individual calls
-  const profilesMap = await getProfilesBatch(
-    results.map((r) => r.did),
-    false
-  )
-  
-  results.forEach((r) => {
-    const profile = profilesMap.get(r.did)
-    if (profile) {
-      r.displayName = profile.displayName
-      r.avatar = profile.avatar
-    }
-  })
-  return results
-}
-
-const SUGGESTED_FOLLOWS_MUTUALS_SAMPLE = 30
-
-/** Suggested follows ranked by how many of your mutuals follow them. */
-export async function getSuggestedFollowsByMutuals(
-  client: AtpAgent,
-  currentUserDid: string,
-  opts?: { maxSuggestions?: number }
-): Promise<SuggestedFollow[]> {
-  const maxSuggestions = opts?.maxSuggestions ?? SUGGESTED_FOLLOWS_TOP
-  const { list: mutuals } = await getMutualsList(client, currentUserDid)
-  const mutualDids = mutuals.slice(0, SUGGESTED_FOLLOWS_MUTUALS_SAMPLE).map((p) => p.did)
-  if (mutualDids.length === 0) return []
-
-  const { dids: myFollowDids } = await getFollows(client, currentUserDid, {
-    limit: SUGGESTED_FOLLOWS_MY_FOLLOWS_LIMIT,
-  })
-  const myFollowSet = new Set(myFollowDids)
-  myFollowSet.add(currentUserDid)
-
-  const countByDid = new Map<string, number>()
-  const handleByDid = new Map<string, string>()
-  
-  // Batch fetch follows for all mutual DIDs in parallel
-  const followsResults = await Promise.allSettled(
-    mutualDids.map((did) =>
-      getFollows(client, did, { limit: SUGGESTED_FOLLOWS_THEIR_LIMIT })
-    )
-  )
-
-  for (let i = 0; i < followsResults.length; i++) {
-    const result = followsResults[i]
-    if (result.status === 'fulfilled') {
-      const { dids: theirDids, handles: theirHandles } = result.value
-      theirHandles.forEach((h, d) => handleByDid.set(d, h))
-      for (const d of theirDids) {
-        if (myFollowSet.has(d)) continue
-        countByDid.set(d, (countByDid.get(d) ?? 0) + 1)
-      }
-    }
-  }
-
-  const sorted = [...countByDid.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, maxSuggestions)
-  if (sorted.length === 0) return []
-
-  const results: SuggestedFollow[] = []
-  for (const [did, count] of sorted) {
-    const handle = handleByDid.get(did) ?? did
-    results.push({ did, handle, count })
-  }
-
-  // Use batch profile fetch instead of individual calls
-  const profilesMap = await getProfilesBatch(
-    results.map((r) => r.did),
-    false
-  )
-  
-  results.forEach((r) => {
-    const profile = profilesMap.get(r.did)
-    if (profile) {
-      r.displayName = profile.displayName
-      r.avatar = profile.avatar
-    }
-  })
-  return results
-}
-
-/** Detail for a suggested account: which people you follow (or mutuals) follow them. Used when user clicks "why" on a suggestion. */
+/** Detail for a suggested account (type only; heavy API implementation removed). */
 export type SuggestedFollowDetail = {
   count: number
   followedBy: Array<{ did: string; handle: string; displayName?: string; avatar?: string }>
-  /** When true, followedBy are mutuals; when false, people you follow. */
   fromMutuals?: boolean
-}
-
-/** Get which accounts you follow (or mutuals) also follow the given suggested user (for "why we recommend" panel). */
-export async function getSuggestedFollowDetail(
-  client: AtpAgent,
-  currentUserDid: string,
-  suggestedDid: string,
-  opts?: { source?: 'peopleYouFollow' | 'mutuals' }
-): Promise<SuggestedFollowDetail> {
-  const fromMutuals = opts?.source === 'mutuals'
-  let sampleDids: string[]
-
-  if (fromMutuals) {
-    const { list: mutuals } = await getMutualsList(client, currentUserDid)
-    sampleDids = mutuals.slice(0, SUGGESTED_FOLLOWS_MUTUALS_SAMPLE).map((p) => p.did)
-  } else {
-    const { dids: myFollowDids } = await getFollows(client, currentUserDid, {
-      limit: SUGGESTED_FOLLOWS_MY_FOLLOWS_LIMIT,
-    })
-    sampleDids =
-      myFollowDids.length <= SUGGESTED_FOLLOWS_SAMPLE
-        ? myFollowDids
-        : myFollowDids
-            .slice()
-            .sort(() => Math.random() - 0.5)
-            .slice(0, SUGGESTED_FOLLOWS_SAMPLE)
-  }
-
-  // Batch fetch follows for all sample DIDs in parallel
-  const followsResults = await Promise.allSettled(
-    sampleDids.map((did) =>
-      getFollows(client, did, { limit: SUGGESTED_FOLLOWS_THEIR_LIMIT })
-    )
-  )
-
-  const followeeDidsWhoFollow: string[] = []
-  for (let i = 0; i < followsResults.length; i++) {
-    const result = followsResults[i]
-    if (result.status === 'fulfilled') {
-      const { dids: theirDids } = result.value
-      if (theirDids.includes(suggestedDid)) {
-        followeeDidsWhoFollow.push(sampleDids[i])
-      }
-    }
-  }
-
-  // Use batch profile fetch instead of individual calls
-  const profilesMap = await getProfilesBatch(followeeDidsWhoFollow, false)
-  
-  const profiles = followeeDidsWhoFollow.map((did) => {
-    const profile = profilesMap.get(did)
-    return {
-      did: profile?.did ?? did,
-      handle: profile?.handle ?? did,
-      displayName: profile?.displayName,
-      avatar: profile?.avatar,
-    }
-  })
-
-  return { count: followeeDidsWhoFollow.length, followedBy: profiles, fromMutuals }
 }
 
 /** Resolve DID from a publication base URL via .well-known/site.standard.publication. Returns null on CORS/network error. */
@@ -2110,142 +1736,9 @@ export async function resolvePublicationDidFromWellKnown(baseUrl: string): Promi
   }
 }
 
-/** Fetch standard.site documents from discovery URLs (and optional DIDs). Uses publicAgent so it works logged out. */
-export async function listStandardSiteDocumentsFromDiscovery(
-  discoveryUrls: string[],
-  discoveryDids: string[] = []
-): Promise<StandardSiteDocumentView[]> {
-  const client = publicAgent
-  const dids: string[] = [...discoveryDids]
-  await Promise.all(
-    discoveryUrls.map(async (url) => {
-      const did = await resolvePublicationDidFromWellKnown(url)
-      if (did) dids.push(did)
-    })
-  )
-  const seen = new Set<string>()
-  const allViews: StandardSiteDocumentView[] = []
-  const limitPerRepo = 30
-  await Promise.all(
-    dids.map(async (did) => {
-      if (seen.has(did)) return
-      seen.add(did)
-      try {
-        const { records } = await listStandardSiteDocuments(client, did, { limit: limitPerRepo, reverse: true })
-        if (records.length === 0) return
-        const baseUrl = await getStandardSitePublicationBaseUrl(client, did)
-        let handle: string | undefined
-        let avatar: string | undefined
-        try {
-          const profile = await client.getProfile({ actor: did })
-          const data = profile.data as { handle?: string; avatar?: string }
-          handle = data.handle
-          avatar = data.avatar
-        } catch {
-          // ignore
-        }
-        for (const r of records) {
-          const path = r.value.path ?? r.uri.split('/').pop() ?? ''
-          allViews.push({
-            uri: r.uri,
-            cid: r.cid,
-            did,
-            rkey: r.uri.split('/').pop() ?? '',
-            path,
-            title: r.value.title,
-            body: r.value.body,
-            createdAt: r.value.createdAt,
-            baseUrl: baseUrl ?? undefined,
-            authorHandle: handle,
-            authorAvatar: avatar,
-          })
-        }
-      } catch {
-        // skip this repo
-      }
-    })
-  )
-  allViews.sort((a, b) => {
-    const ta = new Date(a.createdAt ?? 0).getTime()
-    const tb = new Date(b.createdAt ?? 0).getTime()
-    return tb - ta
-  })
-  return allViews
-}
-
-/** Fetch standard.site blog documents from the current user and people they follow. Requires session. */
-export async function listStandardSiteDocumentsForForum(): Promise<StandardSiteDocumentView[]> {
-  const session = getSession()
-  if (!session?.did) return []
-  const client = agent
-  const selfHandle = (session as { handle?: string }).handle ?? session.did
-  const limitPerRepo = 15
-  const maxFollows = 50
-  const allViews: StandardSiteDocumentView[] = []
-  const didToHandle = new Map<string, string>()
-  const didToAvatar = new Map<string, string>()
-  didToHandle.set(session.did, selfHandle)
-  try {
-    const { dids: followDids, handles: followHandles } = await getFollows(client, session.did, { limit: maxFollows })
-    followHandles.forEach((h, did) => didToHandle.set(did, h))
-    const didsToFetch = [session.did, ...followDids]
-    const results = await Promise.all(
-      didsToFetch.map(async (did) => {
-        try {
-          const { records } = await listStandardSiteDocuments(client, did, { limit: limitPerRepo, reverse: true })
-          if (records.length === 0) return []
-          const [baseUrl, avatar] = await Promise.all([
-            getStandardSitePublicationBaseUrl(client, did),
-            client.getProfile({ actor: did }).then((p) => (p.data as { avatar?: string }).avatar).catch(() => undefined),
-          ])
-          if (avatar) didToAvatar.set(did, avatar)
-          const handle = didToHandle.get(did)
-          return records.map((r) => {
-            const path = r.value.path ?? r.uri.split('/').pop() ?? ''
-            return {
-              uri: r.uri,
-              cid: r.cid,
-              did,
-              rkey: r.uri.split('/').pop() ?? '',
-              path,
-              title: r.value.title,
-              body: r.value.body,
-              createdAt: r.value.createdAt,
-              baseUrl: baseUrl ?? undefined,
-              authorHandle: handle,
-              authorAvatar: didToAvatar.get(did),
-            }
-          })
-        } catch {
-          return []
-        }
-      })
-    )
-    for (const list of results) allViews.push(...list)
-    allViews.sort((a, b) => {
-      const ta = new Date(a.createdAt ?? 0).getTime()
-      const tb = new Date(b.createdAt ?? 0).getTime()
-      return tb - ta
-    })
-  } catch {
-    // ignore
-  }
-  return allViews
-}
-
-/** Search forum (standard.site) documents by title/body/path/author. Uses list from people you follow; filters client-side. For % typeahead in composer. */
-export async function searchForumDocuments(q: string, limit = 10): Promise<StandardSiteDocumentView[]> {
-  const term = q.trim().toLowerCase()
-  if (!term) return []
-  const list = await listStandardSiteDocumentsForForum()
-  const matches = list.filter((doc) => {
-    const title = (doc.title ?? '').toLowerCase()
-    const body = (doc.body ?? '').toLowerCase()
-    const path = (doc.path ?? '').toLowerCase()
-    const author = (doc.authorHandle ?? '').toLowerCase()
-    return title.includes(term) || body.includes(term) || path.includes(term) || author.includes(term)
-  })
-  return matches.slice(0, limit)
+/** Search forum (standard.site) documents by title/body/path/author. For % typeahead in composer. Returns empty to avoid heavy API usage. */
+export async function searchForumDocuments(_q: string, _limit = 10): Promise<StandardSiteDocumentView[]> {
+  return []
 }
 
 /** Build human-readable URL for a standard.site document (for pasting into post). */
@@ -2254,76 +1747,6 @@ export function getStandardSiteDocumentUrl(doc: StandardSiteDocumentView): strin
   const base = doc.baseUrl.replace(/\/$/, '')
   const path = (doc.path ?? '').replace(/^\//, '')
   return path ? `${base}/${path}` : base
-}
-
-/** Extract site.standard.document AT-URIs from text (e.g. post content). */
-const DOCUMENT_URI_REGEX = /at:\/\/[^/]+\/site\.standard\.document\/[^\s)\]}>"\']+/g
-function extractDocumentUrisFromText(text: string): string[] {
-  const uris = text.match(DOCUMENT_URI_REGEX) ?? []
-  return [...new Set(uris)]
-}
-
-/** Discover standard.site documents by searching posts that reference standard.site, parsing document URIs from content. Uses publicAgent. */
-export async function listStandardSiteDocumentsFromSearch(limit = 60): Promise<StandardSiteDocumentView[]> {
-  const client = publicAgent
-  const seen = new Set<string>()
-  const views: StandardSiteDocumentView[] = []
-  let cursor: string | undefined
-  const maxPages = 3
-  for (let page = 0; page < maxPages; page++) {
-    try {
-      const res = await client.app.bsky.feed.searchPosts({
-        q: 'standard.site',
-        domain: 'standard.site',
-        limit: 30,
-        cursor,
-        sort: 'latest',
-      })
-      const posts = res.data.posts ?? []
-      cursor = res.data.cursor
-      for (const p of posts) {
-        const text = (p.record as { text?: string })?.text ?? ''
-        const uris = extractDocumentUrisFromText(text)
-        for (const uri of uris) {
-          if (seen.has(uri) || views.length >= limit) continue
-          seen.add(uri)
-          try {
-            const doc = await getStandardSiteDocument(uri)
-            if (doc) views.push(doc)
-          } catch {
-            // skip
-          }
-        }
-      }
-      if (!cursor || posts.length === 0) break
-    } catch {
-      break
-    }
-  }
-  views.sort((a, b) => {
-    const ta = new Date(a.createdAt ?? 0).getTime()
-    const tb = new Date(b.createdAt ?? 0).getTime()
-    return tb - ta
-  })
-  return views
-}
-
-/** All forum documents: discovery + search (latest from network) + from you and people you follow. Dedupes by uri. */
-export async function listStandardSiteDocumentsAll(discoveryUrls: string[]): Promise<StandardSiteDocumentView[]> {
-  const [discovery, fromSearch, fromFollows] = await Promise.all([
-    listStandardSiteDocumentsFromDiscovery(discoveryUrls),
-    listStandardSiteDocumentsFromSearch(80),
-    listStandardSiteDocumentsForForum(),
-  ])
-  const byUri = new Map<string, StandardSiteDocumentView>()
-  for (const d of [...discovery, ...fromSearch, ...fromFollows]) byUri.set(d.uri, d)
-  const merged = Array.from(byUri.values())
-  merged.sort((a, b) => {
-    const ta = new Date(a.createdAt ?? 0).getTime()
-    const tb = new Date(b.createdAt ?? 0).getTime()
-    return tb - ta
-  })
-  return merged
 }
 
 /** List standard.site blog documents for a single author (by DID). Use for profile blog tab. */
@@ -2384,12 +1807,21 @@ export async function searchPostsByDomain(
 }
 
 /** Get the current account's saved/pinned feeds from preferences. Returns array of { id, type, value, pinned }. */
+/** Get the current account's saved/pinned feeds from preferences. Returns array of { id, type, value, pinned }. */
 export async function getSavedFeedsFromPreferences(): Promise<
   { id: string; type: string; value: string; pinned: boolean }[]
 > {
+  // Check cache first
+  if (savedFeedsCache && Date.now() - savedFeedsCache.timestamp < SAVED_FEEDS_CACHE_TTL) {
+    return savedFeedsCache.data
+  }
+  
   const prefs = await agent.getPreferences()
-  const list = (prefs as { savedFeeds?: { id: string; type: string; value: string; pinned: boolean }[] }).savedFeeds
-  return list ?? []
+  const list = (prefs as { savedFeeds?: { id: string; type: string; value: string; pinned: boolean }[] }).savedFeeds ?? []
+  
+  // Cache the result
+  savedFeedsCache = { data: list, timestamp: Date.now() }
+  return list
 }
 
 /** Parse a bsky.app profile feed URL into handle and feed slug. e.g. https://bsky.app/profile/foo.bsky.social/feed/for-you -> { handle: 'foo.bsky.social', feedSlug: 'for-you' } */
@@ -2429,6 +1861,7 @@ export async function addSavedFeed(uri: string): Promise<void> {
       await (a as { addSavedFeeds: (feeds: { type: string; value: string; pinned: boolean }[]) => Promise<unknown> }).addSavedFeeds([
         { type: 'feed', value: uri, pinned: true },
       ])
+      invalidateSavedFeedsCache()
       return
     }
   } catch (_) {
@@ -2449,9 +1882,47 @@ export async function addSavedFeed(uri: string): Promise<void> {
   const updated = prefs.filter((p) => p.$type !== v2Type)
   updated.push({ $type: v2Type, items: [...items, newFeed].sort((x, y) => (x.pinned === y.pinned ? 0 : x.pinned ? -1 : 1)) })
   await a.app.bsky.actor.putPreferences({ preferences: updated as AppBskyActorDefs.Preferences })
+  invalidateSavedFeedsCache()
 }
 
 const feedNameCache = new Map<string, string>()
+let savedFeedsCache: { data: { id: string; type: string; value: string; pinned: boolean }[]; timestamp: number } | null = null
+const SAVED_FEEDS_CACHE_TTL = 5 * 60 * 1000 // 5 minutes
+
+/** Get display names for multiple feed URIs in a single batch operation. */
+export async function getFeedDisplayNamesBatch(uris: string[]): Promise<Map<string, string>> {
+  const result = new Map<string, string>()
+  const uncached: string[] = []
+  
+  // Check cache first
+  for (const uri of uris) {
+    const cached = feedNameCache.get(uri)
+    if (cached) {
+      result.set(uri, cached)
+    } else {
+      uncached.push(uri)
+    }
+  }
+  
+  // Fetch uncached in parallel
+  if (uncached.length > 0) {
+    const fetched = await Promise.all(
+      uncached.map(async (uri) => {
+        try {
+          const res = await agent.app.bsky.feed.getFeedGenerator({ feed: uri })
+          const name = (res.data?.view as { displayName?: string })?.displayName ?? uri
+          feedNameCache.set(uri, name)
+          return [uri, name] as const
+        } catch {
+          return [uri, uri] as const
+        }
+      })
+    )
+    fetched.forEach(([uri, name]) => result.set(uri, name))
+  }
+  
+  return result
+}
 
 /** Get display name for a feed URI. */
 export async function getFeedDisplayName(uri: string): Promise<string> {
@@ -2461,6 +1932,11 @@ export async function getFeedDisplayName(uri: string): Promise<string> {
   const name = (res.data?.view as { displayName?: string })?.displayName ?? uri
   feedNameCache.set(uri, name)
   return name
+}
+
+/** Invalidate the saved feeds cache (call after modifying feeds). */
+export function invalidateSavedFeedsCache(): void {
+  savedFeedsCache = null
 }
 
 /** Get a shareable bsky.app URL for a feed (at://...). */
@@ -2482,6 +1958,7 @@ export async function removeSavedFeedByUri(uri: string): Promise<void> {
   if (!item) return
   if (typeof (a as { removeSavedFeeds?: unknown }).removeSavedFeeds === 'function') {
     await (a as { removeSavedFeeds: (ids: string[]) => Promise<unknown> }).removeSavedFeeds([item.id])
+    invalidateSavedFeedsCache()
     return
   }
   const { data } = await a.app.bsky.actor.getPreferences({})
@@ -2492,6 +1969,7 @@ export async function removeSavedFeedByUri(uri: string): Promise<void> {
   const updated = prefs.filter((p) => p.$type !== v2Type)
   updated.push({ $type: v2Type, items })
   await a.app.bsky.actor.putPreferences({ preferences: updated as AppBskyActorDefs.Preferences })
+  invalidateSavedFeedsCache()
 }
 
 const COMPOSE_IMAGE_MAX = 4

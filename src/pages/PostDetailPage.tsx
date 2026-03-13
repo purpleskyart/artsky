@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import type { AppBskyFeedDefs } from '@atproto/api'
 import type { AtpSessionData } from '@atproto/api'
-import { agent, publicAgent, postReply, getPostAllMedia, getPostMediaUrl, getQuotedPostView, getPostExternalLink, getSession, createQuotePost, createDownvote, deleteDownvote, listMyDownvotes, getPostThreadCached, getProfilesBatch } from '../lib/bsky'
+import { agent, publicAgent, postReply, getPostAllMedia, getPostMediaUrl, getQuotedPostView, getPostExternalLink, getSession, createQuotePost, createDownvote, deleteDownvote, listMyDownvotes, getPostThreadCached, getProfilesBatch, getProfileCached } from '../lib/bsky'
 import { getApiErrorMessage } from '../lib/apiErrors'
 import { takeInitialPostForUri, getCachedThread } from '../lib/postCache'
 import { getDownvoteCounts } from '../lib/constellation'
@@ -1028,6 +1028,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
   const mediaSectionRef = useRef<HTMLDivElement>(null)
   const descriptionSectionRef = useRef<HTMLDivElement>(null)
   const commentsSectionRef = useRef<HTMLDivElement>(null)
+  const downvoteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [focusedCommentIndex, setFocusedCommentIndex] = useState(0)
   const [commentFormFocused, setCommentFormFocused] = useState(false)
   const commentFormTopRef = useRef<HTMLFormElement>(null)
@@ -1050,8 +1051,8 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
       return
     }
     const handle = (s as { handle?: string }).handle ?? s.did
-    agent.getProfile({ actor: s.did })
-      .then((res) => setReplyAsProfile({ handle: res.data.handle ?? handle, avatar: res.data.avatar }))
+    getProfileCached(s.did)
+      .then((res) => setReplyAsProfile({ handle: res.handle ?? handle, avatar: res.avatar }))
       .catch(() => setReplyAsProfile({ handle }))
   }, [sessionFromContext?.did, session?.did])
 
@@ -1198,6 +1199,10 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
 
   const load = useCallback(async () => {
     if (!decodedUri) return
+    if (downvoteTimerRef.current != null) {
+      clearTimeout(downvoteTimerRef.current)
+      downvoteTimerRef.current = null
+    }
     setError(null)
     const api = getSession() ? agent : publicAgent
     let hadInstantData = false
@@ -1231,7 +1236,10 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
       setDownvoteCountOptimisticDelta({})
       const uris = isThreadViewPost(threadData) ? collectThreadPostUris(threadData) : []
       if (uris.length > 0) {
-        getDownvoteCounts(uris).then(setDownvoteCounts).catch(() => {})
+        const downvoteTimer = window.setTimeout(() => {
+          getDownvoteCounts(uris).then(setDownvoteCounts).catch(() => {})
+        }, 2000)
+        downvoteTimerRef.current = downvoteTimer
       } else {
         setDownvoteCounts({})
       }
@@ -1251,6 +1259,12 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
 
   useEffect(() => {
     load()
+    return () => {
+      if (downvoteTimerRef.current != null) {
+        clearTimeout(downvoteTimerRef.current)
+        downvoteTimerRef.current = null
+      }
+    }
   }, [load])
 
   useEffect(() => {

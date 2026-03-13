@@ -157,9 +157,9 @@ export class RateLimiter {
   }
 }
 
-// Singleton instance with default config
+// Singleton instance: stay under typical server limits to avoid 429s
 export const rateLimiter = new RateLimiter({
-  maxRequestsPerWindow: 55,
+  maxRequestsPerWindow: 40,
   windowMs: 60_000, // 1 minute
   defaultBackoffMs: 30_000, // 30 seconds
 })

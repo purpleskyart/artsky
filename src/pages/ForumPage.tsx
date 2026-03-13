@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { getSession, publicAgent } from '../lib/bsky'
-import { listForumPostsFromFollowedAndDiscovery, listForumPosts, createForumPost, saveDraft } from '../lib/forum'
+import { getSession, getProfileCached } from '../lib/bsky'
+import { listForumPosts, createForumPost, saveDraft } from '../lib/forum'
 import { formatRelativeTime, formatExactDateTime } from '../lib/date'
 import { useListKeyboardNav } from '../hooks/useListKeyboardNav'
 import Layout from '../components/Layout'
@@ -60,10 +60,9 @@ export function ForumContent({ inModal = false, onRegisterRefresh }: { inModal?:
       return
     }
     let cancelled = false
-    publicAgent.getProfile({ actor: session.did }).then((res) => {
+    getProfileCached(session.did, true).then((res) => {
       if (cancelled) return
-      const data = res.data as { handle?: string; avatar?: string }
-      setReplyAs({ handle: data.handle ?? session.did, avatar: data.avatar })
+      setReplyAs({ handle: res.handle ?? session.did, avatar: res.avatar })
     }).catch(() => {
       if (!cancelled) setReplyAs({ handle: (session as { handle?: string }).handle ?? session.did })
     })
@@ -71,16 +70,10 @@ export function ForumContent({ inModal = false, onRegisterRefresh }: { inModal?:
   }, [session?.did])
 
   const loadDiscover = useCallback(async () => {
-    try {
-      setLoading(true)
-      setError(null)
-      const list = await listForumPostsFromFollowedAndDiscovery()
-      setDiscoverPosts(list)
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to load forum')
-    } finally {
-      setLoading(false)
-    }
+    setLoading(true)
+    setError(null)
+    setDiscoverPosts([])
+    setLoading(false)
   }, [])
 
   const loadArtsky = useCallback(async () => {
