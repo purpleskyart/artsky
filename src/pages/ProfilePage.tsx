@@ -289,6 +289,10 @@ export function ProfileContent({
     }
   }, [handle, readAgent])
 
+  /** Ref for initial load so we only run once per handle (avoids duplicate getAuthorFeed when session loads after mount). */
+  const loadRef = useRef(load)
+  loadRef.current = load
+
   const loadFeeds = useCallback(async () => {
     if (!handle) return
     try {
@@ -339,17 +343,17 @@ export function ProfileContent({
     }
   }, [handle, profile?.did, session?.did])
 
+  // Run only when handle changes to avoid duplicate getAuthorFeed when session/readAgent becomes available (rate limit fix).
   useEffect(() => {
-    if (handle) {
-      setProfile(null)
-      setFollowUriOverride(null)
-      setTab('posts')
-      setProfilePostsFilter('all')
-      setLikedItems([])
-      setLikedCursor(undefined)
-      load()
-    }
-  }, [handle, load])
+    if (!handle) return
+    setProfile(null)
+    setFollowUriOverride(null)
+    setTab('posts')
+    setProfilePostsFilter('all')
+    setLikedItems([])
+    setLikedCursor(undefined)
+    loadRef.current()
+  }, [handle])
 
   useEffect(() => {
     if (profilePostsFilter === 'liked' && handle && session && profile && session.did === profile.did) {

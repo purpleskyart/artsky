@@ -261,75 +261,109 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
     modalScrollHidden,
   ])
 
+  /* Render the full modal stack so underlying modals (e.g. profile) stay mounted and preserve scroll when a post modal opens on top. */
+  const modalStackElements = modalStack.map((item, index) => {
+    const isTop = index === modalStack.length - 1
+    const canGoBackFromThis = isTop && modalStack.length > 1
+    const key = `${index}-${item.type}-${item.type === 'profile' ? item.handle : item.type === 'post' ? item.uri : item.type === 'tag' ? item.tag : item.type === 'search' ? item.query : item.type === 'quotes' ? item.uri : item.type === 'forumPost' ? item.documentUri : item.type === 'artboard' ? item.id : index}`
+    if (item.type === 'post') {
+      return (
+        <PostDetailModal
+          key={key}
+          uri={item.uri}
+          openReply={item.openReply}
+          focusUri={item.focusUri}
+          onClose={closeAllModals}
+          onBack={closeModal}
+          canGoBack={canGoBackFromThis}
+        />
+      )
+    }
+    if (item.type === 'profile') {
+      return (
+        <ProfileModal
+          key={key}
+          handle={item.handle}
+          onClose={closeAllModals}
+          onBack={closeModal}
+          canGoBack={canGoBackFromThis}
+        />
+      )
+    }
+    if (item.type === 'tag') {
+      return (
+        <TagModal
+          key={key}
+          tag={item.tag}
+          onClose={closeAllModals}
+          onBack={closeModal}
+          canGoBack={canGoBackFromThis}
+        />
+      )
+    }
+    if (item.type === 'search') {
+      return (
+        <SearchModal
+          key={key}
+          query={item.query}
+          onClose={closeAllModals}
+          onBack={closeModal}
+          canGoBack={canGoBackFromThis}
+        />
+      )
+    }
+    if (item.type === 'quotes') {
+      return (
+        <QuotesModal
+          key={key}
+          postUri={item.uri}
+          onClose={closeAllModals}
+          onBack={closeModal}
+          canGoBack={canGoBackFromThis}
+        />
+      )
+    }
+    if (item.type === 'forum') {
+      return (
+        <ForumModal key={key} onClose={closeAllModals} onBack={closeModal} canGoBack={canGoBackFromThis} />
+      )
+    }
+    if (item.type === 'forumPost') {
+      return (
+        <ForumPostModal
+          key={key}
+          documentUri={item.documentUri}
+          onClose={closeAllModals}
+          onBack={closeModal}
+          canGoBack={canGoBackFromThis}
+        />
+      )
+    }
+    if (item.type === 'artboards') {
+      return (
+        <ArtboardsModal key={key} onClose={closeAllModals} onBack={closeModal} canGoBack={canGoBackFromThis} />
+      )
+    }
+    if (item.type === 'artboard') {
+      return (
+        <ArtboardModal
+          key={key}
+          id={item.id}
+          onClose={closeAllModals}
+          onBack={closeModal}
+          canGoBack={canGoBackFromThis}
+        />
+      )
+    }
+    return null
+  })
+
   return (
     <ProfileModalContext.Provider value={value}>
       {children}
       <ChunkLoadError>
         <Suspense fallback={null}>
-        {currentModal?.type === 'post' && (
-          <PostDetailModal
-            uri={currentModal.uri}
-            openReply={currentModal.openReply}
-            focusUri={currentModal.focusUri}
-            onClose={closeAllModals}
-            onBack={closeModal}
-            canGoBack={canGoBack}
-          />
-        )}
-        {currentModal?.type === 'profile' && (
-          <ProfileModal
-            handle={currentModal.handle}
-            onClose={closeAllModals}
-            onBack={closeModal}
-            canGoBack={canGoBack}
-          />
-        )}
-        {currentModal?.type === 'tag' && (
-          <TagModal
-            tag={currentModal.tag}
-            onClose={closeAllModals}
-            onBack={closeModal}
-            canGoBack={canGoBack}
-          />
-        )}
-        {currentModal?.type === 'search' && (
-          <SearchModal
-            query={currentModal.query}
-            onClose={closeAllModals}
-            onBack={closeModal}
-            canGoBack={canGoBack}
-          />
-        )}
-        {currentModal?.type === 'quotes' && (
-          <QuotesModal
-            postUri={currentModal.uri}
-            onClose={closeAllModals}
-            onBack={closeModal}
-            canGoBack={canGoBack}
-          />
-        )}
-        {currentModal?.type === 'forum' && (
-          <ForumModal onClose={closeAllModals} onBack={closeModal} canGoBack={canGoBack} />
-        )}
-        {currentModal?.type === 'forumPost' && (
-          <ForumPostModal
-            documentUri={currentModal.documentUri}
-            onClose={closeAllModals}
-            onBack={closeModal}
-            canGoBack={canGoBack}
-          />
-        )}
-        {currentModal?.type === 'artboards' && (
-          <ArtboardsModal onClose={closeAllModals} onBack={closeModal} canGoBack={canGoBack} />
-        )}
-        {currentModal?.type === 'artboard' && (
-          <ArtboardModal
-            id={currentModal.id}
-            onClose={closeAllModals}
-            onBack={closeModal}
-            canGoBack={canGoBack}
-          />
-        )}
+          {modalStackElements}
         </Suspense>
       </ChunkLoadError>
     </ProfileModalContext.Provider>

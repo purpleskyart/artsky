@@ -12,6 +12,7 @@ import { useArtOnly } from '../context/ArtOnlyContext'
 import { useMediaOnly } from '../context/MediaOnlyContext'
 import { useModeration } from '../context/ModerationContext'
 import { useProfileModal } from '../context/ProfileModalContext'
+import { useModalScroll } from '../context/ModalScrollContext'
 import { formatExactDateTime, getRelativeTimeParts } from '../lib/date'
 import PostText from './PostText'
 import ProfileLink from './ProfileLink'
@@ -102,6 +103,7 @@ function PostCard({ item, isSelected, cardRef: cardRefProp, addButtonRef: _addBu
   const { mediaMode } = useMediaOnly()
   const { unblurredUris, setUnblurred } = useModeration()
   const { openQuotesModal, isModalOpen } = useProfileModal()
+  const modalScrollRef = useModalScroll()
   const videoRef = useRef<HTMLVideoElement>(null)
   const mediaWrapRef = useRef<HTMLDivElement>(null)
   const hlsRef = useRef<Hls | null>(null)
@@ -533,21 +535,22 @@ function PostCard({ item, isSelected, cardRef: cardRefProp, addButtonRef: _addBu
     return () => el.removeEventListener('focusout', onFocusOut)
   }, [post.uri, unblurredUris, setUnblurred])
 
-  /* Reblur NSFW when media scrolls out of view. */
+  /* Reblur NSFW when media scrolls out of view. Use modal scroll root when inside a modal so we only reblur when media leaves the modal's visible area (fixes hover/keyboard unblur in profile modal). */
   useEffect(() => {
     if (!hasMedia || !unblurredUris.has(post.uri) || !mediaWrapRef.current) return
     const el = mediaWrapRef.current
+    const root = modalScrollRef?.current ?? null
     const observer = new IntersectionObserver(
       (entries) => {
         const entry = entries[0]
         if (!entry || entry.intersectionRatio > 0) return
         setUnblurred(post.uri, false)
       },
-      { threshold: 0, rootMargin: '0px' }
+      { threshold: 0, rootMargin: '0px', root }
     )
     observer.observe(el)
     return () => observer.disconnect()
-  }, [hasMedia, post.uri, unblurredUris, setUnblurred])
+  }, [hasMedia, post.uri, unblurredUris, setUnblurred, modalScrollRef])
 
   const onMediaEnter = useCallback(() => {
     if (videoRef.current) {
