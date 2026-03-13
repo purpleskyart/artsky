@@ -576,7 +576,7 @@ export default function FeedPage() {
 
   const load = useCallback(async (nextCursor?: string, signal?: AbortSignal) => {
     const cols = Math.min(3, Math.max(1, viewMode === '1' ? 1 : viewMode === '2' ? 2 : 3))
-    const limit = cols >= 2 ? cols * 10 : 30
+    const limit = cols >= 2 ? cols * 10 : 20
     
     // Don't refresh feed (load new items at top) if user is scrolled down
     if (!nextCursor && window.scrollY > 100) {
@@ -631,9 +631,12 @@ export default function FeedPage() {
             cursorsToUse = undefined
           }
         }
+        const capped = mixEntries.slice(0, 2)
+        const totalPct = capped.reduce((s, e) => s + e.percent, 0)
+        const normalized = totalPct > 0 ? capped.map((e) => ({ source: e.source, percent: (e.percent / totalPct) * 100 })) : capped.map((e) => ({ source: e.source, percent: e.percent }))
         const { feed, cursors: nextCursors } = await withTimeout(
           getMixedFeed(
-            mixEntries.map((e) => ({ source: e.source, percent: e.percent })),
+            normalized,
             limit,
             cursorsToUse,
             signal

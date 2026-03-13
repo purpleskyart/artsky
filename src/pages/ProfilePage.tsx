@@ -4,9 +4,8 @@ import { useParams, Link } from 'react-router-dom'
 import { useProfileModal } from '../context/ProfileModalContext'
 import { useEditProfile } from '../context/EditProfileContext'
 import { useModalTopBarSlot } from '../context/ModalTopBarSlotContext'
-import { agent, publicAgent, getAgent, getPostMediaInfo, getPostMediaInfoForDisplay, getSession, getActorFeeds, listStandardSiteDocumentsForAuthor, listActivitySubscriptions, putActivitySubscription, isPostNsfw, getFolloweesWhoFollowTarget, getProfileCached, type TimelineItem, type StandardSiteDocumentView, type ProfileViewBasic } from '../lib/bsky'
+import { agent, publicAgent, getPostMediaInfo, getPostMediaInfoForDisplay, getSession, getActorFeeds, listStandardSiteDocumentsForAuthor, listActivitySubscriptions, putActivitySubscription, isPostNsfw, getProfileCached, type TimelineItem, type StandardSiteDocumentView, type ProfileViewBasic } from '../lib/bsky'
 import { setInitialPostForUri } from '../lib/postCache'
-import type { AtpAgent } from '@atproto/api'
 import { formatRelativeTime, formatExactDateTime } from '../lib/date'
 import PostCard from '../components/PostCard'
 import ProfileColumn from '../components/ProfileColumn'
@@ -251,43 +250,26 @@ export function ProfileContent({
     return () => { cancelled = true }
   }, [handle, session, editSavedVersion])
 
-  useEffect(() => {
-    if (!session || !profile) {
-      setNotificationSubscribed(null)
-      return
-    }
-    if (session.did === profile.did) return
+  // Lazy-load notification subscription status only when user hovers/focuses the bell (saves 1 API call per profile open)
+  const notificationStatusFetchedRef = useRef(false)
+  const fetchNotificationStatus = useCallback(() => {
+    if (!session || !profile || session.did === profile.did || notificationStatusFetchedRef.current) return
+    notificationStatusFetchedRef.current = true
     listActivitySubscriptions()
       .then((subs) => setNotificationSubscribed(subs.some((s) => s.did === profile.did)))
       .catch(() => setNotificationSubscribed(null))
   }, [session, profile?.did])
-
   useEffect(() => {
-    if (!session || !profile || session.did === profile.did) {
-      setFolloweesWhoFollowPreview(null)
-      setFolloweesWhoFollowLoading(false)
-      return
-    }
-    setFolloweesWhoFollowLoading(true)
-    let cancelled = false
-    const timeoutId = setTimeout(() => {
-      if (!cancelled) setFolloweesWhoFollowLoading(false)
-    }, 12000)
-    const client = getAgent() as AtpAgent
-    getFolloweesWhoFollowTarget(client, session.did, profile.did, { limit: 30 })
-      .then(({ list }) => {
-        if (!cancelled) setFolloweesWhoFollowPreview(list)
-      })
-      .catch(() => {
-        if (!cancelled) setFolloweesWhoFollowPreview([])
-      })
-      .finally(() => {
-        if (!cancelled) setFolloweesWhoFollowLoading(false)
-      })
-    return () => {
-      cancelled = true
-      clearTimeout(timeoutId)
-    }
+    if (!session || !profile) setNotificationSubscribed(null)
+    notificationStatusFetchedRef.current = false
+  }, [session?.did, profile?.did])
+
+  // REMOVED: getFolloweesWhoFollowTarget API call to reduce profile load requests
+  // This was fetching "Followed by X, Y you follow" preview - not essential for initial load
+  useEffect(() => {
+    // Always set to null/false - no API call
+    setFolloweesWhoFollowPreview(null)
+    setFolloweesWhoFollowLoading(false)
   }, [session?.did, profile?.did])
 
   const load = useCallback(async (nextCursor?: string) => {
@@ -296,7 +278,7 @@ export function ProfileContent({
       if (nextCursor) setLoadingMore(true)
       else setLoading(true)
       setError(null)
-      const res = await readAgent.getAuthorFeed({ actor: handle, limit: 30, cursor: nextCursor, includePins: true })
+      const res = await readAgent.getAuthorFeed({ actor: handle, limit: 20, cursor: nextCursor, includePins: true })
       setItems((prev) => (nextCursor ? [...prev, ...res.data.feed] : res.data.feed))
       setCursor(res.data.cursor ?? undefined)
     } catch (err: unknown) {
@@ -312,7 +294,7 @@ export function ProfileContent({
     try {
       setLoading(true)
       setError(null)
-      const list = await getActorFeeds(handle, 50)
+      const list = await getActorFeeds(handle, 20)
       setFeeds(list)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to load feeds')
@@ -787,6 +769,8 @@ export function ProfileContent({
                       type="button"
                       className={`${styles.notificationBellBtn} ${notificationSubscribed ? styles.notificationBellBtnActive : ''}`}
                       onClick={handleNotificationToggle}
+                      onMouseEnter={fetchNotificationStatus}
+                      onFocus={fetchNotificationStatus}
                       disabled={notificationLoading}
                       title={notificationSubscribed ? 'Stop notifications for this account' : 'Get notifications when this account posts'}
                       aria-label={notificationSubscribed ? 'Stop notifications' : 'Notify when they post'}

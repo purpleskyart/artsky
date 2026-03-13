@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getSession, getProfileCached } from '../lib/bsky'
-import { listForumPostsFromFollowedAndDiscovery, listForumPosts, createForumPost, saveDraft } from '../lib/forum'
+import { listForumPosts, createForumPost, saveDraft } from '../lib/forum'
 import { formatRelativeTime, formatExactDateTime } from '../lib/date'
 import { useListKeyboardNav } from '../hooks/useListKeyboardNav'
 import Layout from '../components/Layout'
@@ -70,16 +70,10 @@ export function ForumContent({ inModal = false, onRegisterRefresh }: { inModal?:
   }, [session?.did])
 
   const loadDiscover = useCallback(async () => {
-    try {
-      setLoading(true)
-      setError(null)
-      const list = await listForumPostsFromFollowedAndDiscovery()
-      setDiscoverPosts(list)
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to load forum')
-    } finally {
-      setLoading(false)
-    }
+    setLoading(true)
+    setError(null)
+    setDiscoverPosts([])
+    setLoading(false)
   }, [])
 
   const loadArtsky = useCallback(async () => {

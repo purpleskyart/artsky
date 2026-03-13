@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { agent, getSession, getSuggestedFollows, getSuggestedFollowsByMutuals, getSuggestedFollowDetail, type SuggestedFollow, type SuggestedFollowDetail } from '../lib/bsky'
+import { agent, getSession, type SuggestedFollow, type SuggestedFollowDetail } from '../lib/bsky'
 import { getRecommendationsShown, markRecommendationsShown, getRotationCutoff } from '../lib/recommendationStorage'
 import { useProfileModal } from '../context/ProfileModalContext'
 import styles from './SuggestedFollows.module.css'
@@ -24,51 +24,21 @@ export default function SuggestedFollows() {
 
   const load = useCallback(async () => {
     const session = getSession()
-    const did = session?.did
-    if (!did) return
+    if (!session?.did) return
     setLoading(true)
-    try {
-      const raw =
-        sortBy === 'mutuals'
-          ? await getSuggestedFollowsByMutuals(agent, did, { maxSuggestions: 20 })
-          : await getSuggestedFollows(agent, did, { maxSuggestions: 20 })
-      const shown = getRecommendationsShown()
-      const cutoff = getRotationCutoff()
-      /* Only filter out dismissed (×) accounts for 7 days; don't mark as "shown" when displaying so each open is fresh */
-      const filtered = raw.filter(
-        (s) => !dismissedDids.has(s.did) && (!shown[s.did] || shown[s.did] < cutoff)
-      )
-      const toDisplay = filtered.slice(0, DISPLAY_COUNT)
-      setSuggestions(toDisplay)
-    } catch {
-      setSuggestions([])
-    } finally {
-      setLoading(false)
-    }
-  }, [dismissedDids, sortBy])
+    setSuggestions([])
+    setLoading(false)
+  }, [])
 
   useEffect(() => {
     load()
   }, [load])
 
-  const openInfo = useCallback(async (s: SuggestedFollow) => {
-    setInfoOpenForDid(s.did)
-    setDetail(null)
-    setDetailLoading(true)
-    try {
-      const session = getSession()
-      const did = session?.did
-      if (!did) return
-      const d = await getSuggestedFollowDetail(agent, did, s.did, {
-        source: sortBy === 'mutuals' ? 'mutuals' : 'peopleYouFollow',
-      })
-      setDetail(d)
-    } catch {
-      setDetail({ count: 0, followedBy: [] })
-    } finally {
-      setDetailLoading(false)
-    }
-  }, [sortBy])
+  const openInfo = useCallback((_s: SuggestedFollow) => {
+    setInfoOpenForDid(_s.did)
+    setDetail({ count: 0, followedBy: [] })
+    setDetailLoading(false)
+  }, [])
 
   const handleFollow = useCallback(
     async (did: string, _handle: string) => {
