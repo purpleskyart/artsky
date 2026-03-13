@@ -224,7 +224,6 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
 
   const isModalOpen = modalStack.length > 0
   const canGoBack = modalStack.length > 1
-  const currentModal = modalStack[modalStack.length - 1] ?? null
 
   const value: ProfileModalContextValue = useMemo(() => ({
     openProfileModal,
