@@ -1907,21 +1907,25 @@ export async function getFeedDisplayNamesBatch(uris: string[]): Promise<Map<stri
     }
   }
   
-  // Fetch uncached in parallel
+  // Fetch uncached with limited concurrency to avoid rate limits (batch size 4)
+  const BATCH_SIZE = 4
   if (uncached.length > 0) {
-    const fetched = await Promise.all(
-      uncached.map(async (uri) => {
-        try {
-          const res = await agent.app.bsky.feed.getFeedGenerator({ feed: uri })
-          const name = (res.data?.view as { displayName?: string })?.displayName ?? uri
-          feedNameCache.set(uri, name)
-          return [uri, name] as const
-        } catch {
-          return [uri, uri] as const
-        }
-      })
-    )
-    fetched.forEach(([uri, name]) => result.set(uri, name))
+    for (let i = 0; i < uncached.length; i += BATCH_SIZE) {
+      const batch = uncached.slice(i, i + BATCH_SIZE)
+      const fetched = await Promise.all(
+        batch.map(async (uri) => {
+          try {
+            const res = await agent.app.bsky.feed.getFeedGenerator({ feed: uri })
+            const name = (res.data?.view as { displayName?: string })?.displayName ?? uri
+            feedNameCache.set(uri, name)
+            return [uri, name] as const
+          } catch {
+            return [uri, uri] as const
+          }
+        })
+      )
+      fetched.forEach(([uri, name]) => result.set(uri, name))
+    }
   }
   
   return result
@@ -2256,11 +2260,12 @@ export async function getNotificationsWithLifecycle(
 // ============================================================================
 
 /**
- * Like a post with cache invalidation
+ * Like a post with cache invalidation. Returns the like record URI for optimistic UI.
  */
-export async function likePostWithLifecycle(uri: string, cid: string): Promise<void> {
-  await apiRequestManager.execute(`like:${uri}`, () => agent.like(uri, cid), { priority: RequestPriority.HIGH, timeout: 30000 })
+export async function likePostWithLifecycle(uri: string, cid: string): Promise<{ uri: string }> {
+  const result = await apiRequestManager.execute(`like:${uri}`, () => agent.like(uri, cid), { priority: RequestPriority.HIGH, timeout: 30000 })
   invalidateAfterPostLiked()
+  return result
 }
 
 /**
@@ -2272,11 +2277,12 @@ export async function unlikePostWithLifecycle(likeUri: string): Promise<void> {
 }
 
 /**
- * Repost a post with cache invalidation
+ * Repost a post with cache invalidation. Returns the repost record URI for optimistic UI.
  */
-export async function repostPostWithLifecycle(uri: string, cid: string): Promise<void> {
-  await apiRequestManager.execute(`repost:${uri}`, () => agent.repost(uri, cid), { priority: RequestPriority.HIGH, timeout: 30000 })
+export async function repostPostWithLifecycle(uri: string, cid: string): Promise<{ uri: string }> {
+  const result = await apiRequestManager.execute(`repost:${uri}`, () => agent.repost(uri, cid), { priority: RequestPriority.HIGH, timeout: 30000 })
   invalidateAfterPostReposted()
+  return result
 }
 
 /**
@@ -2288,11 +2294,12 @@ export async function deleteRepostWithLifecycle(repostUri: string): Promise<void
 }
 
 /**
- * Follow an account with cache invalidation
+ * Follow an account with cache invalidation. Returns the follow record URI for optimistic UI.
  */
-export async function followAccountWithLifecycle(did: string): Promise<void> {
-  await apiRequestManager.execute(`follow:${did}`, () => agent.follow(did), { priority: RequestPriority.HIGH, timeout: 30000 })
+export async function followAccountWithLifecycle(did: string): Promise<{ uri: string }> {
+  const result = await apiRequestManager.execute(`follow:${did}`, () => agent.follow(did), { priority: RequestPriority.HIGH, timeout: 30000 })
   invalidateAfterFollowing()
+  return result
 }
 
 /**

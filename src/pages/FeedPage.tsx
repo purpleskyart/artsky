@@ -1,7 +1,6 @@
 import { useCallback, useContext, useEffect, useMemo, useReducer, useRef, useState, startTransition, useSyncExternalStore } from 'react'
 import { useLocation, useNavigate, useNavigationType } from 'react-router-dom'
 import {
-  agent,
   getPostMediaInfo,
   getPostAllMediaForDisplay,
   getGuestFeed,
@@ -9,6 +8,10 @@ import {
   getFeedDisplayNamesBatch,
   getMixedFeed,
   isPostNsfw,
+  likePostWithLifecycle,
+  unlikePostWithLifecycle,
+  followAccountWithLifecycle,
+  unfollowAccountWithLifecycle,
   type TimelineItem,
 } from '../lib/bsky'
 import type { FeedSource } from '../types'
@@ -1209,13 +1212,13 @@ export default function FeedPage() {
         const uri = item.post.uri
         const currentLikeUri = uri in likeOverrides ? (likeOverrides[uri] ?? undefined) : (item.post as { viewer?: { like?: string } }).viewer?.like
         if (currentLikeUri) {
-          agent.deleteLike(currentLikeUri).then(() => {
+          unlikePostWithLifecycle(currentLikeUri).then(() => {
             setLikeOverride(uri, null)
           }).catch((err: unknown) => {
             console.error('Failed to unlike post:', err)
           })
         } else {
-          agent.like(uri, item.post.cid).then((res: { uri: string }) => {
+          likePostWithLifecycle(uri, item.post.cid).then((res) => {
             setLikeOverride(uri, res.uri)
           }).catch((err: unknown) => {
             console.error('Failed to like post:', err)
@@ -1233,7 +1236,7 @@ export default function FeedPage() {
         if (author && session?.did && session.did !== author.did && postUri) {
           const followingUri = author.viewer?.following
           if (followingUri) {
-            agent.deleteFollow(followingUri).then(() => {
+            unfollowAccountWithLifecycle(followingUri).then(() => {
               dispatch({
                 type: 'UPDATE_ITEMS',
                 updater: (prev) =>
@@ -1257,7 +1260,7 @@ export default function FeedPage() {
               console.error('Failed to unfollow:', err)
             })
           } else {
-            agent.follow(author.did).then((res: { uri: string }) => {
+            followAccountWithLifecycle(author.did).then((res) => {
               dispatch({
                 type: 'UPDATE_ITEMS',
                 updater: (prev) =>

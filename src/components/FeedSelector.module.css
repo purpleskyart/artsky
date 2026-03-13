@@ -1,5 +1,6 @@
 .wrap {
   margin-bottom: 0.4rem;
+  overflow: visible;
 }
 
 /* Dropdown: add padding; page variant has no extra padding */
@@ -15,6 +16,7 @@
   flex-wrap: wrap;
   justify-content: center;
   width: 100%;
+  overflow: visible;
 }
 
 .feedRow .tabs {

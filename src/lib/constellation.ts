@@ -28,13 +28,22 @@ export async function getDownvoteCount(postUri: string): Promise<number> {
   }
 }
 
-/** Get downvote counts for multiple posts in parallel. */
+const DOWNVOTE_BATCH_SIZE = 4
+const DOWNVOTE_BATCH_DELAY_MS = 150
+
+/** Get downvote counts for multiple posts with throttling to avoid rate limits. */
 export async function getDownvoteCounts(postUris: string[]): Promise<Record<string, number>> {
   const unique = [...new Set(postUris)]
-  const results = await Promise.all(
-    unique.map(async (uri) => ({ uri, count: await getDownvoteCount(uri) }))
-  )
   const out: Record<string, number> = {}
-  for (const { uri, count } of results) out[uri] = count
+  for (let i = 0; i < unique.length; i += DOWNVOTE_BATCH_SIZE) {
+    const batch = unique.slice(i, i + DOWNVOTE_BATCH_SIZE)
+    const results = await Promise.all(
+      batch.map(async (uri) => ({ uri, count: await getDownvoteCount(uri) }))
+    )
+    for (const { uri, count } of results) out[uri] = count
+    if (i + DOWNVOTE_BATCH_SIZE < unique.length) {
+      await new Promise((r) => setTimeout(r, DOWNVOTE_BATCH_DELAY_MS))
+    }
+  }
   return out
 }

@@ -1771,6 +1771,20 @@ button.logoLink {
   padding-right: env(safe-area-inset-right);
 }
 
+/* Keep feed selector (pills + Add Custom Feed) visible when scrolling the homepage */
+.feedSelectorStickyWrap {
+  position: sticky;
+  top: 3.5rem;
+  z-index: 5;
+  background: var(--bg);
+}
+
+@media (max-width: 767px) {
+  .feedSelectorStickyWrap {
+    top: calc(max(0.5rem, env(safe-area-inset-top, 59px)) + 3.5rem);
+  }
+}
+
 /* Mobile only: column + NSFW + card toggle in account menu (icon + label per button) */
 .menuMobileViewRow {
   display: flex;

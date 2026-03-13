@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { agent, searchPostsByTag, getPostMediaInfo, isPostNsfw } from '../lib/bsky'
+import { searchPostsByTag, getPostMediaInfo, isPostNsfw, likePostWithLifecycle, unlikePostWithLifecycle } from '../lib/bsky'
 import type { TimelineItem } from '../lib/bsky'
 import type { AppBskyFeedDefs } from '@atproto/api'
 import ProfileColumn from '../components/ProfileColumn'
@@ -215,11 +215,11 @@ export function TagContent({ tag, inModal = false, onRegisterRefresh }: { tag: s
         const uri = item.post.uri
         const currentLikeUri = uri in likeOverrides ? (likeOverrides[uri] ?? undefined) : (item.post as { viewer?: { like?: string } }).viewer?.like
         if (currentLikeUri) {
-          agent.deleteLike(currentLikeUri).then(() => {
+          unlikePostWithLifecycle(currentLikeUri).then(() => {
             setLikeOverrides((prev) => ({ ...prev, [uri]: null }))
           }).catch(() => {})
         } else {
-          agent.like(uri, item.post.cid).then((res) => {
+          likePostWithLifecycle(uri, item.post.cid).then((res) => {
             setLikeOverrides((prev) => ({ ...prev, [uri]: res.uri }))
           }).catch(() => {})
         }

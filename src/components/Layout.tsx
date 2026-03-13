@@ -2090,34 +2090,36 @@ export default function Layout({ title, children, showNav }: Props) {
             onTouchMove={feedPullRefreshHandlers?.onTouchMove}
             onTouchEnd={feedPullRefreshHandlers?.onTouchEnd}
           >
-            <FeedSelector
-              variant="page"
-              sources={session ? allFeedSources : GUEST_FEED_SOURCES}
-              fallbackSource={session ? fallbackFeedSource : GUEST_FEED_SOURCES[0]}
-              mixEntries={session ? mixEntries : GUEST_MIX_ENTRIES}
-              onToggle={handleFeedsToggleSource}
-              setEntryPercent={setEntryPercent}
-              onAddCustom={async (input) => {
-                if (!session) return
-                setFeedAddError(null)
-                try {
-                  const isFeedSource = typeof input === 'object' && input !== null && 'uri' in input
-                  const uri = isFeedSource ? await resolveFeedUri((input as FeedSource).uri!) : await resolveFeedUri(input as string)
-                  await addSavedFeed(uri)
-                  const label = isFeedSource ? (input as FeedSource).label ?? await requestDeduplicator.dedupe(`feed-name:${uri}`, () => getFeedDisplayName(uri)) : await requestDeduplicator.dedupe(`feed-name:${uri}`, () => getFeedDisplayName(uri))
-                  const source: FeedSource = { kind: 'custom', label, uri }
-                  setSavedFeedSources((prev) => (prev.some((s) => s.uri === uri) ? prev : [...prev, source]))
-                  handleFeedsToggleSource(source)
-                } catch (err) {
-                  setFeedAddError(err instanceof Error ? err.message : 'Could not add feed. Try again.')
-                }
-              }}
-              onToggleWhenGuest={session ? undefined : openLoginModal}
-              removableSourceUris={session ? removableSourceUris : undefined}
-              onRemoveFeed={session ? handleRemoveFeed : undefined}
-              onShareFeed={session ? handleShareFeed : undefined}
-              onReorderSources={session ? handleReorderFeeds : undefined}
-            />
+            <div className={styles.feedSelectorStickyWrap}>
+              <FeedSelector
+                variant="page"
+                sources={session ? allFeedSources : GUEST_FEED_SOURCES}
+                fallbackSource={session ? fallbackFeedSource : GUEST_FEED_SOURCES[0]}
+                mixEntries={session ? mixEntries : GUEST_MIX_ENTRIES}
+                onToggle={handleFeedsToggleSource}
+                setEntryPercent={setEntryPercent}
+                onAddCustom={async (input) => {
+                  if (!session) return
+                  setFeedAddError(null)
+                  try {
+                    const isFeedSource = typeof input === 'object' && input !== null && 'uri' in input
+                    const uri = isFeedSource ? await resolveFeedUri((input as FeedSource).uri!) : await resolveFeedUri(input as string)
+                    await addSavedFeed(uri)
+                    const label = isFeedSource ? (input as FeedSource).label ?? await requestDeduplicator.dedupe(`feed-name:${uri}`, () => getFeedDisplayName(uri)) : await requestDeduplicator.dedupe(`feed-name:${uri}`, () => getFeedDisplayName(uri))
+                    const source: FeedSource = { kind: 'custom', label, uri }
+                    setSavedFeedSources((prev) => (prev.some((s) => s.uri === uri) ? prev : [...prev, source]))
+                    handleFeedsToggleSource(source)
+                  } catch (err) {
+                    setFeedAddError(err instanceof Error ? err.message : 'Could not add feed. Try again.')
+                  }
+                }}
+                onToggleWhenGuest={session ? undefined : openLoginModal}
+                removableSourceUris={session ? removableSourceUris : undefined}
+                onRemoveFeed={session ? handleRemoveFeed : undefined}
+                onShareFeed={session ? handleShareFeed : undefined}
+                onReorderSources={session ? handleReorderFeeds : undefined}
+              />
+            </div>
             {children}
           </div>
         ) : (

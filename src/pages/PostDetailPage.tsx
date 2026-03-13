@@ -2,9 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import type { AppBskyFeedDefs } from '@atproto/api'
 import type { AtpSessionData } from '@atproto/api'
-import { agent, publicAgent, postReply, getPostAllMedia, getPostMediaUrl, getQuotedPostView, getPostExternalLink, getSession, createQuotePost, createDownvote, deleteDownvote, listMyDownvotes, getPostThreadCached, getProfilesBatch, getProfileCached } from '../lib/bsky'
+import { agent, publicAgent, postReply, getPostAllMedia, getPostMediaUrl, getQuotedPostView, getPostExternalLink, getSession, createQuotePost, createDownvote, deleteDownvote, listMyDownvotes, getPostThreadCached, getProfilesBatch, getProfileCached, likePostWithLifecycle, unlikePostWithLifecycle, repostPostWithLifecycle, deleteRepostWithLifecycle, followAccountWithLifecycle, unfollowAccountWithLifecycle } from '../lib/bsky'
 import { getApiErrorMessage } from '../lib/apiErrors'
-import { takeInitialPostForUri, getCachedThread } from '../lib/postCache'
+import { takeInitialPostForUri, getCachedThread, invalidateThreadCache } from '../lib/postCache'
 import { getDownvoteCounts } from '../lib/constellation'
 import { useSession } from '../context/SessionContext'
 import { getArtboards, createArtboard, addPostToArtboard, isPostInArtboard } from '../lib/artboards'
@@ -626,9 +626,9 @@ function PostBlock({
                       try {
                         const postViewer = post as { viewer?: { repost?: string } }
                         if (postViewer.viewer?.repost) {
-                          await agent.deleteRepost(postViewer.viewer.repost)
+                          await deleteRepostWithLifecycle(postViewer.viewer.repost)
                         } else {
-                          await agent.repost(post.uri, post.cid)
+                          await repostPostWithLifecycle(post.uri, post.cid)
                         }
                       } catch (err) {
                         console.error('Failed to repost:', err)
@@ -1080,7 +1080,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
     if (!thread || !isThreadViewPost(thread) || followLoading || alreadyFollowing) return
     setFollowLoading(true)
     try {
-      const res = await agent.follow(thread.post.author.did)
+      const res = await followAccountWithLifecycle(thread.post.author.did)
       setFollowUriOverride(res.uri)
       setAuthorFollowed(true)
     } catch {
@@ -1094,7 +1094,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
     if (!followingUri || followLoading) return
     setFollowLoading(true)
     try {
-      await agent.deleteFollow(followingUri)
+      await unfollowAccountWithLifecycle(followingUri)
       setFollowUriOverride(null)
       setAuthorFollowed(false)
     } catch {
@@ -1110,10 +1110,10 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
     setLikeLoading(true)
     try {
       if (isLiked) {
-        await agent.deleteLike(likedUri!)
+        await unlikePostWithLifecycle(likedUri!)
         setLikeUriOverride(null)
       } else {
-        const res = await agent.like(uri, cid)
+        const res = await likePostWithLifecycle(uri, cid)
         setLikeUriOverride(res.uri)
       }
     } catch {
@@ -1133,10 +1133,10 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
     setRepostLoading(true)
     try {
       if (isReposted) {
-        await agent.deleteRepost(repostedUri!)
+        await deleteRepostWithLifecycle(repostedUri!)
         setRepostUriOverride(null)
       } else {
-        const res = await agent.repost(uri, cid)
+        const res = await repostPostWithLifecycle(uri, cid)
         setRepostUriOverride(res.uri)
       }
     } catch {
@@ -1305,6 +1305,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
       await postReply(rootPost.uri, rootPost.cid, parent.uri, parent.cid, comment.trim())
       setComment('')
       setReplyingTo(null)
+      invalidateThreadCache(decodedUri)
       await load()
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : 'Failed to post comment')
@@ -1321,6 +1322,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
     try {
       await postReply(rootPost.uri, rootPost.cid, rootPost.uri, rootPost.cid, comment.trim())
       setComment('')
+      invalidateThreadCache(decodedUri)
       await load()
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : 'Failed to post comment')
@@ -1339,10 +1341,10 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
     setCommentLikeLoadingUri(uri)
     try {
       if (currentLikeUri) {
-        await agent.deleteLike(currentLikeUri)
+        await unlikePostWithLifecycle(currentLikeUri)
         setCommentLikeOverrides((m) => ({ ...m, [uri]: null }))
       } else {
-        const res = await agent.like(uri, cid)
+        const res = await likePostWithLifecycle(uri, cid)
         setCommentLikeOverrides((m) => ({ ...m, [uri]: res.uri }))
       }
     } catch {

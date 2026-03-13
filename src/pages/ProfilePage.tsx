@@ -4,7 +4,7 @@ import { useParams, Link } from 'react-router-dom'
 import { useProfileModal } from '../context/ProfileModalContext'
 import { useEditProfile } from '../context/EditProfileContext'
 import { useModalTopBarSlot } from '../context/ModalTopBarSlotContext'
-import { agent, publicAgent, getPostMediaInfo, getPostMediaInfoForDisplay, getSession, getActorFeeds, listStandardSiteDocumentsForAuthor, listActivitySubscriptions, putActivitySubscription, isPostNsfw, getProfileCached, type TimelineItem, type StandardSiteDocumentView, type ProfileViewBasic } from '../lib/bsky'
+import { agent, publicAgent, getPostMediaInfo, getPostMediaInfoForDisplay, getSession, getActorFeeds, listStandardSiteDocumentsForAuthor, listActivitySubscriptions, putActivitySubscription, isPostNsfw, getProfileCached, likePostWithLifecycle, unlikePostWithLifecycle, followAccountWithLifecycle, unfollowAccountWithLifecycle, type TimelineItem, type StandardSiteDocumentView, type ProfileViewBasic } from '../lib/bsky'
 import { setInitialPostForUri } from '../lib/postCache'
 import { formatRelativeTime, formatExactDateTime } from '../lib/date'
 import PostCard from '../components/PostCard'
@@ -612,11 +612,11 @@ export function ProfileContent({
         const uri = item.post.uri
         const currentLikeUri = uri in likeOverrides ? (likeOverrides[uri] ?? undefined) : (item.post as { viewer?: { like?: string } }).viewer?.like
         if (currentLikeUri) {
-          agent.deleteLike(currentLikeUri).then(() => {
+          unlikePostWithLifecycle(currentLikeUri).then(() => {
             setLikeOverrides((prev) => ({ ...prev, [uri]: null }))
           }).catch(() => {})
         } else {
-          agent.like(uri, item.post.cid).then((res) => {
+          likePostWithLifecycle(uri, item.post.cid).then((res) => {
             setLikeOverrides((prev) => ({ ...prev, [uri]: res.uri }))
           }).catch(() => {})
         }
@@ -649,7 +649,7 @@ export function ProfileContent({
     if (!profile || followLoading || isFollowing) return
     setFollowLoading(true)
     try {
-      const res = await agent.follow(profile.did)
+      const res = await followAccountWithLifecycle(profile.did)
       setFollowUriOverride(res.uri)
     } catch {
       // leave state unchanged so user can retry
@@ -662,7 +662,7 @@ export function ProfileContent({
     if (!followingUri || followLoading) return
     setFollowLoading(true)
     try {
-      await agent.deleteFollow(followingUri)
+      await unfollowAccountWithLifecycle(followingUri)
       setFollowUriOverride(null)
       setProfile((prev) =>
         prev ? { ...prev, viewer: { ...prev.viewer, following: undefined } } : null,

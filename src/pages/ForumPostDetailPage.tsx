@@ -8,7 +8,8 @@ import {
   uploadStandardSiteDocumentBlob,
   listStandardSiteRepliesForDocument,
   createStandardSiteComment,
-  agent,
+  likePostWithLifecycle,
+  unlikePostWithLifecycle,
   getProfileCached,
   type StandardSiteDocumentView,
   type StandardSiteDocumentBlobRef,
@@ -364,14 +365,14 @@ export function ForumPostContent({ documentUri, onClose, onRegisterRefresh }: Fo
     setLikeLoadingMap((m) => ({ ...m, [post.uri]: true }))
     try {
       if (isLiked) {
-        await agent.deleteLike(likedUri)
+        await unlikePostWithLifecycle(likedUri)
         setLikeUriOverrideMap((m) => {
           const next = { ...m }
           delete next[post.uri]
           return next
         })
       } else {
-        const res = await agent.like(post.uri, post.cid)
+        const res = await likePostWithLifecycle(post.uri, post.cid)
         setLikeUriOverrideMap((m) => ({ ...m, [post.uri]: res.uri }))
       }
       await loadReplies()

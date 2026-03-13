@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { agent, searchPostsByPhraseAndTags, searchForumDocuments, getPostMediaInfo, isPostNsfw } from '../lib/bsky'
+import { searchPostsByPhraseAndTags, searchForumDocuments, getPostMediaInfo, isPostNsfw, likePostWithLifecycle, unlikePostWithLifecycle } from '../lib/bsky'
 import type { TimelineItem, StandardSiteDocumentView } from '../lib/bsky'
 import type { AppBskyFeedDefs } from '@atproto/api'
 import ProfileColumn from './ProfileColumn'
@@ -299,11 +299,11 @@ function SearchContent({ query, onRegisterRefresh }: { query: string; onRegister
         const uri = item.post.uri
         const currentLikeUri = uri in likeOverrides ? (likeOverrides[uri] ?? undefined) : (item.post as { viewer?: { like?: string } }).viewer?.like
         if (currentLikeUri) {
-          agent.deleteLike(currentLikeUri).then(() => {
+          unlikePostWithLifecycle(currentLikeUri).then(() => {
             setLikeOverrides((prev) => ({ ...prev, [uri]: null }))
           }).catch(() => {})
         } else {
-          agent.like(uri, item.post.cid).then((res) => {
+          likePostWithLifecycle(uri, item.post.cid).then((res) => {
             setLikeOverrides((prev) => ({ ...prev, [uri]: res.uri }))
           }).catch(() => {})
         }
