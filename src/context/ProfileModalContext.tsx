@@ -142,55 +142,55 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
     const profileHandle = profileFromSearch ?? (profileFromPath ? decodeURIComponent(profileFromPath) : null)
     const stack: ModalItem[] = profileHandle ? [{ type: 'profile', handle: profileHandle }, postItem] : [postItem]
     const search = stack.length > 0 ? `?${modalStackToSearch(stack)}` : ''
-    navigate({ pathname: location.pathname, search }, { replace: true })
+    navigate({ pathname: location.pathname, search }, { replace: false })
   }, [location.pathname, location.search, navigate])
 
   const openProfileModal = useCallback((handle: string) => {
     const item: ModalItem = { type: 'profile', handle }
     const search = `?${modalItemToSearch(item)}`
-    navigate({ pathname: location.pathname, search }, { replace: true })
+    navigate({ pathname: location.pathname, search }, { replace: false })
   }, [location.pathname, navigate])
 
   const openTagModal = useCallback((tag: string) => {
     const item: ModalItem = { type: 'tag', tag }
     const search = `?${modalItemToSearch(item)}`
-    navigate({ pathname: location.pathname, search }, { replace: true })
+    navigate({ pathname: location.pathname, search }, { replace: false })
   }, [location.pathname, navigate])
 
   const openSearchModal = useCallback((query: string) => {
     const item: ModalItem = { type: 'search', query }
     const search = `?${modalItemToSearch(item)}`
-    navigate({ pathname: location.pathname, search }, { replace: true })
+    navigate({ pathname: location.pathname, search }, { replace: false })
   }, [location.pathname, navigate])
 
   const openForumModal = useCallback(() => {
     const item: ModalItem = { type: 'forum' }
     const search = `?${modalItemToSearch(item)}`
-    navigate({ pathname: location.pathname, search }, { replace: true })
+    navigate({ pathname: location.pathname, search }, { replace: false })
   }, [location.pathname, navigate])
 
   const openForumPostModal = useCallback((documentUri: string) => {
     const item: ModalItem = { type: 'forumPost', documentUri }
     const search = `?${modalItemToSearch(item)}`
-    navigate({ pathname: location.pathname, search }, { replace: true })
+    navigate({ pathname: location.pathname, search }, { replace: false })
   }, [location.pathname, navigate])
 
   const openArtboardsModal = useCallback(() => {
     const item: ModalItem = { type: 'artboards' }
     const search = `?${modalItemToSearch(item)}`
-    navigate({ pathname: location.pathname, search }, { replace: true })
+    navigate({ pathname: location.pathname, search }, { replace: false })
   }, [location.pathname, navigate])
 
   const openArtboardModal = useCallback((id: string) => {
     const item: ModalItem = { type: 'artboard', id }
     const search = `?${modalItemToSearch(item)}`
-    navigate({ pathname: location.pathname, search }, { replace: true })
+    navigate({ pathname: location.pathname, search }, { replace: false })
   }, [location.pathname, navigate])
 
   const openQuotesModal = useCallback((postUri: string) => {
     const item: ModalItem = { type: 'quotes', uri: postUri }
     const search = `?${modalItemToSearch(item)}`
-    navigate({ pathname: location.pathname, search }, { replace: true })
+    navigate({ pathname: location.pathname, search }, { replace: false })
   }, [location.pathname, navigate])
 
   const closeModal = useCallback(() => {
