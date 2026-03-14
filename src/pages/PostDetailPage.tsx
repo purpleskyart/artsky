@@ -92,7 +92,7 @@ export function ReplyAsRow({
   }, [sessionsDidKey, sessionsList])
   const { openLoginModal } = useLoginModal()
   return (
-    <p className={styles.replyAs}>
+    <div className={styles.replyAs}>
       <span className={styles.replyAsLabel}>{label}</span>
       <span className={styles.replyAsUserChip}>
         {replyAs.avatar ? (
@@ -152,7 +152,7 @@ export function ReplyAsRow({
           )}
         </div>
       </span>
-    </p>
+    </div>
   )
 }
 

@@ -13,6 +13,10 @@ interface ProfileActionsMenuProps {
   hideRepostsFromThisUser?: boolean
   /** Callback to toggle hide reposts from this user. */
   onToggleHideReposts?: () => void
+  /** When provided, menu uses this instead of fetching profile again (avoids extra API call). */
+  initialProfileMeta?: { createdAt?: string; indexedAt?: string } | null
+  /** When provided, menu uses this for block state instead of fetching profile again. */
+  initialAuthorBlockingUri?: string | null
   className?: string
 }
 
@@ -23,6 +27,8 @@ export default function ProfileActionsMenu({
   isFollowing,
   hideRepostsFromThisUser,
   onToggleHideReposts,
+  initialProfileMeta,
+  initialAuthorBlockingUri,
   className,
 }: ProfileActionsMenuProps) {
   const session = getSession()
@@ -30,17 +36,29 @@ export default function ProfileActionsMenu({
   const [loading, setLoading] = useState<string | null>(null)
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   const [blockStep, setBlockStep] = useState<'idle' | 'confirm'>('idle')
-  const [authorBlockingUri, setAuthorBlockingUri] = useState<string | null>(null)
-  const [profileMeta, setProfileMeta] = useState<{ createdAt?: string; indexedAt?: string } | null>(null)
+  const [authorBlockingUri, setAuthorBlockingUri] = useState<string | null>(initialAuthorBlockingUri ?? null)
+  const [profileMeta, setProfileMeta] = useState<{ createdAt?: string; indexedAt?: string } | null>(initialProfileMeta ?? null)
   const menuRef = useRef<HTMLDivElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const lastSyncedProfileDidRef = useRef<string | null>(null)
+
+  // Sync from props only when profile changes (so block/unblock in menu isn't overwritten by stale parent state)
+  useEffect(() => {
+    if (profileDid !== lastSyncedProfileDidRef.current) {
+      lastSyncedProfileDidRef.current = profileDid
+      if (initialAuthorBlockingUri !== undefined) setAuthorBlockingUri(initialAuthorBlockingUri)
+      if (initialProfileMeta !== undefined) setProfileMeta(initialProfileMeta)
+    }
+  }, [profileDid, initialAuthorBlockingUri, initialProfileMeta])
 
   useEffect(() => {
     if (!open) setBlockStep('idle')
   }, [open])
 
+  // Only fetch when menu opens if parent didn't pass data (avoids duplicate getProfileCached)
   useEffect(() => {
     if (!open) return
+    if (initialProfileMeta !== undefined && initialAuthorBlockingUri !== undefined) return
     let cancelled = false
     getProfileCached(profileDid, !getSession()).then((data) => {
       if (cancelled) return
@@ -48,7 +66,6 @@ export default function ProfileActionsMenu({
         createdAt: data.createdAt ?? undefined,
         indexedAt: data.indexedAt ?? undefined,
       })
-      // Extract viewer-specific data from cached profile if available
       const viewerData = data as { viewer?: { blocking?: string } }
       setAuthorBlockingUri(viewerData.viewer?.blocking ?? null)
     }).catch(() => {
@@ -58,7 +75,7 @@ export default function ProfileActionsMenu({
       }
     })
     return () => { cancelled = true }
-  }, [open, profileDid])
+  }, [open, profileDid, initialProfileMeta, initialAuthorBlockingUri])
 
   useEffect(() => {
     if (!open) return

@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState, useCallback, useLayoutEffect, useMemo, memo } from 'react'
 import { createPortal } from 'react-dom'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import type Hls from 'hls.js'
 import { loadHls } from '../lib/loadHls'
 import { getPostMediaInfoForDisplay, getPostAllMediaForDisplay, getPostMediaUrlForDisplay, getPostExternalLink, agent, likePostWithLifecycle, unlikePostWithLifecycle, followAccountWithLifecycle, type TimelineItem } from '../lib/bsky'
@@ -12,6 +12,7 @@ import { useArtOnly } from '../context/ArtOnlyContext'
 import { useMediaOnly } from '../context/MediaOnlyContext'
 import { useModeration } from '../context/ModerationContext'
 import { useProfileModal } from '../context/ProfileModalContext'
+import { setInitialPostForUri } from '../lib/postCache'
 import { useModalScroll } from '../context/ModalScrollContext'
 import { formatExactDateTime, getRelativeTimeParts } from '../lib/date'
 import PostText from './PostText'
@@ -102,7 +103,8 @@ function PostCard({ item, isSelected, cardRef: cardRefProp, addButtonRef: _addBu
   const { artOnly, minimalist } = useArtOnly()
   const { mediaMode } = useMediaOnly()
   const { unblurredUris, setUnblurred } = useModeration()
-  const { openQuotesModal, isModalOpen } = useProfileModal()
+  const { openQuotesModal, openPostModal, isModalOpen } = useProfileModal()
+  const location = useLocation()
   const modalScrollRef = useModalScroll()
   const videoRef = useRef<HTMLVideoElement>(null)
   const mediaWrapRef = useRef<HTMLDivElement>(null)
@@ -161,6 +163,7 @@ function PostCard({ item, isSelected, cardRef: cardRefProp, addButtonRef: _addBu
   const touchSessionRef = useRef(false)
   const mediaClickFromTouchRef = useRef(false)
   const openDelayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const mediaOpenDelayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const touchStartRef = useRef<{ x: number; y: number } | null>(null)
   const nsfwOverlayHandledRef = useRef(false)
   /** On mobile, first tap on NSFW overlay only unblurs; set so synthetic click doesn't open. */
@@ -287,6 +290,10 @@ function PostCard({ item, isSelected, cardRef: cardRefProp, addButtonRef: _addBu
       if (openDelayTimerRef.current) {
         clearTimeout(openDelayTimerRef.current)
         openDelayTimerRef.current = null
+      }
+      if (mediaOpenDelayTimerRef.current) {
+        clearTimeout(mediaOpenDelayTimerRef.current)
+        mediaOpenDelayTimerRef.current = null
       }
     }
   }, [])
@@ -567,6 +574,20 @@ function PostCard({ item, isSelected, cardRef: cardRefProp, addButtonRef: _addBu
     }
   }, [])
 
+  /** Open post in modal (profile page) or navigate to feed with post param (other pages). Same behavior as when onPostClick is provided. */
+  const openPostInModalOrFeed = useCallback(() => {
+    if (onPostClick) {
+      onPostClick(post.uri, { initialItem: item })
+      return
+    }
+    if (location.pathname.startsWith('/profile/')) {
+      setInitialPostForUri(post.uri, item)
+      openPostModal(post.uri)
+    } else {
+      navigate(`/feed?post=${encodeURIComponent(post.uri)}`)
+    }
+  }, [onPostClick, post.uri, item, navigate, location.pathname, openPostModal])
+
   const handleCardClick = useCallback((e: React.MouseEvent) => {
     if (didDoubleTapRef.current) {
       didDoubleTapRef.current = false
@@ -575,22 +596,19 @@ function PostCard({ item, isSelected, cardRef: cardRefProp, addButtonRef: _addBu
       return
     }
     /* On touch devices the synthetic click fires ~300ms after touchEnd; we delay open by 400ms so double-tap can register. Ignore this click and let the timer open. */
-    if (touchSessionRef.current) { 
+    if (touchSessionRef.current) {
       e.preventDefault()
-      return 
+      e.stopPropagation()
+      return
     }
     e.preventDefault()
-    if (onPostClick) {
-      onPostClick(post.uri, { initialItem: item })
-    } else {
-      navigate(`/feed?post=${encodeURIComponent(post.uri)}`)
-    }
-  }, [onPostClick, post.uri, item, navigate])
+    e.stopPropagation()
+    openPostInModalOrFeed()
+  }, [openPostInModalOrFeed])
 
   const openPost = useCallback(() => {
-    if (onPostClick) onPostClick(post.uri, { initialItem: item })
-    else navigate(`/feed?post=${encodeURIComponent(post.uri)}`)
-  }, [onPostClick, post.uri, item, navigate])
+    openPostInModalOrFeed()
+  }, [openPostInModalOrFeed])
 
   const handleMediaDoubleTapLike = useCallback(() => {
     if (!session?.did) {
@@ -617,10 +635,18 @@ function PostCard({ item, isSelected, cardRef: cardRefProp, addButtonRef: _addBu
     const now = Date.now()
     if (now - lastMediaClickRef.current < 400) {
       lastMediaClickRef.current = 0
+      if (mediaOpenDelayTimerRef.current) {
+        clearTimeout(mediaOpenDelayTimerRef.current)
+        mediaOpenDelayTimerRef.current = null
+      }
       handleMediaDoubleTapLike()
     } else {
       lastMediaClickRef.current = now
-      setTimeout(() => openPost(), 400)
+      if (mediaOpenDelayTimerRef.current) clearTimeout(mediaOpenDelayTimerRef.current)
+      mediaOpenDelayTimerRef.current = setTimeout(() => {
+        mediaOpenDelayTimerRef.current = null
+        openPost()
+      }, 400)
     }
   }, [mediaClickFromTouchRef, lastMediaClickRef, handleMediaDoubleTapLike, openPost])
 
@@ -637,15 +663,20 @@ function PostCard({ item, isSelected, cardRef: cardRefProp, addButtonRef: _addBu
 
   return (
     <div ref={setCardRef} data-post-uri={post.uri} className={`${styles.card} ${isSelected ? styles.cardSelected : ''} ${showTransFlagOutline ? styles.cardTransFlag : ''} ${!showTransFlagOutline && isLiked ? styles.cardLiked : ''} ${!showTransFlagOutline && inAnyArtboard ? styles.cardInArtboard : ''} ${seen && !isSelected ? styles.cardSeen : ''} ${fillCell ? styles.cardFillCell : ''} ${artOnly ? styles.cardArtOnly : ''} ${minimalist ? styles.cardMinimalist : ''}`}>
-      <Link
-        to="#"
+      <div
+        role="button"
+        tabIndex={0}
         className={styles.cardLink}
-        onClick={handleCardClick}
-        onKeyDown={(e) => {
-          if (e.key !== 'Enter') return
+        onClick={(e) => {
           e.preventDefault()
-          if (onPostClick) onPostClick(post.uri, { initialItem: item })
-          else navigate(`/feed?post=${encodeURIComponent(post.uri)}`)
+          e.stopPropagation()
+          handleCardClick(e)
+        }}
+        {...(nsfwBlurred && onNsfwUnblur && { onPointerEnter: onNsfwUnblur })}
+        onKeyDown={(e) => {
+          if (e.key !== 'Enter' && e.key !== ' ') return
+          e.preventDefault()
+          openPost()
         }}
         onTouchStart={(e) => {
           touchSessionRef.current = true
@@ -699,13 +730,24 @@ function PostCard({ item, isSelected, cardRef: cardRefProp, addButtonRef: _addBu
             }, 500)
           } else {
             lastTapRef.current = now
-            if (openDelayTimerRef.current) clearTimeout(openDelayTimerRef.current)
-            openDelayTimerRef.current = setTimeout(() => {
-              openDelayTimerRef.current = null
-              touchSessionRef.current = false
-              mediaClickFromTouchRef.current = false
-              openPost()
-            }, 400)
+            if (nsfwBlurred && onNsfwUnblur) {
+              onNsfwUnblur()
+              nsfwTouchUnblurOnlyRef.current = true
+              openDelayTimerRef.current = setTimeout(() => {
+                openDelayTimerRef.current = null
+                touchSessionRef.current = false
+                mediaClickFromTouchRef.current = false
+                nsfwTouchUnblurOnlyRef.current = false
+              }, 400)
+            } else {
+              if (openDelayTimerRef.current) clearTimeout(openDelayTimerRef.current)
+              openDelayTimerRef.current = setTimeout(() => {
+                openDelayTimerRef.current = null
+                touchSessionRef.current = false
+                mediaClickFromTouchRef.current = false
+                openPost()
+              }, 400)
+            }
           }
         }}
       >
@@ -1143,7 +1185,7 @@ function PostCard({ item, isSelected, cardRef: cardRefProp, addButtonRef: _addBu
           ) : null}
         </div>
         )}
-      </Link>
+      </div>
     </div>
   )
 }

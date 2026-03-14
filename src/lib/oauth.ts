@@ -15,9 +15,14 @@ function isLoopback(): boolean {
   return h === 'localhost' || h === '127.0.0.1' || h === '[::1]'
 }
 
+/** Scope matching client-metadata.json so loopback OAuth gets AppView timeline/feed access. */
+const OAUTH_SCOPE =
+  'atproto transition:generic rpc:app.bsky.feed.getFeed?aud=did:web:api.bsky.app%23bsky_appview rpc:app.bsky.feed.getTimeline?aud=did:web:api.bsky.app%23bsky_appview'
+
 /**
  * Build loopback client_id (no path). Required by spec so "Log in with Bluesky" works in dev.
  * redirect_uri must use 127.0.0.1 (not localhost) and can include path so callback lands on the app.
+ * Include scope so the token has AppView timeline/feed access (same as production client-metadata).
  */
 function getLoopbackClientId(): string {
   const u = new URL(window.location.href)
@@ -25,7 +30,10 @@ function getLoopbackClientId(): string {
   const port = u.port || (u.protocol === 'https:' ? '443' : '80')
   const path = u.pathname || '/'
   const redirectUri = `http://${host}:${port}${path}`
-  return `http://localhost?redirect_uri=${encodeURIComponent(redirectUri)}`
+  const params = new URLSearchParams()
+  params.set('redirect_uri', redirectUri)
+  params.set('scope', OAUTH_SCOPE)
+  return `http://localhost?${params.toString()}`
 }
 
 /**

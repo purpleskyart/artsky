@@ -8,9 +8,10 @@ interface ArtboardsModalProps {
   onClose: () => void
   onBack: () => void
   canGoBack: boolean
+  isTopModal?: boolean
 }
 
-export default function ArtboardsModal({ onClose, onBack, canGoBack }: ArtboardsModalProps) {
+export default function ArtboardsModal({ onClose, onBack, canGoBack, isTopModal }: ArtboardsModalProps) {
   const [refreshFn, setRefreshFn] = useState<(() => void | Promise<void>) | null>(null)
   return (
     <AppModal
@@ -20,6 +21,7 @@ export default function ArtboardsModal({ onClose, onBack, canGoBack }: Artboards
       canGoBack={canGoBack}
       onPullToRefresh={refreshFn ? () => refreshFn() : undefined}
       scrollKey="collections"
+      isTopModal={isTopModal}
     >
       <div className={styles.modalBetaAlert} role="status">BETA</div>
       <CollectionsModalTopBar />

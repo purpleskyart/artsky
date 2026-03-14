@@ -14,15 +14,11 @@ export function ScrollLockProvider({ children }: { children: ReactNode }) {
   const lockScroll = useCallback(() => {
     countRef.current += 1
     if (countRef.current === 1) {
-      // Save current scroll position
       scrollPositionRef.current = window.scrollY
-      
-      // For mobile Safari: use position fixed to prevent scroll
-      document.body.style.position = 'fixed'
-      document.body.style.top = `-${scrollPositionRef.current}px`
-      document.body.style.width = '100%'
+      // Use overflow only so the viewport doesn't change on mobile (position:fixed + top:-scrollY
+      // causes the layout viewport to resize and the bottom navbar to move up). Do not set
+      // touch-action: none on body — it blocks touch scrolling inside modals (e.g. post from profile).
       document.body.style.overflow = 'hidden'
-      document.body.style.touchAction = 'none'
       document.documentElement.style.overflow = 'hidden'
     }
   }, [])
@@ -30,18 +26,9 @@ export function ScrollLockProvider({ children }: { children: ReactNode }) {
   const unlockScroll = useCallback(() => {
     if (countRef.current > 0) countRef.current -= 1
     if (countRef.current === 0) {
-      // Restore scroll position
-      const scrollY = scrollPositionRef.current
-      
-      document.body.style.position = ''
-      document.body.style.top = ''
-      document.body.style.width = ''
       document.body.style.overflow = ''
-      document.body.style.touchAction = ''
       document.documentElement.style.overflow = ''
-      
-      // Restore scroll position instantly (no smooth scrolling)
-      window.scrollTo({ top: scrollY, left: 0, behavior: 'instant' })
+      window.scrollTo({ top: scrollPositionRef.current, left: 0, behavior: 'instant' })
     }
   }, [])
 

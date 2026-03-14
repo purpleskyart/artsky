@@ -12,9 +12,10 @@ interface ForumPostModalProps {
   onClose: () => void
   onBack: () => void
   canGoBack: boolean
+  isTopModal?: boolean
 }
 
-export default function ForumPostModal({ documentUri, onClose, onBack, canGoBack }: ForumPostModalProps) {
+export default function ForumPostModal({ documentUri, onClose, onBack, canGoBack, isTopModal }: ForumPostModalProps) {
   const [refreshFn, setRefreshFn] = useState<(() => void | Promise<void>) | null>(null)
   const isArtSky = isArtSkyForumUri(documentUri)
   return (
@@ -25,6 +26,7 @@ export default function ForumPostModal({ documentUri, onClose, onBack, canGoBack
       canGoBack={canGoBack}
       onPullToRefresh={refreshFn ? () => refreshFn() : undefined}
       scrollKey={documentUri}
+      isTopModal={isTopModal}
     >
       {isArtSky ? (
         <ArtSkyForumPostContent documentUri={documentUri} onClose={onClose} onRegisterRefresh={(fn) => setRefreshFn(() => fn)} />

@@ -2176,6 +2176,9 @@ button.logoLink {
   border-radius: 50%;
   object-fit: cover;
   display: block;
+  -webkit-touch-callout: none;
+  user-select: none;
+  pointer-events: none;
 }
 
 /* Mobile: account menu popup above the profile button (like desktop dropdown) */

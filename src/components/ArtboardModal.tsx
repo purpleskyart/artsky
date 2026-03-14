@@ -7,9 +7,10 @@ interface ArtboardModalProps {
   onClose: () => void
   onBack: () => void
   canGoBack: boolean
+  isTopModal?: boolean
 }
 
-export default function ArtboardModal({ id, onClose, onBack, canGoBack }: ArtboardModalProps) {
+export default function ArtboardModal({ id, onClose, onBack, canGoBack, isTopModal }: ArtboardModalProps) {
   const [refreshFn, setRefreshFn] = useState<(() => void | Promise<void>) | null>(null)
   return (
     <AppModal
@@ -19,6 +20,7 @@ export default function ArtboardModal({ id, onClose, onBack, canGoBack }: Artboa
       canGoBack={canGoBack}
       onPullToRefresh={refreshFn ? () => refreshFn() : undefined}
       scrollKey={id}
+      isTopModal={isTopModal}
     >
       <ArtboardDetailContent id={id} inModal onRegisterRefresh={(fn) => setRefreshFn(() => fn)} />
     </AppModal>

@@ -7,9 +7,10 @@ interface ForumModalProps {
   onClose: () => void
   onBack: () => void
   canGoBack: boolean
+  isTopModal?: boolean
 }
 
-export default function ForumModal({ onClose, onBack, canGoBack }: ForumModalProps) {
+export default function ForumModal({ onClose, onBack, canGoBack, isTopModal }: ForumModalProps) {
   const [refreshFn, setRefreshFn] = useState<(() => void | Promise<void>) | null>(null)
   const onRegisterRefresh = useCallback((fn: () => void | Promise<void>) => {
     setRefreshFn(() => fn)
@@ -22,6 +23,7 @@ export default function ForumModal({ onClose, onBack, canGoBack }: ForumModalPro
       canGoBack={canGoBack}
       onPullToRefresh={refreshFn ? () => refreshFn() : undefined}
       scrollKey="forums"
+      isTopModal={isTopModal}
     >
       <div className={styles.modalBetaAlert} role="status">BETA</div>
       <ForumContent inModal onRegisterRefresh={onRegisterRefresh} />

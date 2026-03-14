@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { useParams, Link } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { useProfileModal } from '../context/ProfileModalContext'
 import { useEditProfile } from '../context/EditProfileContext'
 import { useModalTopBarSlot } from '../context/ModalTopBarSlotContext'
-import { agent, publicAgent, getPostMediaInfo, getPostMediaInfoForDisplay, getSession, getActorFeeds, listStandardSiteDocumentsForAuthor, listActivitySubscriptions, putActivitySubscription, isPostNsfw, getProfileCached, likePostWithLifecycle, unlikePostWithLifecycle, followAccountWithLifecycle, unfollowAccountWithLifecycle, type TimelineItem, type StandardSiteDocumentView, type ProfileViewBasic } from '../lib/bsky'
+import { agent, publicAgent, getPostMediaInfo, getPostMediaInfoForDisplay, getSession, getActorFeeds, listActivitySubscriptions, putActivitySubscription, isPostNsfw, getProfileCached, likePostWithLifecycle, unlikePostWithLifecycle, followAccountWithLifecycle, unfollowAccountWithLifecycle, type TimelineItem, type ProfileViewBasic } from '../lib/bsky'
 import { setInitialPostForUri } from '../lib/postCache'
-import { formatRelativeTime, formatExactDateTime } from '../lib/date'
 import PostCard from '../components/PostCard'
 import ProfileColumn from '../components/ProfileColumn'
 import { useModalScroll } from '../context/ModalScrollContext'
@@ -20,7 +19,6 @@ import { useModeration, type NsfwPreference } from '../context/ModerationContext
 import { useHideReposts } from '../context/HideRepostsContext'
 import { EyeOpenIcon, EyeHalfIcon, EyeClosedIcon } from '../components/Icons'
 import styles from './ProfilePage.module.css'
-import postBlockStyles from './PostDetailPage.module.css'
 
 const REASON_REPOST = 'app.bsky.feed.defs#reasonRepost'
 const REASON_PIN = 'app.bsky.feed.defs#reasonPin'
@@ -154,7 +152,7 @@ function NsfwEyeIcon({ mode }: { mode: NsfwPreference }) {
   return <EyeOpenIcon size={24} />
 }
 
-type ProfileTab = 'posts' | 'reposts' | 'blog' | 'text' | 'feeds'
+type ProfileTab = 'posts' | 'reposts' | 'text' | 'feeds'
 type ProfilePostsFilter = 'all' | 'liked'
 
 type ProfileState = {
@@ -162,15 +160,17 @@ type ProfileState = {
   avatar?: string
   description?: string
   did: string
-  viewer?: { following?: string }
+  viewer?: { following?: string; blocking?: string }
   verification?: { verifiedStatus?: string }
+  createdAt?: string
+  indexedAt?: string
 }
 
 type GeneratorView = { uri: string; displayName: string; description?: string; avatar?: string; likeCount?: number }
 
 export function ProfileContent({
   handle,
-  openProfileModal,
+  openProfileModal: _openProfileModal,
   inModal = false,
   onRegisterRefresh,
 }: {
@@ -188,8 +188,6 @@ export function ProfileContent({
   const [likedItems, setLikedItems] = useState<TimelineItem[]>([])
   const [likedCursor, setLikedCursor] = useState<string | undefined>()
   const [feeds, setFeeds] = useState<GeneratorView[]>([])
-  const [blogDocuments, setBlogDocuments] = useState<StandardSiteDocumentView[]>([])
-  const [blogCursor, setBlogCursor] = useState<string | undefined>()
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -235,7 +233,7 @@ export function ProfileContent({
     getProfileCached(handle, !session)
       .then((data) => {
         if (cancelled) return
-        const profileData = data as { did?: string; displayName?: string; avatar?: string; description?: string; viewer?: { following?: string }; verification?: { verifiedStatus?: string } }
+        const profileData = data as { did?: string; displayName?: string; avatar?: string; description?: string; viewer?: { following?: string; blocking?: string }; verification?: { verifiedStatus?: string }; createdAt?: string; indexedAt?: string }
         if (!profileData.did) return
         setProfile({
           displayName: profileData.displayName,
@@ -244,11 +242,13 @@ export function ProfileContent({
           did: profileData.did,
           viewer: profileData.viewer,
           verification: profileData.verification,
+          createdAt: profileData.createdAt,
+          indexedAt: profileData.indexedAt,
         })
       })
       .catch(() => {})
     return () => { cancelled = true }
-  }, [handle, session, editSavedVersion])
+  }, [handle, session?.did, editSavedVersion])
 
   // Lazy-load notification subscription status only when user hovers/focuses the bell (saves 1 API call per profile open)
   const notificationStatusFetchedRef = useRef(false)
@@ -308,23 +308,6 @@ export function ProfileContent({
     }
   }, [handle])
 
-  const loadBlog = useCallback(async (nextCursor?: string) => {
-    if (!handle || !profile?.did) return
-    try {
-      if (nextCursor) setLoadingMore(true)
-      else setLoading(true)
-      setError(null)
-      const { documents, cursor: next } = await listStandardSiteDocumentsForAuthor(readAgent, profile.did, handle, { cursor: nextCursor })
-      setBlogDocuments((prev) => (nextCursor ? [...prev, ...documents] : documents))
-      setBlogCursor(next)
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to load blog')
-    } finally {
-      setLoading(false)
-      setLoadingMore(false)
-    }
-  }, [handle, profile?.did, readAgent])
-
   const loadLiked = useCallback(async (nextCursor?: string) => {
     if (!handle || !session || !profile || session.did !== profile.did) return
     try {
@@ -365,18 +348,19 @@ export function ProfileContent({
     if (tab === 'feeds') loadFeeds()
   }, [tab, loadFeeds])
 
+  // Pull-to-refresh: only refresh the active tab (1 request instead of 4) to avoid rate limits.
+  // Store latest handlers in refs so we don't depend on onRegisterRefresh (parent often passes inline fn → new ref every render → loop).
+  const onRegisterRefreshRef = useRef(onRegisterRefresh)
+  onRegisterRefreshRef.current = onRegisterRefresh
+  const refreshImplRef = useRef<() => void | Promise<void>>(() => Promise.resolve())
+  refreshImplRef.current = async () => {
+    if (tab === 'feeds') await loadFeeds()
+    else if (tab === 'posts' && profilePostsFilter === 'liked') await loadLiked()
+    else await load()
+  }
   useEffect(() => {
-    if (tab === 'blog' && profile?.did) loadBlog()
-  }, [tab, profile?.did, loadBlog])
-
-  useEffect(() => {
-    onRegisterRefresh?.(async () => {
-      await load()
-      await loadFeeds()
-      await loadBlog()
-      await loadLiked()
-    })
-  }, [onRegisterRefresh, load, loadFeeds, loadBlog, loadLiked])
+    onRegisterRefreshRef.current?.(() => refreshImplRef.current?.())
+  }, [tab, profilePostsFilter])
 
   // Infinite scroll: load more when any column's sentinel is about to enter view (posts, reposts tabs).
   // Per-column sentinels when cols >= 2 so short columns trigger load before blank space; 800px
@@ -487,17 +471,15 @@ export function ProfileContent({
     return {
       posts: postsMedia.length > 0,
       reposts: repostsMedia.length > 0,
-      blog: blogDocuments.length > 0,
       text: textOnly.length > 0,
       feeds: feeds.length > 0,
     }
-  }, [items, likedItems, profilePostsFilter, blogDocuments, feeds, nsfwPreference])
+  }, [items, likedItems, profilePostsFilter, feeds, nsfwPreference])
 
   const visibleTabs = useMemo((): ProfileTab[] => {
     const t: ProfileTab[] = []
     if (tabHasContent.posts || isOwnProfile) t.push('posts')
     if (tabHasContent.reposts) t.push('reposts')
-    if (tabHasContent.blog) t.push('blog')
     if (tabHasContent.text) t.push('text')
     if (tabHasContent.feeds) t.push('feeds')
     return t
@@ -873,6 +855,8 @@ export function ProfileContent({
               isFollowing={isFollowing}
               hideRepostsFromThisUser={hideRepostsFromThisUser}
               onToggleHideReposts={hideReposts ? () => hideReposts.toggleHideRepostsFrom(profile.did) : undefined}
+              initialProfileMeta={{ createdAt: profile.createdAt, indexedAt: profile.indexedAt }}
+              initialAuthorBlockingUri={profile.viewer?.blocking ?? null}
               className={styles.profileMenu}
             />
           )}
@@ -927,7 +911,7 @@ export function ProfileContent({
                   className={`${styles.tab} ${tab === t ? styles.tabActive : ''}`}
                   onClick={() => setTab(t)}
                 >
-                  {t === 'posts' ? 'Posts' : t === 'reposts' ? 'Reposts' : t === 'blog' ? 'Blog' : t === 'text' ? 'Text' : 'Feeds'}
+                  {t === 'posts' ? 'Posts' : t === 'reposts' ? 'Reposts' : t === 'text' ? 'Text' : 'Feeds'}
                 </button>
               ))}
             </nav>
@@ -943,7 +927,7 @@ export function ProfileContent({
                 className={`${styles.tab} ${tab === t ? styles.tabActive : ''}`}
                 onClick={() => setTab(t)}
               >
-                {t === 'posts' ? 'Posts' : t === 'reposts' ? 'Reposts' : t === 'blog' ? 'Blog' : t === 'text' ? 'Text' : 'Feeds'}
+                {t === 'posts' ? 'Posts' : t === 'reposts' ? 'Reposts' : t === 'text' ? 'Text' : 'Feeds'}
               </button>
             ))}
             </nav>
@@ -953,97 +937,6 @@ export function ProfileContent({
         <div className={styles.profileContent}>
         {loading ? (
           <div className={styles.loading}>Loading…</div>
-        ) : tab === 'blog' ? (
-          blogDocuments.length === 0 ? (
-            <div className={styles.empty}>No blog posts.</div>
-          ) : (
-            <>
-              <ul className={styles.textList}>
-                {blogDocuments.map((doc) => {
-                  const authorHandle = doc.authorHandle ?? doc.did
-                  const title = doc.title || doc.path || 'Untitled'
-                  const createdAt = doc.createdAt
-                  const url = doc.baseUrl
-                    ? `${doc.baseUrl.replace(/\/$/, '')}/${(doc.path ?? '').replace(/^\//, '')}`.trim() || doc.baseUrl
-                    : null
-                  return (
-                    <li key={doc.uri}>
-                      {url ? (
-                        <a href={url} target="_blank" rel="noopener noreferrer" className={styles.textPostLink}>
-                          <article className={postBlockStyles.postBlock}>
-                            <div className={postBlockStyles.postBlockContent}>
-                              <div className={postBlockStyles.postHead}>
-                                <div className={postBlockStyles.authorRow}>
-                                  <Link
-                                    to={`/profile/${encodeURIComponent(authorHandle)}`}
-                                    className={`${postBlockStyles.handleLink} ${styles.textPostHandleLink}`}
-                                    onClick={(e) => {
-                                      e.preventDefault()
-                                      e.stopPropagation()
-                                      openProfileModal(authorHandle)
-                                    }}
-                                  >
-                                    @{authorHandle}
-                                  </Link>
-                                  {createdAt && (
-                                    <span
-                                      className={postBlockStyles.postTimestamp}
-                                      title={formatExactDateTime(createdAt)}
-                                    >
-                                      {formatRelativeTime(createdAt)}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                              <p className={postBlockStyles.postText}>{title}</p>
-                            </div>
-                          </article>
-                        </a>
-                      ) : (
-                        <article className={postBlockStyles.postBlock}>
-                          <div className={postBlockStyles.postBlockContent}>
-                            <div className={postBlockStyles.postHead}>
-                              <div className={postBlockStyles.authorRow}>
-                                <Link
-                                  to={`/profile/${encodeURIComponent(authorHandle)}`}
-                                  className={`${postBlockStyles.handleLink} ${styles.textPostHandleLink}`}
-                                  onClick={(e) => {
-                                    e.preventDefault()
-                                    openProfileModal(authorHandle)
-                                  }}
-                                >
-                                  @{authorHandle}
-                                </Link>
-                                {createdAt && (
-                                  <span
-                                    className={postBlockStyles.postTimestamp}
-                                    title={formatExactDateTime(createdAt)}
-                                  >
-                                    {formatRelativeTime(createdAt)}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                            <p className={postBlockStyles.postText}>{title}</p>
-                          </div>
-                        </article>
-                      )}
-                    </li>
-                  )
-                })}
-              </ul>
-              {blogCursor && (
-                <button
-                  type="button"
-                  className={styles.more}
-                  onClick={() => loadBlog(blogCursor)}
-                  disabled={loadingMore}
-                >
-                  {loadingMore ? 'Loading…' : 'Load more'}
-                </button>
-              )}
-            </>
-          )
         ) : tab === 'text' ? (
           textItems.length === 0 ? (
             <div className={styles.empty}>No text-only posts (no media, no replies).</div>

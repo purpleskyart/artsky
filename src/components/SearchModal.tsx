@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { searchPostsByPhraseAndTags, searchForumDocuments, getPostMediaInfo, isPostNsfw, likePostWithLifecycle, unlikePostWithLifecycle } from '../lib/bsky'
-import type { TimelineItem, StandardSiteDocumentView } from '../lib/bsky'
+import { searchPostsByPhraseAndTags, getPostMediaInfo, isPostNsfw, likePostWithLifecycle, unlikePostWithLifecycle } from '../lib/bsky'
+import type { TimelineItem } from '../lib/bsky'
 import type { AppBskyFeedDefs } from '@atproto/api'
 import ProfileColumn from './ProfileColumn'
 import AppModal from './AppModal'
@@ -108,13 +108,11 @@ function indexRightByRow(
 function SearchContent({ query, onRegisterRefresh }: { query: string; onRegisterRefresh?: (refresh: () => void | Promise<void>) => void }) {
   const { session } = useSession()
   const { viewMode } = useViewMode()
-  const { openPostModal, openForumPostModal } = useProfileModal()
+  const { openPostModal } = useProfileModal()
   const [items, setItems] = useState<TimelineItem[]>([])
   const [cursor, setCursor] = useState<string | undefined>()
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
-  const [blogResults, setBlogResults] = useState<StandardSiteDocumentView[]>([])
-  const [blogLoading, setBlogLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [keyboardFocusIndex, setKeyboardFocusIndex] = useState(0)
   const [keyboardAddOpen, setKeyboardAddOpen] = useState(false)
@@ -147,37 +145,19 @@ function SearchContent({ query, onRegisterRefresh }: { query: string; onRegister
     }
   }, [query])
 
-  const loadBlogs = useCallback(async () => {
-    if (!query.trim() || !session?.did) return
-    setBlogLoading(true)
-    try {
-      const list = await searchForumDocuments(query.trim(), 12)
-      setBlogResults(list)
-    } catch {
-      setBlogResults([])
-    } finally {
-      setBlogLoading(false)
-    }
-  }, [query, session?.did])
-
   useEffect(() => {
     if (query.trim()) {
       setItems([])
       setCursor(undefined)
       load()
-      if (session?.did) loadBlogs()
-      else setBlogResults([])
-    } else {
-      setBlogResults([])
     }
-  }, [query, load, loadBlogs, session?.did])
+  }, [query, load])
 
   useEffect(() => {
     onRegisterRefresh?.(async () => {
       await load()
-      await loadBlogs()
     })
-  }, [onRegisterRefresh, load, loadBlogs])
+  }, [onRegisterRefresh, load])
 
   loadingMoreRef.current = loadingMore
   useEffect(() => {
@@ -319,39 +299,9 @@ function SearchContent({ query, onRegisterRefresh }: { query: string; onRegister
 
   if (!query.trim()) return null
 
-  const showBlogSection = session && (blogLoading || blogResults.length > 0)
-
   return (
     <div className={styles.wrap}>
       {error && <p className={styles.error}>{error}</p>}
-      {showBlogSection && (
-        <section className={modalStyles.searchBlogsSection} aria-label="Blogs (standard.site)">
-          <h3 className={modalStyles.searchBlogsTitle}>Blogs</h3>
-          {blogLoading ? (
-            <p className={modalStyles.searchBlogsLoading}>Searching blogs…</p>
-          ) : blogResults.length === 0 ? null : (
-            <div className={modalStyles.searchBlogsScroll}>
-              {blogResults.map((doc) => {
-                const handle = doc.authorHandle ?? doc.did
-                const title = doc.title || doc.path || 'Untitled'
-                const preview = (doc.body ?? '').replace(/\s+/g, ' ').trim().slice(0, 72)
-                return (
-                  <button
-                    key={doc.uri}
-                    type="button"
-                    className={modalStyles.searchBlogCard}
-                    onClick={() => openForumPostModal(doc.uri)}
-                  >
-                    <span className={modalStyles.searchBlogCardTitle}>{title}</span>
-                    <span className={modalStyles.searchBlogCardMeta}>@{handle}</span>
-                    {preview && <span className={modalStyles.searchBlogCardPreview}>{preview}{preview.length >= 72 ? '…' : ''}</span>}
-                  </button>
-                )
-              })}
-            </div>
-          )}
-        </section>
-      )}
       {loading ? (
         <div className={styles.loading}>Loading…</div>
       ) : mediaItems.length === 0 ? (
@@ -397,9 +347,10 @@ interface SearchModalProps {
   onClose: () => void
   onBack: () => void
   canGoBack: boolean
+  isTopModal?: boolean
 }
 
-export default function SearchModal({ query, onClose, onBack, canGoBack }: SearchModalProps) {
+export default function SearchModal({ query, onClose, onBack, canGoBack, isTopModal }: SearchModalProps) {
   const [refreshFn, setRefreshFn] = useState<(() => void | Promise<void>) | null>(null)
 
   return (
@@ -410,6 +361,7 @@ export default function SearchModal({ query, onClose, onBack, canGoBack }: Searc
       canGoBack={canGoBack}
       onPullToRefresh={refreshFn ? () => refreshFn() : undefined}
       scrollKey={query}
+      isTopModal={isTopModal}
     >
       <MediaModalTopBar
         centerContent={

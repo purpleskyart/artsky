@@ -6,7 +6,10 @@
     <script>
       (function(){
         var t = localStorage.getItem('artsky-theme');
-        var resolved = t === 'light' || t === 'dark' ? t : (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+        var resolved = 'dark';
+        if (t === 'light') resolved = 'light';
+        else if (t === 'system' && typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) resolved = 'light';
+        else if (t === 'dark') resolved = 'dark';
         document.documentElement.setAttribute('data-theme', resolved);
         var meta = document.querySelector('meta[name="theme-color"]');
         if (meta) meta.setAttribute('content', resolved === 'light' ? '#ebeae6' : '#0f0f1a');
