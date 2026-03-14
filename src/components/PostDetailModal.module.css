@@ -21,6 +21,22 @@
   overflow: hidden;
 }
 
+/* Desktop: don't take full width so user can click overlay (backdrop) to close; minimal bottom padding so pane uses full height */
+@media (min-width: 768px) {
+  .overlay:not(.overlayExpanded) {
+    padding-left: max(0rem, env(safe-area-inset-left));
+    padding-right: max(0rem, env(safe-area-inset-right));
+    padding-bottom: max(0rem, env(safe-area-inset-bottom));
+  }
+  .pane:not(.paneExpanded) {
+    max-width: min(900px, calc(100vw - 5rem));
+    width: 100%;
+    max-height: 100%;
+    flex: 1;
+    min-height: 0;
+  }
+}
+
 /* Post detail etc.: space above pane + room for floating back button (purplesky-style) */
 .overlayFlushTop.overlay {
   padding-top: max(3.5rem, calc(env(safe-area-inset-top) + 2.5rem));
@@ -57,7 +73,7 @@
   }
 }
 
-/* Desktop: position back button inside pane with safe area inset */
+/* Desktop: same floating back position as mobile (one back button everywhere) */
 @media (min-width: 768px) {
   .modalFloatingBack {
     top: max(var(--space-md), env(safe-area-inset-top));

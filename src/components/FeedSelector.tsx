@@ -74,6 +74,7 @@ export default function FeedSelector({
   const [editFeeds, setEditFeeds] = useState(false)
   const helpRef = useRef<HTMLDivElement>(null)
   const contextMenuRef = useRef<HTMLDivElement>(null)
+  const addCustomRef = useRef<HTMLDivElement>(null)
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isDesktop = useSyncExternalStore(subscribeDesktop, getDesktopSnapshot, () => false)
@@ -91,7 +92,7 @@ export default function FeedSelector({
   const maxSuggestions = 10
   const suggestions = searchResults.slice(0, maxSuggestions)
 
-  /* Search AT Protocol for feeds: by handle (feeds by @user) or suggested when empty */
+  /* Search AT Protocol for feeds: by handle (feeds by @user), suggested when empty, or search suggested feeds by name/description when typing */
   useEffect(() => {
     if (!showCustom) {
       setNetworkFeeds([])
@@ -144,8 +145,31 @@ export default function FeedSelector({
           .catch(() => setNetworkFeeds([]))
           .finally(() => setNetworkLoading(false))
       } else {
-        setNetworkFeeds([])
-        setNetworkSectionLabel('')
+        /* Search through suggested feeds by name/description (AT Protocol feeds), like Bluesky app */
+        if (session && searchWords.length > 0) {
+          setNetworkSectionLabel('Suggested feeds')
+          setNetworkLoading(true)
+          getSuggestedFeeds(50)
+            .then((feeds) => {
+              const list = (feeds ?? []) as { displayName?: string; description?: string; uri?: string }[]
+              const filtered = list.filter((f) => {
+                const name = ((f.displayName ?? '') + ' ' + (f.description ?? '')).toLowerCase()
+                return searchWords.every((w) => name.includes(w.toLowerCase()))
+              })
+              setNetworkFeeds(
+                filtered.slice(0, 15).map((f) => ({
+                  kind: 'custom' as const,
+                  label: f.displayName ?? f.uri ?? '',
+                  uri: f.uri,
+                }))
+              )
+            })
+            .catch(() => setNetworkFeeds([]))
+            .finally(() => setNetworkLoading(false))
+        } else {
+          setNetworkFeeds([])
+          setNetworkSectionLabel('')
+        }
       }
     }, 350)
     return () => {
@@ -176,6 +200,18 @@ export default function FeedSelector({
       document.removeEventListener('touchstart', close)
     }
   }, [feedContextMenu])
+
+  /* Close add-custom panel when clicking outside (suggestions disappear) */
+  useEffect(() => {
+    if (!showCustom) return
+    function handleClickOutside(e: MouseEvent) {
+      if (addCustomRef.current && !addCustomRef.current.contains(e.target as Node)) {
+        setShowCustom(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [showCustom])
 
   async function handleAddCustom(e: React.FormEvent) {
     e.preventDefault()
@@ -482,11 +518,12 @@ export default function FeedSelector({
 
   const hasSuggestions = suggestions.length > 0 || networkFeeds.length > 0 || networkLoading
   const addCustomBlock = showCustom ? (
+    <div ref={addCustomRef}>
     <form onSubmit={handleAddCustom} className={styles.customForm}>
       <div className={styles.customInputWrap}>
         <input
           type="text"
-          placeholder="Paste feed URL, or type a handle to find their feeds…"
+          placeholder="Search feeds, type @handle for their feeds, or paste feed URL…"
           value={customInput}
           onChange={(e) => setCustomInput(e.target.value)}
           className={styles.input}
@@ -550,6 +587,7 @@ export default function FeedSelector({
         </button>
       </div>
     </form>
+    </div>
   ) : (
     <button
       type="button"

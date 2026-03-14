@@ -1517,7 +1517,7 @@ export default function Layout({ title, children, showNav }: Props) {
         Skip to main content
       </a>
       {showNav && isDesktop && (
-      <header className={`${styles.header} ${!session ? styles.headerLoggedOut : ''}`} role="banner">
+      <header className={`${styles.header} ${!session ? styles.headerLoggedOut : ''} ${isModalOpen ? styles.headerAboveModal : ''}`} role="banner">
         {(
           <>
             <div className={styles.headerLeft}>
@@ -1880,7 +1880,7 @@ export default function Layout({ title, children, showNav }: Props) {
       </header>
       )}
       {showNav && !isDesktop && (
-        <div className={`${styles.feedsFloatWrap} feeds-float-wrap ${mobileNavScrollHidden || (isModalOpen && modalScrollHidden) ? styles.feedsFloatWrapScrollHidden : ''}`} ref={feedsDropdownRef}>
+        <div className={`${styles.feedsFloatWrap} feeds-float-wrap ${isModalOpen ? styles.feedsFloatWrapAboveModal : ''} ${mobileNavScrollHidden || (isModalOpen && modalScrollHidden) ? styles.feedsFloatWrapScrollHidden : ''}`} ref={feedsDropdownRef}>
           <button
             ref={feedsBtnRef}
             type="button"
@@ -2040,7 +2040,7 @@ export default function Layout({ title, children, showNav }: Props) {
         </div>
       )}
       {showNav && !isDesktop && !session && (
-        <div className={`${styles.loginFloatWrap} login-float-wrap ${mobileNavScrollHidden || (isModalOpen && modalScrollHidden) ? styles.loginFloatWrapScrollHidden : ''}`}>
+        <div className={`${styles.loginFloatWrap} login-float-wrap ${isModalOpen ? styles.loginFloatWrapAboveModal : ''} ${mobileNavScrollHidden || (isModalOpen && modalScrollHidden) ? styles.loginFloatWrapScrollHidden : ''}`}>
           <button
             type="button"
             className={`${styles.loginFloatBtn} float-btn`}
@@ -2053,7 +2053,7 @@ export default function Layout({ title, children, showNav }: Props) {
         </div>
       )}
       {showNav && !isDesktop && session && (
-        <div className={`${styles.notificationFloatWrap} notification-float-wrap ${mobileNavScrollHidden || (isModalOpen && modalScrollHidden) ? styles.notificationFloatWrapScrollHidden : ''}`}>
+        <div className={`${styles.notificationFloatWrap} notification-float-wrap ${isModalOpen ? styles.notificationFloatWrapAboveModal : ''} ${mobileNavScrollHidden || (isModalOpen && modalScrollHidden) ? styles.notificationFloatWrapScrollHidden : ''}`}>
           <button
             ref={notificationsBtnRef}
             type="button"

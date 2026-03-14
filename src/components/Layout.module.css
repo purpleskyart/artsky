@@ -144,6 +144,11 @@
   transition: transform 0.25s ease;
 }
 
+/* When a modal is open, keep header above overlay so it stays visible and clickable */
+.headerAboveModal {
+  z-index: 1001;
+}
+
 @media (max-width: 767px) {
   /* Mobile: header from top of screen (same color in safe area + bar), no rounded bottom, no border/shadow lines. */
   .header {
@@ -1006,6 +1011,11 @@ button.logoLink {
   pointer-events: none;
 }
 
+/* When a modal is open, keep Feeds button above overlay so it stays clickable (desktop header and mobile gear are already above) */
+.feedsFloatWrapAboveModal {
+  z-index: 1101;
+}
+
 .feedsFloatBtn {
   display: inline-flex;
   align-items: center;
@@ -1180,6 +1190,10 @@ button.logoLink {
   pointer-events: none;
 }
 
+.loginFloatWrapAboveModal {
+  z-index: 1101;
+}
+
 .loginFloatBtn {
   display: inline-flex;
   align-items: center;
@@ -1216,6 +1230,10 @@ button.logoLink {
 .notificationFloatWrap.notificationFloatWrapScrollHidden {
   opacity: 0;
   pointer-events: none;
+}
+
+.notificationFloatWrapAboveModal {
+  z-index: 1101;
 }
 
 .notificationFloatBtn {
