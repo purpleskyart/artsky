@@ -18,6 +18,8 @@ interface OptimizedPostCardProps {
   fillCell: boolean
   nsfwBlurred: boolean
   onNsfwUnblur: () => void
+  setUnblurred?: (uri: string, revealed: boolean) => void
+  isRevealed?: boolean
   likedUriOverride?: string | null
   onLikedChange: (uri: string, likeRecordUri: string | null) => void
   seen: boolean

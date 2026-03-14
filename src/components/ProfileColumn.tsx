@@ -95,6 +95,8 @@ export default function ProfileColumn(props: ProfileColumnProps) {
               constrainMediaHeight={constrainMediaHeight}
               nsfwBlurred={isNsfwBlurred}
               onNsfwUnblur={() => setUnblurred(item.post.uri, true)}
+              setUnblurred={setUnblurred}
+              isRevealed={unblurredUris.has(item.post.uri)}
               likedUriOverride={likeOverrides[item.post.uri]}
               onLikedChange={(uri, likeRecordUri) =>
                 setLikeOverrides((prev) => ({ ...prev, [uri]: likeRecordUri ?? null }))
