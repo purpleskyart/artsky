@@ -776,6 +776,12 @@
   padding: 0.35rem 0;
 }
 
+/* Feeds dropdown: suggestions in flow so they don’t get clipped and don’t cover Add/Cancel */
+.wrapDropdown .customInputWrap .customSuggestionsWrap {
+  position: static;
+  margin-top: 4px;
+}
+
 .customSuggestionsSection {
   padding: 0.25rem 0.75rem;
   font-size: 0.75rem;

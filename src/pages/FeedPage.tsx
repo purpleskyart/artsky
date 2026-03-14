@@ -576,6 +576,8 @@ export default function FeedPage() {
   const swipeGestureRef = useRef<'unknown' | 'swipe' | 'pull'>('unknown')
   const feedItemsRef = useRef<TimelineItem[]>([])
   feedItemsRef.current = feedState.items
+  /** When true, next initial load should run even if user is scrolled down (e.g. they changed feeds in the Feeds dropdown). */
+  const feedMixChangedRef = useRef(false)
 
   function sameFeedSource(a: FeedSource, b: FeedSource): boolean {
     return (a.uri ?? a.label) === (b.uri ?? b.label)
@@ -587,12 +589,12 @@ export default function FeedPage() {
     const cols = Math.min(3, Math.max(1, viewMode === '1' ? 1 : viewMode === '2' ? 2 : 3))
     const limit = cols >= 2 ? cols * 10 : 20
     
-    // Don't refresh feed (load new items at top) if user is scrolled down
-    if (!nextCursor && window.scrollY > 100) {
-      // Still need to clear loading state to prevent infinite loop
+    // Don't refresh feed (load new items at top) if user is scrolled down — unless they just changed which feeds are active
+    if (!nextCursor && window.scrollY > 100 && !feedMixChangedRef.current) {
       dispatch({ type: 'SET_LOADING', loading: false })
       return
     }
+    if (!nextCursor) feedMixChangedRef.current = false
     
     try {
       // Check if request was cancelled
@@ -729,6 +731,10 @@ export default function FeedPage() {
       dispatch({ type: 'SET_LOADING_MORE', loadingMore: false })
     }
   }, [source, session, mixEntries, mixTotalPercent])
+
+  useEffect(() => {
+    feedMixChangedRef.current = true
+  }, [mixEntries, mixTotalPercent])
 
   useEffect(() => {
     const abortController = new AbortController()
