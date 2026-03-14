@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { useParams, Link } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { useProfileModal } from '../context/ProfileModalContext'
 import { useEditProfile } from '../context/EditProfileContext'
 import { useModalTopBarSlot } from '../context/ModalTopBarSlotContext'
 import { agent, publicAgent, getPostMediaInfo, getPostMediaInfoForDisplay, getSession, getActorFeeds, listActivitySubscriptions, putActivitySubscription, isPostNsfw, getProfileCached, likePostWithLifecycle, unlikePostWithLifecycle, followAccountWithLifecycle, unfollowAccountWithLifecycle, type TimelineItem, type ProfileViewBasic } from '../lib/bsky'
 import { setInitialPostForUri } from '../lib/postCache'
-import { formatRelativeTime, formatExactDateTime } from '../lib/date'
 import PostCard from '../components/PostCard'
 import ProfileColumn from '../components/ProfileColumn'
 import { useModalScroll } from '../context/ModalScrollContext'
@@ -20,7 +19,6 @@ import { useModeration, type NsfwPreference } from '../context/ModerationContext
 import { useHideReposts } from '../context/HideRepostsContext'
 import { EyeOpenIcon, EyeHalfIcon, EyeClosedIcon } from '../components/Icons'
 import styles from './ProfilePage.module.css'
-import postBlockStyles from './PostDetailPage.module.css'
 
 const REASON_REPOST = 'app.bsky.feed.defs#reasonRepost'
 const REASON_PIN = 'app.bsky.feed.defs#reasonPin'
@@ -172,7 +170,7 @@ type GeneratorView = { uri: string; displayName: string; description?: string; a
 
 export function ProfileContent({
   handle,
-  openProfileModal,
+  openProfileModal: _openProfileModal,
   inModal = false,
   onRegisterRefresh,
 }: {
@@ -354,7 +352,7 @@ export function ProfileContent({
   // Store latest handlers in refs so we don't depend on onRegisterRefresh (parent often passes inline fn → new ref every render → loop).
   const onRegisterRefreshRef = useRef(onRegisterRefresh)
   onRegisterRefreshRef.current = onRegisterRefresh
-  const refreshImplRef = useRef<() => void | Promise<void>>()
+  const refreshImplRef = useRef<() => void | Promise<void>>(() => Promise.resolve())
   refreshImplRef.current = async () => {
     if (tab === 'feeds') await loadFeeds()
     else if (tab === 'posts' && profilePostsFilter === 'liked') await loadLiked()

@@ -1468,13 +1468,6 @@ export type StandardSiteCommentRecord = {
   [k: string]: unknown
 }
 
-/** Generate a unique rkey for new records (timestamp + random). */
-function generateRecordRkey(): string {
-  const t = Math.floor(Date.now() / 1000).toString(36)
-  const r = Math.random().toString(36).slice(2, 10)
-  return `${t}-${r}`
-}
-
 /** Create a standard.site comment. Stubbed: no API requests (standard site documents removed from app). */
 export async function createStandardSiteComment(
   _documentUri: string,
@@ -2020,7 +2013,7 @@ export async function getTimelineWithLifecycle(
   cursor?: string
 ): Promise<Awaited<ReturnType<typeof agent.getTimeline>>> {
   if (!getSession()) {
-    return { data: { feed: [], cursor: undefined } } as Awaited<ReturnType<typeof agent.getTimeline>>
+    return { data: { feed: [], cursor: undefined } } as unknown as Awaited<ReturnType<typeof agent.getTimeline>>
   }
   const cacheKey = `timeline:${limit}:${cursor ?? 'initial'}`
   const cached = responseCache.get<{ feed: TimelineItem[]; cursor?: string }>(cacheKey)
@@ -2044,7 +2037,7 @@ export async function getFeedWithLifecycle(
   cursor?: string
 ): Promise<Awaited<ReturnType<typeof agent.app.bsky.feed.getFeed>>> {
   if (!getSession()) {
-    return { data: { feed: [], cursor: undefined } } as Awaited<ReturnType<typeof agent.app.bsky.feed.getFeed>>
+    return { data: { feed: [], cursor: undefined } } as unknown as Awaited<ReturnType<typeof agent.app.bsky.feed.getFeed>>
   }
   const cacheKey = `feed:${feedUri}:${limit}:${cursor ?? 'initial'}`
   const cached = responseCache.get<{ feed: TimelineItem[]; cursor?: string }>(cacheKey)
