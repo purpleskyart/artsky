@@ -211,7 +211,7 @@ export default function AppModal({
           {!hideTopBar && (
             <div className={`${styles.modalTopBar} ${transparentTopBar ? styles.modalTopBarTransparent : ''} ${styles.modalTopBarActionsBelow}`}>
               <div className={styles.modalTopBarLeft} aria-hidden="true">
-                {/* X, back, expand are in the bottom bar on all viewports */}
+                {/* Back/close is the floating circle button only (mobile and desktop) */}
               </div>
               <div ref={setTopBarSlotEl} className={styles.modalTopBarSlot} />
               <div ref={setTopBarRightSlotEl} className={styles.modalTopBarRight} />

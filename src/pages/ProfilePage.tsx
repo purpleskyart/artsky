@@ -279,7 +279,8 @@ export function ProfileContent({
       else setLoading(true)
       setError(null)
       const res = await readAgent.getAuthorFeed({ actor: handle, limit: 20, cursor: nextCursor, includePins: true })
-      setItems((prev) => (nextCursor ? [...prev, ...res.data.feed] : res.data.feed))
+      const feed = (res.data.feed ?? []) as TimelineItem[]
+      setItems((prev) => (nextCursor ? [...prev, ...feed] : feed))
       setCursor(res.data.cursor ?? undefined)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to load profile')

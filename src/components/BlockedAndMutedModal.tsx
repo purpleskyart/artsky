@@ -66,9 +66,9 @@ export default function BlockedAndMutedModal({ onClose }: { onClose: () => void 
     setError(null)
     Promise.all([listBlockedAccounts(), listMutedAccounts(), getMutedWords()])
       .then(([b, m, w]) => {
-        setBlocked(b)
-        setMuted(m)
-        setMutedWords(w)
+        setBlocked(Array.isArray(b) ? b : [])
+        setMuted(Array.isArray(m) ? m : [])
+        setMutedWords(Array.isArray(w) ? w : [])
       })
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load'))
       .finally(() => setLoading(false))
@@ -82,7 +82,7 @@ export default function BlockedAndMutedModal({ onClose }: { onClose: () => void 
     setActionLoading(blockUri)
     try {
       await unblockAccount(blockUri)
-      setBlocked((prev) => prev.filter((e) => e.blockUri !== blockUri))
+      setBlocked((prev) => (prev ?? []).filter((e) => e.blockUri !== blockUri))
     } catch {
       setError('Could not unblock')
     } finally {
@@ -94,7 +94,7 @@ export default function BlockedAndMutedModal({ onClose }: { onClose: () => void 
     setActionLoading(did)
     try {
       await unmuteAccount(did)
-      setMuted((prev) => prev.filter((e) => e.did !== did))
+      setMuted((prev) => (prev ?? []).filter((e) => e.did !== did))
     } catch {
       setError('Could not unmute')
     } finally {
@@ -105,7 +105,7 @@ export default function BlockedAndMutedModal({ onClose }: { onClose: () => void 
   async function handleRemoveWord(word: MutedWordEntry) {
     setActionLoading(word.value)
     try {
-      const next = mutedWords.filter((w) => w.value !== word.value || w.id !== word.id)
+      const next = (mutedWords ?? []).filter((w) => w.value !== word.value || w.id !== word.id)
       await putMutedWords(next)
       setMutedWords(next)
     } catch {
