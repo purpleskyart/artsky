@@ -62,42 +62,50 @@ export default function ProfileColumn(props: ProfileColumnProps) {
 
   return (
     <div className={styles.gridColumn}>
-      {column.map(({ item, originalIndex }) => (
-        <div
-          key={`${item.post.uri}-${originalIndex}`}
-          ref={cardRef(originalIndex)}
-          className={styles.gridItem}
-          data-post-uri={item.post.uri}
-          data-selected={isSelected(originalIndex) || undefined}
-          onMouseEnter={() => onMouseEnter(originalIndex)}
-        >
-          <PostCard
-            item={item}
-            isSelected={isSelected(originalIndex)}
-            cardRef={() => {}} // No-op since we're using the wrapper div ref above
-            openAddDropdown={isSelected(originalIndex) && keyboardAddOpen}
-            onAddClose={onAddClose}
-            onPostClick={(uri, opts) => {
-              if (opts?.initialItem) setInitialPostForUri(uri, opts.initialItem)
-              openPostModal(uri, opts?.openReply)
+      {column.map(({ item, originalIndex }) => {
+        const isNsfwBlurred =
+          nsfwPreference === 'blurred' &&
+          isPostNsfw(item.post) &&
+          !unblurredUris.has(item.post.uri)
+        return (
+          <div
+            key={`${item.post.uri}-${originalIndex}`}
+            ref={cardRef(originalIndex)}
+            className={styles.gridItem}
+            data-post-uri={item.post.uri}
+            data-selected={isSelected(originalIndex) || undefined}
+            onMouseEnter={() => {
+              onMouseEnter(originalIndex)
+              if (isNsfwBlurred) setUnblurred(item.post.uri, true)
             }}
-            constrainMediaHeight={constrainMediaHeight}
-            nsfwBlurred={
-              nsfwPreference === 'blurred' &&
-              isPostNsfw(item.post) &&
-              !unblurredUris.has(item.post.uri)
-            }
-            onNsfwUnblur={() => setUnblurred(item.post.uri, true)}
-            likedUriOverride={likeOverrides[item.post.uri]}
-            onLikedChange={(uri, likeRecordUri) =>
-              setLikeOverrides((prev) => ({ ...prev, [uri]: likeRecordUri ?? null }))
-            }
-            onActionsMenuOpenChange={(open) => onActionsMenuOpenChange(originalIndex, open)}
-            cardIndex={originalIndex}
-            actionsMenuOpenForIndex={actionsMenuOpenForIndex}
-          />
-        </div>
-      ))}
+            onPointerEnter={() => {
+              if (isNsfwBlurred) setUnblurred(item.post.uri, true)
+            }}
+          >
+            <PostCard
+              item={item}
+              isSelected={isSelected(originalIndex)}
+              cardRef={() => {}} // No-op since we're using the wrapper div ref above
+              openAddDropdown={isSelected(originalIndex) && keyboardAddOpen}
+              onAddClose={onAddClose}
+              onPostClick={(uri, opts) => {
+                if (opts?.initialItem) setInitialPostForUri(uri, opts.initialItem)
+                openPostModal(uri, opts?.openReply)
+              }}
+              constrainMediaHeight={constrainMediaHeight}
+              nsfwBlurred={isNsfwBlurred}
+              onNsfwUnblur={() => setUnblurred(item.post.uri, true)}
+              likedUriOverride={likeOverrides[item.post.uri]}
+              onLikedChange={(uri, likeRecordUri) =>
+                setLikeOverrides((prev) => ({ ...prev, [uri]: likeRecordUri ?? null }))
+              }
+              onActionsMenuOpenChange={(open) => onActionsMenuOpenChange(originalIndex, open)}
+              cardIndex={originalIndex}
+              actionsMenuOpenForIndex={actionsMenuOpenForIndex}
+            />
+          </div>
+        )
+      })}
       {hasCursor && loadMoreSentinelRef && (
         <div ref={loadMoreSentinelRef} className={styles.loadMoreSentinel} aria-hidden />
       )}

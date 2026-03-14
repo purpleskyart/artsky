@@ -232,8 +232,6 @@ export function ArtSkyForumPostContent({ documentUri, onClose, onRegisterRefresh
   }
 
   const isOwn = session?.did === post.did
-  const postDownvotes = downvoteCounts[post.uri] ?? 0
-  const postDownvoted = !!myDownvoteUris[post.uri]
   const replyTreeFlat = flattenReplyTree(buildReplyTree(replies, documentUri))
 
   return (
@@ -281,17 +279,6 @@ export function ArtSkyForumPostContent({ documentUri, onClose, onRegisterRefresh
                 </div>
               )}
               <div style={{ display: 'flex', gap: 'var(--space-sm)', marginTop: 'var(--space-md)', alignItems: 'center' }}>
-                <button
-                  type="button"
-                  className={postDownvoted ? styles.likeBtnLiked : styles.likeBtn}
-                  onClick={() =>
-                    postDownvoted ? handleUndoDownvote(myDownvoteUris[post.uri]) : handleDownvote(post.uri, post.cid)
-                  }
-                  disabled={!session}
-                  title={postDownvoted ? 'Remove downvote' : 'Downvote'}
-                >
-                  ↓ {postDownvotes}
-                </button>
                 <span style={{ fontSize: 'var(--font-sm)', color: 'var(--muted)' }}>
                   {replies.length} repl{replies.length === 1 ? 'y' : 'ies'}
                 </span>
