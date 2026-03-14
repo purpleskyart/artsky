@@ -953,6 +953,8 @@ export function ProfileContent({
                       }}
                       nsfwBlurred={nsfwPreference === 'blurred' && isPostNsfw(item.post) && !unblurredUris.has(item.post.uri)}
                       onNsfwUnblur={() => setUnblurred(item.post.uri, true)}
+                      setUnblurred={setUnblurred}
+                      isRevealed={unblurredUris.has(item.post.uri)}
                       constrainMediaHeight
                       likedUriOverride={likeOverrides[item.post.uri]}
                       onLikedChange={(uri, likeRecordUri) => setLikeOverrides((prev) => ({ ...prev, [uri]: likeRecordUri ?? null }))}

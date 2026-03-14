@@ -43,6 +43,10 @@ interface Props {
   nsfwBlurred?: boolean
   /** Called when user taps to reveal NSFW content */
   onNsfwUnblur?: () => void
+  /** When passed with isRevealed, avoids subscribing to ModerationContext so only this card re-renders on unblur (perf). */
+  setUnblurred?: (uri: string, revealed: boolean) => void
+  /** True when this post's URI is in the unblurred set. Pass with setUnblurred to avoid context-driven re-renders. */
+  isRevealed?: boolean
   /** When true, media wrap uses fixed height from --feed-card-media-max-height (no aspect-ratio resize on load) */
   constrainMediaHeight?: boolean
   /** Override liked state (e.g. from F key toggle); string = liked, null = unliked, undefined = use post.viewer.like */
@@ -96,13 +100,14 @@ function isHlsUrl(url: string): boolean {
   return /\.m3u8(\?|$)/i.test(url) || url.includes('m3u8')
 }
 
-function PostCard({ item, isSelected, cardRef: cardRefProp, addButtonRef: _addButtonRef, openAddDropdown, onAddClose, onPostClick, onAspectRatio, fillCell, nsfwBlurred, onNsfwUnblur, constrainMediaHeight, likedUriOverride, onLikedChange, seen, onActionsMenuOpenChange, cardIndex, actionsMenuOpenForIndex, focusedMediaIndex, onMediaRef }: Props) {
+type InnerProps = Props & { setUnblurred: (uri: string, revealed: boolean) => void; isRevealed: boolean }
+
+function PostCardInner({ item, isSelected, cardRef: cardRefProp, addButtonRef: _addButtonRef, openAddDropdown, onAddClose, onPostClick, onAspectRatio, fillCell, nsfwBlurred, onNsfwUnblur, constrainMediaHeight, likedUriOverride, onLikedChange, seen, onActionsMenuOpenChange, cardIndex, actionsMenuOpenForIndex, focusedMediaIndex, onMediaRef, setUnblurred, isRevealed }: InnerProps) {
   const navigate = useNavigate()
   const { session } = useSession()
   const { openLoginModal } = useLoginModal()
   const { artOnly, minimalist } = useArtOnly()
   const { mediaMode } = useMediaOnly()
-  const { unblurredUris, setUnblurred } = useModeration()
   const { openQuotesModal, openPostModal, isModalOpen } = useProfileModal()
   const location = useLocation()
   const modalScrollRef = useModalScroll()
@@ -526,10 +531,10 @@ function PostCard({ item, isSelected, cardRef: cardRefProp, addButtonRef: _addBu
     if (isSelected && nsfwBlurred && onNsfwUnblur) {
       onNsfwUnblur()
     }
-    if (wasSelected && !isSelected && unblurredUris.has(post.uri)) {
+    if (wasSelected && !isSelected && isRevealed) {
       setUnblurred(post.uri, false)
     }
-  }, [isSelected, post.uri, unblurredUris, setUnblurred, nsfwBlurred, onNsfwUnblur])
+  }, [isSelected, post.uri, isRevealed, setUnblurred, nsfwBlurred, onNsfwUnblur])
 
   /* Unblur NSFW when the card (or a child) receives DOM focus (tab/click). Use refs so handler always sees current values. */
   const nsfwBlurredRef = useRef(nsfwBlurred)
@@ -549,7 +554,7 @@ function PostCard({ item, isSelected, cardRef: cardRefProp, addButtonRef: _addBu
   /* Reblur NSFW when focus leaves the card (click/tab outside). focusout bubbles so we listen on the card root. */
   useEffect(() => {
     const el = cardRef.current
-    if (!el || !unblurredUris.has(post.uri)) return
+    if (!el || !isRevealed) return
     const onFocusOut = (e: FocusEvent) => {
       const next = e.relatedTarget as Node | null
       if (next != null && el.contains(next)) return
@@ -557,12 +562,12 @@ function PostCard({ item, isSelected, cardRef: cardRefProp, addButtonRef: _addBu
     }
     el.addEventListener('focusout', onFocusOut)
     return () => el.removeEventListener('focusout', onFocusOut)
-  }, [post.uri, unblurredUris, setUnblurred])
+  }, [post.uri, isRevealed, setUnblurred])
 
   /* Reblur NSFW when media scrolls out of view. Use modal scroll root when inside a modal so we only reblur when media leaves the modal's visible area (fixes hover/keyboard unblur in profile modal). */
   const nsfwHasBeenVisibleRef = useRef(false)
   useEffect(() => {
-    if (!hasMedia || !unblurredUris.has(post.uri) || !mediaWrapRef.current) return
+    if (!hasMedia || !isRevealed || !mediaWrapRef.current) return
     nsfwHasBeenVisibleRef.current = false
     const el = mediaWrapRef.current
     const root = modalScrollRef?.current ?? null
@@ -582,7 +587,7 @@ function PostCard({ item, isSelected, cardRef: cardRefProp, addButtonRef: _addBu
     )
     observer.observe(el)
     return () => observer.disconnect()
-  }, [hasMedia, post.uri, unblurredUris, setUnblurred, modalScrollRef])
+  }, [hasMedia, post.uri, isRevealed, setUnblurred, modalScrollRef])
 
   const onMediaEnter = useCallback(() => {
     if (videoRef.current) {
@@ -1213,6 +1218,32 @@ function PostCard({ item, isSelected, cardRef: cardRefProp, addButtonRef: _addBu
   )
 }
 
+/** When parent passes setUnblurred + isRevealed, we don't subscribe to ModerationContext so only this card re-renders on unblur (avoids slow profile-modal unblur). */
+function PostCardWithContext(props: Props) {
+  const { unblurredUris, setUnblurred } = useModeration()
+  const isRevealed = unblurredUris.has(props.item.post.uri)
+  return (
+    <PostCardInner
+      {...props}
+      setUnblurred={setUnblurred}
+      isRevealed={isRevealed}
+    />
+  )
+}
+
+function PostCard(props: Props) {
+  if (props.setUnblurred != null && typeof props.isRevealed === 'boolean') {
+    return (
+      <PostCardInner
+        {...props}
+        setUnblurred={props.setUnblurred}
+        isRevealed={props.isRevealed}
+      />
+    )
+  }
+  return <PostCardWithContext {...props} />
+}
+
 // Wrap PostCard with React.memo and custom comparison function
 // to prevent re-renders when props haven't meaningfully changed
 export default memo(PostCard, (prevProps, nextProps) => {
@@ -1225,6 +1256,7 @@ export default memo(PostCard, (prevProps, nextProps) => {
   if (prevProps.likedUriOverride !== nextProps.likedUriOverride) return false
   if (prevProps.seen !== nextProps.seen) return false
   if (prevProps.nsfwBlurred !== nextProps.nsfwBlurred) return false
+  if (prevProps.isRevealed !== nextProps.isRevealed) return false
   if (prevProps.fillCell !== nextProps.fillCell) return false
   if (prevProps.constrainMediaHeight !== nextProps.constrainMediaHeight) return false
   if (prevProps.openAddDropdown !== nextProps.openAddDropdown) return false

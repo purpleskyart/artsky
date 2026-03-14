@@ -82,6 +82,8 @@ const FeedCard = memo(function FeedCard({
             !unblurredUris.has(entry.item.post.uri)
           }
           onNsfwUnblur={() => setUnblurred(entry.item.post.uri, true)}
+          setUnblurred={setUnblurred}
+          isRevealed={unblurredUris.has(entry.item.post.uri)}
           likedUriOverride={likeOverrides[entry.item.post.uri]}
           onLikedChange={(uri, likeRecordUri) =>
             setLikeOverrides(uri, likeRecordUri ?? null)
