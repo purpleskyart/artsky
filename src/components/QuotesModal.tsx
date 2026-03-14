@@ -14,9 +14,10 @@ interface QuotesModalProps {
   onClose: () => void
   onBack: () => void
   canGoBack: boolean
+  isTopModal?: boolean
 }
 
-export default function QuotesModal({ postUri, onClose, onBack, canGoBack }: QuotesModalProps) {
+export default function QuotesModal({ postUri, onClose, onBack, canGoBack, isTopModal }: QuotesModalProps) {
   const { openPostModal } = useProfileModal()
   const { nsfwPreference, unblurredUris, setUnblurred } = useModeration()
   const [items, setItems] = useState<TimelineItem[]>([])
@@ -82,6 +83,7 @@ export default function QuotesModal({ postUri, onClose, onBack, canGoBack }: Quo
       canGoBack={canGoBack}
       onPullToRefresh={refreshFn ? () => refreshFn() : undefined}
       scrollKey={postUri}
+      isTopModal={isTopModal}
     >
       <div className={styles.wrap}>
         {error && <p className={styles.error}>{error}</p>}

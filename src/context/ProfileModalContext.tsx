@@ -194,13 +194,11 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
   }, [location.pathname, navigate])
 
   const closeModal = useCallback(() => {
-    setModalStack((prev) => {
-      const next = prev.length > 1 ? prev.slice(0, -1) : []
-      const search = next.length > 0 ? `?${modalStackToSearch(next)}` : ''
-      navigate({ pathname: location.pathname, search }, { replace: true })
-      return next
-    })
-  }, [location.pathname, navigate])
+    const next = modalStack.length > 1 ? modalStack.slice(0, -1) : []
+    const search = next.length > 0 ? `?${modalStackToSearch(next)}` : ''
+    setModalStack(next)
+    navigate({ pathname: location.pathname, search }, { replace: true })
+  }, [location.pathname, navigate, modalStack])
 
   const closeAllModals = useCallback(() => {
     setModalStack([])
@@ -275,6 +273,7 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
           onClose={closeAllModals}
           onBack={closeModal}
           canGoBack={canGoBackFromThis}
+          isTopModal={isTop}
         />
       )
     }
@@ -286,6 +285,7 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
           onClose={closeAllModals}
           onBack={closeModal}
           canGoBack={canGoBackFromThis}
+          isTopModal={isTop}
         />
       )
     }
@@ -297,6 +297,7 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
           onClose={closeAllModals}
           onBack={closeModal}
           canGoBack={canGoBackFromThis}
+          isTopModal={isTop}
         />
       )
     }
@@ -308,6 +309,7 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
           onClose={closeAllModals}
           onBack={closeModal}
           canGoBack={canGoBackFromThis}
+          isTopModal={isTop}
         />
       )
     }
@@ -319,12 +321,13 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
           onClose={closeAllModals}
           onBack={closeModal}
           canGoBack={canGoBackFromThis}
+          isTopModal={isTop}
         />
       )
     }
     if (item.type === 'forum') {
       return (
-        <ForumModal key={key} onClose={closeAllModals} onBack={closeModal} canGoBack={canGoBackFromThis} />
+        <ForumModal key={key} onClose={closeAllModals} onBack={closeModal} canGoBack={canGoBackFromThis} isTopModal={isTop} />
       )
     }
     if (item.type === 'forumPost') {
@@ -335,12 +338,13 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
           onClose={closeAllModals}
           onBack={closeModal}
           canGoBack={canGoBackFromThis}
+          isTopModal={isTop}
         />
       )
     }
     if (item.type === 'artboards') {
       return (
-        <ArtboardsModal key={key} onClose={closeAllModals} onBack={closeModal} canGoBack={canGoBackFromThis} />
+        <ArtboardsModal key={key} onClose={closeAllModals} onBack={closeModal} canGoBack={canGoBackFromThis} isTopModal={isTop} />
       )
     }
     if (item.type === 'artboard') {
@@ -351,6 +355,7 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
           onClose={closeAllModals}
           onBack={closeModal}
           canGoBack={canGoBackFromThis}
+          isTopModal={isTop}
         />
       )
     }

@@ -39,6 +39,8 @@ interface AppModalProps {
   onPullToRefresh?: () => void | Promise<void>
   /** Optional: when provided, scroll resets when this value changes */
   scrollKey?: string
+  /** When false, this modal is under another; only the top modal should capture wheel to avoid scrolling the wrong pane */
+  isTopModal?: boolean
 }
 
 export default function AppModal({
@@ -53,6 +55,7 @@ export default function AppModal({
   onSwipeLeft,
   onPullToRefresh,
   scrollKey,
+  isTopModal = true,
 }: AppModalProps) {
   const overlayRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -82,8 +85,9 @@ export default function AppModal({
     return () => scrollLock?.unlockScroll()
   }, [scrollLock])
 
-  /* When modal is open, route wheel events to the modal scroll area so scrolling never moves the page behind */
+  /* When modal is open, route wheel events to the modal scroll area so scrolling never moves the page behind. Only the topmost modal does this so stacking (e.g. post on profile) scrolls the visible modal. */
   useEffect(() => {
+    if (!isTopModal) return
     const overlay = overlayRef.current
     const scrollEl = scrollRef.current
     if (!overlay || !scrollEl) return
@@ -102,7 +106,7 @@ export default function AppModal({
     }
     window.addEventListener('wheel', onWheel, { passive: false, capture: true })
     return () => window.removeEventListener('wheel', onWheel, { capture: true })
-  }, [])
+  }, [isTopModal])
 
   /* Modal scroll: hide back/nav/gear when scrolling down (same behavior as homepage) */
   useEffect(() => {

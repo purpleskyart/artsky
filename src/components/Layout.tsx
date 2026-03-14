@@ -1295,7 +1295,14 @@ export default function Layout({ title, children, showNav }: Props) {
             >
               <span className={styles.navIcon}>
                 {session && currentAccountAvatar ? (
-                  <img src={currentAccountAvatar} alt="" className={styles.navProfileAvatar} loading="lazy" />
+                  <img
+                    src={currentAccountAvatar}
+                    alt=""
+                    className={styles.navProfileAvatar}
+                    loading="lazy"
+                    onContextMenu={(e) => e.preventDefault()}
+                    draggable={false}
+                  />
                 ) : (
                   <AccountIcon />
                 )}
@@ -1459,38 +1466,21 @@ export default function Layout({ title, children, showNav }: Props) {
       {!session && (
         <section className={styles.menuSection}>
           <div className={styles.menuProfileAndAccounts}>
-            {isDesktop ? (
-              <button
-                type="button"
-                className={`${styles.menuProfileBtn} ${styles.menuProfileBtnAccentHover}`}
-                onClick={() => {
-                  setAccountMenuOpen(false)
-                  setAccountSheetOpen(false)
-                  openLoginModal('create')
-                }}
-              >
-                <span className={styles.menuProfileIconWrap} aria-hidden>
-                  <AccountIcon />
-                </span>
-                <span>Create account</span>
-              </button>
-            ) : (
-              <a
-                href="https://bsky.app"
-                target="_blank"
-                rel="noopener noreferrer"
-                className={`${styles.menuProfileBtn} ${styles.menuProfileBtnAccentHover}`}
-                onClick={() => {
-                  setAccountMenuOpen(false)
-                  setAccountSheetOpen(false)
-                }}
-              >
-                <span className={styles.menuProfileIconWrap} aria-hidden>
-                  <AccountIcon />
-                </span>
-                <span>Create account</span>
-              </a>
-            )}
+            <a
+              href="https://bsky.app"
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`${styles.menuProfileBtn} ${styles.menuProfileBtnAccentHover}`}
+              onClick={() => {
+                setAccountMenuOpen(false)
+                setAccountSheetOpen(false)
+              }}
+            >
+              <span className={styles.menuProfileIconWrap} aria-hidden>
+                <AccountIcon />
+              </span>
+              <span>Create account on Bluesky</span>
+            </a>
             <div className={styles.menuAccountsBlock}>
               <button
                 type="button"

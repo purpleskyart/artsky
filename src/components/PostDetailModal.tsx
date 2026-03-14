@@ -10,9 +10,10 @@ interface PostDetailModalProps {
   onClose: () => void
   onBack: () => void
   canGoBack: boolean
+  isTopModal?: boolean
 }
 
-export default function PostDetailModal({ uri, openReply, focusUri, onClose, onBack, canGoBack }: PostDetailModalProps) {
+export default function PostDetailModal({ uri, openReply, focusUri, onClose, onBack, canGoBack, isTopModal }: PostDetailModalProps) {
   const { openProfileModal } = useProfileModal()
   const [authorHandle, setAuthorHandle] = useState<string | null>(null)
   const [refreshFn, setRefreshFn] = useState<(() => void | Promise<void>) | null>(null)
@@ -40,6 +41,7 @@ export default function PostDetailModal({ uri, openReply, focusUri, onClose, onB
       onSwipeLeft={authorHandle ? handleSwipeLeft : undefined}
       onPullToRefresh={refreshFn ? () => refreshFn() : undefined}
       scrollKey={uri}
+      isTopModal={isTopModal}
     >
       <PostDetailContent
         uri={uri}

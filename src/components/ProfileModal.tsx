@@ -8,9 +8,10 @@ interface ProfileModalProps {
   onClose: () => void
   onBack: () => void
   canGoBack: boolean
+  isTopModal?: boolean
 }
 
-export default function ProfileModal({ handle, onClose, onBack, canGoBack }: ProfileModalProps) {
+export default function ProfileModal({ handle, onClose, onBack, canGoBack, isTopModal }: ProfileModalProps) {
   const { openProfileModal } = useProfileModal()
   const [refreshFn, setRefreshFn] = useState<(() => void | Promise<void>) | null>(null)
 
@@ -23,6 +24,7 @@ export default function ProfileModal({ handle, onClose, onBack, canGoBack }: Pro
       hideTopBar
       onPullToRefresh={refreshFn ? () => refreshFn() : undefined}
       scrollKey={handle}
+      isTopModal={isTopModal}
     >
       <ProfileContent
         handle={handle}

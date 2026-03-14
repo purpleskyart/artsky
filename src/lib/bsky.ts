@@ -583,6 +583,10 @@ export async function getMixedFeed(
       if (signal?.aborted) throw new Error('Request cancelled')
 
       if (entry.source.kind === 'timeline') {
+        if (!getSession()) {
+          results.push({ key, feed: [] as TimelineItem[], nextCursor: undefined })
+          continue
+        }
         const cacheKey = `timeline:${fetchLimit}:${cursor ?? 'initial'}`
         const cached = responseCache.get<{ feed: TimelineItem[]; cursor?: string }>(cacheKey)
         if (cached) {
@@ -603,6 +607,10 @@ export async function getMixedFeed(
         continue
       }
       if (entry.source.uri) {
+        if (!getSession()) {
+          results.push({ key, feed: [] as TimelineItem[], nextCursor: undefined })
+          continue
+        }
         const cacheKey = `feed:${entry.source.uri}:${fetchLimit}:${cursor ?? 'initial'}`
         const cached = responseCache.get<{ feed: TimelineItem[]; cursor?: string }>(cacheKey)
         if (cached) {
@@ -1195,52 +1203,18 @@ export type StandardSiteDocumentView = {
   mediaRefs?: Array<{ image: StandardSiteDocumentBlobRef; mimeType?: string }>
 }
 
-/** List site.standard.document records from a repo. Does not require the lexicon to be installed.
- * Returns empty list if the PDS rejects the collection (e.g. Bluesky's Enoki returns 400 for site.standard.document). */
+/** List site.standard.document records from a repo. Stubbed: no API requests (standard site documents removed from app). */
 export async function listStandardSiteDocuments(
-  client: AtpAgent,
-  repo: string,
-  opts?: { limit?: number; cursor?: string; reverse?: boolean }
+  _client: AtpAgent,
+  _repo: string,
+  _opts?: { limit?: number; cursor?: string; reverse?: boolean }
 ): Promise<{ records: { uri: string; cid: string; value: StandardSiteDocumentRecord }[]; cursor?: string }> {
-  try {
-    const res = await client.com.atproto.repo.listRecords({
-      repo,
-      collection: STANDARD_SITE_DOCUMENT_COLLECTION,
-      limit: opts?.limit ?? 30,
-      cursor: opts?.cursor,
-      reverse: opts?.reverse ?? true,
-    })
-    const records = (res.data.records ?? []).map((r: { uri: string; cid: string; value: Record<string, unknown> }) => ({
-      uri: r.uri,
-      cid: r.cid,
-      value: r.value as StandardSiteDocumentRecord,
-    }))
-    return { records, cursor: res.data.cursor }
-  } catch (err) {
-    const e = err as { message?: string; status?: number; statusCode?: number }
-    const status = e.status ?? e.statusCode
-    const msg = String(e.message ?? '')
-    const is400 = status === 400 || msg.includes('Bad Request') || msg.includes('InvalidRequest')
-    if (is400) {
-      return { records: [], cursor: undefined }
-    }
-    throw err
-  }
+  return { records: [], cursor: undefined }
 }
 
-/** Get the base URL of a publication from a repo (first site.standard.publication record). */
-export async function getStandardSitePublicationBaseUrl(client: AtpAgent, repo: string): Promise<string | null> {
-  try {
-    const res = await client.com.atproto.repo.listRecords({
-      repo,
-      collection: STANDARD_SITE_PUBLICATION_COLLECTION,
-      limit: 1,
-    })
-    const record = res.data.records?.[0]?.value as { url?: string } | undefined
-    return record?.url ?? null
-  } catch {
-    return null
-  }
+/** Get the base URL of a publication from a repo. Stubbed: no API requests (standard site documents removed from app). */
+export async function getStandardSitePublicationBaseUrl(_client: AtpAgent, _repo: string): Promise<string | null> {
+  return null
 }
 
 /** Parse an at:// URI into repo (DID), collection, and rkey. */
@@ -1255,48 +1229,9 @@ export function parseAtUri(uri: string): { did: string; collection: string; rkey
   return did && collection && rkey ? { did, collection, rkey } : null
 }
 
-/** Fetch a single standard.site document by URI. Returns null if not found or not a site.standard.document. */
-export async function getStandardSiteDocument(uri: string): Promise<StandardSiteDocumentView | null> {
-  const parsed = parseAtUri(uri)
-  if (!parsed || parsed.collection !== STANDARD_SITE_DOCUMENT_COLLECTION) return null
-  const client = getSession() ? agent : publicAgent
-  try {
-    const res = await client.com.atproto.repo.getRecord({
-      repo: parsed.did,
-      collection: STANDARD_SITE_DOCUMENT_COLLECTION,
-      rkey: parsed.rkey,
-    })
-    const value = res.data?.value as StandardSiteDocumentRecord | undefined
-    if (!value) return null
-    const [baseUrl, profile] = await Promise.all([
-      getStandardSitePublicationBaseUrl(client, parsed.did),
-      client.getProfile({ actor: parsed.did }).then((p) => p.data as { handle?: string; avatar?: string }).catch(() => null),
-    ])
-    const pds = (client as { service?: { host?: string } }).service?.host ?? BSKY_SERVICE.replace(/^https?:\/\//, '')
-    const base = pds.startsWith('http') ? pds : `https://${pds}`
-    const mediaUrls: Array<{ url: string; mimeType?: string }> = []
-    for (const m of value.media ?? []) {
-      const cid = typeof m.image === 'object' && m.image && '$link' in m.image ? (m.image as StandardSiteDocumentBlobRef).$link : undefined
-      if (cid) mediaUrls.push({ url: `${base}/xrpc/com.atproto.sync.getBlob?did=${parsed.did}&cid=${encodeURIComponent(cid)}`, mimeType: m.mimeType })
-    }
-    return {
-      uri: res.data.uri as string,
-      cid: res.data.cid as string,
-      did: parsed.did,
-      rkey: parsed.rkey,
-      path: value.path ?? parsed.rkey,
-      title: value.title,
-      body: value.body,
-      createdAt: value.createdAt,
-      baseUrl: baseUrl ?? undefined,
-      authorHandle: profile?.handle,
-      authorAvatar: profile?.avatar,
-      media: mediaUrls.length > 0 ? mediaUrls : undefined,
-      mediaRefs: value.media,
-    }
-  } catch {
-    return null
-  }
+/** Fetch a single standard.site document by URI. Stubbed: no API requests (standard site documents removed from app). */
+export async function getStandardSiteDocument(_uri: string): Promise<StandardSiteDocumentView | null> {
+  return null
 }
 
 /** Delete a feed post. Requires session; only the author can delete. */
@@ -1313,18 +1248,9 @@ export async function deletePost(uri: string): Promise<void> {
   })
 }
 
-/** Delete a standard.site document. Requires session; only the author can delete. */
-export async function deleteStandardSiteDocument(uri: string): Promise<void> {
-  const session = getSession()
-  if (!session?.did) throw new Error('Not logged in')
-  const parsed = parseAtUri(uri)
-  if (!parsed || parsed.collection !== STANDARD_SITE_DOCUMENT_COLLECTION) throw new Error('Invalid document URI')
-  if (parsed.did !== session.did) throw new Error('You can only delete your own posts')
-  await agent.com.atproto.repo.deleteRecord({
-    repo: session.did,
-    collection: STANDARD_SITE_DOCUMENT_COLLECTION,
-    rkey: parsed.rkey,
-  })
+/** Delete a standard.site document. Stubbed: no API requests (standard site documents removed from app). */
+export async function deleteStandardSiteDocument(_uri: string): Promise<void> {
+  throw new Error('Standard site documents are not available')
 }
 
 /** Custom downvote collection: stored in user repo so it syncs across the AT Protocol. */
@@ -1519,54 +1445,17 @@ export async function putMutedWords(
   await agent.app.bsky.actor.putPreferences({ preferences: prefs as AppBskyActorDefs.Preferences })
 }
 
-/** Upload a blob for use in a standard.site document media array. Requires session. */
-export async function uploadStandardSiteDocumentBlob(
-  file: File
-): Promise<{ image: StandardSiteDocumentBlobRef; mimeType: string }> {
-  const session = getSession()
-  if (!session?.did) throw new Error('Not logged in')
-  const allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
-  if (!allowed.includes(file.type)) throw new Error('Only JPEG, PNG, GIF, and WebP images are supported')
-  const { data } = await agent.uploadBlob(file, { encoding: file.type })
-  const blob = data.blob as { $link?: string }
-  const link = blob?.$link ?? (data as { blob?: { $link?: string } }).blob?.$link
-  if (!link) throw new Error('Upload did not return a blob reference')
-  return { image: { $link: link }, mimeType: file.type }
+/** Upload a blob for use in a standard.site document. Stubbed: no API requests (standard site documents removed from app). */
+export async function uploadStandardSiteDocumentBlob(_file: File): Promise<{ image: StandardSiteDocumentBlobRef; mimeType: string }> {
+  throw new Error('Standard site documents are not available')
 }
 
-/** Update a standard.site document (title, body, media). Requires session; only the author can update. Path is preserved. */
+/** Update a standard.site document. Stubbed: no API requests (standard site documents removed from app). */
 export async function updateStandardSiteDocument(
-  uri: string,
-  updates: { title?: string; body?: string; media?: Array<{ image: StandardSiteDocumentBlobRef; mimeType?: string }> }
+  _uri: string,
+  _updates: { title?: string; body?: string; media?: Array<{ image: StandardSiteDocumentBlobRef; mimeType?: string }> }
 ): Promise<StandardSiteDocumentView> {
-  const session = getSession()
-  if (!session?.did) throw new Error('Not logged in')
-  const parsed = parseAtUri(uri)
-  if (!parsed || parsed.collection !== STANDARD_SITE_DOCUMENT_COLLECTION) throw new Error('Invalid document URI')
-  if (parsed.did !== session.did) throw new Error('You can only edit your own posts')
-  const existing = await agent.com.atproto.repo.getRecord({
-    repo: session.did,
-    collection: STANDARD_SITE_DOCUMENT_COLLECTION,
-    rkey: parsed.rkey,
-  })
-  const current = (existing.data?.value ?? {}) as StandardSiteDocumentRecord
-  const record = {
-    ...current,
-    path: current.path ?? parsed.rkey,
-    title: updates.title !== undefined ? updates.title : current.title,
-    body: updates.body !== undefined ? updates.body : current.body,
-    media: updates.media !== undefined ? updates.media : current.media,
-    createdAt: current.createdAt,
-  }
-  const res = await agent.com.atproto.repo.putRecord({
-    repo: session.did,
-    collection: STANDARD_SITE_DOCUMENT_COLLECTION,
-    rkey: parsed.rkey,
-    record,
-  })
-  const updated = await getStandardSiteDocument(res.data.uri)
-  if (!updated) throw new Error('Failed to fetch updated document')
-  return updated
+  throw new Error('Standard site documents are not available')
 }
 
 /** Standard.site comment record (comments on documents; interoperable with leaflet.pub etc.). */
@@ -1586,56 +1475,22 @@ function generateRecordRkey(): string {
   return `${t}-${r}`
 }
 
-/** Create a standard.site comment on a document. Optionally a reply to another comment (threading). Requires session. */
+/** Create a standard.site comment. Stubbed: no API requests (standard site documents removed from app). */
 export async function createStandardSiteComment(
-  documentUri: string,
-  text: string,
-  replyToUri?: string
+  _documentUri: string,
+  _text: string,
+  _replyToUri?: string
 ): Promise<{ uri: string; cid: string }> {
-  const session = getSession()
-  if (!session?.did) throw new Error('Not logged in')
-  const parsed = parseAtUri(documentUri)
-  if (!parsed || parsed.collection !== STANDARD_SITE_DOCUMENT_COLLECTION) throw new Error('Invalid document URI')
-  const t = text.trim()
-  if (!t) throw new Error('Comment text is required')
-  const record: StandardSiteCommentRecord = {
-    subject: documentUri,
-    ...(replyToUri ? { replyTo: replyToUri } : {}),
-    text: t,
-    createdAt: new Date().toISOString(),
-  }
-  const rkey = generateRecordRkey()
-  const res = await agent.com.atproto.repo.putRecord({
-    repo: session.did,
-    collection: STANDARD_SITE_COMMENT_COLLECTION,
-    rkey,
-    record,
-  })
-  return { uri: res.data.uri, cid: res.data.cid }
+  throw new Error('Standard site documents are not available')
 }
 
-/** List standard.site comment records from a repo (e.g. current user). Filter by subject client-side. */
+/** List standard.site comment records. Stubbed: no API requests (standard site documents removed from app). */
 export async function listStandardSiteComments(
-  client: AtpAgent,
-  repo: string,
-  opts?: { limit?: number; cursor?: string }
+  _client: AtpAgent,
+  _repo: string,
+  _opts?: { limit?: number; cursor?: string }
 ): Promise<{ records: { uri: string; cid: string; value: StandardSiteCommentRecord }[]; cursor?: string }> {
-  try {
-    const res = await client.com.atproto.repo.listRecords({
-      repo,
-      collection: STANDARD_SITE_COMMENT_COLLECTION,
-      limit: opts?.limit ?? 100,
-      cursor: opts?.cursor,
-    })
-    const records = (res.data.records ?? []).map((r: { uri: string; cid: string; value: Record<string, unknown> }) => ({
-      uri: r.uri,
-      cid: r.cid,
-      value: r.value as StandardSiteCommentRecord,
-    }))
-    return { records, cursor: res.data.cursor }
-  } catch {
-    return { records: [], cursor: undefined }
-  }
+  return { records: [], cursor: undefined }
 }
 
 /** Unified reply view for forum post detail (standard.site comment or Bluesky post that links to the doc). */
@@ -1771,39 +1626,14 @@ export function getStandardSiteDocumentUrl(doc: StandardSiteDocumentView): strin
   return path ? `${base}/${path}` : base
 }
 
-/** List standard.site blog documents for a single author (by DID). Use for profile blog tab. */
+/** List standard.site blog documents for a single author. Stubbed: no API requests (standard site documents removed from app). */
 export async function listStandardSiteDocumentsForAuthor(
-  client: AtpAgent,
-  did: string,
-  authorHandle?: string,
-  opts?: { limit?: number; cursor?: string }
+  _client: AtpAgent,
+  _did: string,
+  _authorHandle?: string,
+  _opts?: { limit?: number; cursor?: string }
 ): Promise<{ documents: StandardSiteDocumentView[]; cursor?: string }> {
-  try {
-    const { records, cursor } = await listStandardSiteDocuments(client, did, {
-      limit: opts?.limit ?? 30,
-      cursor: opts?.cursor,
-      reverse: true,
-    })
-    if (records.length === 0) return { documents: [], cursor }
-    const baseUrl = await getStandardSitePublicationBaseUrl(client, did)
-    const documents: StandardSiteDocumentView[] = records.map((r) => {
-      const path = r.value.path ?? r.uri.split('/').pop() ?? ''
-      return {
-        uri: r.uri,
-        cid: r.cid,
-        did,
-        rkey: r.uri.split('/').pop() ?? '',
-        path,
-        title: r.value.title,
-        createdAt: r.value.createdAt,
-        baseUrl: baseUrl ?? undefined,
-        authorHandle: authorHandle ?? did,
-      }
-    })
-    return { documents, cursor }
-  } catch {
-    return { documents: [], cursor: undefined }
-  }
+  return { documents: [], cursor: undefined }
 }
 
 /** Search posts that link to a domain (e.g. standard.site). Works with publicAgent when logged out. */
@@ -1832,21 +1662,29 @@ export async function searchPostsByDomain(
 export async function getSavedFeedsFromPreferences(): Promise<
   { id: string; type: string; value: string; pinned: boolean }[]
 > {
+  if (!getSession()?.did) return []
+
   // Check cache first
   if (savedFeedsCache && Date.now() - savedFeedsCache.timestamp < SAVED_FEEDS_CACHE_TTL) {
     return savedFeedsCache.data
   }
 
-  // Read same format we write: app.bsky.actor.getPreferences returns preferences array; saved feeds are in savedFeedsPrefV2
-  const { data } = await agent.app.bsky.actor.getPreferences({})
-  const prefs = (data?.preferences ?? []) as { $type?: string; items?: { id: string; type: string; value: string; pinned: boolean }[] }[]
-  const v2Type = 'app.bsky.actor.defs#savedFeedsPrefV2'
-  const existing = prefs.find((p) => p.$type === v2Type)
-  const list = existing?.items ?? []
+  try {
+    // Read same format we write: app.bsky.actor.getPreferences returns preferences array; saved feeds are in savedFeedsPrefV2
+    const { data } = await agent.app.bsky.actor.getPreferences({})
+    const prefs = (data?.preferences ?? []) as { $type?: string; items?: { id: string; type: string; value: string; pinned: boolean }[] }[]
+    const v2Type = 'app.bsky.actor.defs#savedFeedsPrefV2'
+    const existing = prefs.find((p) => p.$type === v2Type)
+    const list = existing?.items ?? []
 
-  // Cache the result
-  savedFeedsCache = { data: list, timestamp: Date.now() }
-  return list
+    // Cache the result
+    savedFeedsCache = { data: list, timestamp: Date.now() }
+    return list
+  } catch {
+    // 401 Unauthorized (logged out / expired) or other error: return empty so UI doesn't fire repeated requests
+    savedFeedsCache = null
+    return []
+  }
 }
 
 /** Parse a bsky.app profile feed URL into handle and feed slug. e.g. https://bsky.app/profile/foo.bsky.social/feed/for-you -> { handle: 'foo.bsky.social', feedSlug: 'for-you' } */
@@ -2181,6 +2019,9 @@ export async function getTimelineWithLifecycle(
   limit: number = 30,
   cursor?: string
 ): Promise<Awaited<ReturnType<typeof agent.getTimeline>>> {
+  if (!getSession()) {
+    return { data: { feed: [], cursor: undefined } } as Awaited<ReturnType<typeof agent.getTimeline>>
+  }
   const cacheKey = `timeline:${limit}:${cursor ?? 'initial'}`
   const cached = responseCache.get<{ feed: TimelineItem[]; cursor?: string }>(cacheKey)
   if (cached) {
@@ -2202,6 +2043,9 @@ export async function getFeedWithLifecycle(
   limit: number = 30,
   cursor?: string
 ): Promise<Awaited<ReturnType<typeof agent.app.bsky.feed.getFeed>>> {
+  if (!getSession()) {
+    return { data: { feed: [], cursor: undefined } } as Awaited<ReturnType<typeof agent.app.bsky.feed.getFeed>>
+  }
   const cacheKey = `feed:${feedUri}:${limit}:${cursor ?? 'initial'}`
   const cached = responseCache.get<{ feed: TimelineItem[]; cursor?: string }>(cacheKey)
   if (cached) {

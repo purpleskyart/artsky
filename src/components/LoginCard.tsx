@@ -50,15 +50,13 @@ export interface LoginCardProps {
 }
 
 export default function LoginCard({ initialMode = 'signin', onSuccess, onClose }: LoginCardProps) {
-  const { login, refreshSession } = useSession()
+  const { refreshSession } = useSession()
   const [mode, setMode] = useState<LoginMode>(initialMode)
   useEffect(() => {
     setMode(initialMode)
   }, [initialMode])
 
   const [identifier, setIdentifier] = useState('')
-  const [password, setPassword] = useState('')
-  const [showAppPassword, setShowAppPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -132,20 +130,6 @@ export default function LoginCard({ initialMode = 'signin', onSuccess, onClose }
     const id = identifier.trim().replace(/^@/, '')
     if (!id) return
 
-    if (password.trim()) {
-      setLoading(true)
-      try {
-        await login(id, password)
-        onSuccess?.()
-      } catch (err: unknown) {
-        setError(toFriendlyLoginError(err, 'app-password'))
-      } finally {
-        setLoading(false)
-      }
-      return
-    }
-
-    // No password: sign in with Bluesky (OAuth redirect)
     setLoading(true)
     try {
       await oauth.signInWithOAuthRedirect(id)
@@ -307,39 +291,10 @@ export default function LoginCard({ initialMode = 'signin', onSuccess, onClose }
               </div>,
               document.body
             )}
-          {showAppPassword && (
-            <>
-              <label htmlFor="login-password" className={styles.srOnly}>
-                App password
-              </label>
-              <input
-                id="login-password"
-                type="password"
-                placeholder="App password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className={styles.input}
-                autoComplete="current-password"
-                aria-describedby={error ? 'login-error login-app-password-hint' : 'login-app-password-hint'}
-              />
-              <p id="login-app-password-hint" className={styles.hint}>
-                Create an App Password in Bluesky: Settings → App passwords, then enter it above.
-              </p>
-            </>
-          )}
           {error && <p id="login-error" className={styles.error} role="alert">{error}</p>}
           <button type="submit" className={styles.button} disabled={loading}>
-            {loading ? 'Logging in…' : password.trim() ? 'Log in' : 'Log in with Bluesky'}
+            {loading ? 'Logging in…' : 'Log in with Bluesky'}
           </button>
-          {!showAppPassword ? (
-            <button
-              type="button"
-              className={styles.buttonSecondary}
-              onClick={() => setShowAppPassword(true)}
-            >
-              or use your app password
-            </button>
-          ) : null}
           <a
             href={BLUESKY_SIGNUP_URL}
             target="_blank"
