@@ -368,11 +368,11 @@
   transform: scale(0.96);
 }
 
-/* Mobile: top bar has only slot + right slot; X/back/expand move to bottom bar that hides on scroll */
+/* Mobile: use full height; only safe-area insets so content reaches bottom of screen */
 @media (max-width: 767px) {
   .overlay {
     padding-top: max(0.5rem, env(safe-area-inset-top));
-    padding-bottom: 1.75rem;
+    padding-bottom: env(safe-area-inset-bottom);
     justify-content: flex-start;
   }
   .overlayFlushTop.overlay {
@@ -382,10 +382,10 @@
     padding-top: 0;
   }
   .pane {
-    max-height: calc(100% - 2.5rem);
+    max-height: 100%;
   }
   .scroll {
-    padding-bottom: 0.5rem;
+    padding-bottom: env(safe-area-inset-bottom);
   }
   /* Transparent bar on mobile: keep at top */
   .modalTopBarTransparent {

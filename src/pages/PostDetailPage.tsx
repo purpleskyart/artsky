@@ -2164,24 +2164,6 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                 >
                   {likeLoading ? '…' : isLiked ? '♥' : '♡'} Like
                 </button>
-                {thread && isThreadViewPost(thread) && session && (
-                  <button
-                    type="button"
-                    className={`${styles.likeRepostBtn} ${myDownvotes[thread.post.uri] ? styles.likeRepostBtnDownvoteActive : ''}`}
-                    onClick={() => handleCommentDownvote(thread.post.uri, thread.post.cid, myDownvotes[thread.post.uri] ?? null)}
-                    disabled={commentDownvoteLoadingUri === thread.post.uri}
-                    title={myDownvotes[thread.post.uri] ? 'Remove downvote' : 'Downvote (syncs across AT Protocol)'}
-                    aria-label={myDownvotes[thread.post.uri] ? 'Remove downvote' : 'Downvote'}
-                  >
-                    {commentDownvoteLoadingUri === thread.post.uri ? '…' : '↓'} Downvote
-                    {(() => {
-                      const base = downvoteCounts[thread.post.uri] ?? (thread.post as { downvoteCount?: number }).downvoteCount ?? 0
-                      const delta = downvoteCountOptimisticDelta[thread.post.uri] ?? 0
-                      const n = Math.max(0, base + delta)
-                      return n > 0 ? ` ${n}` : ''
-                    })()}
-                  </button>
-                )}
                 <div className={styles.repostWrap} ref={repostDropdownRef}>
                   <button
                     type="button"

@@ -212,11 +212,11 @@ export default function App() {
         <OfflineIndicator />
         <CoreProvidersGroup>
           <FeedProvidersGroup>
-            <ModalProvidersGroup>
-              <ModerationProvider>
+            <ModerationProvider>
+              <ModalProvidersGroup>
                 <AppRoutes />
-              </ModerationProvider>
-            </ModalProvidersGroup>
+              </ModalProvidersGroup>
+            </ModerationProvider>
           </FeedProvidersGroup>
         </CoreProvidersGroup>
       </HashRouter>

@@ -519,8 +519,8 @@ function PostCard({ item, isSelected, cardRef: cardRefProp, addButtonRef: _addBu
     return () => observer.disconnect()
   }, [isVideo, isModalOpen])
 
-  /* Unblur NSFW when this card gains focus; reblur when it loses selection. Reused across feed, profile, tag, popups. */
-  useEffect(() => {
+  /* Unblur NSFW when this card gains focus; reblur when it loses selection. Reused across feed, profile, tag, popups. useLayoutEffect so unblur runs before paint (fixes profile modal). */
+  useLayoutEffect(() => {
     const wasSelected = prevSelectedRef.current
     prevSelectedRef.current = isSelected
     if (isSelected && nsfwBlurred && onNsfwUnblur) {
@@ -530,6 +530,21 @@ function PostCard({ item, isSelected, cardRef: cardRefProp, addButtonRef: _addBu
       setUnblurred(post.uri, false)
     }
   }, [isSelected, post.uri, unblurredUris, setUnblurred, nsfwBlurred, onNsfwUnblur])
+
+  /* Unblur NSFW when the card (or a child) receives DOM focus (tab/click). Use refs so handler always sees current values. */
+  const nsfwBlurredRef = useRef(nsfwBlurred)
+  const onNsfwUnblurRef = useRef(onNsfwUnblur)
+  nsfwBlurredRef.current = nsfwBlurred
+  onNsfwUnblurRef.current = onNsfwUnblur
+  useEffect(() => {
+    const el = cardRef.current
+    if (!el) return
+    const onFocusIn = () => {
+      if (nsfwBlurredRef.current && onNsfwUnblurRef.current) onNsfwUnblurRef.current()
+    }
+    el.addEventListener('focusin', onFocusIn)
+    return () => el.removeEventListener('focusin', onFocusIn)
+  }, [])
 
   /* Reblur NSFW when focus leaves the card (click/tab outside). focusout bubbles so we listen on the card root. */
   useEffect(() => {
@@ -545,14 +560,22 @@ function PostCard({ item, isSelected, cardRef: cardRefProp, addButtonRef: _addBu
   }, [post.uri, unblurredUris, setUnblurred])
 
   /* Reblur NSFW when media scrolls out of view. Use modal scroll root when inside a modal so we only reblur when media leaves the modal's visible area (fixes hover/keyboard unblur in profile modal). */
+  const nsfwHasBeenVisibleRef = useRef(false)
   useEffect(() => {
     if (!hasMedia || !unblurredUris.has(post.uri) || !mediaWrapRef.current) return
+    nsfwHasBeenVisibleRef.current = false
     const el = mediaWrapRef.current
     const root = modalScrollRef?.current ?? null
     const observer = new IntersectionObserver(
       (entries) => {
         const entry = entries[0]
-        if (!entry || entry.intersectionRatio > 0) return
+        if (!entry) return
+        if (entry.intersectionRatio > 0) {
+          nsfwHasBeenVisibleRef.current = true
+          return
+        }
+        /* Only reblur after we've seen the element visible at least once; the first callback can report 0 before layout (e.g. profile modal). */
+        if (!nsfwHasBeenVisibleRef.current) return
         setUnblurred(post.uri, false)
       },
       { threshold: 0, rootMargin: '0px', root }
@@ -662,7 +685,7 @@ function PostCard({ item, isSelected, cardRef: cardRefProp, addButtonRef: _addBu
   )
 
   return (
-    <div ref={setCardRef} data-post-uri={post.uri} className={`${styles.card} ${isSelected ? styles.cardSelected : ''} ${showTransFlagOutline ? styles.cardTransFlag : ''} ${!showTransFlagOutline && isLiked ? styles.cardLiked : ''} ${!showTransFlagOutline && inAnyArtboard ? styles.cardInArtboard : ''} ${seen && !isSelected ? styles.cardSeen : ''} ${fillCell ? styles.cardFillCell : ''} ${artOnly ? styles.cardArtOnly : ''} ${minimalist ? styles.cardMinimalist : ''}`}>
+    <div ref={setCardRef} data-post-uri={post.uri} className={`${styles.card} ${nsfwBlurred ? styles.cardNsfwBlurred : ''} ${isSelected ? styles.cardSelected : ''} ${showTransFlagOutline ? styles.cardTransFlag : ''} ${!showTransFlagOutline && isLiked ? styles.cardLiked : ''} ${!showTransFlagOutline && inAnyArtboard ? styles.cardInArtboard : ''} ${seen && !isSelected ? styles.cardSeen : ''} ${fillCell ? styles.cardFillCell : ''} ${artOnly ? styles.cardArtOnly : ''} ${minimalist ? styles.cardMinimalist : ''}`}>
       <div
         role="button"
         tabIndex={0}

@@ -847,6 +847,12 @@ html[data-theme="dark"] [data-view-mode="1"] .card:focus-within:not(:has(.mediaG
   }
 }
 
+/* When NSFW overlay is shown, disable card backdrop-filter so only the overlay blurs (avoids double blur in modals). */
+.cardNsfwBlurred {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
 /* Ensure media wrap clips the extended blur overlay so no overflow shows */
 .mediaWrap {
   isolation: isolate;
@@ -859,10 +865,10 @@ html[data-theme="dark"] [data-view-mode="1"] .card:focus-within:not(:has(.mediaG
   min-height: unset;
 }
 
-/* NSFW blurred mode: overlay with blur and "Tap to reveal". Extended inset so blur covers corners (no color peeking). */
+/* NSFW blurred mode: overlay with blur and "Tap to reveal". inset: 0 so one blur layer only (card glass disabled via .cardNsfwBlurred). */
 .nsfwOverlay {
   position: absolute;
-  inset: -30px;
+  inset: 0;
   z-index: 2;
   display: flex;
   align-items: center;
@@ -870,7 +876,7 @@ html[data-theme="dark"] [data-view-mode="1"] .card:focus-within:not(:has(.mediaG
   background: var(--overlay-bg);
   -webkit-backdrop-filter: blur(20px);
   backdrop-filter: blur(20px);
-  border-radius: var(--glass-radius) var(--glass-radius) 0 0;
+  border-radius: inherit;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
