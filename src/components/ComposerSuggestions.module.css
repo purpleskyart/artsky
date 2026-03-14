@@ -3,12 +3,13 @@
   width: 100%;
 }
 
-/* Mirror of textarea content up to caret – used to measure caret position for dropdown placement */
+/* Mirror of textarea content up to caret – used to measure caret position for dropdown placement. Receives same className as textarea so padding/font match. */
 .mirror {
   position: absolute;
   left: 0;
   top: 0;
   width: 100%;
+  margin: 0 !important;
   padding: 0.75rem;
   font-size: 1rem;
   font-family: inherit;

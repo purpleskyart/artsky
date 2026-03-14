@@ -92,7 +92,7 @@ export default function ComposerSuggestions({
   const [open, setOpen] = useState(false)
   const [cursor, setCursor] = useState(0)
   /** When set, dropdown is positioned at caret (fixed); when null, fallback below textarea */
-  const [dropdownAtCaret, setDropdownAtCaret] = useState<{ top?: number; bottom?: number; left: number; above: boolean } | null>(null)
+  const [dropdownAtCaret, setDropdownAtCaret] = useState<{ top: number; left: number } | null>(null)
   const triggerRef = useRef<{ trigger: TriggerKind; query: string; startIndex: number } | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const DROPDOWN_MAX_H = 280
@@ -274,20 +274,27 @@ export default function ComposerSuggestions({
   const triggerStartIndex = triggerAtCursor?.startIndex ?? -1
   const showMirror = open && triggerStartIndex >= 0 && (suggestions.length > 0 || loading)
 
+  const DROPDOWN_GAP = 8
+
   useLayoutEffect(() => {
-    if (!showMirror || !caretRef.current || !inputRef.current) {
+    if (!showMirror || !caretRef.current || !inputRef.current || !mirrorRef.current) {
       setDropdownAtCaret(null)
       return
     }
+    const input = inputRef.current
+    const mirror = mirrorRef.current
+    if (mirror && input && document.activeElement === input) {
+      const cs = getComputedStyle(input)
+      mirror.style.transform = cs.transform
+      mirror.style.transformOrigin = cs.transformOrigin
+    } else if (mirror) {
+      mirror.style.transform = ''
+      mirror.style.transformOrigin = ''
+    }
     const rect = caretRef.current.getBoundingClientRect()
-    const spaceBelow = typeof window !== 'undefined' ? window.innerHeight - rect.bottom : 400
-    const above = spaceBelow < DROPDOWN_MAX_H + 8 && rect.top > DROPDOWN_MAX_H + 8
     setDropdownAtCaret({
       left: rect.left,
-      ...(above
-        ? { bottom: typeof window !== 'undefined' ? window.innerHeight - rect.top + 4 : undefined }
-        : { top: rect.bottom + 4 }),
-      above,
+      top: rect.bottom + DROPDOWN_GAP,
     })
   }, [showMirror, value, triggerStartIndex, suggestions.length, loading])
 
@@ -296,16 +303,21 @@ export default function ComposerSuggestions({
   }, [open])
 
   const updateDropdownPosition = useCallback(() => {
-    if (!showMirror || !caretRef.current) return
+    if (!showMirror || !caretRef.current || !inputRef.current || !mirrorRef.current) return
+    const input = inputRef.current
+    const mirror = mirrorRef.current
+    if (mirror && input && document.activeElement === input) {
+      const cs = getComputedStyle(input)
+      mirror.style.transform = cs.transform
+      mirror.style.transformOrigin = cs.transformOrigin
+    } else if (mirror) {
+      mirror.style.transform = ''
+      mirror.style.transformOrigin = ''
+    }
     const rect = caretRef.current.getBoundingClientRect()
-    const spaceBelow = typeof window !== 'undefined' ? window.innerHeight - rect.bottom : 400
-    const above = spaceBelow < DROPDOWN_MAX_H + 8 && rect.top > DROPDOWN_MAX_H + 8
     setDropdownAtCaret({
       left: rect.left,
-      ...(above
-        ? { bottom: typeof window !== 'undefined' ? window.innerHeight - rect.top + 4 : undefined }
-        : { top: rect.bottom + 4 }),
-      above,
+      top: rect.bottom + DROPDOWN_GAP,
     })
   }, [showMirror])
 
@@ -326,7 +338,11 @@ export default function ComposerSuggestions({
   return (
     <div ref={containerRef} className={styles.wrap}>
       {showMirror && (
-        <div ref={mirrorRef} className={styles.mirror} aria-hidden>
+        <div
+          ref={mirrorRef}
+          className={`${styles.mirror} ${className ?? ''}`.trim()}
+          aria-hidden
+        >
           {value.slice(0, triggerStartIndex)}
           <span ref={caretRef} />
         </div>
@@ -360,12 +376,11 @@ export default function ComposerSuggestions({
                 ? {
                     position: 'fixed',
                     left: dropdownAtCaret.left,
-                    ...(dropdownAtCaret.above
-                      ? { bottom: dropdownAtCaret.bottom, top: 'auto' }
-                      : { top: dropdownAtCaret.top }),
+                    top: dropdownAtCaret.top,
                     right: 'auto',
                     width: 'max(200px, min(320px, 90vw))',
                     maxHeight: DROPDOWN_MAX_H,
+                    zIndex: 1350,
                   }
                 : undefined
             }

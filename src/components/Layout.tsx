@@ -555,14 +555,8 @@ export default function Layout({ title, children, showNav }: Props) {
       accountLongPressTriggeredRef.current = false
       return
     }
-    if (session) {
-      const handle = accountProfiles[session.did]?.handle ?? (session as { handle?: string }).handle ?? session.did
-      setAccountMenuOpen(false)
-      openProfileModal(handle)
-    } else {
-      setAccountMenuOpen((o) => !o)
-    }
-  }, [session, accountProfiles, openProfileModal])
+    setAccountMenuOpen((o) => !o)
+  }, [])
 
   const homeBtnClick = useCallback((e: React.MouseEvent) => {
     if (homeLongPressTriggeredRef.current) {
@@ -1289,9 +1283,9 @@ export default function Layout({ title, children, showNav }: Props) {
               onPointerLeave={endAccountHold}
               onPointerCancel={endAccountHold}
               onClick={accountBtnClick}
-              aria-label={session ? 'Profile (hold for accounts)' : 'Account'}
+              aria-label="Account menu"
               aria-expanded={accountMenuOpen}
-              title={session ? 'Profile (hold for accounts and settings)' : 'Account'}
+              title="Account menu"
             >
               <span className={styles.navIcon}>
                 {session && currentAccountAvatar ? (
@@ -1812,9 +1806,9 @@ export default function Layout({ title, children, showNav }: Props) {
                       onPointerLeave={endAccountHold}
                       onPointerCancel={endAccountHold}
                       onClick={accountBtnClick}
-                      aria-label="Profile (hold for accounts)"
+                      aria-label="Account menu"
                       aria-expanded={accountMenuOpen}
-                      title="Profile (hold for accounts and settings)"
+                      title="Account menu"
                     >
                       <span className={styles.navIcon}>
                         {currentAccountAvatar ? (
@@ -1854,9 +1848,9 @@ export default function Layout({ title, children, showNav }: Props) {
                       onPointerLeave={endAccountHold}
                       onPointerCancel={endAccountHold}
                       onClick={accountBtnClick}
-                      aria-label="Profile (hold for accounts)"
+                      aria-label="Account menu"
                       aria-expanded={accountMenuOpen}
-                      title="Profile (hold for accounts and settings)"
+                      title="Account menu"
                     >
                       <span className={styles.navIcon}>
                         {currentAccountAvatar ? (
