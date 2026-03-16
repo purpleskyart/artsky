@@ -133,17 +133,22 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
     if (modalStack.length > 0) setModalScrollHidden(false)
   }, [modalStack.length, modalStack[modalStack.length - 1]])
 
-  /** Open modal: when on a profile (page or modal), push [profile, post] so back returns to profile. */
+  /** Open modal: when on a profile (page or modal), push [profile, post] so back returns to profile. Only use profile from URL if it's already the top of the stack (avoids reopening profile after user closed it). */
   const openPostModal = useCallback((uri: string, openReply?: boolean, focusUri?: string) => {
     const postItem: ModalItem = { type: 'post', uri, openReply, focusUri }
     const params = new URLSearchParams(location.search)
     const profileFromSearch = params.get('profile')
     const profileFromPath = location.pathname.match(/^\/profile\/([^/]+)/)?.[1]
-    const profileHandle = profileFromSearch ?? (profileFromPath ? decodeURIComponent(profileFromPath) : null)
-    const stack: ModalItem[] = profileHandle ? [{ type: 'profile', handle: profileHandle }, postItem] : [postItem]
+    const topItem = modalStack[modalStack.length - 1]
+    const profileAlreadyOpen = topItem?.type === 'profile' && profileFromSearch && topItem.handle === profileFromSearch
+    const stack: ModalItem[] = profileAlreadyOpen
+      ? [...modalStack, postItem]
+      : profileFromPath
+        ? [{ type: 'profile', handle: decodeURIComponent(profileFromPath) }, postItem]
+        : [postItem]
     const search = stack.length > 0 ? `?${modalStackToSearch(stack)}` : ''
     navigate({ pathname: location.pathname, search }, { replace: false })
-  }, [location.pathname, location.search, navigate])
+  }, [location.pathname, location.search, navigate, modalStack])
 
   const openProfileModal = useCallback((handle: string) => {
     const item: ModalItem = { type: 'profile', handle }
