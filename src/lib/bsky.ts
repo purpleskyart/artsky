@@ -590,7 +590,7 @@ export async function getMixedFeed(
         const cacheKey = `timeline:${fetchLimit}:${cursor ?? 'initial'}`
         const cached = responseCache.get<{ feed: TimelineItem[]; cursor?: string }>(cacheKey)
         if (cached) {
-          results.push({ key, feed: cached.feed, nextCursor: cached.cursor })
+          results.push({ key, feed: cached.feed ?? [], nextCursor: cached.cursor })
           continue
         }
         const res = await requestDeduplicator.dedupe(
@@ -600,7 +600,7 @@ export async function getMixedFeed(
             { shouldRetry: shouldRetryError }
           )
         )
-        const result = { feed: res.data.feed, cursor: res.data.cursor ?? undefined }
+        const result = { feed: res.data?.feed ?? [], cursor: res.data?.cursor ?? undefined }
         // Feeds: 5 min TTL + 5 min stale-while-revalidate
         responseCache.set(cacheKey, result, 300_000, 300_000)
         results.push({ key, feed: result.feed, nextCursor: result.cursor })
@@ -614,7 +614,7 @@ export async function getMixedFeed(
         const cacheKey = `feed:${entry.source.uri}:${fetchLimit}:${cursor ?? 'initial'}`
         const cached = responseCache.get<{ feed: TimelineItem[]; cursor?: string }>(cacheKey)
         if (cached) {
-          results.push({ key, feed: cached.feed, nextCursor: cached.cursor })
+          results.push({ key, feed: cached.feed ?? [], nextCursor: cached.cursor })
           continue
         }
         const res = await requestDeduplicator.dedupe(
@@ -624,7 +624,7 @@ export async function getMixedFeed(
             { shouldRetry: shouldRetryError }
           )
         )
-        const result = { feed: res.data.feed, cursor: res.data.cursor }
+        const result = { feed: res.data?.feed ?? [], cursor: res.data?.cursor }
         // Custom feeds: 5 min TTL + 5 min stale-while-revalidate
         responseCache.set(cacheKey, result, 300_000, 300_000)
         results.push({ key, feed: result.feed, nextCursor: result.cursor })
@@ -645,8 +645,9 @@ export async function getMixedFeed(
   results.forEach((r, i) => {
     const take = takePerEntry[i] ?? 0
     const sourceTag = entries[i]?.source as FeedSourceTag | undefined
-    for (let j = 0; j < take && j < r.feed.length; j++) {
-      const item = r.feed[j]
+    const feed = r.feed ?? []
+    for (let j = 0; j < take && j < feed.length; j++) {
+      const item = feed[j]
       if (item?.post?.uri && !seen.has(item.post.uri)) {
         seen.add(item.post.uri)
         combined.push(sourceTag ? { ...item, _feedSource: sourceTag } : item)
