@@ -1,7 +1,7 @@
 import { useRef, useState, useEffect, useLayoutEffect, memo, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { blockAccount, unblockAccount, reportPost, muteThread, deletePost, getProfileCached } from '../lib/bsky'
-import { getSession } from '../lib/bsky'
+import { blockAccount, unblockAccount, reportPost, muteThread, deletePost, getProfileCached, getSession } from '../lib/bsky'
+import { getShareablePostUrl } from '../lib/appUrl'
 import { formatRelativeTimeTitle, formatExactDateTime } from '../lib/date'
 import styles from './PostActionsMenu.module.css'
 
@@ -379,8 +379,7 @@ function PostActionsMenu({
   }, [session?.did, rootUri, showSuccess, showError])
 
   const handleCopyLink = useCallback(() => {
-    const base = typeof window !== 'undefined' ? window.location.origin + (import.meta.env.BASE_URL || '/').replace(/\/$/, '') : ''
-    const url = `${base}/post/${encodeURIComponent(postUri)}`
+    const url = getShareablePostUrl(postUri)
     navigator.clipboard.writeText(url).then(
       () => showSuccess('Link copied'),
       () => showError('Could not copy link')
@@ -390,8 +389,7 @@ function PostActionsMenu({
   const canShare = typeof navigator !== 'undefined' && !!navigator.share
 
   const handleShare = useCallback(() => {
-    const base = typeof window !== 'undefined' ? window.location.origin + (import.meta.env.BASE_URL || '/').replace(/\/$/, '') : ''
-    const url = `${base}/post/${encodeURIComponent(postUri)}`
+    const url = getShareablePostUrl(postUri)
     navigator.share({ url }).then(
       () => setOpen(false),
       () => {}
@@ -415,7 +413,12 @@ function PostActionsMenu({
   const loggedIn = !!session?.did
 
   return (
-    <div ref={menuRef} className={`${styles.wrap} ${compact ? styles.wrapCompact : ''} ${className ?? ''}`}>
+    <div
+      ref={menuRef}
+      className={`${styles.wrap} ${compact ? styles.wrapCompact : ''} ${className ?? ''}`}
+      onTouchStart={(e) => e.stopPropagation()}
+      onTouchEnd={(e) => e.stopPropagation()}
+    >
       <button
         ref={triggerRef}
         type="button"
@@ -428,6 +431,8 @@ function PostActionsMenu({
           }
           setOpen(!open)
         }}
+        onTouchStart={(e) => e.stopPropagation()}
+        onTouchEnd={(e) => e.stopPropagation()}
         aria-expanded={open}
         aria-haspopup="true"
         aria-label="More options"

@@ -89,6 +89,11 @@
   margin-bottom: 0.75rem;
 }
 
+/* Nested replies: indent grows per level but caps so text keeps a stable minimum width on deep threads */
+.threadedCommentArticle {
+  margin-left: min(calc(var(--thread-depth, 0) * 12px), 3rem);
+}
+
 /* Comments: darkened area under each comment (no border) */
 .postBlock:not(.rootPostBlock) {
   background: color-mix(in srgb, var(--surface) 88%, var(--bg));

@@ -1,7 +1,7 @@
-import { useRef, memo } from 'react'
-import { useOffscreenOptimization } from '../hooks/useOffscreenOptimization'
+import { useRef, memo, useCallback } from 'react'
 import PostCard from './PostCard'
 import type { TimelineItem } from '../lib/bsky'
+import styles from './OptimizedPostCard.module.css'
 
 interface OptimizedPostCardProps {
   item: TimelineItem
@@ -27,37 +27,22 @@ interface OptimizedPostCardProps {
 }
 
 /**
- * Wrapper around PostCard with memoization to prevent unnecessary re-renders.
- * Uses IntersectionObserver to detect when posts are far off-screen
- * for potential future optimizations.
+ * Thin wrapper around PostCard for the feed. (Older versions swapped in a placeholder off-screen;
+ * that caused visible layout shift while scrolling when heights didn’t match.)
  */
 function OptimizedPostCard(props: OptimizedPostCardProps) {
-  const containerRef = useRef<HTMLDivElement>(null)
-  
-  // Use intersection observer to detect if post is visible or near viewport
-  // Generous rootMargin (1200px) ensures content is ready before it enters viewport
-  useOffscreenOptimization(containerRef, {
-    rootMargin: '1200px 0px 1200px 0px',
-    threshold: 0,
-  })
+  const cardRefPropRef = useRef(props.cardRef)
+  cardRefPropRef.current = props.cardRef
 
-  // Combine refs - we need both the container ref for intersection observer
-  // and the cardRef callback from parent
-  const handleRef = (el: HTMLDivElement | null) => {
-    (containerRef as React.MutableRefObject<HTMLDivElement | null>).current = el
-    props.cardRef(el)
-  }
+  const setWrapRef = useCallback((el: HTMLDivElement | null) => {
+    cardRefPropRef.current(el)
+  }, [])
 
-  // Always render full content
-  // The intersection observer is just for future optimizations
   return (
-    <PostCard
-      {...props}
-      cardRef={handleRef}
-      onAspectRatio={undefined}
-    />
+    <div ref={setWrapRef} className={styles.optimizeWrap}>
+      <PostCard {...props} cardRef={() => {}} onAspectRatio={undefined} />
+    </div>
   )
 }
 
-// Memoize to prevent unnecessary re-renders
 export default memo(OptimizedPostCard)

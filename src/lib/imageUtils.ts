@@ -71,3 +71,15 @@ export function webpImageUrl(originalUrl: string | undefined | null, width?: num
   // The service automatically converts images to WebP when output=webp is specified
   return `https://wsrv.nl/?url=${encoded}${widthParam}&output=webp`
 }
+
+/** Tighter srcset / preload margins on small or save-data connections. */
+export function getProgressiveImageDefaults(): { sizes: number[]; preloadDistance: number } {
+  const nav = typeof navigator !== 'undefined' ? navigator : undefined
+  if (nav && (nav as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData) {
+    return { sizes: [320, 480, 640], preloadDistance: 400 }
+  }
+  if (typeof window !== 'undefined' && window.innerWidth > 0 && window.innerWidth < 720) {
+    return { sizes: [320, 480, 640, 960], preloadDistance: 600 }
+  }
+  return { sizes: [320, 640, 960, 1280], preloadDistance: 900 }
+}

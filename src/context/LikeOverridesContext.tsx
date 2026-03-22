@@ -1,5 +1,7 @@
 import { createContext, useContext, useState, useCallback, useMemo, type ReactNode } from 'react'
 
+const MAX_LIKE_OVERRIDE_KEYS = 500
+
 /**
  * Normalized cache for like overrides across the application.
  * This context provides a centralized store for tracking like state changes
@@ -31,10 +33,15 @@ export function LikeOverridesProvider({ children }: LikeOverridesProviderProps) 
   const [likeOverrides, setLikeOverrides] = useState<LikeOverridesCache>({})
 
   const setLikeOverride = useCallback((postUri: string, likeUri: string | null) => {
-    setLikeOverrides((prev) => ({
-      ...prev,
-      [postUri]: likeUri,
-    }))
+    setLikeOverrides((prev) => {
+      const next = { ...prev, [postUri]: likeUri }
+      const keys = Object.keys(next)
+      if (keys.length <= MAX_LIKE_OVERRIDE_KEYS) return next
+      const keep = keys.slice(-MAX_LIKE_OVERRIDE_KEYS)
+      const pruned: LikeOverridesCache = {}
+      for (const k of keep) pruned[k] = next[k]
+      return pruned
+    })
   }, [])
 
   const getLikeOverride = useCallback((postUri: string) => {

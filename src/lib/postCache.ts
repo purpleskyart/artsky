@@ -12,11 +12,22 @@ type Cached = { data: ThreadData; at: number }
 
 const cache = new Map<string, Cached>()
 const inFlight = new Map<string, Promise<{ data: ThreadData }>>()
+const INITIAL_POST_STORE_MAX = 120
 const initialPostStore = new Map<string, unknown>()
+
+function trimInitialPostStore(): void {
+  while (initialPostStore.size > INITIAL_POST_STORE_MAX) {
+    const first = initialPostStore.keys().next().value
+    if (first === undefined) break
+    initialPostStore.delete(first)
+  }
+}
 
 /** Store post from feed for instant display when opening. Call before openPostModal(uri). */
 export function setInitialPostForUri(uri: string, postOrItem: unknown): void {
+  initialPostStore.delete(uri)
   initialPostStore.set(uri, postOrItem)
+  trimInitialPostStore()
 }
 
 /** Get and consume initial post for uri. Returns null if none. */

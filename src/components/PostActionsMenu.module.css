@@ -33,8 +33,13 @@
 
 .trigger:focus {
   outline: none;
-  transform: scale(1.03);
-  transition: transform 0.2s ease;
+}
+
+@media (hover: hover) {
+  .trigger:focus {
+    transform: scale(1.03);
+    transition: transform 0.2s ease;
+  }
 }
 
 .trigger[aria-expanded="true"] {

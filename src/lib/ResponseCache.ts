@@ -17,8 +17,26 @@ export interface CacheEntry<T> {
   revalidating?: boolean // Flag to prevent duplicate revalidation requests
 }
 
+/** Hard cap so many feed cursors / profile keys cannot grow RAM without bound. */
+const MAX_CACHE_ENTRIES = 200
+
 export class ResponseCache {
   private cache = new Map<string, CacheEntry<unknown>>()
+
+  private evictLruIfOverLimit(): void {
+    while (this.cache.size > MAX_CACHE_ENTRIES) {
+      const oldest = this.cache.keys().next().value
+      if (oldest === undefined) break
+      this.cache.delete(oldest)
+    }
+  }
+
+  private touchLru(key: string): void {
+    const entry = this.cache.get(key)
+    if (!entry) return
+    this.cache.delete(key)
+    this.cache.set(key, entry)
+  }
   
   /**
    * Get a cached response with stale-while-revalidate support
@@ -42,6 +60,7 @@ export class ResponseCache {
     // Check if entry is fresh
     if (age <= entry.ttl) {
       entry.hits++
+      this.touchLru(key)
       return entry.data
     }
     
@@ -49,7 +68,8 @@ export class ResponseCache {
     const staleWindow = entry.staleWhileRevalidate ?? 0
     if (staleWindow > 0 && age <= entry.ttl + staleWindow) {
       entry.hits++
-      
+      this.touchLru(key)
+
       // Trigger background revalidation if not already revalidating
       if (revalidate && !entry.revalidating) {
         entry.revalidating = true
@@ -83,6 +103,7 @@ export class ResponseCache {
    * @param staleWhileRevalidate - Additional time to serve stale data while revalidating (default: 0)
    */
   set<T>(key: string, data: T, ttl: number = 60000, staleWhileRevalidate: number = 0): void {
+    this.cache.delete(key)
     this.cache.set(key, {
       data,
       timestamp: Date.now(),
@@ -91,6 +112,7 @@ export class ResponseCache {
       staleWhileRevalidate,
       revalidating: false,
     })
+    this.evictLruIfOverLimit()
   }
   
   /**

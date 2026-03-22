@@ -114,6 +114,7 @@ function PostCardInner({ item, isSelected, cardRef: cardRefProp, addButtonRef: _
   const videoRef = useRef<HTMLVideoElement>(null)
   const mediaWrapRef = useRef<HTMLDivElement>(null)
   const hlsRef = useRef<Hls | null>(null)
+  const [videoInLoadRange, setVideoInLoadRange] = useState(false)
   const { post, reason } = item as { post: typeof item.post; reason?: { $type?: string; by?: { handle?: string; did?: string } } }
   const feedSource = (item as { _feedSource?: { kind?: string; label?: string } })._feedSource
   const feedLabel = feedSource?.label ?? (feedSource?.kind === 'timeline' ? 'Following' : undefined)
@@ -454,49 +455,84 @@ function PostCardInner({ item, isSelected, cardRef: cardRefProp, addButtonRef: _
     if (mediaAspect != null && onAspectRatio) onAspectRatio(mediaAspect)
   }, [mediaAspect, onAspectRatio])
 
+  /* Only attach HLS / src when the clip is near the viewport to save bandwidth and memory */
   useEffect(() => {
-    if (!isVideo || !media?.videoPlaylist || !videoRef.current) return
+    if (!isVideo || !mediaWrapRef.current) {
+      setVideoInLoadRange(false)
+      return
+    }
+    const el = mediaWrapRef.current
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0]
+        if (!entry) return
+        setVideoInLoadRange(entry.isIntersecting)
+      },
+      { rootMargin: '320px 0px 320px 0px', threshold: 0 }
+    )
+    observer.observe(el)
+    return () => {
+      observer.disconnect()
+      setVideoInLoadRange(false)
+    }
+  }, [isVideo, post.uri])
+
+  useEffect(() => {
+    if (!isVideo || !media?.videoPlaylist || !videoInLoadRange) {
+      if (hlsRef.current) {
+        hlsRef.current.destroy()
+        hlsRef.current = null
+      }
+      const v = videoRef.current
+      if (v) {
+        v.pause()
+        v.removeAttribute('src')
+      }
+      return
+    }
+
     const video = videoRef.current
+    if (!video) return
     const src = media!.videoPlaylist
-    
-    let cleanup: (() => void) | undefined
-    
+    let cancelled = false
+
     if (isHlsUrl(src)) {
-      loadHls().then((Hls) => {
-        if (!videoRef.current) return
-        if (Hls.isSupported()) {
-          const hls = new Hls()
-          hlsRef.current = hls
-          hls.loadSource(src)
-          hls.attachMedia(video)
-          hls.on(Hls.Events.ERROR, () => {})
-          cleanup = () => {
-            hls.destroy()
-            hlsRef.current = null
+      loadHls()
+        .then((Hls) => {
+          if (cancelled || !videoRef.current) return
+          const v = videoRef.current
+          if (Hls.isSupported()) {
+            const hls = new Hls()
+            hlsRef.current = hls
+            hls.loadSource(src)
+            hls.attachMedia(v)
+            hls.on(Hls.Events.ERROR, () => {})
+          } else if (v.canPlayType('application/vnd.apple.mpegurl')) {
+            v.src = src
           }
-        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-          video.src = src
-          cleanup = () => {
-            video.removeAttribute('src')
+        })
+        .catch(() => {
+          if (!cancelled && videoRef.current?.canPlayType('application/vnd.apple.mpegurl')) {
+            videoRef.current.src = src
           }
-        }
-      }).catch(() => {
-        // Fallback to native playback if hls.js fails to load
-        if (video.canPlayType('application/vnd.apple.mpegurl')) {
-          video.src = src
-        }
-      })
+        })
     } else {
       video.src = src
-      cleanup = () => {
-        video.removeAttribute('src')
+    }
+
+    return () => {
+      cancelled = true
+      if (hlsRef.current) {
+        hlsRef.current.destroy()
+        hlsRef.current = null
+      }
+      const v = videoRef.current
+      if (v) {
+        v.pause()
+        v.removeAttribute('src')
       }
     }
-    
-    return () => {
-      cleanup?.()
-    }
-  }, [isVideo, media?.videoPlaylist])
+  }, [isVideo, media?.videoPlaylist, videoInLoadRange])
 
   /* Autoplay video when in view, pause when out of view or when modal opens */
   const isModalOpenRef = useRef(isModalOpen)
@@ -606,6 +642,15 @@ function PostCardInner({ item, isSelected, cardRef: cardRefProp, addButtonRef: _
 
   /** Open post in modal (profile page) or navigate to feed with post param (other pages). Same behavior as when onPostClick is provided. */
   const openPostInModalOrFeed = useCallback(() => {
+    /* Mobile: touch unblur runs before paint; synthetic click can fire after nsfwBlurred is already false — suppress opening. */
+    if (nsfwTouchUnblurOnlyRef.current) {
+      nsfwTouchUnblurOnlyRef.current = false
+      return
+    }
+    if (nsfwBlurred && onNsfwUnblur) {
+      onNsfwUnblur()
+      return
+    }
     if (onPostClick) {
       onPostClick(post.uri, { initialItem: item })
       return
@@ -616,9 +661,15 @@ function PostCardInner({ item, isSelected, cardRef: cardRefProp, addButtonRef: _
     } else {
       navigate(`/feed?post=${encodeURIComponent(post.uri)}`)
     }
-  }, [onPostClick, post.uri, item, navigate, location.pathname, openPostModal])
+  }, [onPostClick, post.uri, item, navigate, location.pathname, openPostModal, nsfwBlurred, onNsfwUnblur])
 
   const handleCardClick = useCallback((e: React.MouseEvent) => {
+    if (nsfwTouchUnblurOnlyRef.current) {
+      nsfwTouchUnblurOnlyRef.current = false
+      e.preventDefault()
+      e.stopPropagation()
+      return
+    }
     if (nsfwBlurred && onNsfwUnblur) {
       onNsfwUnblur()
       e.preventDefault()
@@ -670,6 +721,10 @@ function PostCardInner({ item, isSelected, cardRef: cardRefProp, addButtonRef: _
     /* Blurred + synthetic click before parent re-renders: unblur only, do not open post */
     if (nsfwBlurred && onNsfwUnblur) {
       onNsfwUnblur()
+      nsfwTouchUnblurOnlyRef.current = true
+      setTimeout(() => {
+        nsfwTouchUnblurOnlyRef.current = false
+      }, 450)
       if (mediaOpenDelayTimerRef.current) {
         clearTimeout(mediaOpenDelayTimerRef.current)
         mediaOpenDelayTimerRef.current = null
@@ -718,10 +773,13 @@ function PostCardInner({ item, isSelected, cardRef: cardRefProp, addButtonRef: _
           e.stopPropagation()
           handleCardClick(e)
         }}
-        {...(nsfwBlurred && onNsfwUnblur && { onPointerEnter: onNsfwUnblur })}
         onKeyDown={(e) => {
           if (e.key !== 'Enter' && e.key !== ' ') return
           e.preventDefault()
+          if (nsfwBlurred && onNsfwUnblur) {
+            onNsfwUnblur()
+            return
+          }
           openPost()
         }}
         onTouchStart={(e) => {
@@ -757,6 +815,18 @@ function PostCardInner({ item, isSelected, cardRef: cardRefProp, addButtonRef: _
               openDelayTimerRef.current = null
             }
             e.preventDefault()
+            /* Don’t register double-tap like until blurred content is revealed */
+            if (nsfwBlurred && onNsfwUnblur) {
+              onNsfwUnblur()
+              nsfwTouchUnblurOnlyRef.current = true
+              setTimeout(() => {
+                touchSessionRef.current = false
+                mediaClickFromTouchRef.current = false
+                didDoubleTapRef.current = false
+                nsfwTouchUnblurOnlyRef.current = false
+              }, 450)
+              return
+            }
             if (effectiveLikedUri) {
               setLikedUri(undefined)
               unlikePostWithLifecycle(effectiveLikedUri).then(() => {
@@ -869,7 +939,7 @@ function PostCardInner({ item, isSelected, cardRef: cardRefProp, addButtonRef: _
                 muted
                 playsInline
                 loop
-                preload="metadata"
+                preload={videoInLoadRange ? 'metadata' : 'none'}
                 style={{ aspectRatio: mediaAspect != null ? `${mediaAspect}` : undefined }}
                 onLoadedMetadata={(e) => {
                   const v = e.currentTarget
@@ -922,7 +992,6 @@ function PostCardInner({ item, isSelected, cardRef: cardRefProp, addButtonRef: _
           {nsfwBlurred && onNsfwUnblur && (
             <div
               className={styles.nsfwOverlay}
-              onPointerEnter={() => onNsfwUnblur()}
               onTouchStart={(e) => {
                 e.stopPropagation()
               }}
@@ -943,28 +1012,24 @@ function PostCardInner({ item, isSelected, cardRef: cardRefProp, addButtonRef: _
                 if (nsfwOverlayHandledRef.current) return
                 nsfwOverlayHandledRef.current = true
                 onNsfwUnblur()
-                openPost()
                 setTimeout(() => { nsfwOverlayHandledRef.current = false }, 400)
               }}
               onClick={(e) => {
                 e.preventDefault()
                 e.stopPropagation()
                 if (nsfwTouchUnblurOnlyRef.current) {
-                  onNsfwUnblur()
                   nsfwTouchUnblurOnlyRef.current = false
                   return
                 }
                 if (nsfwOverlayHandledRef.current) return
                 nsfwOverlayHandledRef.current = true
                 onNsfwUnblur()
-                openPost()
                 setTimeout(() => { nsfwOverlayHandledRef.current = false }, 400)
               }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault()
                   onNsfwUnblur()
-                  openPost()
                 }
               }}
               role="button"
@@ -1001,6 +1066,7 @@ function PostCardInner({ item, isSelected, cardRef: cardRefProp, addButtonRef: _
         {(!artOnly || minimalist) && (
         <div className={styles.meta}>
           <div className={styles.cardActionRow} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.cardActionRowSpacer} aria-hidden="true" />
             <div className={styles.cardActionRowCenter}>
               <div
                 className={`${styles.addWrap} ${addOpen ? styles.addWrapOpen : ''}`}

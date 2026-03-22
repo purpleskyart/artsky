@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import type { AppBskyFeedDefs } from '@atproto/api'
 import type { AtpSessionData } from '@atproto/api'
@@ -508,8 +508,15 @@ function PostBlock({
   const downvoteLoading = downvoteLoadingUri === post.uri
   const showCommentCounts = true
 
+  const threadDepthStyle = { ['--thread-depth' as string]: depth } as CSSProperties
+
   return (
-    <article className={`${styles.postBlock} ${isFocused ? styles.commentFocused : ''}`} style={{ marginLeft: depth * 2 }} data-comment-uri={post.uri} tabIndex={-1}>
+    <article
+      className={`${styles.postBlock} ${styles.threadedCommentArticle} ${isFocused ? styles.commentFocused : ''}`}
+      style={threadDepthStyle}
+      data-comment-uri={post.uri}
+      tabIndex={-1}
+    >
       {canCollapse && (
         <div className={styles.collapseColumn}>
           <button
@@ -740,7 +747,13 @@ function PostBlock({
                   const label = replyCount === 0 ? 'Comment' : `${replyCount} reply${replyCount !== 1 ? 's' : ''}`
                   const replyHandle = r.post.author?.handle ?? r.post.author?.did ?? ''
                   return (
-                    <div key={`${r.post.uri}-${rIndex}`} className={styles.collapsedCommentWrap} style={{ marginLeft: replyDepth * 12 }} data-comment-uri={r.post.uri} tabIndex={-1}>
+                    <div
+                      key={`${r.post.uri}-${rIndex}`}
+                      className={styles.collapsedCommentWrap}
+                      style={{ marginLeft: Math.min(replyDepth * 12, 48) }}
+                      data-comment-uri={r.post.uri}
+                      tabIndex={-1}
+                    >
                       <button type="button" className={styles.collapsedCommentBtn} onClick={() => onToggleCollapse?.(r.post.uri)}>
                         <span className={styles.collapsedCommentExpandIcon} aria-hidden>+</span>
                         {r.post.author?.avatar ? (
