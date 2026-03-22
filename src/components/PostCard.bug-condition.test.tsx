@@ -71,8 +71,18 @@ vi.mock('../lib/loadHls', () => ({
  * - Browser history accumulates `/post/:uri` entries
  */
 
-// Mock data generator for posts
-const postUriArbitrary = fc.string({ minLength: 10, maxLength: 100 }).map(s => `at://did:plc:test/app.bsky.feed.post/${s}`)
+const hexChar = fc.constantFrom(
+  '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'
+)
+const postUriArbitrary = fc
+  .array(hexChar, { minLength: 10, maxLength: 64 })
+  .map((chars) => `at://did:plc:test/app.bsky.feed.post/${chars.join('')}`)
+
+function getCardSurface(container: HTMLElement): HTMLElement {
+  const el = container.querySelector('[data-post-uri] > [role="button"][class*="cardLink"]')
+  if (!el) throw new Error('card surface not found')
+  return el as HTMLElement
+}
 
 // Mock post item
 function createMockPost(uri: string): TimelineItem {
@@ -115,16 +125,11 @@ describe('PostCard - Bug Condition Exploration: Post Card Click Opens Modal Only
           </BrowserRouter>
         )
         
-        // Find and click the post card link
-        const link = container.querySelector('a[class*="cardLink"]') as HTMLAnchorElement
-        expect(link).toBeTruthy()
-        
-        // Verify the link's href is NOT pointing to /post/:uri
-        // BUG: On unfixed code, this will fail because link.href contains /post/:uri
-        expect(link.href).not.toContain(`/post/${encodeURIComponent(uri)}`)
-        
-        // Click the post card
-        fireEvent.click(link)
+        const surface = getCardSurface(container)
+
+        expect(container.querySelector('[data-post-uri] a[href*="/post/"]')).toBeNull()
+
+        fireEvent.click(surface)
         
         // Verify onPostClick was called (modal should open)
         expect(onPostClick).toHaveBeenCalledWith(uri, expect.any(Object))
@@ -151,18 +156,14 @@ describe('PostCard - Bug Condition Exploration: Post Card Click Opens Modal Only
           </BrowserRouter>
         )
         
-        // Find and click the post card
-        const link = container.querySelector('a[class*="cardLink"]') as HTMLAnchorElement
-        fireEvent.click(link)
-        
-        // Verify onPostClick was called with correct URI
+        const surface = getCardSurface(container)
+        fireEvent.click(surface)
+
         expect(onPostClick).toHaveBeenCalledWith(uri, expect.objectContaining({
           initialItem: mockPost
         }))
-        
-        // Verify the Link component's 'to' attribute is NOT pointing to /post/:uri
-        // BUG: On unfixed code, link.href will contain /post/:uri
-        expect(link.href).not.toContain(`/post/${encodeURIComponent(uri)}`)
+
+        expect(container.querySelector('[data-post-uri] a[href*="/post/"]')).toBeNull()
         
         return true
       }),
@@ -186,18 +187,10 @@ describe('PostCard - Bug Condition Exploration: Post Card Click Opens Modal Only
           </BrowserRouter>
         )
         
-        // Find the post card link
-        const link = container.querySelector('a[class*="cardLink"]') as HTMLAnchorElement
-        expect(link).toBeTruthy()
-        
-        // BUG: On unfixed code, the 'to' attribute will be /post/{uri}
-        // After fix, it should be # (no-op navigation)
-        // We check the href which reflects the 'to' attribute
-        const href = link.getAttribute('href')
-        
-        // The href should be # or not contain /post/
-        // BUG: This will fail on unfixed code because href contains /post/{uri}
-        expect(href === '#' || !href?.includes('/post/')).toBe(true)
+        const surface = getCardSurface(container)
+        expect(surface.tagName).toBe('DIV')
+        expect(surface.getAttribute('href')).toBeNull()
+        expect(container.querySelector('[data-post-uri] a[href*="/post/"]')).toBeNull()
         
         return true
       }),

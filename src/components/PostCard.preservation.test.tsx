@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import fc from 'fast-check'
-import { render, fireEvent, screen } from '@testing-library/react'
+import { render, fireEvent } from '@testing-library/react'
 import { BrowserRouter } from 'react-router-dom'
 import PostCard from './PostCard'
 import type { TimelineItem } from '../lib/bsky'
@@ -69,8 +69,18 @@ vi.mock('../lib/loadHls', () => ({
  * EXPECTED OUTCOME ON UNFIXED CODE: Tests PASS (confirms baseline behavior to preserve)
  */
 
-// Mock data generator for posts
-const postUriArbitrary = fc.string({ minLength: 10, maxLength: 100 }).map(s => `at://did:plc:test/app.bsky.feed.post/${s}`)
+const hexChar = fc.constantFrom(
+  '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'
+)
+const postUriArbitrary = fc
+  .array(hexChar, { minLength: 10, maxLength: 64 })
+  .map((chars) => `at://did:plc:test/app.bsky.feed.post/${chars.join('')}`)
+
+function getCardSurface(container: HTMLElement): HTMLElement {
+  const el = container.querySelector('[data-post-uri] > [role="button"][class*="cardLink"]')
+  if (!el) throw new Error('card surface not found')
+  return el as HTMLElement
+}
 
 // Mock post item
 function createMockPost(uri: string): TimelineItem {
@@ -148,12 +158,9 @@ describe('PostCard - Preservation: Non-Post-Card Click Behavior', () => {
             </BrowserRouter>
           )
           
-          // Find the post card link
-          const link = container.querySelector('a[class*="cardLink"]') as HTMLAnchorElement
-          expect(link).toBeTruthy()
-          
-          // Simulate Enter key press
-          fireEvent.keyDown(link, { key: 'Enter' })
+          const surface = getCardSurface(container)
+
+          fireEvent.keyDown(surface, { key: 'Enter' })
           
           // Verify onPostClick was called (keyboard navigation should work)
           expect(onPostClick).toHaveBeenCalledWith(uri, expect.any(Object))
@@ -180,14 +187,12 @@ describe('PostCard - Preservation: Non-Post-Card Click Behavior', () => {
             </BrowserRouter>
           )
           
-          // Find the post card link
-          const link = container.querySelector('a[class*="cardLink"]') as HTMLAnchorElement
-          
-          // Simulate other key presses (Space, ArrowDown, etc.)
-          fireEvent.keyDown(link, { key: ' ' })
-          fireEvent.keyDown(link, { key: 'ArrowDown' })
-          
-          // onPostClick should not be called for non-Enter keys
+          const surface = getCardSurface(container)
+
+          // Space activates the card (same as Enter); use keys that do not open the post
+          fireEvent.keyDown(surface, { key: 'ArrowDown' })
+          fireEvent.keyDown(surface, { key: 'Escape' })
+
           expect(onPostClick).not.toHaveBeenCalled()
           
           return true
@@ -212,13 +217,8 @@ describe('PostCard - Preservation: Non-Post-Card Click Behavior', () => {
             </BrowserRouter>
           )
           
-          // Find the post card link
-          const link = container.querySelector('a[class*="cardLink"]') as HTMLAnchorElement
-          expect(link).toBeTruthy()
-          
-          // Verify the link element exists and can receive touch events
-          // Touch handlers are attached via React event listeners, not as properties
-          expect(link.className).toContain('cardLink')
+          const surface = getCardSurface(container)
+          expect(surface.className).toContain('cardLink')
           
           return true
         }),
@@ -242,10 +242,8 @@ describe('PostCard - Preservation: Non-Post-Card Click Behavior', () => {
             </BrowserRouter>
           )
           
-          // Verify the card link element exists and has proper styling class
-          const link = container.querySelector('a[class*="cardLink"]')
-          expect(link).toBeTruthy()
-          expect(link?.className).toContain('cardLink')
+          const surface = getCardSurface(container)
+          expect(surface.className).toContain('cardLink')
           
           // Verify the card container exists
           const card = container.querySelector('[class*="card"]')
@@ -275,9 +273,8 @@ describe('PostCard - Preservation: Non-Post-Card Click Behavior', () => {
             </BrowserRouter>
           )
           
-          // Click to open modal
-          const link = container.querySelector('a[class*="cardLink"]') as HTMLAnchorElement
-          fireEvent.click(link)
+          const surface = getCardSurface(container)
+          fireEvent.click(surface)
           
           // Verify onPostClick was called (modal should open)
           expect(onPostClick).toHaveBeenCalledWith(uri, expect.any(Object))

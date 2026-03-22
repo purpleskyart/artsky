@@ -406,11 +406,13 @@ html[data-theme="dark"] [data-view-mode="1"] .card:focus-within:not(:has(.mediaG
   opacity: 0.95;
 }
 
-/* When card is narrow enough that time/menu would overlap collect+like, hide them */
+/* Narrow cards: hide action-row time only; keep … menu (mobile multi-column previews are often <200px) */
 @container postcard (max-width: 200px) {
-  .cardActionRowLeft,
-  .cardActionRowRight {
+  .cardActionRowTime {
     display: none;
+  }
+  .cardActionRowCenter {
+    padding-inline-end: 1.85rem;
   }
 }
 
