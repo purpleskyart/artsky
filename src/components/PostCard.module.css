@@ -367,12 +367,20 @@ html[data-theme="dark"] [data-view-mode="1"] .card:focus-within:not(:has(.mediaG
   }
 }
 
+/* Time sits here so it doesn’t consume flex space — Collect / avatar / Like stay truly centered */
 .cardActionRowLeft {
   position: absolute;
   left: 0;
   top: 50%;
   transform: translateY(-50%);
   flex-shrink: 0;
+  z-index: 1;
+  max-width: 42%;
+  pointer-events: none;
+}
+
+.cardActionRowLeft .cardActionRowTime {
+  pointer-events: auto;
 }
 
 .cardActionRowRight {
@@ -409,6 +417,15 @@ html[data-theme="dark"] [data-view-mode="1"] .card:focus-within:not(:has(.mediaG
 .postTimeStacked .postTimeDayYear {
   font-size: 0.9em;
   opacity: 0.95;
+}
+
+/* Stacked date in left column: align to start of card */
+.cardActionRowLeft .postTimeStacked {
+  align-items: flex-start;
+}
+
+.cardActionRowLeft .postTimeStacked .postTimeMonth {
+  text-align: left;
 }
 
 /* Narrow cards: hide action-row time only; keep … menu (mobile multi-column previews are often <200px) */

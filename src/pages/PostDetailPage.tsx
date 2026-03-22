@@ -2219,7 +2219,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                     </div>
                   )}
                 </div>
-                {thread && isThreadViewPost(thread) && (
+                {thread && isThreadViewPost(thread) && !onClose && (
                   <button
                     type="button"
                     className={styles.likeRepostBtn}

@@ -2199,7 +2199,8 @@ button.logoLink {
   pointer-events: none;
 }
 
-/* Mobile: account menu popup above the profile button (like desktop dropdown) */
+/* Mobile: account menu popup above the profile button (like desktop dropdown).
+   Above post/profile modals (1000) and bottom nav (1100) so the menu is usable while a modal is open. */
 .accountMenuAboveWrap {
   position: fixed;
   bottom: calc(max(0.75rem, env(safe-area-inset-bottom)) + 4rem);
@@ -2208,7 +2209,7 @@ button.logoLink {
   display: flex;
   justify-content: flex-end;
   padding-right: max(1rem, env(safe-area-inset-right));
-  z-index: 30;
+  z-index: 1102;
   pointer-events: none;
 }
 
