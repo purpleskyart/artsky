@@ -1035,6 +1035,8 @@ export function ProfileContent({
                   cardRef={(index) => (el) => { cardRefsRef.current[index] = el }}
                   onActionsMenuOpenChange={(index, open) => setActionsMenuOpenForIndex(open ? index : null)}
                   onMouseEnter={(originalIndex) => {
+                    /* In modal, ignore hover so scrolling doesn’t move “selection” under the cursor and auto-unblur NSFW cards. */
+                    if (inModal) return
                     mouseMovedRef.current = false
                     setKeyboardFocusIndex(originalIndex)
                   }}

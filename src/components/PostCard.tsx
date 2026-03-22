@@ -754,10 +754,13 @@ function PostCardInner({ item, isSelected, cardRef: cardRefProp, addButtonRef: _
           e.stopPropagation()
           handleCardClick(e)
         }}
-        {...(nsfwBlurred && onNsfwUnblur && { onPointerEnter: onNsfwUnblur })}
         onKeyDown={(e) => {
           if (e.key !== 'Enter' && e.key !== ' ') return
           e.preventDefault()
+          if (nsfwBlurred && onNsfwUnblur) {
+            onNsfwUnblur()
+            return
+          }
           openPost()
         }}
         onTouchStart={(e) => {
@@ -958,7 +961,6 @@ function PostCardInner({ item, isSelected, cardRef: cardRefProp, addButtonRef: _
           {nsfwBlurred && onNsfwUnblur && (
             <div
               className={styles.nsfwOverlay}
-              onPointerEnter={() => onNsfwUnblur()}
               onTouchStart={(e) => {
                 e.stopPropagation()
               }}
@@ -979,28 +981,24 @@ function PostCardInner({ item, isSelected, cardRef: cardRefProp, addButtonRef: _
                 if (nsfwOverlayHandledRef.current) return
                 nsfwOverlayHandledRef.current = true
                 onNsfwUnblur()
-                openPost()
                 setTimeout(() => { nsfwOverlayHandledRef.current = false }, 400)
               }}
               onClick={(e) => {
                 e.preventDefault()
                 e.stopPropagation()
                 if (nsfwTouchUnblurOnlyRef.current) {
-                  onNsfwUnblur()
                   nsfwTouchUnblurOnlyRef.current = false
                   return
                 }
                 if (nsfwOverlayHandledRef.current) return
                 nsfwOverlayHandledRef.current = true
                 onNsfwUnblur()
-                openPost()
                 setTimeout(() => { nsfwOverlayHandledRef.current = false }, 400)
               }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault()
                   onNsfwUnblur()
-                  openPost()
                 }
               }}
               role="button"

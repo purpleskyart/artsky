@@ -29,6 +29,7 @@ const FeedCard = memo(function FeedCard({
   openPostModal,
   cardRef,
   constrainMediaHeight = false,
+  estimatedColumnWidth,
 }: {
   entry: FeedDisplayEntry
   originalIndex: number
@@ -49,6 +50,7 @@ const FeedCard = memo(function FeedCard({
   openPostModal: (uri: string, openReply?: boolean, focusUri?: string) => void
   cardRef: (index: number) => (el: HTMLDivElement | null) => void
   constrainMediaHeight?: boolean
+  estimatedColumnWidth: number
 }) {
   const key = entry.type === 'post' ? entry.item.post.uri : entry.items[0].post.uri
   
@@ -92,6 +94,7 @@ const FeedCard = memo(function FeedCard({
           }
           seen={seenUris.has(entry.item.post.uri)}
           constrainMediaHeight={constrainMediaHeight}
+          estimatedColumnWidth={estimatedColumnWidth}
         />
       ) : (
         <RepostCarouselCard
@@ -133,6 +136,8 @@ const FeedCard = memo(function FeedCard({
   
   if ((prevProps.constrainMediaHeight ?? false) !== (nextProps.constrainMediaHeight ?? false)) return false
 
+  if (prevProps.estimatedColumnWidth !== nextProps.estimatedColumnWidth) return false
+
   // All relevant props are the same, skip re-render
   return true
 })
@@ -163,6 +168,7 @@ export interface FeedColumnProps {
   onMouseEnter: (index: number) => void
   onAddClose: () => void
   constrainMediaHeight?: boolean
+  estimatedColumnWidth: number
 }
 
 const FeedColumn = memo(function FeedColumn({
@@ -187,6 +193,7 @@ const FeedColumn = memo(function FeedColumn({
   onMouseEnter,
   onAddClose,
   constrainMediaHeight = false,
+  estimatedColumnWidth,
 }: FeedColumnProps) {
   if (column.length === 0) {
     return (
@@ -234,6 +241,7 @@ const FeedColumn = memo(function FeedColumn({
             openPostModal={openPostModal}
             cardRef={cardRef}
             constrainMediaHeight={constrainMediaHeight}
+            estimatedColumnWidth={estimatedColumnWidth}
           />
         )
       })}
