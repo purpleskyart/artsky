@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useParams } from 'react-router-dom'
+import { useSession } from '../context/SessionContext'
 import { useProfileModal } from '../context/ProfileModalContext'
 import { useEditProfile } from '../context/EditProfileContext'
 import { useModalTopBarSlot } from '../context/ModalTopBarSlotContext'
-import { agent, publicAgent, getPostMediaInfo, getPostMediaInfoForDisplay, getSession, getActorFeeds, listActivitySubscriptions, putActivitySubscription, isPostNsfw, getProfileCached, likePostWithLifecycle, unlikePostWithLifecycle, followAccountWithLifecycle, unfollowAccountWithLifecycle, type TimelineItem, type ProfileViewBasic } from '../lib/bsky'
+import { agent, publicAgent, getPostMediaInfo, getPostMediaInfoForDisplay, getActorFeeds, listActivitySubscriptions, putActivitySubscription, isPostNsfw, getProfileCached, likePostWithLifecycle, unlikePostWithLifecycle, followAccountWithLifecycle, unfollowAccountWithLifecycle, type TimelineItem, type ProfileViewBasic } from '../lib/bsky'
 import { setInitialPostForUri } from '../lib/postCache'
 import PostCard from '../components/PostCard'
 import ProfileColumn from '../components/ProfileColumn'
@@ -196,7 +197,7 @@ export function ProfileContent({
   const [followUriOverride, setFollowUriOverride] = useState<string | null>(null)
   const [notificationSubscribed, setNotificationSubscribed] = useState<boolean | null>(null)
   const [notificationLoading, setNotificationLoading] = useState(false)
-  const session = getSession()
+  const { session } = useSession()
   const { viewMode, setViewMode } = useViewMode()
   const readAgent = session ? agent : publicAgent
   const loadMoreSentinelRef = useRef<HTMLDivElement>(null)
@@ -956,7 +957,6 @@ export function ProfileContent({
                       onNsfwUnblur={() => setUnblurred(item.post.uri, true)}
                       setUnblurred={setUnblurred}
                       isRevealed={unblurredUris.has(item.post.uri)}
-                      constrainMediaHeight
                       likedUriOverride={likeOverrides[item.post.uri]}
                       onLikedChange={(uri, likeRecordUri) => setLikeOverrides((prev) => ({ ...prev, [uri]: likeRecordUri ?? null }))}
                     />
@@ -1039,7 +1039,6 @@ export function ProfileContent({
                     setKeyboardFocusIndex(originalIndex)
                   }}
                   onAddClose={() => setKeyboardAddOpen(false)}
-                  constrainMediaHeight={cols === 1}
                   isSelected={(index) => (tab === 'posts' || tab === 'reposts') && index === keyboardFocusIndex}
                 />
               ))}

@@ -284,7 +284,6 @@ export function TagContent({ tag, inModal = false, onRegisterRefresh }: { tag: s
                 onActionsMenuOpenChange={() => {}}
                 onMouseEnter={(originalIndex) => setKeyboardFocusIndex(originalIndex)}
                 onAddClose={() => setKeyboardAddOpen(false)}
-                constrainMediaHeight={cols === 1}
                 isSelected={(index) => index === keyboardFocusIndex}
               />
             ))}

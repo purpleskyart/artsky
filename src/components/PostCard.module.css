@@ -406,11 +406,13 @@ html[data-theme="dark"] [data-view-mode="1"] .card:focus-within:not(:has(.mediaG
   opacity: 0.95;
 }
 
-/* When card is narrow enough that time/menu would overlap collect+like, hide them */
+/* Narrow cards: hide action-row time only; keep … menu (mobile multi-column previews are often <200px) */
 @container postcard (max-width: 200px) {
-  .cardActionRowLeft,
-  .cardActionRowRight {
+  .cardActionRowTime {
     display: none;
+  }
+  .cardActionRowCenter {
+    padding-inline-end: 1.85rem;
   }
 }
 
@@ -550,6 +552,21 @@ html[data-theme="dark"] [data-view-mode="1"] .card:focus-within:not(:has(.mediaG
     box-shadow: inset 0 0 0 2px #ec4899;
   }
   .card.cardSelected.cardInArtboard::after {
+    box-shadow: inset 0 0 0 2px #7dd3fc;
+  }
+  /*
+   * Touch browsers often leave :hover stuck on the card after tap. `.card:hover::after` and `.cardLiked::after`
+   * have the same specificity (0,2,1), so the later hover rule wins and hides the pink/blue ring until another
+   * tap clears hover. These selectors are strictly more specific so liked/collected rings always paint.
+   */
+  .card.cardLiked:not(.cardTransFlag)::after,
+  .card.cardLiked:not(.cardTransFlag):hover::after,
+  .card.cardLiked:not(.cardTransFlag):focus-within::after {
+    box-shadow: inset 0 0 0 2px #ec4899;
+  }
+  .card.cardInArtboard:not(.cardTransFlag)::after,
+  .card.cardInArtboard:not(.cardTransFlag):hover::after,
+  .card.cardInArtboard:not(.cardTransFlag):focus-within::after {
     box-shadow: inset 0 0 0 2px #7dd3fc;
   }
   .cardLink:focus-visible {
@@ -810,7 +827,7 @@ html[data-theme="dark"] [data-view-mode="1"] .card:focus-within:not(:has(.mediaG
   width: 100%;
   aspect-ratio: 1; /* fallback until image loads (was 3/4, made cards too tall for landscape/square images) */
   min-height: 100px;
-  max-height: var(--feed-card-media-max-height, none); /* 1-col feed: fit viewport */
+  max-height: var(--feed-card-media-max-height, none); /* optional cap when ancestor sets --feed-card-media-max-height */
   overflow: hidden;
   background: var(--bg);
   display: flex;

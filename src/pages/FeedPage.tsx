@@ -736,6 +736,11 @@ export default function FeedPage() {
     feedMixChangedRef.current = true
   }, [mixEntries, mixTotalPercent])
 
+  /* Switching accounts must refresh the feed even when scrolled down (same as changing feed mix). */
+  useEffect(() => {
+    feedMixChangedRef.current = true
+  }, [session?.did])
+
   useEffect(() => {
     const abortController = new AbortController()
     load(undefined, abortController.signal)

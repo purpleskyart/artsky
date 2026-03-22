@@ -18,6 +18,7 @@ import ComposerSuggestions from '../components/ComposerSuggestions'
 import CharacterCountWithCircle from '../components/CharacterCountWithCircle'
 import { useProfileModal } from '../context/ProfileModalContext'
 import { useLoginModal } from '../context/LoginModalContext'
+import { useToast } from '../context/ToastContext'
 import styles from './PostDetailPage.module.css'
 
 const ACTION_ICON_SIZE = 18
@@ -91,6 +92,7 @@ export function ReplyAsRow({
     return () => { cancelled = true }
   }, [sessionsDidKey, sessionsList])
   const { openLoginModal } = useLoginModal()
+  const toast = useToast()
   return (
     <div className={styles.replyAs}>
       <span className={styles.replyAsLabel}>{label}</span>
@@ -125,6 +127,7 @@ export function ReplyAsRow({
                     onClick={async () => {
                       const ok = await switchAccount(s.did)
                       if (ok) setDropdownOpen(false)
+                      else toast?.showToast('Could not switch account. Try again or sign in again.')
                     }}
                   >
                     {profile?.avatar ? (

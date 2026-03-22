@@ -332,7 +332,6 @@ function SearchContent({ query, onRegisterRefresh }: { query: string; onRegister
               onActionsMenuOpenChange={() => {}}
               onMouseEnter={(originalIndex) => setKeyboardFocusIndex(originalIndex)}
               onAddClose={() => setKeyboardAddOpen(false)}
-              constrainMediaHeight={cols === 1}
               isSelected={(index) => index === keyboardFocusIndex}
             />
           ))}

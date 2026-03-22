@@ -113,7 +113,6 @@ export default function QuotesModal({ postUri, onClose, onBack, canGoBack, isTop
                 onActionsMenuOpenChange={() => {}}
                 onMouseEnter={() => {}}
                 onAddClose={() => {}}
-                constrainMediaHeight
                 isSelected={() => false}
               />
             </div>

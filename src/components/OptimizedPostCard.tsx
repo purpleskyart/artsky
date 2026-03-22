@@ -23,6 +23,7 @@ interface OptimizedPostCardProps {
   likedUriOverride?: string | null
   onLikedChange: (uri: string, likeRecordUri: string | null) => void
   seen: boolean
+  constrainMediaHeight?: boolean
 }
 
 /**

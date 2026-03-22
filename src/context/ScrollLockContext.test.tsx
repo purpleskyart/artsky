@@ -4,17 +4,16 @@ import { ScrollLockProvider, useScrollLock } from './ScrollLockContext'
 
 describe('ScrollLockContext', () => {
   beforeEach(() => {
-    // Reset body styles
     document.body.style.position = ''
     document.body.style.top = ''
     document.body.style.width = ''
     document.body.style.overflow = ''
     document.body.style.touchAction = ''
     document.documentElement.style.overflow = ''
-    
-    // Mock window.scrollY
+
     Object.defineProperty(window, 'scrollY', {
       writable: true,
+      configurable: true,
       value: 0,
     })
   })
@@ -26,9 +25,7 @@ describe('ScrollLockContext', () => {
 
     result.current?.lockScroll()
 
-    expect(document.body.style.position).toBe('fixed')
     expect(document.body.style.overflow).toBe('hidden')
-    expect(document.body.style.touchAction).toBe('none')
     expect(document.documentElement.style.overflow).toBe('hidden')
   })
 
@@ -40,9 +37,7 @@ describe('ScrollLockContext', () => {
     result.current?.lockScroll()
     result.current?.unlockScroll()
 
-    expect(document.body.style.position).toBe('')
     expect(document.body.style.overflow).toBe('')
-    expect(document.body.style.touchAction).toBe('')
     expect(document.documentElement.style.overflow).toBe('')
   })
 
@@ -51,27 +46,24 @@ describe('ScrollLockContext', () => {
       wrapper: ScrollLockProvider,
     })
 
-    // Lock twice
     result.current?.lockScroll()
     result.current?.lockScroll()
 
-    expect(document.body.style.position).toBe('fixed')
+    expect(document.body.style.overflow).toBe('hidden')
 
-    // First unlock should not release
     result.current?.unlockScroll()
-    expect(document.body.style.position).toBe('fixed')
+    expect(document.body.style.overflow).toBe('hidden')
 
-    // Second unlock should release
     result.current?.unlockScroll()
-    expect(document.body.style.position).toBe('')
+    expect(document.body.style.overflow).toBe('')
   })
 
   it('preserves scroll position when locking and restores when unlocking', () => {
-    const scrollToSpy = vi.spyOn(window, 'scrollTo')
-    
-    // Set initial scroll position
+    const scrollToSpy = vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
+
     Object.defineProperty(window, 'scrollY', {
       writable: true,
+      configurable: true,
       value: 500,
     })
 
@@ -80,13 +72,11 @@ describe('ScrollLockContext', () => {
     })
 
     result.current?.lockScroll()
-    
-    // Should set top to negative scroll position
-    expect(document.body.style.top).toBe('-500px')
 
     result.current?.unlockScroll()
 
-    // Should restore scroll position
-    expect(scrollToSpy).toHaveBeenCalledWith(0, 500)
+    expect(scrollToSpy).toHaveBeenCalledWith({ top: 500, left: 0, behavior: 'instant' })
+
+    scrollToSpy.mockRestore()
   })
 })

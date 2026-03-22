@@ -275,16 +275,18 @@ function PostCardInner({ item, isSelected, cardRef: cardRefProp, addButtonRef: _
       if (wasLiked) {
         await unlikePostWithLifecycle(previousLikedUri!)
         setLikedUri(undefined)
+        onLikedChange?.(post.uri, null)
       } else {
         const res = await likePostWithLifecycle(post.uri, post.cid)
         setLikedUri(res.uri)
+        onLikedChange?.(post.uri, res.uri)
       }
     } catch {
       setLikedUri(previousLikedUri)
     } finally {
       setLikeLoading(false)
     }
-  }, [session?.did, openLoginModal, likeLoading, effectiveLikedUri, post.uri, post.cid])
+  }, [session?.did, openLoginModal, likeLoading, effectiveLikedUri, post.uri, post.cid, onLikedChange])
 
   useEffect(() => {
     if (openAddDropdown) setAddOpen(true)
@@ -617,6 +619,12 @@ function PostCardInner({ item, isSelected, cardRef: cardRefProp, addButtonRef: _
   }, [onPostClick, post.uri, item, navigate, location.pathname, openPostModal])
 
   const handleCardClick = useCallback((e: React.MouseEvent) => {
+    if (nsfwBlurred && onNsfwUnblur) {
+      onNsfwUnblur()
+      e.preventDefault()
+      e.stopPropagation()
+      return
+    }
     if (didDoubleTapRef.current) {
       didDoubleTapRef.current = false
       e.preventDefault()
@@ -632,7 +640,7 @@ function PostCardInner({ item, isSelected, cardRef: cardRefProp, addButtonRef: _
     e.preventDefault()
     e.stopPropagation()
     openPostInModalOrFeed()
-  }, [openPostInModalOrFeed])
+  }, [openPostInModalOrFeed, nsfwBlurred, onNsfwUnblur])
 
   const openPost = useCallback(() => {
     openPostInModalOrFeed()
@@ -659,6 +667,16 @@ function PostCardInner({ item, isSelected, cardRef: cardRefProp, addButtonRef: _
 
   const handleMediaClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
+    /* Blurred + synthetic click before parent re-renders: unblur only, do not open post */
+    if (nsfwBlurred && onNsfwUnblur) {
+      onNsfwUnblur()
+      if (mediaOpenDelayTimerRef.current) {
+        clearTimeout(mediaOpenDelayTimerRef.current)
+        mediaOpenDelayTimerRef.current = null
+      }
+      lastMediaClickRef.current = 0
+      return
+    }
     if (mediaClickFromTouchRef.current) return
     const now = Date.now()
     if (now - lastMediaClickRef.current < 400) {
@@ -676,7 +694,7 @@ function PostCardInner({ item, isSelected, cardRef: cardRefProp, addButtonRef: _
         openPost()
       }, 400)
     }
-  }, [mediaClickFromTouchRef, lastMediaClickRef, handleMediaDoubleTapLike, openPost])
+  }, [mediaClickFromTouchRef, lastMediaClickRef, handleMediaDoubleTapLike, openPost, nsfwBlurred, onNsfwUnblur])
 
   const setCardRef = useCallback(
     (el: HTMLDivElement | null) => {
@@ -759,6 +777,8 @@ function PostCardInner({ item, isSelected, cardRef: cardRefProp, addButtonRef: _
           } else {
             lastTapRef.current = now
             if (nsfwBlurred && onNsfwUnblur) {
+              /* preventDefault stops the delayed synthetic click from opening the post under the removed overlay */
+              e.preventDefault()
               onNsfwUnblur()
               nsfwTouchUnblurOnlyRef.current = true
               openDelayTimerRef.current = setTimeout(() => {
@@ -817,7 +837,15 @@ function PostCardInner({ item, isSelected, cardRef: cardRefProp, addButtonRef: _
                   target="_blank"
                   rel="noopener noreferrer"
                   className={styles.textOnlyPreviewLink}
-                  onClick={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    if (nsfwBlurred && onNsfwUnblur) {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      onNsfwUnblur()
+                      return
+                    }
+                    e.stopPropagation()
+                  }}
                 >
                   {externalLink.thumb ? (
                     <ProgressiveImage src={externalLink.thumb} alt="" className={styles.textOnlyPreviewLinkThumb} loading="lazy" />
@@ -891,7 +919,7 @@ function PostCardInner({ item, isSelected, cardRef: cardRefProp, addButtonRef: _
               <ProgressiveImage src={currentImageUrl} alt="" className={styles.media} loading="eager" onLoad={handleImageLoad} />
             </>
           )}
-          {nsfwBlurred && onNsfwUnblur && hasMedia && (
+          {nsfwBlurred && onNsfwUnblur && (
             <div
               className={styles.nsfwOverlay}
               onPointerEnter={() => onNsfwUnblur()}
@@ -900,6 +928,7 @@ function PostCardInner({ item, isSelected, cardRef: cardRefProp, addButtonRef: _
               }}
               onTouchEnd={(e) => {
                 e.stopPropagation()
+                e.preventDefault()
                 onNsfwUnblur()
                 nsfwTouchUnblurOnlyRef.current = true
               }}
