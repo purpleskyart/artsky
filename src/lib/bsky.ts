@@ -170,6 +170,7 @@ export async function switchAccount(did: string): Promise<boolean> {
       const agent = new Agent(session)
       setOAuthAgent(agent, session)
       setActiveOAuthDid(did)
+      invalidateSavedFeedsCache()
       return true
     } catch {
       return false
@@ -184,6 +185,7 @@ export async function switchAccount(did: string): Promise<boolean> {
     saveAccounts(accounts)
     localStorage.setItem(SESSION_KEY, JSON.stringify(session))
     await credentialAgent.resumeSession(session)
+    invalidateSavedFeedsCache()
     return true
   } catch {
     return false
@@ -331,6 +333,7 @@ export async function resumeSession(): Promise<boolean> {
 export async function login(identifier: string, password: string) {
   setOAuthAgent(null, null)
   const res = await credentialAgent.login({ identifier, password })
+  invalidateSavedFeedsCache()
   return res
 }
 
@@ -349,6 +352,7 @@ export async function createAccount(opts: {
 
 /** Remove current account from the list. If another account exists, switch to it. Returns true if still logged in (switched to another). */
 export async function logoutCurrentAccount(): Promise<boolean> {
+  invalidateSavedFeedsCache()
   if (oauthAgentInstance && oauthSessionRef) {
     const currentDid = oauthAgentInstance.did
     try {
