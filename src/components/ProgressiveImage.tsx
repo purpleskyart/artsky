@@ -1,6 +1,5 @@
 import { useState, useMemo, useCallback, useRef, useEffect, useLayoutEffect } from 'react'
 import { webpImageUrl, getProgressiveImageDefaults } from '../lib/imageUtils'
-import { imageLoadQueue } from '../lib/ImageLoadQueue'
 import styles from './ProgressiveImage.module.css'
 
 interface ProgressiveImageProps {
@@ -37,7 +36,7 @@ interface ProgressiveImageProps {
  *
  * Features:
  * - Displays a blur-up placeholder while the full image loads (skipped when save-data is on)
- * - Lazy/eager loading with bounded concurrency via ImageLoadQueue
+ * - Defers assigning src until near viewport (IntersectionObserver) or eager
  * - Prefers WebP with fallback
  * - Responsive srcset sized for connection / viewport
  */
@@ -69,18 +68,12 @@ export function ProgressiveImage({
   const [permanentError, setPermanentError] = useState(false)
   const [placeholderError, setPlaceholderError] = useState(false)
   const [shouldPreload, setShouldPreload] = useState(loading === 'eager')
-  const [queueReleased, setQueueReleased] = useState(false)
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const loadTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const imgRef = useRef<HTMLImageElement | null>(null)
   const observerRef = useRef<IntersectionObserver | null>(null)
-  const mountedRef = useRef(true)
   const loadFinishedRef = useRef(false)
-  const queueReleasedRef = useRef(false)
-  /** True after queue loadFn ran (active++) until we call imageLoadQueue.complete(). Ref-based so Strict Mode unmount cleans up even when queueReleased state has not committed yet. */
-  const queueSlotHeldRef = useRef(false)
-  queueReleasedRef.current = queueReleased
 
   const webpSrc = useMemo(() => webpImageUrl(src), [src])
 
@@ -122,8 +115,6 @@ export function ProgressiveImage({
         loadTimeoutRef.current = null
       }
       loadFinishedRef.current = true
-      queueSlotHeldRef.current = false
-      imageLoadQueue.complete()
       setIsLoaded(true)
       setImageError(false)
       setPermanentError(false)
@@ -152,18 +143,9 @@ export function ProgressiveImage({
       }, backoffDelay)
     } else {
       loadFinishedRef.current = true
-      queueSlotHeldRef.current = false
-      imageLoadQueue.complete()
       setPermanentError(true)
     }
   }, [imageError, webpSrc, src, retryCount, maxRetries])
-
-  useEffect(() => {
-    mountedRef.current = true
-    return () => {
-      mountedRef.current = false
-    }
-  }, [])
 
   useEffect(() => {
     return () => {
@@ -175,36 +157,13 @@ export function ProgressiveImage({
 
   useLayoutEffect(() => {
     loadFinishedRef.current = false
-    queueReleasedRef.current = false
     setRetryCount(0)
     setPermanentError(false)
     setIsLoaded(false)
     setImageError(false)
     setPlaceholderError(false)
     setShouldPreload(loading === 'eager')
-    setQueueReleased(false)
-
-    return () => {
-      if (queueSlotHeldRef.current && !loadFinishedRef.current) {
-        queueSlotHeldRef.current = false
-        imageLoadQueue.complete()
-      }
-    }
   }, [src, loading])
-
-  useEffect(() => {
-    if (!shouldPreload || permanentError) return
-    if (queueReleasedRef.current) return
-
-    imageLoadQueue.enqueue(() => {
-      if (!mountedRef.current) {
-        imageLoadQueue.complete()
-        return
-      }
-      queueSlotHeldRef.current = true
-      setQueueReleased(true)
-    })
-  }, [shouldPreload, permanentError, src, loading])
 
   /* Re-subscribe when `src` changes while still unloaded: otherwise `isLoaded` stays false, deps look unchanged,
    * this effect does not re-run, and the observer may never attach for the new URL (stuck on blur placeholder). */
@@ -246,7 +205,7 @@ export function ProgressiveImage({
   }, [loading, preloadDistance, isLoaded, src])
 
   const currentSrc = imageError ? src : webpSrc
-  const canShowFullImage = queueReleased && shouldPreload && !permanentError
+  const canShowFullImage = shouldPreload && !permanentError
 
   useEffect(() => {
     if (!canShowFullImage || isLoaded || permanentError) return
@@ -260,8 +219,6 @@ export function ProgressiveImage({
           loadTimeoutRef.current = null
         }
         loadFinishedRef.current = true
-        queueSlotHeldRef.current = false
-        imageLoadQueue.complete()
         setIsLoaded(true)
       }
     }
@@ -272,8 +229,6 @@ export function ProgressiveImage({
       loadTimeoutRef.current = null
       if (!loadFinishedRef.current) {
         loadFinishedRef.current = true
-        queueSlotHeldRef.current = false
-        imageLoadQueue.complete()
       }
       setIsLoaded((prev) => (prev ? prev : true))
     }, LOAD_REVEAL_TIMEOUT_MS)

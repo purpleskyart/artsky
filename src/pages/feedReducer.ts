@@ -3,9 +3,10 @@ import type { TimelineItem } from '../lib/bsky'
 /** Max posts kept in memory to limit DOM, React work, and OOM risk on long sessions. */
 export const MAX_FEED_ITEMS = 600
 
-function capFeedItems(items: TimelineItem[]): { items: TimelineItem[]; trimmed: boolean } {
-  if (items.length <= MAX_FEED_ITEMS) return { items, trimmed: false }
-  return { items: items.slice(-MAX_FEED_ITEMS), trimmed: true }
+function capFeedItems(items: TimelineItem[] | undefined | null): { items: TimelineItem[]; trimmed: boolean } {
+  const list = items ?? []
+  if (list.length <= MAX_FEED_ITEMS) return { items: list, trimmed: false }
+  return { items: list.slice(-MAX_FEED_ITEMS), trimmed: true }
 }
 
 export type FeedState = {
@@ -50,7 +51,7 @@ export function feedReducer(state: FeedState, action: FeedAction): FeedState {
     }
 
     case 'APPEND_ITEMS': {
-      const { items, trimmed } = capFeedItems([...state.items, ...action.items])
+      const { items, trimmed } = capFeedItems([...state.items, ...(action.items ?? [])])
       return {
         ...state,
         items,
@@ -58,7 +59,11 @@ export function feedReducer(state: FeedState, action: FeedAction): FeedState {
         loadingMore: false,
         error: null,
         ...(trimmed
-          ? { keyboardFocusIndex: -1, actionsMenuOpenForIndex: null }
+          ? {
+              // Clamped to last focus slot on FeedPage after oldest items are dropped.
+              keyboardFocusIndex: Number.MAX_SAFE_INTEGER,
+              actionsMenuOpenForIndex: null,
+            }
           : {}),
       }
     }

@@ -158,6 +158,7 @@ describe('feedReducer', () => {
       expect(newState.items).toHaveLength(MAX_FEED_ITEMS)
       expect(newState.items[MAX_FEED_ITEMS - 1].post.uri).toBe('new-b')
       expect(newState.items[0].post.uri).toBe('old-2')
+      expect(newState.keyboardFocusIndex).toBe(Number.MAX_SAFE_INTEGER)
     })
   })
 
