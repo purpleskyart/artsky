@@ -21,7 +21,12 @@ function ProfileLink({ handle, className, title, 'aria-label': ariaLabel, onClic
     openProfileModal(handle)
     onClick?.(e)
   }, [openProfileModal, handle, onClick])
-  
+
+  /* PostCard’s cardLink schedules openPost on touchEnd; without stopping touch propagation, the post modal opens on top of the profile. */
+  const stopTouchBubble = useCallback((e: React.TouchEvent) => {
+    e.stopPropagation()
+  }, [])
+
   return (
     <Link
       to={`/profile/${encodeURIComponent(handle)}`}
@@ -29,6 +34,8 @@ function ProfileLink({ handle, className, title, 'aria-label': ariaLabel, onClic
       title={title}
       aria-label={ariaLabel}
       onClick={handleClick}
+      onTouchStart={stopTouchBubble}
+      onTouchEnd={stopTouchBubble}
     >
       {children}
     </Link>
