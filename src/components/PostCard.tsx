@@ -762,6 +762,32 @@ function PostCardInner({ item, isSelected, cardRef: cardRefProp, addButtonRef: _
     [cardRefProp],
   )
 
+  const createdAtForActionRow = (post.record as { createdAt?: string })?.createdAt
+  const actionRowTimeEl = useMemo(() => {
+    if (!createdAtForActionRow) return null
+    const parts = getRelativeTimeParts(createdAtForActionRow)
+    if (parts.kind === 'relative') {
+      return (
+        <span className={styles.cardActionRowTime} title={formatExactDateTime(createdAtForActionRow)} aria-hidden>
+          {parts.text}
+        </span>
+      )
+    }
+    return (
+      <span
+        className={`${styles.cardActionRowTime} ${styles.postTimeStacked}`}
+        title={formatExactDateTime(createdAtForActionRow)}
+        aria-hidden
+      >
+        <span className={styles.postTimeMonth}>{parts.month}</span>
+        <span className={styles.postTimeDayYear}>
+          {parts.day}
+          {parts.year ? ` ${parts.year}` : ''}
+        </span>
+      </span>
+    )
+  }, [createdAtForActionRow])
+
   return (
     <div ref={setCardRef} data-post-uri={post.uri} className={`${styles.card} ${nsfwBlurred ? styles.cardNsfwBlurred : ''} ${isSelected ? styles.cardSelected : ''} ${showTransFlagOutline ? styles.cardTransFlag : ''} ${!showTransFlagOutline && isLiked ? styles.cardLiked : ''} ${!showTransFlagOutline && inAnyArtboard ? styles.cardInArtboard : ''} ${seen && !isSelected ? styles.cardSeen : ''} ${fillCell ? styles.cardFillCell : ''} ${artOnly ? styles.cardArtOnly : ''} ${minimalist ? styles.cardMinimalist : ''}`}>
       <div
@@ -1066,6 +1092,7 @@ function PostCardInner({ item, isSelected, cardRef: cardRefProp, addButtonRef: _
         {(!artOnly || minimalist) && (
         <div className={styles.meta}>
           <div className={styles.cardActionRow} onClick={(e) => e.stopPropagation()}>
+            {actionRowTimeEl ? <div className={styles.cardActionRowLeft}>{actionRowTimeEl}</div> : null}
             <div className={styles.cardActionRowSpacer} aria-hidden="true" />
             <div className={styles.cardActionRowCenter}>
               <div
@@ -1195,28 +1222,6 @@ function PostCardInner({ item, isSelected, cardRef: cardRefProp, addButtonRef: _
               </button>
             </div>
             <div className={styles.cardActionRowRight}>
-              {(post.record as { createdAt?: string })?.createdAt && (() => {
-                const createdAt = (post.record as { createdAt: string }).createdAt
-                const parts = getRelativeTimeParts(createdAt)
-                return parts.kind === 'relative' ? (
-                  <span
-                    className={styles.cardActionRowTime}
-                    title={formatExactDateTime(createdAt)}
-                    aria-hidden
-                  >
-                    {parts.text}
-                  </span>
-                ) : (
-                  <span
-                    className={`${styles.cardActionRowTime} ${styles.postTimeStacked}`}
-                    title={formatExactDateTime(createdAt)}
-                    aria-hidden
-                  >
-                    <span className={styles.postTimeMonth}>{parts.month}</span>
-                    <span className={styles.postTimeDayYear}>{parts.day}{parts.year ? ` ${parts.year}` : ''}</span>
-                  </span>
-                )
-              })()}
               <PostActionsMenu
                 postUri={post.uri}
                 postCid={post.cid}

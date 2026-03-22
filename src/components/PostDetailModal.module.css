@@ -393,8 +393,10 @@
   .overlayFlushTop.overlay {
     padding-top: max(0.5rem, env(safe-area-inset-top));
   }
+  /* Expanded: flush to bottom like the top; keep horizontal + scroll safe-area only (avoids blurred strip under pane) */
   .overlayExpanded.overlay {
     padding-top: 0;
+    padding-bottom: 0;
   }
   .pane {
     max-height: 100%;
@@ -409,6 +411,6 @@
   }
   .scrollWithTransparentBar {
     padding-top: 0;
-    padding-bottom: 0;
+    padding-bottom: env(safe-area-inset-bottom);
   }
 }
