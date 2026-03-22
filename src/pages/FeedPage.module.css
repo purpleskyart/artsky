@@ -574,17 +574,17 @@
   margin-bottom: 0.25rem;
 }
 
-/* 1-column: constrain card media height so full preview fits in viewport when scrolling */
+/* 1-column: cap preview media height (with constrainMediaHeight on PostCard) so handle/meta/text fit on screen */
 .gridView1 {
   grid-template-columns: repeat(1, minmax(0, 1fr));
   grid-auto-rows: auto;
   gap: 0.5rem;
-  --feed-card-media-max-height: min(calc(100vh - 10rem), 85vh);
+  --feed-card-media-max-height: min(52vh, calc(100vh - 12rem));
 }
 
 @media (max-width: 767px) {
   .gridView1 {
-    --feed-card-media-max-height: min(100dvh - 4rem, 92dvh);
+    --feed-card-media-max-height: min(44dvh, calc(100dvh - 11rem));
   }
 }
 
@@ -626,9 +626,9 @@
   overflow-anchor: none; /* Disable scroll anchoring to prevent scroll jamming when content changes */
 }
 
-/* 1-col: constrain card media height when using column layout */
+/* 1-col: constrain card media height when using column layout (must match PostCard constrainMediaHeight) */
 .gridColumns.gridView1 {
-  --feed-card-media-max-height: min(calc(100vh - 10rem), 85vh);
+  --feed-card-media-max-height: min(52vh, calc(100vh - 12rem));
 }
 
 @media (min-width: 768px) {
@@ -639,7 +639,7 @@
 
 @media (max-width: 767px) {
   .gridColumns.gridView1 {
-    --feed-card-media-max-height: min(100dvh - 4rem, 92dvh);
+    --feed-card-media-max-height: min(44dvh, calc(100dvh - 11rem));
   }
 }
 

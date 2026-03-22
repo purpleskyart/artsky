@@ -552,6 +552,21 @@ html[data-theme="dark"] [data-view-mode="1"] .card:focus-within:not(:has(.mediaG
   .card.cardSelected.cardInArtboard::after {
     box-shadow: inset 0 0 0 2px #7dd3fc;
   }
+  /*
+   * Touch browsers often leave :hover stuck on the card after tap. `.card:hover::after` and `.cardLiked::after`
+   * have the same specificity (0,2,1), so the later hover rule wins and hides the pink/blue ring until another
+   * tap clears hover. These selectors are strictly more specific so liked/collected rings always paint.
+   */
+  .card.cardLiked:not(.cardTransFlag)::after,
+  .card.cardLiked:not(.cardTransFlag):hover::after,
+  .card.cardLiked:not(.cardTransFlag):focus-within::after {
+    box-shadow: inset 0 0 0 2px #ec4899;
+  }
+  .card.cardInArtboard:not(.cardTransFlag)::after,
+  .card.cardInArtboard:not(.cardTransFlag):hover::after,
+  .card.cardInArtboard:not(.cardTransFlag):focus-within::after {
+    box-shadow: inset 0 0 0 2px #7dd3fc;
+  }
   .cardLink:focus-visible {
     outline: none;
   }

@@ -28,6 +28,7 @@ const FeedCard = memo(function FeedCard({
   setLikeOverrides,
   openPostModal,
   cardRef,
+  constrainMediaHeight,
 }: {
   entry: FeedDisplayEntry
   originalIndex: number
@@ -47,6 +48,7 @@ const FeedCard = memo(function FeedCard({
   setLikeOverrides: (postUri: string, likeUri: string | null) => void
   openPostModal: (uri: string, openReply?: boolean, focusUri?: string) => void
   cardRef: (index: number) => (el: HTMLDivElement | null) => void
+  constrainMediaHeight: boolean
 }) {
   const key = entry.type === 'post' ? entry.item.post.uri : entry.items[0].post.uri
   
@@ -89,6 +91,7 @@ const FeedCard = memo(function FeedCard({
             setLikeOverrides(uri, likeRecordUri ?? null)
           }
           seen={seenUris.has(entry.item.post.uri)}
+          constrainMediaHeight={constrainMediaHeight}
         />
       ) : (
         <RepostCarouselCard
@@ -128,6 +131,8 @@ const FeedCard = memo(function FeedCard({
   // Check if this card's blur status changed
   if (prevProps.unblurredUris.has(prevUri) !== nextProps.unblurredUris.has(nextUri)) return false
   
+  if (prevProps.constrainMediaHeight !== nextProps.constrainMediaHeight) return false
+
   // All relevant props are the same, skip re-render
   return true
 })
@@ -157,6 +162,7 @@ export interface FeedColumnProps {
   onActionsMenuOpenChange: (index: number, open: boolean) => void
   onMouseEnter: (index: number) => void
   onAddClose: () => void
+  constrainMediaHeight: boolean
 }
 
 const FeedColumn = memo(function FeedColumn({
@@ -180,6 +186,7 @@ const FeedColumn = memo(function FeedColumn({
   onActionsMenuOpenChange,
   onMouseEnter,
   onAddClose,
+  constrainMediaHeight,
 }: FeedColumnProps) {
   if (column.length === 0) {
     return (
@@ -226,6 +233,7 @@ const FeedColumn = memo(function FeedColumn({
             setLikeOverrides={setLikeOverrides}
             openPostModal={openPostModal}
             cardRef={cardRef}
+            constrainMediaHeight={constrainMediaHeight}
           />
         )
       })}
