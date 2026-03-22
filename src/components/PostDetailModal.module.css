@@ -162,12 +162,11 @@
   pointer-events: auto;
 }
 
-/* Top padding so content (images, text) isn't covered by the floating back button */
+/* Top padding so content (images, text) isn't covered by floating back, feed pill, or gear (all sit above the modal on mobile) */
 .scrollWithFloatingBack.scroll {
-  padding-top: calc(2rem + var(--space-md));
+  padding-top: calc(2.5rem + max(var(--space-md), env(safe-area-inset-top, 0px)) + var(--space-sm));
 }
 
-/* On desktop, add safe area inset to scroll padding */
 @media (min-width: 768px) {
   .scrollWithFloatingBack.scroll {
     padding-top: calc(2rem + max(var(--space-md), env(safe-area-inset-top, 0px)) + var(--space-sm));

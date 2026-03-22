@@ -114,6 +114,7 @@ function PostCardInner({ item, isSelected, cardRef: cardRefProp, addButtonRef: _
   const videoRef = useRef<HTMLVideoElement>(null)
   const mediaWrapRef = useRef<HTMLDivElement>(null)
   const hlsRef = useRef<Hls | null>(null)
+  const [videoInLoadRange, setVideoInLoadRange] = useState(false)
   const { post, reason } = item as { post: typeof item.post; reason?: { $type?: string; by?: { handle?: string; did?: string } } }
   const feedSource = (item as { _feedSource?: { kind?: string; label?: string } })._feedSource
   const feedLabel = feedSource?.label ?? (feedSource?.kind === 'timeline' ? 'Following' : undefined)
@@ -454,49 +455,84 @@ function PostCardInner({ item, isSelected, cardRef: cardRefProp, addButtonRef: _
     if (mediaAspect != null && onAspectRatio) onAspectRatio(mediaAspect)
   }, [mediaAspect, onAspectRatio])
 
+  /* Only attach HLS / src when the clip is near the viewport to save bandwidth and memory */
   useEffect(() => {
-    if (!isVideo || !media?.videoPlaylist || !videoRef.current) return
+    if (!isVideo || !mediaWrapRef.current) {
+      setVideoInLoadRange(false)
+      return
+    }
+    const el = mediaWrapRef.current
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0]
+        if (!entry) return
+        setVideoInLoadRange(entry.isIntersecting)
+      },
+      { rootMargin: '320px 0px 320px 0px', threshold: 0 }
+    )
+    observer.observe(el)
+    return () => {
+      observer.disconnect()
+      setVideoInLoadRange(false)
+    }
+  }, [isVideo, post.uri])
+
+  useEffect(() => {
+    if (!isVideo || !media?.videoPlaylist || !videoInLoadRange) {
+      if (hlsRef.current) {
+        hlsRef.current.destroy()
+        hlsRef.current = null
+      }
+      const v = videoRef.current
+      if (v) {
+        v.pause()
+        v.removeAttribute('src')
+      }
+      return
+    }
+
     const video = videoRef.current
+    if (!video) return
     const src = media!.videoPlaylist
-    
-    let cleanup: (() => void) | undefined
-    
+    let cancelled = false
+
     if (isHlsUrl(src)) {
-      loadHls().then((Hls) => {
-        if (!videoRef.current) return
-        if (Hls.isSupported()) {
-          const hls = new Hls()
-          hlsRef.current = hls
-          hls.loadSource(src)
-          hls.attachMedia(video)
-          hls.on(Hls.Events.ERROR, () => {})
-          cleanup = () => {
-            hls.destroy()
-            hlsRef.current = null
+      loadHls()
+        .then((Hls) => {
+          if (cancelled || !videoRef.current) return
+          const v = videoRef.current
+          if (Hls.isSupported()) {
+            const hls = new Hls()
+            hlsRef.current = hls
+            hls.loadSource(src)
+            hls.attachMedia(v)
+            hls.on(Hls.Events.ERROR, () => {})
+          } else if (v.canPlayType('application/vnd.apple.mpegurl')) {
+            v.src = src
           }
-        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-          video.src = src
-          cleanup = () => {
-            video.removeAttribute('src')
+        })
+        .catch(() => {
+          if (!cancelled && videoRef.current?.canPlayType('application/vnd.apple.mpegurl')) {
+            videoRef.current.src = src
           }
-        }
-      }).catch(() => {
-        // Fallback to native playback if hls.js fails to load
-        if (video.canPlayType('application/vnd.apple.mpegurl')) {
-          video.src = src
-        }
-      })
+        })
     } else {
       video.src = src
-      cleanup = () => {
-        video.removeAttribute('src')
+    }
+
+    return () => {
+      cancelled = true
+      if (hlsRef.current) {
+        hlsRef.current.destroy()
+        hlsRef.current = null
+      }
+      const v = videoRef.current
+      if (v) {
+        v.pause()
+        v.removeAttribute('src')
       }
     }
-    
-    return () => {
-      cleanup?.()
-    }
-  }, [isVideo, media?.videoPlaylist])
+  }, [isVideo, media?.videoPlaylist, videoInLoadRange])
 
   /* Autoplay video when in view, pause when out of view or when modal opens */
   const isModalOpenRef = useRef(isModalOpen)
@@ -869,7 +905,7 @@ function PostCardInner({ item, isSelected, cardRef: cardRefProp, addButtonRef: _
                 muted
                 playsInline
                 loop
-                preload="metadata"
+                preload={videoInLoadRange ? 'metadata' : 'none'}
                 style={{ aspectRatio: mediaAspect != null ? `${mediaAspect}` : undefined }}
                 onLoadedMetadata={(e) => {
                   const v = e.currentTarget
@@ -1001,6 +1037,7 @@ function PostCardInner({ item, isSelected, cardRef: cardRefProp, addButtonRef: _
         {(!artOnly || minimalist) && (
         <div className={styles.meta}>
           <div className={styles.cardActionRow} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.cardActionRowSpacer} aria-hidden="true" />
             <div className={styles.cardActionRowCenter}>
               <div
                 className={`${styles.addWrap} ${addOpen ? styles.addWrapOpen : ''}`}

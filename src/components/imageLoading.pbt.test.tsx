@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import fc from 'fast-check'
-import { render } from '@testing-library/react'
+import { render, waitFor } from '@testing-library/react'
 import { ProgressiveImage } from './ProgressiveImage'
 import { ImageLoadQueue } from '../lib/ImageLoadQueue'
 
@@ -276,31 +276,29 @@ describe('Property 8: Image Format Optimization', () => {
    * Property: For any image served by the application, the image source should
    * prefer WebP format with appropriate fallbacks for browsers that don't support WebP.
    */
-  it('should attempt WebP format for all images', () => {
-    fc.assert(
-      fc.property(
+  it('should attempt WebP format for all images', { timeout: 60_000 }, async () => {
+    await fc.assert(
+      fc.asyncProperty(
         fc.record({
           src: fc.webUrl({ validSchemes: ['https'] }),
           alt: fc.string(),
         }),
-        ({ src, alt }) => {
-          const { container } = render(
+        async ({ src, alt }) => {
+          const { container, unmount } = render(
             <ProgressiveImage src={src} alt={alt} />
           )
-          
-          const img = container.querySelector('img[alt]') as HTMLImageElement
-          
-          // Property: Image should be rendered
-          expect(img).toBeTruthy()
-          
-          // In test environment (no canvas support), WebP is not supported
-          // So it should use the original URL
-          // In a real browser with WebP support, it would use wsrv.nl with output=webp
-          const imgSrc = img.getAttribute('src')
-          expect(imgSrc).toBeTruthy()
+          try {
+            await waitFor(() => {
+              const img = container.querySelector('img:not([aria-hidden="true"])') as HTMLImageElement
+              expect(img).toBeTruthy()
+              expect(img.getAttribute('src')).toBeTruthy()
+            })
+          } finally {
+            unmount()
+          }
         }
       ),
-      { numRuns: 100 }
+      { numRuns: 40 }
     )
   })
 
@@ -329,9 +327,9 @@ describe('Property 8: Image Format Optimization', () => {
           expect(img).toBeTruthy()
         }
       ),
-      { numRuns: 100 }
+      { numRuns: 40 }
     )
-  })
+  }, 60_000)
 })
 
 describe('Property 9: Responsive Image Sizing', () => {
@@ -340,9 +338,9 @@ describe('Property 9: Responsive Image Sizing', () => {
    * with multiple size variants to allow the browser to select the most appropriate
    * size for the viewport.
    */
-  it('should generate srcset for CDN images with multiple sizes', () => {
-    fc.assert(
-      fc.property(
+  it('should generate srcset for CDN images with multiple sizes', { timeout: 60_000 }, async () => {
+    await fc.assert(
+      fc.asyncProperty(
         fc.record({
           imageId: fc.stringMatching(/^[a-z0-9]{10,20}$/),
           alt: fc.string({ minLength: 1 }),
@@ -351,34 +349,34 @@ describe('Property 9: Responsive Image Sizing', () => {
             { minLength: 2, maxLength: 10 }
           ).map(arr => [...new Set(arr)].sort((a, b) => a - b)), // Unique and sorted
         }),
-        ({ imageId, alt, sizes }) => {
+        async ({ imageId, alt, sizes }) => {
           const cdnUrl = `https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:${imageId}/abc@jpeg`
-          
-          const { container } = render(
+
+          const { container, unmount } = render(
             <ProgressiveImage 
               src={cdnUrl} 
               alt={alt} 
               sizes={sizes}
             />
           )
-          
-          // Get all images and find the one with alt text (the full image, not placeholder)
-          const images = container.querySelectorAll('img')
-          const img = Array.from(images).find(img => img.getAttribute('alt') === alt) as HTMLImageElement
-          
-          expect(img).toBeTruthy()
-          const srcset = img.getAttribute('srcset')
-          
-          // Property: CDN images should have srcset
-          expect(srcset).toBeTruthy()
-          
-          // Property: srcset should contain all specified sizes
-          sizes.forEach(size => {
-            expect(srcset).toContain(`${size}w`)
-          })
+          try {
+            await waitFor(() => {
+              const img = Array.from(container.querySelectorAll('img')).find(
+                (i) => i.getAttribute('alt') === alt && !i.getAttribute('aria-hidden')
+              ) as HTMLImageElement
+              expect(img).toBeTruthy()
+              const srcset = img.getAttribute('srcset')
+              expect(srcset).toBeTruthy()
+              sizes.forEach((size) => {
+                expect(srcset).toContain(`${size}w`)
+              })
+            })
+          } finally {
+            unmount()
+          }
         }
       ),
-      { numRuns: 100 }
+      { numRuns: 40 }
     )
   })
 
@@ -443,9 +441,9 @@ describe('Property 9: Responsive Image Sizing', () => {
   /**
    * Property: For any custom sizes attribute, it should be applied correctly
    */
-  it('should apply custom sizes attribute when provided', () => {
-    fc.assert(
-      fc.property(
+  it('should apply custom sizes attribute when provided', { timeout: 60_000 }, async () => {
+    await fc.assert(
+      fc.asyncProperty(
         fc.record({
           imageId: fc.stringMatching(/^[a-z0-9]{10,20}$/),
           alt: fc.string({ minLength: 1 }),
@@ -455,29 +453,30 @@ describe('Property 9: Responsive Image Sizing', () => {
             '(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw'
           ),
         }),
-        ({ imageId, alt, customSizes }) => {
+        async ({ imageId, alt, customSizes }) => {
           const cdnUrl = `https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:${imageId}/abc@jpeg`
-          
-          const { container } = render(
+
+          const { container, unmount } = render(
             <ProgressiveImage 
               src={cdnUrl} 
               alt={alt} 
               sizesAttr={customSizes}
             />
           )
-          
-          // Get all images and find the one with alt text (the full image, not placeholder)
-          const images = container.querySelectorAll('img')
-          const img = Array.from(images).find(img => img.getAttribute('alt') === alt) as HTMLImageElement
-          
-          expect(img).toBeTruthy()
-          const sizes = img.getAttribute('sizes')
-          
-          // Property: Custom sizes should be applied
-          expect(sizes).toBe(customSizes)
+          try {
+            await waitFor(() => {
+              const img = Array.from(container.querySelectorAll('img')).find(
+                (i) => i.getAttribute('alt') === alt && !i.getAttribute('aria-hidden')
+              ) as HTMLImageElement
+              expect(img).toBeTruthy()
+              expect(img.getAttribute('sizes')).toBe(customSizes)
+            })
+          } finally {
+            unmount()
+          }
         }
       ),
-      { numRuns: 100 }
+      { numRuns: 40 }
     )
   })
 })

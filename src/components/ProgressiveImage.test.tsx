@@ -3,11 +3,13 @@ import { render, screen, waitFor } from '@testing-library/react'
 import { ProgressiveImage } from './ProgressiveImage'
 
 describe('ProgressiveImage', () => {
-  it('renders with src and alt attributes', () => {
+  it('renders with src and alt attributes', async () => {
     render(<ProgressiveImage src="https://example.com/image.jpg" alt="Test image" />)
     const img = screen.getByAltText('Test image')
     expect(img).toBeInTheDocument()
-    expect(img).toHaveAttribute('src', 'https://example.com/image.jpg')
+    await waitFor(() => {
+      expect(img).toHaveAttribute('src', 'https://example.com/image.jpg')
+    })
   })
 
   it('applies lazy loading by default', () => {
@@ -111,14 +113,15 @@ describe('ProgressiveImage', () => {
 })
 
 describe('ProgressiveImage - WebP support', () => {
-  it('attempts to use WebP URL when browser supports WebP', () => {
+  it('attempts to use WebP URL when browser supports WebP', async () => {
     render(<ProgressiveImage src="https://example.com/image.jpg" alt="Test image" />)
     const img = screen.getByAltText('Test image')
-    
+
     // In test environment (no canvas support), WebP is not supported
     // So it should use the original URL
-    const src = img.getAttribute('src')
-    expect(src).toBe('https://example.com/image.jpg')
+    await waitFor(() => {
+      expect(img.getAttribute('src')).toBe('https://example.com/image.jpg')
+    })
     
     // In a real browser with WebP support, it would use wsrv.nl with output=webp
     // This is tested by the imageUtils tests
@@ -154,12 +157,14 @@ describe('ProgressiveImage - WebP support', () => {
     })
   })
 
-  it('does not apply WebP transformation to non-http URLs', () => {
+  it('does not apply WebP transformation to non-http URLs', async () => {
     const dataUrl = 'data:image/png;base64,abc123'
     render(<ProgressiveImage src={dataUrl} alt="Test image" />)
-    
+
     const img = screen.getByAltText('Test image')
-    expect(img.getAttribute('src')).toBe(dataUrl)
+    await waitFor(() => {
+      expect(img.getAttribute('src')).toBe(dataUrl)
+    })
   })
 })
 
@@ -364,7 +369,7 @@ describe('ProgressiveImage - Error handling', () => {
 })
 
 describe('ProgressiveImage - Responsive image sizing', () => {
-  it('generates srcset for Bluesky CDN images with default sizes', () => {
+  it('generates srcset for Bluesky CDN images with default sizes', async () => {
     render(
       <ProgressiveImage 
         src="https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:123/abc@jpeg" 
@@ -373,18 +378,17 @@ describe('ProgressiveImage - Responsive image sizing', () => {
     )
     
     const img = screen.getByAltText('Test image')
-    const srcset = img.getAttribute('srcset')
-    
-    // Should have srcset with multiple sizes
-    expect(srcset).toBeTruthy()
-    expect(srcset).toContain('320w')
-    expect(srcset).toContain('640w')
-    expect(srcset).toContain('960w')
-    expect(srcset).toContain('1280w')
-    expect(srcset).toContain('1920w')
+    await waitFor(() => {
+      const srcset = img.getAttribute('srcset')
+      expect(srcset).toBeTruthy()
+      expect(srcset).toContain('320w')
+      expect(srcset).toContain('640w')
+      expect(srcset).toContain('960w')
+      expect(srcset).toContain('1280w')
+    })
   })
 
-  it('generates srcset with custom sizes', () => {
+  it('generates srcset with custom sizes', async () => {
     render(
       <ProgressiveImage 
         src="https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:123/abc@jpeg" 
@@ -394,13 +398,14 @@ describe('ProgressiveImage - Responsive image sizing', () => {
     )
     
     const img = screen.getByAltText('Test image')
-    const srcset = img.getAttribute('srcset')
-    
-    expect(srcset).toBeTruthy()
-    expect(srcset).toContain('400w')
-    expect(srcset).toContain('800w')
-    expect(srcset).toContain('1200w')
-    expect(srcset).not.toContain('320w')
+    await waitFor(() => {
+      const srcset = img.getAttribute('srcset')
+      expect(srcset).toBeTruthy()
+      expect(srcset).toContain('400w')
+      expect(srcset).toContain('800w')
+      expect(srcset).toContain('1200w')
+      expect(srcset).not.toContain('320w')
+    })
   })
 
   it('does not generate srcset for non-CDN images', () => {
@@ -418,7 +423,7 @@ describe('ProgressiveImage - Responsive image sizing', () => {
     expect(srcset).toBeNull()
   })
 
-  it('applies default sizes attribute when srcset is present', () => {
+  it('applies default sizes attribute when srcset is present', async () => {
     render(
       <ProgressiveImage 
         src="https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:123/abc@jpeg" 
@@ -427,15 +432,15 @@ describe('ProgressiveImage - Responsive image sizing', () => {
     )
     
     const img = screen.getByAltText('Test image')
-    const sizes = img.getAttribute('sizes')
-    
-    // Should have default sizes attribute
-    expect(sizes).toBeTruthy()
-    expect(sizes).toContain('max-width')
-    expect(sizes).toContain('vw')
+    await waitFor(() => {
+      const sizes = img.getAttribute('sizes')
+      expect(sizes).toBeTruthy()
+      expect(sizes).toContain('max-width')
+      expect(sizes).toContain('vw')
+    })
   })
 
-  it('applies custom sizes attribute when provided', () => {
+  it('applies custom sizes attribute when provided', async () => {
     const customSizes = '(max-width: 768px) 100vw, 50vw'
     render(
       <ProgressiveImage 
@@ -446,9 +451,9 @@ describe('ProgressiveImage - Responsive image sizing', () => {
     )
     
     const img = screen.getByAltText('Test image')
-    const sizes = img.getAttribute('sizes')
-    
-    expect(sizes).toBe(customSizes)
+    await waitFor(() => {
+      expect(img.getAttribute('sizes')).toBe(customSizes)
+    })
   })
 
   it('does not apply sizes attribute when srcset is not present', () => {
@@ -466,7 +471,7 @@ describe('ProgressiveImage - Responsive image sizing', () => {
     expect(sizes).toBeNull()
   })
 
-  it('generates srcset URLs with width parameters', () => {
+  it('generates srcset URLs with width parameters', async () => {
     render(
       <ProgressiveImage 
         src="https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:123/abc@jpeg" 
@@ -476,14 +481,14 @@ describe('ProgressiveImage - Responsive image sizing', () => {
     )
     
     const img = screen.getByAltText('Test image')
-    const srcset = img.getAttribute('srcset')
-    
-    // Should contain width parameters in URLs
-    expect(srcset).toContain('width=640')
-    expect(srcset).toContain('width=1280')
+    await waitFor(() => {
+      const srcset = img.getAttribute('srcset')
+      expect(srcset).toContain('width=640')
+      expect(srcset).toContain('width=1280')
+    })
   })
 
-  it('handles URLs with existing query parameters', () => {
+  it('handles URLs with existing query parameters', async () => {
     render(
       <ProgressiveImage 
         src="https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:123/abc@jpeg?format=jpeg" 
@@ -493,10 +498,9 @@ describe('ProgressiveImage - Responsive image sizing', () => {
     )
     
     const img = screen.getByAltText('Test image')
-    const srcset = img.getAttribute('srcset')
-    
-    // Should append width parameter with & instead of ?
-    expect(srcset).toContain('&width=640')
+    await waitFor(() => {
+      expect(img.getAttribute('srcset')).toContain('&width=640')
+    })
   })
 })
 

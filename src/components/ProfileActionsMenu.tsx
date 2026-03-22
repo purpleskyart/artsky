@@ -1,5 +1,6 @@
 import { useRef, useState, useEffect } from 'react'
 import { blockAccount, unblockAccount, getSession, getProfileCached } from '../lib/bsky'
+import { getShareableProfileUrl } from '../lib/appUrl'
 import { formatExactDateTimeLongMonth } from '../lib/date'
 import styles from './ProfileActionsMenu.module.css'
 
@@ -145,8 +146,7 @@ export default function ProfileActionsMenu({
   }
 
   function handleCopyProfileLink() {
-    const base = typeof window !== 'undefined' ? window.location.origin + (import.meta.env.BASE_URL || '/').replace(/\/$/, '') : ''
-    const url = `${base}/profile/${encodeURIComponent(profileHandle)}`
+    const url = getShareableProfileUrl(profileHandle)
     navigator.clipboard.writeText(url).then(
       () => showSuccess('Link copied'),
       () => showError('Could not copy link')

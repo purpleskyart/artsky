@@ -318,12 +318,17 @@ html[data-theme="dark"] [data-view-mode="1"] .card:focus-within:not(:has(.mediaG
   opacity: 1;
 }
 
-/* Action row: center (Collect, avatar, Like); time + menu absolute right */
+/* Action row: center (Collect, avatar, Like); time + menu absolute right (desktop) */
 .cardActionRow {
   position: relative;
   display: flex;
   align-items: center;
   margin-bottom: 0.35rem;
+}
+
+/* Balances the right column on mobile so the center cluster stays visually centered when … opens */
+.cardActionRowSpacer {
+  display: none;
 }
 
 .cardActionRowCenter {
@@ -340,8 +345,25 @@ html[data-theme="dark"] [data-view-mode="1"] .card:focus-within:not(:has(.mediaG
     -webkit-user-select: none;
     user-select: none;
   }
+  .cardActionRowSpacer {
+    display: block;
+    flex: 1 1 0;
+    min-width: 0;
+    pointer-events: none;
+  }
   .cardActionRowCenter {
+    flex: 0 0 auto;
     gap: 0.35rem;
+  }
+  .cardActionRowRight {
+    position: static;
+    top: auto;
+    right: auto;
+    left: auto;
+    transform: none;
+    flex: 1 1 0;
+    min-width: 0;
+    justify-content: flex-end;
   }
   /* No shadow on focus on mobile */
   .card:focus-within:not(:has(.mediaGridCellFocused)) {
@@ -411,13 +433,27 @@ html[data-theme="dark"] [data-view-mode="1"] .card:focus-within:not(:has(.mediaG
   .cardActionRowTime {
     display: none;
   }
-  .cardActionRowCenter {
-    padding-inline-end: 1.85rem;
+}
+
+/* Extra end padding only when menu is absolutely positioned (desktop); mobile uses balanced flex columns */
+@media (min-width: 768px) {
+  @container postcard (max-width: 200px) {
+    .cardActionRowCenter {
+      padding-inline-end: 1.85rem;
+    }
   }
 }
 
 .cardActionRow .addWrap {
   margin-left: 0;
+}
+
+/* Fixed slot so the … control never shifts neighbors when the menu opens */
+.cardActionsMenu {
+  flex-shrink: 0;
+  width: 1.75rem;
+  display: inline-flex;
+  justify-content: center;
 }
 
 /* Profile picture in action row between collect and like (all viewports) */

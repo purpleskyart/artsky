@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { feedReducer, type FeedState, type FeedAction } from './feedReducer'
+import { feedReducer, MAX_FEED_ITEMS, type FeedState, type FeedAction } from './feedReducer'
 import type { TimelineItem } from '../lib/bsky'
 import { debounce } from '../lib/utils'
 
@@ -77,6 +77,20 @@ describe('feedReducer', () => {
 
       expect(newState.cursor).toBeUndefined()
     })
+
+    it('should cap items at MAX_FEED_ITEMS and reset keyboard focus', () => {
+      const many = Array.from({ length: MAX_FEED_ITEMS + 50 }, (_, i) => ({
+        post: { uri: `uri-${i}` },
+      })) as TimelineItem[]
+      const state = feedReducer(
+        { ...initialState, keyboardFocusIndex: 3, actionsMenuOpenForIndex: 2 },
+        { type: 'SET_ITEMS', items: many, cursor: 'c' },
+      )
+      expect(state.items).toHaveLength(MAX_FEED_ITEMS)
+      expect(state.items[0].post.uri).toBe('uri-50')
+      expect(state.keyboardFocusIndex).toBe(-1)
+      expect(state.actionsMenuOpenForIndex).toBe(null)
+    })
   })
 
   describe('APPEND_ITEMS action', () => {
@@ -122,6 +136,28 @@ describe('feedReducer', () => {
 
       expect(newState.loadingMore).toBe(false)
       expect(newState.error).toBe(null)
+    })
+
+    it('should trim oldest items when append exceeds MAX_FEED_ITEMS', () => {
+      const existing = Array.from({ length: MAX_FEED_ITEMS }, (_, i) => ({
+        post: { uri: `old-${i}` },
+      })) as TimelineItem[]
+      const stateWithItems: FeedState = {
+        ...initialState,
+        items: existing,
+      }
+      const newItems = [
+        { post: { uri: 'new-a' } },
+        { post: { uri: 'new-b' } },
+      ] as TimelineItem[]
+      const newState = feedReducer(stateWithItems, {
+        type: 'APPEND_ITEMS',
+        items: newItems,
+        cursor: 'next',
+      })
+      expect(newState.items).toHaveLength(MAX_FEED_ITEMS)
+      expect(newState.items[MAX_FEED_ITEMS - 1].post.uri).toBe('new-b')
+      expect(newState.items[0].post.uri).toBe('old-2')
     })
   })
 

@@ -66,15 +66,13 @@ describe('VirtualizedPostCard', () => {
     expect(screen.getByText(mockItem.post.uri)).toBeInTheDocument()
   })
 
-  it('should always render PostCard (no minimal placeholder)', async () => {
+  it('should render placeholder when off-screen and not selected', async () => {
     const { useOffscreenOptimization } = await import('../hooks/useOffscreenOptimization')
     vi.mocked(useOffscreenOptimization).mockReturnValue(false)
 
     render(<OptimizedPostCard {...defaultProps} />)
-    
-    // Should still render full PostCard (no placeholder optimization)
-    expect(screen.getByTestId('post-card')).toBeInTheDocument()
-    expect(screen.getByText(mockItem.post.uri)).toBeInTheDocument()
+
+    expect(screen.queryByTestId('post-card')).not.toBeInTheDocument()
   })
 
   it('should render PostCard when not visible but selected (for keyboard nav)', async () => {

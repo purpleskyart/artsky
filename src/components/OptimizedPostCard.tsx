@@ -1,7 +1,9 @@
-import { useRef, memo } from 'react'
+import { useRef, memo, useMemo, useState, useCallback } from 'react'
 import { useOffscreenOptimization } from '../hooks/useOffscreenOptimization'
+import { getPostMediaInfo } from '../lib/bsky'
 import PostCard from './PostCard'
 import type { TimelineItem } from '../lib/bsky'
+import styles from './OptimizedPostCard.module.css'
 
 interface OptimizedPostCardProps {
   item: TimelineItem
@@ -26,38 +28,49 @@ interface OptimizedPostCardProps {
   constrainMediaHeight?: boolean
 }
 
-/**
- * Wrapper around PostCard with memoization to prevent unnecessary re-renders.
- * Uses IntersectionObserver to detect when posts are far off-screen
- * for potential future optimizations.
- */
-function OptimizedPostCard(props: OptimizedPostCardProps) {
-  const containerRef = useRef<HTMLDivElement>(null)
-  
-  // Use intersection observer to detect if post is visible or near viewport
-  // Generous rootMargin (1200px) ensures content is ready before it enters viewport
-  useOffscreenOptimization(containerRef, {
-    rootMargin: '1200px 0px 1200px 0px',
-    threshold: 0,
-  })
+const CARD_CHROME = 100
+const ESTIMATE_COL_WIDTH = 280
 
-  // Combine refs - we need both the container ref for intersection observer
-  // and the cardRef callback from parent
-  const handleRef = (el: HTMLDivElement | null) => {
-    (containerRef as React.MutableRefObject<HTMLDivElement | null>).current = el
-    props.cardRef(el)
+function placeholderMinHeight(item: TimelineItem): number {
+  const media = getPostMediaInfo(item.post)
+  if (!media) return CARD_CHROME + 80
+  if (media.aspectRatio != null && media.aspectRatio > 0) {
+    return CARD_CHROME + ESTIMATE_COL_WIDTH / media.aspectRatio
   }
+  return CARD_CHROME + 220
+}
 
-  // Always render full content
-  // The intersection observer is just for future optimizations
+const OFFSCREEN_MARGIN = '500px 0px 500px 0px'
+
+function OptimizedPostCard(props: OptimizedPostCardProps) {
+  const [rootEl, setRootEl] = useState<HTMLDivElement | null>(null)
+  const cardRefPropRef = useRef(props.cardRef)
+  cardRefPropRef.current = props.cardRef
+
+  const setRootRef = useCallback((el: HTMLDivElement | null) => {
+    setRootEl(el)
+    cardRefPropRef.current(el)
+  }, [])
+
+  const observerOpts = useMemo(() => ({ rootMargin: OFFSCREEN_MARGIN, threshold: 0 }), [])
+  const isVisible = useOffscreenOptimization(rootEl, observerOpts)
+
+  const needsFullCard =
+    isVisible || props.isSelected || props.actionsMenuOpenForIndex === props.cardIndex
+
   return (
-    <PostCard
-      {...props}
-      cardRef={handleRef}
-      onAspectRatio={undefined}
-    />
+    <div ref={setRootRef} className={styles.optimizeWrap}>
+      {needsFullCard ? (
+        <PostCard {...props} cardRef={() => {}} onAspectRatio={undefined} />
+      ) : (
+        <div
+          className={styles.offscreenPlaceholder}
+          style={{ minHeight: placeholderMinHeight(props.item) }}
+          aria-hidden
+        />
+      )}
+    </div>
   )
 }
 
-// Memoize to prevent unnecessary re-renders
 export default memo(OptimizedPostCard)
