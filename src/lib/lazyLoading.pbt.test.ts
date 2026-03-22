@@ -257,7 +257,6 @@ describe('Property 4: Lazy Loading of Heavy Dependencies', () => {
             '/post/:id',
             '/profile/:handle',
             '/tag/:tag',
-            '/collab/:id',
             '/consensus/:id'
           ),
           currentRoute: fc.constantFrom(
@@ -265,7 +264,6 @@ describe('Property 4: Lazy Loading of Heavy Dependencies', () => {
             '/post/:id',
             '/profile/:handle',
             '/tag/:tag',
-            '/collab/:id',
             '/consensus/:id'
           ),
         }),
