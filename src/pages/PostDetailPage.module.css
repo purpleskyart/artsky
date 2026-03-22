@@ -89,9 +89,9 @@
   margin-bottom: 0.75rem;
 }
 
-/* Nested replies: indent grows per level but caps so text keeps a stable minimum width on deep threads */
-.threadedCommentArticle {
-  margin-left: min(calc(var(--thread-depth, 0) * 12px), 3rem);
+/* Nested replies: fixed step per level (avoids stacking depth×12px margins on each ancestor). */
+.threadedCommentArticle[data-thread-depth]:not([data-thread-depth='0']) {
+  margin-left: 6px;
 }
 
 /* Comments: darkened area under each comment (no border) */
@@ -899,7 +899,7 @@
 .replies {
   margin-top: 4px;
   padding-left: 0;
-  padding-right: 1rem;
+  padding-right: 0;
 }
 
 .commentSortRow {
@@ -951,18 +951,47 @@
   margin-bottom: 0;
 }
 
-.replies .postBlock {
+.repliesTopLevel .topLevelCommentWrap > .postBlock {
   padding-left: 4px;
-  padding-right: 0.75rem;
+  padding-right: 0;
   margin-bottom: 0.35rem;
 }
 
-/* In popup: less right padding so nested comments sit closer to the edge */
-.wrapInModal .replies {
-  padding-right: 0.5rem;
+.repliesContainer .replies .postBlock {
+  padding-left: 0;
+  padding-right: 0;
+  padding-top: 0.45rem;
+  padding-bottom: 0.45rem;
+  margin-bottom: 0.35rem;
 }
-.wrapInModal .replies .postBlock {
-  padding-right: 0.35rem;
+
+/* Nested thread: thinner collapse rail so deep replies keep more text width */
+.repliesContainer .replies .collapseColumn {
+  margin-right: 0.2rem;
+}
+
+.repliesContainer .replies .collapseBtn {
+  width: 1rem;
+  height: 1rem;
+}
+
+.repliesContainer .replies .collapseStrip {
+  width: 1rem;
+  min-height: 1.25rem;
+}
+
+.repliesContainer .replies .collapseIcon {
+  font-size: 0.875rem;
+}
+
+.wrapInModal .replies {
+  padding-right: 0;
+}
+.wrapInModal .repliesTopLevel .topLevelCommentWrap > .postBlock {
+  padding-right: 0;
+}
+.wrapInModal .repliesContainer .replies .postBlock {
+  padding-right: 0;
 }
 
 .collapsedCommentWrap {
@@ -1344,7 +1373,7 @@
 .inlineReplyFormWrap {
   margin-top: 0.75rem;
   padding-left: 0.25rem;
-  padding-right: 0.25rem;
+  padding-right: 0;
 }
 
 /* No outline by default; scale when form or any control inside has focus */
