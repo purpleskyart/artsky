@@ -2023,7 +2023,7 @@ export async function getTimelineWithLifecycle(
   const cacheKey = `timeline:${limit}:${cursor ?? 'initial'}`
   const cached = responseCache.get<{ feed: TimelineItem[]; cursor?: string }>(cacheKey)
   if (cached) {
-    return { data: { feed: cached.feed, cursor: cached.cursor } } as any
+    return { data: { feed: cached.feed ?? [], cursor: cached.cursor } } as any
   }
   const result = await apiRequestManager.execute(
     `timeline:${limit}:${cursor ?? 'initial'}`,
@@ -2047,7 +2047,7 @@ export async function getFeedWithLifecycle(
   const cacheKey = `feed:${feedUri}:${limit}:${cursor ?? 'initial'}`
   const cached = responseCache.get<{ feed: TimelineItem[]; cursor?: string }>(cacheKey)
   if (cached) {
-    return { data: { feed: cached.feed, cursor: cached.cursor } } as any
+    return { data: { feed: cached.feed ?? [], cursor: cached.cursor } } as any
   }
   const result = await apiRequestManager.execute(
     `feed:${feedUri}:${limit}:${cursor ?? 'initial'}`,

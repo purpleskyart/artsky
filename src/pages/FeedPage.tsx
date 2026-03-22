@@ -39,9 +39,10 @@ import { asyncStorage } from '../lib/AsyncStorage'
 import styles from './FeedPage.module.css'
 
 /** Dedupe feed items by post URI (keep first). Stops the same post appearing as both original and repost. */
-function dedupeFeedByPostUri(items: TimelineItem[]): TimelineItem[] {
+function dedupeFeedByPostUri(items: TimelineItem[] | undefined | null): TimelineItem[] {
+  const list = items ?? []
   const seen = new Set<string>()
-  return items.filter((item) => {
+  return list.filter((item) => {
     const uri = item?.post?.uri
     if (!uri || seen.has(uri)) return false
     seen.add(uri)
@@ -162,76 +163,62 @@ function estimateEntryHeight(entry: FeedDisplayEntry): number {
   return CARD_CHROME + 220
 }
 
+/** Stable id for column placement across display-entry rebuilds (append, trim, repost carousel regroup). */
+function stableCardKey(entry: FeedDisplayEntry): string {
+  if (entry.type === 'post') return `p:${entry.item.post.uri}`
+  const uris = entry.items.map((i) => i.post.uri).filter(Boolean).join('|')
+  return `c:${uris || 'empty'}`
+}
+
+function pickShortestColumnIndex(
+  columns: Array<Array<{ entry: FeedDisplayEntry; originalIndex: number }>>,
+  columnHeights: number[]
+): number {
+  const cols = columnHeights.length
+  let best = 0
+  for (let c = 1; c < cols; c++) {
+    const shorter = columnHeights[c] < columnHeights[best]
+    const sameHeight = Math.abs(columnHeights[c] - columnHeights[best]) < 2
+    const fewerItems = columns[c].length < columns[best].length
+    if (shorter || (sameHeight && fewerItems)) best = c
+  }
+  return best
+}
+
 /** Distribute entries (posts and carousels) so no column is much longer than others. */
 function distributeEntriesByHeight(
   entries: FeedDisplayEntry[],
   numCols: number,
-  previousDistribution?: Array<Array<{ entry: FeedDisplayEntry; originalIndex: number }>>,
-  previousEntryCount?: number
+  previousDistribution?: Array<Array<{ entry: FeedDisplayEntry; originalIndex: number }>>
 ): Array<Array<{ entry: FeedDisplayEntry; originalIndex: number }>> {
   const cols = Math.min(3, Math.max(1, Math.floor(numCols)))
   if (cols < 1) return []
-  
-  // If we have a previous distribution and only new entries were added, preserve existing layout
-  // BUT only if the column count hasn't changed
-  if (previousDistribution && 
-      previousDistribution.length === cols &&
-      previousEntryCount !== undefined && 
-      entries.length > previousEntryCount) {
-    
-    // Create a map of post URI to its column in previous distribution
-    const uriToColumn = new Map<string, number>()
+
+  // Reuse each card's column from the last layout when column count is unchanged — including when
+  // the entry list shrinks (repost carousel merge) or grows (load more), so previews don't jump.
+  if (previousDistribution && previousDistribution.length === cols) {
+    const keyToColumn = new Map<string, number>()
     previousDistribution.forEach((col, colIndex) => {
       col.forEach(({ entry }) => {
-        const uri = entry.type === 'post' ? entry.item.post.uri : entry.items[0]?.post.uri
-        if (uri) uriToColumn.set(uri, colIndex)
+        keyToColumn.set(stableCardKey(entry), colIndex)
       })
     })
-    
-    // Start with empty columns
-    const columns: Array<Array<{ entry: FeedDisplayEntry; originalIndex: number }>> = 
-      Array.from({ length: cols }, () => [])
+
+    const columns: Array<Array<{ entry: FeedDisplayEntry; originalIndex: number }>> = Array.from(
+      { length: cols },
+      () => []
+    )
     const columnHeights: number[] = Array(cols).fill(0)
-    
-    // First pass: rebuild existing entries in their previous columns
-    for (let i = 0; i < previousEntryCount; i++) {
-      const entry = entries[i]
-      const uri = entry.type === 'post' ? entry.item.post.uri : entry.items[0]?.post.uri
-      
-      if (uri) {
-        const prevCol = uriToColumn.get(uri)
-        if (prevCol !== undefined && prevCol < cols) {
-          columns[prevCol].push({ entry, originalIndex: i })
-          columnHeights[prevCol] += estimateEntryHeight(entry)
-          continue
-        }
-      }
-      
-      // Fallback: if URI not found, add to shortest column
-      const h = estimateEntryHeight(entry)
-      let best = 0
-      for (let c = 1; c < cols; c++) {
-        if (columnHeights[c] < columnHeights[best]) {
-          best = c
-        }
-      }
-      columns[best].push({ entry, originalIndex: i })
-      columnHeights[best] += h
-    }
-    
-    // Second pass: append NEW entries to shortest columns (by height; tie-break by fewer items)
-    for (let i = previousEntryCount; i < entries.length; i++) {
+
+    for (let i = 0; i < entries.length; i++) {
       const entry = entries[i]
       const h = estimateEntryHeight(entry)
-      let best = 0
-      for (let c = 1; c < cols; c++) {
-        const shorter = columnHeights[c] < columnHeights[best]
-        const sameHeight = Math.abs(columnHeights[c] - columnHeights[best]) < 2
-        const fewerItems = columns[c].length < columns[best].length
-        if (shorter || (sameHeight && fewerItems)) best = c
-      }
-      columns[best].push({ entry, originalIndex: i })
-      columnHeights[best] += h
+      const key = stableCardKey(entry)
+      const prevCol = keyToColumn.get(key)
+      const col =
+        prevCol !== undefined && prevCol < cols ? prevCol : pickShortestColumnIndex(columns, columnHeights)
+      columns[col].push({ entry, originalIndex: i })
+      columnHeights[col] += h
     }
     return columns
   }
@@ -753,7 +740,8 @@ export default function FeedPage() {
   // Large rootMargin so we load before the user reaches the end. After each load we also schedule a
   // fallback check: if any column's sentinel is above (viewport bottom + margin) we trigger another
   // load once the cooldown expires.
-  const LOAD_MORE_COOLDOWN_MS = 5000
+  /** Debounce between automatic load-more triggers (sentinel can stay visible on short columns). Keep low so reaching another column’s bottom doesn’t feel stuck for seconds after a recent load. */
+  const LOAD_MORE_COOLDOWN_MS = 900
   /** Start loading when sentinel is within this distance below the viewport (load before user reaches end). */
   const LOAD_MORE_ROOT_MARGIN_PX = 600
   /** Consider a column "short" when its sentinel is above this line (trigger load before blank space visible). */
@@ -763,7 +751,6 @@ export default function FeedPage() {
     if (!feedState.cursor) return
     const refs = loadMoreSentinelRefs.current
     let rafId = 0
-    let timeoutId = 0
     let retryId = 0
     const cols = Math.min(3, Math.max(1, viewMode === '1' ? 1 : viewMode === '2' ? 2 : 3))
 
@@ -802,13 +789,10 @@ export default function FeedPage() {
           }
           loadingMoreRef.current = true
           const c = feedState.cursor
+          lastLoadMoreAtRef.current = Date.now()
           rafId = requestAnimationFrame(() => {
             rafId = 0
-            timeoutId = window.setTimeout(() => {
-              timeoutId = 0
-              lastLoadMoreAtRef.current = Date.now()
-              load(c)
-            }, 120)
+            load(c)
           })
           break
         }
@@ -827,7 +811,6 @@ export default function FeedPage() {
     return () => {
       observer.disconnect()
       if (rafId) cancelAnimationFrame(rafId)
-      if (timeoutId) clearTimeout(timeoutId)
       clearTimeout(retryId)
     }
   }, [feedState.cursor, load, viewMode])
@@ -836,7 +819,7 @@ export default function FeedPage() {
   const { nsfwPreference, unblurredUris, setUnblurred } = useModeration()
   const { hideRepostsFromDids } = useHideReposts() ?? { hideRepostsFromDids: [] as string[] }
   const displayItems = useMemo(() =>
-    feedState.items
+    (feedState.items ?? [])
       .filter((item) => (mediaMode === 'media' ? getPostMediaInfo(item.post) : true))
       .filter((item) => !feedState.seenUrisAtReset.has(item.post.uri))
       .filter((item) => nsfwPreference !== 'sfw' || !isPostNsfw(item.post))
@@ -849,7 +832,7 @@ export default function FeedPage() {
   )
   const displayEntries = useMemo(() => buildDisplayEntries(displayItems), [displayItems])
   const itemsAfterOtherFilters = useMemo(() =>
-    feedState.items
+    (feedState.items ?? [])
       .filter((item) => (mediaMode === 'media' ? getPostMediaInfo(item.post) : true))
       .filter((item) => nsfwPreference !== 'sfw' || !isPostNsfw(item.post)),
     [feedState.items, mediaMode, nsfwPreference]
@@ -863,35 +846,30 @@ export default function FeedPage() {
   
   // Track previous distribution to avoid re-shuffling existing posts when new ones load
   const previousDistributionRef = useRef<Array<Array<{ entry: FeedDisplayEntry; originalIndex: number }>>>([])
-  const previousEntryCountRef = useRef<number>(0)
   const previousColsRef = useRef<number>(0)
-  
-  // Reset distribution tracking when feed source changes or items are reset (not appended)
-  useEffect(() => {
-    previousDistributionRef.current = []
-    previousEntryCountRef.current = 0
-    previousColsRef.current = 0
-  }, [source, mediaMode, nsfwPreference])
+  const distributionContextKeyRef = useRef<string>('')
   
   // Memoize column distribution to prevent recalculation on every render
   const distributedColumns = useMemo(() => {
-    // Reset if column count changed
+    const ctx = `${source.kind}|${source.uri ?? ''}|${source.label}|${mediaMode}|${nsfwPreference}`
+    if (distributionContextKeyRef.current !== ctx) {
+      distributionContextKeyRef.current = ctx
+      previousDistributionRef.current = []
+      previousColsRef.current = 0
+    }
     if (cols !== previousColsRef.current) {
       previousDistributionRef.current = []
-      previousEntryCountRef.current = 0
     }
     
     const newDistribution = distributeEntriesByHeight(
       displayEntries, 
       cols,
-      previousDistributionRef.current,
-      previousEntryCountRef.current
+      previousDistributionRef.current
     )
     previousDistributionRef.current = newDistribution
-    previousEntryCountRef.current = displayEntries.length
     previousColsRef.current = cols
     return newDistribution
-  }, [displayEntries, cols])
+  }, [displayEntries, cols, source, mediaMode, nsfwPreference])
   
   /** Flat list of focus targets: one per media item per post (or one per card in text-only mode). */
   const focusTargets = useMemo(() => {
