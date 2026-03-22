@@ -55,16 +55,28 @@ const ProfileModalContext = createContext<ProfileModalContextValue | null>(null)
  * To add a new modal type: add the variant to ModalItem, then in parseSearchToModalStack (read param)
  * and modalItemToSearch (write param), and in modalItemsMatch. openXxx() just navigates; effect syncs URL → stack.
  * When both profile= and post= are in the URL, stack is [profile, post] so back from post returns to profile.
+ * When forum=1 and post= are both set, stack is [forum, post] so back returns to the forums list.
  */
 function parseSearchToModalStack(search: string): ModalItem[] {
   const params = new URLSearchParams(search)
+  const forumPostLegacy = params.get('forumPost')
+  const bskyThreadFromLegacy =
+    forumPostLegacy && forumPostLegacy.includes('app.bsky.feed.post') ? forumPostLegacy : null
+  const postUriParam = params.get('post')
+  const resolvedPostUri = postUriParam ?? bskyThreadFromLegacy
+
   const stack: ModalItem[] = []
   const profileHandle = params.get('profile')
   if (profileHandle) stack.push({ type: 'profile', handle: profileHandle })
-  const postUri = params.get('post')
-  if (postUri) {
+  if (params.get('forum') === '1' || bskyThreadFromLegacy) stack.push({ type: 'forum' })
+  if (resolvedPostUri) {
     const focusUri = params.get('focus') ?? undefined
-    stack.push({ type: 'post', uri: postUri, openReply: params.get('reply') === '1', focusUri: focusUri ?? undefined })
+    stack.push({
+      type: 'post',
+      uri: resolvedPostUri,
+      openReply: params.get('reply') === '1',
+      focusUri: focusUri ?? undefined,
+    })
   }
   if (stack.length > 0) return stack
   const tag = params.get('tag')
@@ -73,9 +85,7 @@ function parseSearchToModalStack(search: string): ModalItem[] {
   if (searchQuery) return [{ type: 'search', query: searchQuery }]
   const quotesUri = params.get('quotes')
   if (quotesUri) return [{ type: 'quotes', uri: quotesUri }]
-  if (params.get('forum') === '1') return [{ type: 'forum' }]
-  const forumPostUri = params.get('forumPost')
-  if (forumPostUri) return [{ type: 'forumPost', documentUri: forumPostUri }]
+  if (forumPostLegacy) return [{ type: 'forumPost', documentUri: forumPostLegacy }]
   if (params.get('artboards') === '1') return [{ type: 'artboards' }]
   const artboardId = params.get('artboard')
   if (artboardId) return [{ type: 'artboard', id: artboardId }]
@@ -141,11 +151,14 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
     const profileFromPath = location.pathname.match(/^\/profile\/([^/]+)/)?.[1]
     const topItem = modalStack[modalStack.length - 1]
     const profileAlreadyOpen = topItem?.type === 'profile' && profileFromSearch && topItem.handle === profileFromSearch
+    const forumAlreadyOpen = topItem?.type === 'forum'
     const stack: ModalItem[] = profileAlreadyOpen
       ? [...modalStack, postItem]
-      : profileFromPath
-        ? [{ type: 'profile', handle: decodeURIComponent(profileFromPath) }, postItem]
-        : [postItem]
+      : forumAlreadyOpen
+        ? [...modalStack, postItem]
+        : profileFromPath
+          ? [{ type: 'profile', handle: decodeURIComponent(profileFromPath) }, postItem]
+          : [postItem]
     const search = stack.length > 0 ? `?${modalStackToSearch(stack)}` : ''
     navigate({ pathname: location.pathname, search }, { replace: false })
   }, [location.pathname, location.search, navigate, modalStack])

@@ -17,7 +17,6 @@ const FeedPage = lazy(() => import('./pages/FeedPage'))
 const PostDetailPage = lazy(() => import('./pages/PostDetailPage'))
 const ProfilePage = lazy(() => import('./pages/ProfilePage'))
 const TagPage = lazy(() => import('./pages/TagPage'))
-const CollabPage = lazy(() => import('./pages/CollabPage'))
 const ConsensusPage = lazy(() => import('./pages/ConsensusPage'))
 
 /** Official Git SCM logo (https://git-scm.com/images/logos/downloads/Git-Icon-1788C.svg) */
@@ -171,9 +170,9 @@ function ForumPostRedirect() {
   if (!trimmed) return <Navigate to="/feed?forum=1" replace />
   try {
     const uri = decodeURIComponent(trimmed)
-    return <Navigate to={`/feed?forumPost=${encodeURIComponent(uri)}`} replace />
+    return <Navigate to={`/feed?forum=1&post=${encodeURIComponent(uri)}`} replace />
   } catch {
-    return <Navigate to={`/feed?forumPost=${encodeURIComponent(trimmed)}`} replace />
+    return <Navigate to={`/feed?forum=1&post=${encodeURIComponent(trimmed)}`} replace />
   }
 }
 
@@ -184,7 +183,6 @@ function AppRoutes() {
         <Routes>
           <Route path="/feed" element={<FeedPage />} />
           <Route path="/forum" element={<Navigate to="/feed?forum=1" replace />} />
-          <Route path="/collab" element={<CollabPage />} />
           <Route path="/consensus" element={<ConsensusPage />} />
           <Route path="/artboards" element={<Navigate to="/feed?artboards=1" replace />} />
           <Route path="/artboard/:id" element={<ArtboardRedirect />} />

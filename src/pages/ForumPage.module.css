@@ -158,6 +158,11 @@
   padding: 2rem 1rem;
 }
 
+.loadMoreSentinel {
+  height: 1px;
+  margin-top: 0.5rem;
+}
+
 .list {
   list-style: none;
   padding: 0;
