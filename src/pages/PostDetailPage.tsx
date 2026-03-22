@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import type { AppBskyFeedDefs } from '@atproto/api'
 import type { AtpSessionData } from '@atproto/api'
@@ -508,12 +508,10 @@ function PostBlock({
   const downvoteLoading = downvoteLoadingUri === post.uri
   const showCommentCounts = true
 
-  const threadDepthStyle = { ['--thread-depth' as string]: depth } as CSSProperties
-
   return (
     <article
       className={`${styles.postBlock} ${styles.threadedCommentArticle} ${isFocused ? styles.commentFocused : ''}`}
-      style={threadDepthStyle}
+      data-thread-depth={depth}
       data-comment-uri={post.uri}
       tabIndex={-1}
     >
@@ -750,7 +748,7 @@ function PostBlock({
                     <div
                       key={`${r.post.uri}-${rIndex}`}
                       className={styles.collapsedCommentWrap}
-                      style={{ marginLeft: Math.min(replyDepth * 12, 48) }}
+                      style={{ marginLeft: Math.min(replyDepth * 6, 28) }}
                       data-comment-uri={r.post.uri}
                       tabIndex={-1}
                     >

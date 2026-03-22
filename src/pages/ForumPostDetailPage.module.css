@@ -272,6 +272,7 @@
 
 .replySection {
   margin-top: 1.5rem;
+  margin-right: -1rem;
   padding-top: 1rem;
   border-top: 1px solid var(--border);
 }
@@ -356,7 +357,7 @@
 .replyTextarea {
   width: 100%;
   min-height: 80px;
-  padding: 0.5rem 0.75rem;
+  padding: 0.5rem 0 0.5rem 0.75rem;
   font-size: 0.95rem;
   font-family: inherit;
   border: 1px solid var(--border);
@@ -395,6 +396,7 @@
 
 .repliesSection {
   margin-top: 1.5rem;
+  margin-right: -1rem;
   padding-top: 1rem;
   border-top: 1px solid var(--border);
 }
@@ -409,7 +411,7 @@
 }
 
 .replyItem {
-  padding: 0.75rem;
+  padding: 0.75rem 0 0.75rem 0.75rem;
   background: color-mix(in srgb, var(--surface) 88%, var(--bg));
   border-radius: 0.5rem;
 }

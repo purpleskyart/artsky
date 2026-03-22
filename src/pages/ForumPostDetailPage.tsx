@@ -73,7 +73,7 @@ function flattenReplyTree(nodes: ReplyTreeNode[]): { reply: ForumReplyView; dept
   return out
 }
 
-const REPLY_THREAD_INDENT = 20
+const REPLY_THREAD_INDENT = 4
 
 export interface ForumPostContentProps {
   documentUri: string
@@ -600,7 +600,7 @@ export function ForumPostContent({ documentUri, onClose, onRegisterRefresh }: Fo
                         tabIndex={-1}
                         onFocus={() => setKeyboardFocusIndex(1 + replyIndex)}
                         onMouseEnter={() => setKeyboardFocusIndex(1 + replyIndex)}
-                        style={{ marginLeft: depth * REPLY_THREAD_INDENT }}
+                        style={{ marginLeft: Math.min(depth * REPLY_THREAD_INDENT, 20) }}
                       >
                         <div className={postBlockStyles.postHead}>
                           {p.author.avatar ? (

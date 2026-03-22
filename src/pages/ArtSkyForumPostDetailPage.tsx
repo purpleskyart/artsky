@@ -17,7 +17,7 @@ import type { ForumPost, ForumReply } from '../types'
 import styles from './ForumPostDetailPage.module.css'
 import postBlockStyles from './PostDetailPage.module.css'
 
-const REPLY_THREAD_INDENT = 20
+const REPLY_THREAD_INDENT = 4
 
 function isArtSkyForumUri(uri: string): boolean {
   return uri.includes('app.artsky.forum.post')
@@ -399,7 +399,7 @@ export function ArtSkyForumPostContent({ documentUri, onClose, onRegisterRefresh
                 <li
                   key={r.uri}
                   className={depth > 0 ? `${styles.replyItem} ${styles.replyItemNested}` : styles.replyItem}
-                  style={{ marginLeft: depth * REPLY_THREAD_INDENT }}
+                  style={{ marginLeft: Math.min(depth * REPLY_THREAD_INDENT, 20) }}
                 >
                   <div className={postBlockStyles.postHead}>
                     {r.author.avatar ? (
