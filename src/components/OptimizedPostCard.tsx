@@ -1,6 +1,4 @@
-import { useRef, memo, useMemo, useState, useCallback } from 'react'
-import { useOffscreenOptimization } from '../hooks/useOffscreenOptimization'
-import { getPostMediaInfo } from '../lib/bsky'
+import { useRef, memo, useCallback } from 'react'
 import PostCard from './PostCard'
 import type { TimelineItem } from '../lib/bsky'
 import styles from './OptimizedPostCard.module.css'
@@ -26,53 +24,23 @@ interface OptimizedPostCardProps {
   onLikedChange: (uri: string, likeRecordUri: string | null) => void
   seen: boolean
   constrainMediaHeight?: boolean
-  /** Actual flex column width (px) for media height estimate; avoids placeholder shorter than real card. */
-  estimatedColumnWidth?: number
 }
 
-const CARD_CHROME = 100
-const ESTIMATE_COL_WIDTH = 280
-
-function placeholderMinHeight(item: TimelineItem, columnWidthPx: number): number {
-  const w = columnWidthPx > 0 ? columnWidthPx : ESTIMATE_COL_WIDTH
-  const media = getPostMediaInfo(item.post)
-  if (!media) return CARD_CHROME + 80
-  if (media.aspectRatio != null && media.aspectRatio > 0) {
-    return CARD_CHROME + w / media.aspectRatio
-  }
-  return CARD_CHROME + 220
-}
-
-const OFFSCREEN_MARGIN = '500px 0px 500px 0px'
-
+/**
+ * Thin wrapper around PostCard for the feed. (Older versions swapped in a placeholder off-screen;
+ * that caused visible layout shift while scrolling when heights didn’t match.)
+ */
 function OptimizedPostCard(props: OptimizedPostCardProps) {
-  const columnW = props.estimatedColumnWidth ?? ESTIMATE_COL_WIDTH
-  const [rootEl, setRootEl] = useState<HTMLDivElement | null>(null)
   const cardRefPropRef = useRef(props.cardRef)
   cardRefPropRef.current = props.cardRef
 
-  const setRootRef = useCallback((el: HTMLDivElement | null) => {
-    setRootEl(el)
+  const setWrapRef = useCallback((el: HTMLDivElement | null) => {
     cardRefPropRef.current(el)
   }, [])
 
-  const observerOpts = useMemo(() => ({ rootMargin: OFFSCREEN_MARGIN, threshold: 0 }), [])
-  const isVisible = useOffscreenOptimization(rootEl, observerOpts)
-
-  const needsFullCard =
-    isVisible || props.isSelected || props.actionsMenuOpenForIndex === props.cardIndex
-
   return (
-    <div ref={setRootRef} className={styles.optimizeWrap}>
-      {needsFullCard ? (
-        <PostCard {...props} cardRef={() => {}} onAspectRatio={undefined} />
-      ) : (
-        <div
-          className={styles.offscreenPlaceholder}
-          style={{ minHeight: placeholderMinHeight(props.item, columnW) }}
-          aria-hidden
-        />
-      )}
+    <div ref={setWrapRef} className={styles.optimizeWrap}>
+      <PostCard {...props} cardRef={() => {}} onAspectRatio={undefined} />
     </div>
   )
 }

@@ -1,4 +1,4 @@
-import { useCallback, useContext, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState, startTransition, useSyncExternalStore } from 'react'
+import { useCallback, useContext, useEffect, useMemo, useReducer, useRef, useState, startTransition, useSyncExternalStore } from 'react'
 import { useLocation, useNavigate, useNavigationType } from 'react-router-dom'
 import {
   getPostMediaInfo,
@@ -415,8 +415,6 @@ export default function FeedPage() {
   seenUrisRef.current = feedState.seenUris
   const seenPostsContext = useSeenPosts()
   const gridRef = useRef<HTMLDivElement | null>(null)
-  /** Measured flex column width so off-screen placeholders match real card media height (avoids layout jump when swapping placeholder → PostCard). */
-  const [feedColumnWidthPx, setFeedColumnWidthPx] = useState(0)
 
   // Register clear-seen handler so that long-press on Home can bring back all hidden (seen) items.
   useEffect(() => {
@@ -862,20 +860,6 @@ export default function FeedPage() {
   
   // Use debounced column count to minimize re-renders on viewport resize
   const cols = useColumnCount(viewMode, 150)
-
-  useLayoutEffect(() => {
-    const grid = gridRef.current
-    if (!grid) return
-    const readWidth = () => {
-      const first = grid.querySelector(`:scope > .${styles.gridColumn}`) as HTMLElement | null
-      const w = first?.clientWidth ?? 0
-      setFeedColumnWidthPx((prev) => (w > 0 ? w : prev))
-    }
-    readWidth()
-    const ro = new ResizeObserver(readWidth)
-    ro.observe(grid)
-    return () => ro.disconnect()
-  }, [displayEntries.length, cols, viewMode])
   
   // Track previous distribution to avoid re-shuffling existing posts when new ones load
   const previousDistributionRef = useRef<Array<Array<{ entry: FeedDisplayEntry; originalIndex: number }>>>([])
@@ -1509,7 +1493,6 @@ export default function FeedPage() {
                   onActionsMenuOpenChange={handleActionsMenuOpenChange}
                   onMouseEnter={handleMouseEnter}
                   onAddClose={handleAddClose}
-                  estimatedColumnWidth={feedColumnWidthPx > 0 ? feedColumnWidthPx : ESTIMATE_COL_WIDTH}
                 />
               ))}
             </div>

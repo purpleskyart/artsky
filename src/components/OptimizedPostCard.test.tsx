@@ -3,12 +3,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import OptimizedPostCard from './OptimizedPostCard'
 import type { TimelineItem } from '../lib/bsky'
 
-// Mock the useOffscreenOptimization hook
-vi.mock('../hooks/useOffscreenOptimization', () => ({
-  useOffscreenOptimization: vi.fn(() => true),
-}))
-
-// Mock PostCard component
 vi.mock('./PostCard', () => ({
   default: ({ item, cardRef }: { item: TimelineItem; cardRef: (el: HTMLDivElement | null) => void }) => (
     <div ref={cardRef} data-testid="post-card">
@@ -17,7 +11,7 @@ vi.mock('./PostCard', () => ({
   ),
 }))
 
-describe('VirtualizedPostCard', () => {
+describe('OptimizedPostCard', () => {
   const mockItem: TimelineItem = {
     post: {
       uri: 'at://did:plc:test/app.bsky.feed.post/test123',
@@ -56,42 +50,17 @@ describe('VirtualizedPostCard', () => {
     vi.clearAllMocks()
   })
 
-  it('should render PostCard when visible', async () => {
-    const { useOffscreenOptimization } = await import('../hooks/useOffscreenOptimization')
-    vi.mocked(useOffscreenOptimization).mockReturnValue(true)
-
+  it('renders PostCard', () => {
     render(<OptimizedPostCard {...defaultProps} />)
-    
+
     expect(screen.getByTestId('post-card')).toBeInTheDocument()
     expect(screen.getByText(mockItem.post.uri)).toBeInTheDocument()
   })
 
-  it('should render placeholder when off-screen and not selected', async () => {
-    const { useOffscreenOptimization } = await import('../hooks/useOffscreenOptimization')
-    vi.mocked(useOffscreenOptimization).mockReturnValue(false)
-
-    render(<OptimizedPostCard {...defaultProps} />)
-
-    expect(screen.queryByTestId('post-card')).not.toBeInTheDocument()
-  })
-
-  it('should render PostCard when not visible but selected (for keyboard nav)', async () => {
-    const { useOffscreenOptimization } = await import('../hooks/useOffscreenOptimization')
-    vi.mocked(useOffscreenOptimization).mockReturnValue(false)
-
-    render(<OptimizedPostCard {...defaultProps} isSelected={true} />)
-    
-    // Should render full PostCard even when not visible because it's selected
-    expect(screen.getByTestId('post-card')).toBeInTheDocument()
-  })
-
-  it('should call cardRef callback with element', async () => {
-    const { useOffscreenOptimization } = await import('../hooks/useOffscreenOptimization')
-    vi.mocked(useOffscreenOptimization).mockReturnValue(true)
-
+  it('calls cardRef with wrapper element', () => {
     const cardRef = vi.fn()
     render(<OptimizedPostCard {...defaultProps} cardRef={cardRef} />)
-    
+
     expect(cardRef).toHaveBeenCalledWith(expect.any(HTMLElement))
   })
 })

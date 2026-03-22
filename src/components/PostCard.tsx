@@ -642,6 +642,15 @@ function PostCardInner({ item, isSelected, cardRef: cardRefProp, addButtonRef: _
 
   /** Open post in modal (profile page) or navigate to feed with post param (other pages). Same behavior as when onPostClick is provided. */
   const openPostInModalOrFeed = useCallback(() => {
+    /* Mobile: touch unblur runs before paint; synthetic click can fire after nsfwBlurred is already false — suppress opening. */
+    if (nsfwTouchUnblurOnlyRef.current) {
+      nsfwTouchUnblurOnlyRef.current = false
+      return
+    }
+    if (nsfwBlurred && onNsfwUnblur) {
+      onNsfwUnblur()
+      return
+    }
     if (onPostClick) {
       onPostClick(post.uri, { initialItem: item })
       return
@@ -652,9 +661,15 @@ function PostCardInner({ item, isSelected, cardRef: cardRefProp, addButtonRef: _
     } else {
       navigate(`/feed?post=${encodeURIComponent(post.uri)}`)
     }
-  }, [onPostClick, post.uri, item, navigate, location.pathname, openPostModal])
+  }, [onPostClick, post.uri, item, navigate, location.pathname, openPostModal, nsfwBlurred, onNsfwUnblur])
 
   const handleCardClick = useCallback((e: React.MouseEvent) => {
+    if (nsfwTouchUnblurOnlyRef.current) {
+      nsfwTouchUnblurOnlyRef.current = false
+      e.preventDefault()
+      e.stopPropagation()
+      return
+    }
     if (nsfwBlurred && onNsfwUnblur) {
       onNsfwUnblur()
       e.preventDefault()
@@ -706,6 +721,10 @@ function PostCardInner({ item, isSelected, cardRef: cardRefProp, addButtonRef: _
     /* Blurred + synthetic click before parent re-renders: unblur only, do not open post */
     if (nsfwBlurred && onNsfwUnblur) {
       onNsfwUnblur()
+      nsfwTouchUnblurOnlyRef.current = true
+      setTimeout(() => {
+        nsfwTouchUnblurOnlyRef.current = false
+      }, 450)
       if (mediaOpenDelayTimerRef.current) {
         clearTimeout(mediaOpenDelayTimerRef.current)
         mediaOpenDelayTimerRef.current = null
@@ -796,6 +815,18 @@ function PostCardInner({ item, isSelected, cardRef: cardRefProp, addButtonRef: _
               openDelayTimerRef.current = null
             }
             e.preventDefault()
+            /* Don’t register double-tap like until blurred content is revealed */
+            if (nsfwBlurred && onNsfwUnblur) {
+              onNsfwUnblur()
+              nsfwTouchUnblurOnlyRef.current = true
+              setTimeout(() => {
+                touchSessionRef.current = false
+                mediaClickFromTouchRef.current = false
+                didDoubleTapRef.current = false
+                nsfwTouchUnblurOnlyRef.current = false
+              }, 450)
+              return
+            }
             if (effectiveLikedUri) {
               setLikedUri(undefined)
               unlikePostWithLifecycle(effectiveLikedUri).then(() => {
