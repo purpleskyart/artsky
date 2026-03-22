@@ -956,7 +956,6 @@ export function ProfileContent({
                       onNsfwUnblur={() => setUnblurred(item.post.uri, true)}
                       setUnblurred={setUnblurred}
                       isRevealed={unblurredUris.has(item.post.uri)}
-                      constrainMediaHeight
                       likedUriOverride={likeOverrides[item.post.uri]}
                       onLikedChange={(uri, likeRecordUri) => setLikeOverrides((prev) => ({ ...prev, [uri]: likeRecordUri ?? null }))}
                     />
@@ -1039,7 +1038,6 @@ export function ProfileContent({
                     setKeyboardFocusIndex(originalIndex)
                   }}
                   onAddClose={() => setKeyboardAddOpen(false)}
-                  constrainMediaHeight={cols === 1}
                   isSelected={(index) => (tab === 'posts' || tab === 'reposts') && index === keyboardFocusIndex}
                 />
               ))}

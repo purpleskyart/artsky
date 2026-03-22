@@ -1488,7 +1488,6 @@ export default function FeedPage() {
                   onActionsMenuOpenChange={handleActionsMenuOpenChange}
                   onMouseEnter={handleMouseEnter}
                   onAddClose={handleAddClose}
-                  constrainMediaHeight={cols === 1}
                 />
               ))}
             </div>

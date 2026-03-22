@@ -825,7 +825,7 @@ html[data-theme="dark"] [data-view-mode="1"] .card:focus-within:not(:has(.mediaG
   width: 100%;
   aspect-ratio: 1; /* fallback until image loads (was 3/4, made cards too tall for landscape/square images) */
   min-height: 100px;
-  max-height: var(--feed-card-media-max-height, none); /* 1-col feed: fit viewport */
+  max-height: var(--feed-card-media-max-height, none); /* optional cap when ancestor sets --feed-card-media-max-height */
   overflow: hidden;
   background: var(--bg);
   display: flex;
