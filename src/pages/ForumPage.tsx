@@ -1,88 +1,118 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { AppBskyFeedPost, type AppBskyFeedDefs } from '@atproto/api'
-import { searchPostsByTag, isPostNsfw, type TimelineItem } from '../lib/bsky'
+import { discoverForumPosts, createForumPost } from '../lib/forum'
 import { useListKeyboardNav } from '../hooks/useListKeyboardNav'
 import Layout from '../components/Layout'
 import { useProfileModal } from '../context/ProfileModalContext'
-import { useModeration } from '../context/ModerationContext'
 import { useModalScroll } from '../context/ModalScrollContext'
-import OptimizedPostCard from '../components/OptimizedPostCard'
-import { setInitialPostForUri } from '../lib/postCache'
+import { useSession } from '../context/SessionContext'
+import ProfileLink from '../components/ProfileLink'
+import { formatRelativeTime } from '../lib/date'
+import type { ForumPost } from '../types'
 import styles from './ForumPage.module.css'
-import feedStyles from './FeedPage.module.css'
 
-/** Hashtag for Bluesky-native forum threads (visible in the official app). */
-const FORUM_DISCOVER_TAG = 'artsky'
-
-function toTimelineItem(post: AppBskyFeedDefs.PostView): TimelineItem {
-  return { post }
-}
-
-function matchesSearchPost(post: AppBskyFeedDefs.PostView, q: string): boolean {
+function matchesSearchPost(post: ForumPost, q: string): boolean {
   if (!q.trim()) return true
   const lower = q.toLowerCase().trim()
-  const text = AppBskyFeedPost.isRecord(post.record)
-    ? String(post.record.text ?? '').toLowerCase()
-    : ''
-  const handle = String(post.author.handle ?? '').toLowerCase()
-  const dn = String(post.author.displayName ?? '').toLowerCase()
-  return text.includes(lower) || handle.includes(lower) || dn.includes(lower)
+  const title = String(post.title ?? '').toLowerCase()
+  const body = String(post.body ?? '').toLowerCase()
+  const handle = String(post.authorHandle ?? post.did ?? '').toLowerCase()
+  const tags = (post.tags ?? []).join(' ').toLowerCase()
+  return title.includes(lower) || body.includes(lower) || handle.includes(lower) || tags.includes(lower)
+}
+
+function bodyPreview(body: string | undefined, max = 220): string {
+  if (!body?.trim()) return ''
+  const oneLine = body.replace(/\s+/g, ' ').trim()
+  return oneLine.length > max ? `${oneLine.slice(0, max)}…` : oneLine
 }
 
 export function ForumContent({ inModal = false, onRegisterRefresh }: { inModal?: boolean; onRegisterRefresh?: (fn: () => void | Promise<void>) => void }) {
-  const [items, setItems] = useState<TimelineItem[]>([])
-  const [cursor, setCursor] = useState<string | undefined>()
+  const [posts, setPosts] = useState<ForumPost[]>([])
+  const [cursorsByDid, setCursorsByDid] = useState<Record<string, string | undefined>>({})
+  const [hasMore, setHasMore] = useState(false)
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [focusedIndex, setFocusedIndex] = useState(0)
-  const [likeOverrides, setLikeOverrides] = useState<Record<string, string | null>>({})
-  const [actionsMenuOpenForIndex, setActionsMenuOpenForIndex] = useState<number | null>(null)
-  const [keyboardAddOpen, setKeyboardAddOpen] = useState(false)
+  const [showNewThread, setShowNewThread] = useState(false)
+  const [newTitle, setNewTitle] = useState('')
+  const [newBody, setNewBody] = useState('')
+  const [creating, setCreating] = useState(false)
+  const [createError, setCreateError] = useState<string | null>(null)
   const listRef = useRef<HTMLUListElement>(null)
   const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null)
   const loadingMoreRef = useRef(false)
   const modalScrollRef = useModalScroll()
 
-  const { isModalOpen, openPostModal } = useProfileModal()
-  const { nsfwPreference, unblurredUris, setUnblurred } = useModeration()
+  const { isModalOpen, openForumPostModal } = useProfileModal()
+  const { session } = useSession()
 
-  const load = useCallback(async (nextCursor?: string) => {
-    try {
-      if (nextCursor) setLoadingMore(true)
-      else setLoading(true)
-      setError(null)
-      const { posts, cursor: next } = await searchPostsByTag(FORUM_DISCOVER_TAG, nextCursor, 30)
-      const timelineItems = posts.map(toTimelineItem)
-      setItems((prev) => (nextCursor ? [...prev, ...timelineItems] : timelineItems))
-      setCursor(next)
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to load posts')
-    } finally {
-      setLoading(false)
-      setLoadingMore(false)
+  const mergeByUri = useCallback((prev: ForumPost[], incoming: ForumPost[]): ForumPost[] => {
+    const map = new Map<string, ForumPost>()
+    for (const p of prev) map.set(p.uri, p)
+    for (const p of incoming) {
+      if (!map.has(p.uri)) map.set(p.uri, p)
     }
+    return [...map.values()].sort((a, b) => {
+      const ta = new Date(a.createdAt ?? 0).getTime()
+      const tb = new Date(b.createdAt ?? 0).getTime()
+      return tb - ta
+    })
   }, [])
 
-  useEffect(() => {
-    setItems([])
-    setCursor(undefined)
-    load()
-  }, [load])
+  const refresh = useCallback(async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      const { posts: batch, nextCursorsByDid, hasMore: more } = await discoverForumPosts({ append: false })
+      setCursorsByDid(nextCursorsByDid)
+      setHasMore(more)
+      setPosts(mergeByUri([], batch))
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to load forum threads')
+    } finally {
+      setLoading(false)
+    }
+  }, [mergeByUri])
+
+  const loadMore = useCallback(async () => {
+    try {
+      setLoadingMore(true)
+      setError(null)
+      const { posts: batch, nextCursorsByDid, hasMore: more } = await discoverForumPosts({
+        append: true,
+        cursorsByDid,
+      })
+      setCursorsByDid(nextCursorsByDid)
+      setHasMore(more)
+      setPosts((prev) => mergeByUri(prev, batch))
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to load more threads')
+    } finally {
+      setLoadingMore(false)
+    }
+  }, [cursorsByDid, mergeByUri])
 
   useEffect(() => {
-    onRegisterRefresh?.(() => load())
-  }, [onRegisterRefresh, load])
+    setPosts([])
+    setCursorsByDid({})
+    setHasMore(false)
+    void refresh()
+  }, [session?.did, refresh])
 
-  const filteredItems = useMemo(
-    () => items.filter((it) => matchesSearchPost(it.post, searchQuery)),
-    [items, searchQuery]
+  useEffect(() => {
+    onRegisterRefresh?.(() => refresh())
+  }, [onRegisterRefresh, refresh])
+
+  const filteredPosts = useMemo(
+    () => posts.filter((p) => matchesSearchPost(p, searchQuery)),
+    [posts, searchQuery]
   )
 
   useEffect(() => {
-    setFocusedIndex((i) => (filteredItems.length ? Math.min(i, filteredItems.length - 1) : 0))
-  }, [filteredItems.length])
+    setFocusedIndex((i) => (filteredPosts.length ? Math.min(i, filteredPosts.length - 1) : 0))
+  }, [filteredPosts.length])
 
   useEffect(() => {
     if (!listRef.current || focusedIndex < 0) return
@@ -92,107 +122,180 @@ export function ForumContent({ inModal = false, onRegisterRefresh }: { inModal?:
 
   loadingMoreRef.current = loadingMore
   useEffect(() => {
-    if (!cursor) return
+    if (!hasMore) return
     const el = loadMoreSentinelRef.current
     if (!el) return
     const observer = new IntersectionObserver(
       (entries) => {
         if (!entries[0]?.isIntersecting || loadingMoreRef.current) return
-        void load(cursor)
+        void loadMore()
       },
       { root: inModal ? modalScrollRef?.current ?? null : null, rootMargin: '400px', threshold: 0 }
     )
     observer.observe(el)
     return () => observer.disconnect()
-  }, [cursor, load, inModal, modalScrollRef])
+  }, [hasMore, loadMore, inModal, modalScrollRef])
 
   useListKeyboardNav({
-    enabled: filteredItems.length > 0 && (inModal || !isModalOpen),
-    itemCount: filteredItems.length,
+    enabled: filteredPosts.length > 0 && (inModal || !isModalOpen),
+    itemCount: filteredPosts.length,
     focusedIndex,
     setFocusedIndex,
     onActivate: (index) => {
-      const it = filteredItems[index]
-      if (it) {
-        setInitialPostForUri(it.post.uri, it)
-        openPostModal(it.post.uri)
-      }
+      const p = filteredPosts[index]
+      if (p) openForumPostModal(p.uri)
     },
     useCapture: true,
   })
+
+  async function handleCreateThread(e: React.FormEvent) {
+    e.preventDefault()
+    const title = newTitle.trim()
+    const body = newBody.trim()
+    if (!title || !body) {
+      setCreateError('Add a title and body for your thread.')
+      return
+    }
+    setCreating(true)
+    setCreateError(null)
+    try {
+      const { uri } = await createForumPost({ title, body })
+      setNewTitle('')
+      setNewBody('')
+      setShowNewThread(false)
+      await refresh()
+      openForumPostModal(uri)
+    } catch (err: unknown) {
+      setCreateError(err instanceof Error ? err.message : 'Could not create thread')
+    } finally {
+      setCreating(false)
+    }
+  }
 
   const wrap = (
     <div className={styles.wrap}>
       <header className={styles.header}>
         <div className={styles.titleRow}>
           <h2 className={styles.title}>Forums</h2>
+          {session ? (
+            <button
+              type="button"
+              className={styles.newThreadBtn}
+              onClick={() => {
+                setShowNewThread((v) => !v)
+                setCreateError(null)
+              }}
+            >
+              {showNewThread ? 'Cancel' : 'New thread'}
+            </button>
+          ) : null}
         </div>
-        <p className={styles.subtitle} style={{ marginTop: '0.5rem' }}>
-          Posts tagged #artsky on Bluesky. Open a post to see replies—the same thread as in the Bluesky app.
-        </p>
+        {session && showNewThread ? (
+          <form className={styles.newThreadFormWrap} onSubmit={handleCreateThread} style={{ marginTop: '0.75rem' }}>
+            <div>
+              <input
+                type="text"
+                className={styles.newThreadInput}
+                placeholder="Thread title"
+                value={newTitle}
+                onChange={(e) => setNewTitle(e.target.value)}
+                aria-label="Thread title"
+                autoComplete="off"
+              />
+            </div>
+            <div style={{ marginTop: '0.5rem' }}>
+              <textarea
+                className={styles.newThreadInput}
+                placeholder="What do you want to discuss?"
+                value={newBody}
+                onChange={(e) => setNewBody(e.target.value)}
+                aria-label="Thread body"
+                rows={4}
+              />
+            </div>
+            {createError ? <p className={styles.error}>{createError}</p> : null}
+            <div className={styles.newThreadActions} style={{ marginTop: '0.5rem' }}>
+              <button type="submit" className={styles.newThreadBtn} disabled={creating}>
+                {creating ? 'Publishing…' : 'Publish thread'}
+              </button>
+            </div>
+          </form>
+        ) : null}
         <div className={styles.searchRow}>
           <input
             type="search"
             className={styles.searchInput}
-            placeholder="Search this list…"
+            placeholder="Search threads…"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            aria-label="Search posts"
+            aria-label="Search threads"
           />
         </div>
       </header>
 
       {error && <p className={styles.error}>{error}</p>}
       {loading ? (
-        <div className={styles.loading}>Loading #{FORUM_DISCOVER_TAG}…</div>
-      ) : filteredItems.length === 0 ? (
+        <div className={styles.loading}>Loading forum threads…</div>
+      ) : filteredPosts.length === 0 ? (
         <div className={styles.empty}>
           {searchQuery.trim()
-            ? 'No posts match your search.'
-            : `No posts with #${FORUM_DISCOVER_TAG} yet. Publish a Bluesky post with that tag to show it here.`}
+            ? 'No threads match your search.'
+            : session
+              ? 'No forum threads yet from you or people you follow. Start one with New thread, or follow people who use PurpleSky forums.'
+              : 'Sign in to see forum threads from your network. Public discovery DIDs can be added in config (forumLexicon).'}
         </div>
       ) : (
         <>
           <ul ref={listRef} className={styles.list}>
-            {filteredItems.map((item, index) => {
-              const uri = item.post.uri
+            {filteredPosts.map((post, index) => {
               const isFocused = index === focusedIndex
-              const nsfwBlurred =
-                nsfwPreference === 'blurred' && isPostNsfw(item.post) && !unblurredUris.has(uri)
+              const handle = post.authorHandle ?? post.did.slice(0, 12)
+              const when = post.createdAt ? formatRelativeTime(post.createdAt) : ''
+              const preview = bodyPreview(post.body)
               return (
-                <li key={uri} data-forum-index={index} className={feedStyles.gridItem} data-selected={isFocused || undefined}>
-                  <div onMouseEnter={() => setFocusedIndex(index)}>
-                    <OptimizedPostCard
-                      item={item}
-                      isSelected={isFocused}
-                      focusedMediaIndex={undefined}
-                      onMediaRef={() => {}}
-                      cardRef={() => {}}
-                      openAddDropdown={keyboardAddOpen && focusedIndex === index}
-                      onAddClose={() => setKeyboardAddOpen(false)}
-                      onActionsMenuOpenChange={(open) => setActionsMenuOpenForIndex(open ? index : null)}
-                      cardIndex={index}
-                      actionsMenuOpenForIndex={actionsMenuOpenForIndex}
-                      onPostClick={(u, opts) => {
-                        if (opts?.initialItem) setInitialPostForUri(u, opts.initialItem)
-                        openPostModal(u, opts?.openReply)
-                      }}
-                      fillCell={false}
-                      nsfwBlurred={nsfwBlurred}
-                      onNsfwUnblur={() => setUnblurred(uri, true)}
-                      setUnblurred={setUnblurred}
-                      isRevealed={unblurredUris.has(uri)}
-                      likedUriOverride={likeOverrides[uri]}
-                      onLikedChange={(postUri, likeRecordUri) => setLikeOverrides((prev) => ({ ...prev, [postUri]: likeRecordUri ?? null }))}
-                      seen={false}
-                      constrainMediaHeight={false}
-                    />
-                  </div>
+                <li key={post.uri} data-forum-index={index}>
+                  <button
+                    type="button"
+                    className={`${styles.postLink} ${isFocused ? styles.postLinkFocused : ''}`}
+                    data-selected={isFocused || undefined}
+                    onClick={() => openForumPostModal(post.uri)}
+                    onMouseEnter={() => setFocusedIndex(index)}
+                  >
+                    <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'flex-start', textAlign: 'left', width: '100%' }}>
+                      {post.authorAvatar ? (
+                        <img
+                          src={post.authorAvatar}
+                          alt=""
+                          width={36}
+                          height={36}
+                          style={{ borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
+                        />
+                      ) : (
+                        <span className={styles.avatarPlaceholder} aria-hidden>
+                          {(handle[0] ?? '?').toUpperCase()}
+                        </span>
+                      )}
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', alignItems: 'baseline' }}>
+                          <span style={{ fontWeight: 700, color: 'var(--text)' }}>{post.title || 'Untitled thread'}</span>
+                          {post.isPinned ? <span className={styles.commentBadge}>Pinned</span> : null}
+                          {post.isWiki ? <span className={styles.commentBadge}>Wiki</span> : null}
+                        </div>
+                        <div style={{ fontSize: '0.85rem', color: 'var(--muted)', marginTop: '0.2rem' }}>
+                          <ProfileLink handle={handle} className={styles.standardLink}>
+                            @{handle}
+                          </ProfileLink>
+                          {when ? <span> · {when}</span> : null}
+                        </div>
+                        {preview ? <p className={styles.bodyPreview}>{preview}</p> : null}
+                      </div>
+                    </div>
+                  </button>
                 </li>
               )
             })}
           </ul>
-          {cursor ? (
+          {hasMore ? (
             <div ref={loadMoreSentinelRef} className={styles.loadMoreSentinel} aria-hidden />
           ) : null}
           {loadingMore && <div className={styles.loading}>Loading more…</div>}

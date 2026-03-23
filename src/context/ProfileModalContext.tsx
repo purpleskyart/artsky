@@ -78,6 +78,11 @@ function parseSearchToModalStack(search: string): ModalItem[] {
       focusUri: focusUri ?? undefined,
     })
   }
+  const lexiconForumPostUri =
+    forumPostLegacy && forumPostLegacy.includes('app.artsky.forum.post') ? forumPostLegacy : null
+  if (lexiconForumPostUri) {
+    stack.push({ type: 'forumPost', documentUri: lexiconForumPostUri })
+  }
   if (stack.length > 0) return stack
   const tag = params.get('tag')
   if (tag) return [{ type: 'tag', tag }]
@@ -188,8 +193,7 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
   }, [location.pathname, navigate])
 
   const openForumPostModal = useCallback((documentUri: string) => {
-    const item: ModalItem = { type: 'forumPost', documentUri }
-    const search = `?${modalItemToSearch(item)}`
+    const search = `?forum=1&forumPost=${encodeURIComponent(documentUri)}`
     navigate({ pathname: location.pathname, search }, { replace: false })
   }, [location.pathname, navigate])
 

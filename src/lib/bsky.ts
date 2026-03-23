@@ -1157,6 +1157,11 @@ export async function searchPostsByPhraseAndTags(phrase: string, cursor?: string
   const trimmed = phrase.trim()
   if (!trimmed) return { posts: [], cursor: undefined }
 
+  // Only the phrase query is paginated. Tag searches use no cursor; merging them on every page would re-append the same posts.
+  if (cursor) {
+    return searchPostsByQuery(trimmed, cursor)
+  }
+
   const words = trimmed.split(/\s+/).filter(Boolean)
   const tagNoSpace = words.join('').toLowerCase()
   const tagHyphen = words.join('-').toLowerCase()

@@ -6,6 +6,7 @@
  */
 
 import { agent, getSession, parseAtUri, publicAgent } from './bsky'
+import { FORUM_DISCOVERY_DIDS } from '../config/forumLexicon'
 import type { ForumPost, ForumReply } from '../types'
 
 const FORUM_POST_COLLECTION = 'app.artsky.forum.post'
@@ -36,6 +37,111 @@ export async function createForumPost(opts: {
     validate: false,
   })
   return { uri: res.data.uri, cid: res.data.cid }
+}
+
+async function collectFollowingDids(actor: string, max: number): Promise<string[]> {
+  if (max <= 0) return []
+  const out: string[] = []
+  let cursor: string | undefined
+  while (out.length < max) {
+    const res = await agent.app.bsky.graph.getFollows({ actor, limit: 100, cursor })
+    const follows = res.data.follows ?? []
+    for (const f of follows) {
+      if (out.length >= max) break
+      out.push(f.did)
+    }
+    cursor = res.data.cursor
+    if (!cursor) break
+  }
+  return out
+}
+
+async function enrichForumPostsWithAuthors(posts: ForumPost[]): Promise<void> {
+  if (posts.length === 0) return
+  const client = getSession() ? agent : publicAgent
+  const dids = [...new Set(posts.map((p) => p.did))]
+  await Promise.all(
+    dids.map(async (did) => {
+      try {
+        const profile = await client.getProfile({ actor: did })
+        const d = profile.data as { handle?: string; avatar?: string }
+        for (const p of posts) {
+          if (p.did === did) {
+            p.authorHandle = d.handle
+            p.authorAvatar = d.avatar
+          }
+        }
+      } catch {
+        /* ignore */
+      }
+    })
+  )
+}
+
+/**
+ * Merged forum thread list from your repo, people you follow, and optional discovery DIDs
+ * (see FORUM_DISCOVERY_DIDS). Uses the app.artsky.forum.post lexicon (PurpleSky / ArtSky).
+ */
+export async function discoverForumPosts(opts?: {
+  maxRepos?: number
+  postsPerRepo?: number
+  cursorsByDid?: Record<string, string | undefined>
+  append?: boolean
+}): Promise<{
+  posts: ForumPost[]
+  nextCursorsByDid: Record<string, string | undefined>
+  hasMore: boolean
+}> {
+  const maxRepos = opts?.maxRepos ?? 32
+  const postsPerRepo = opts?.postsPerRepo ?? 10
+  const append = opts?.append ?? false
+  const prevCursors = opts?.cursorsByDid ?? {}
+
+  const session = getSession()
+  const didSet = new Set<string>()
+  if (session?.did) didSet.add(session.did)
+  for (const d of FORUM_DISCOVERY_DIDS) didSet.add(d)
+
+  if (session?.did) {
+    const room = maxRepos - didSet.size
+    if (room > 0) {
+      const following = await collectFollowingDids(session.did, room)
+      for (const d of following) didSet.add(d)
+    }
+  }
+
+  const dids = [...didSet]
+  const fetchTargets = append ? dids.filter((d) => prevCursors[d]) : dids
+
+  if (fetchTargets.length === 0) {
+    return { posts: [], nextCursorsByDid: prevCursors, hasMore: false }
+  }
+
+  const chunkSize = 8
+  const merged: ForumPost[] = []
+  const nextCursors: Record<string, string | undefined> = append ? { ...prevCursors } : {}
+
+  for (let i = 0; i < fetchTargets.length; i += chunkSize) {
+    const chunk = fetchTargets.slice(i, i + chunkSize)
+    const results = await Promise.all(
+      chunk.map(async (did) => {
+        const cursor = append ? prevCursors[did] : undefined
+        return listForumPosts(did, { limit: postsPerRepo, cursor })
+      })
+    )
+    for (let j = 0; j < chunk.length; j++) {
+      const did = chunk[j]!
+      const { posts, cursor } = results[j]!
+      merged.push(...posts)
+      if (cursor) nextCursors[did] = cursor
+      else delete nextCursors[did]
+    }
+  }
+
+  await enrichForumPostsWithAuthors(merged)
+
+  const hasMore = Object.keys(nextCursors).some((k) => !!nextCursors[k])
+  return { posts: merged, nextCursorsByDid: nextCursors, hasMore }
 }
 
 /** List forum posts from a user's repo. */
