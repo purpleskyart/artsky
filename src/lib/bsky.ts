@@ -597,9 +597,9 @@ export async function getMixedFeed(
           continue
         }
         const cacheKey = `timeline:${feedCacheAccountKey()}:${fetchLimit}:${cursor ?? 'initial'}`
-        const cached = responseCache.get<{ feed: TimelineItem[]; cursor?: string }>(cacheKey)
-        if (cached) {
-          results.push({ key, feed: cached.feed ?? [], nextCursor: cached.cursor })
+        const normalized = timelineFeedFromCache(responseCache.get<unknown>(cacheKey))
+        if (normalized) {
+          results.push({ key, feed: normalized.feed, nextCursor: normalized.cursor })
           continue
         }
         const res = await requestDeduplicator.dedupe(
@@ -621,9 +621,9 @@ export async function getMixedFeed(
           continue
         }
         const cacheKey = `feed:${feedCacheAccountKey()}:${entry.source.uri}:${fetchLimit}:${cursor ?? 'initial'}`
-        const cached = responseCache.get<{ feed: TimelineItem[]; cursor?: string }>(cacheKey)
-        if (cached) {
-          results.push({ key, feed: cached.feed ?? [], nextCursor: cached.cursor })
+        const normalized = timelineFeedFromCache(responseCache.get<unknown>(cacheKey))
+        if (normalized) {
+          results.push({ key, feed: normalized.feed, nextCursor: normalized.cursor })
           continue
         }
         const res = await requestDeduplicator.dedupe(
@@ -2067,6 +2067,21 @@ export async function postReply(
 // ============================================================================
 
 /**
+ * Timeline/custom-feed cache entries may be either:
+ * - Full Atp response from apiRequestManager: `{ data: { feed, cursor } }`
+ * - Flat shape from getMixedFeed: `{ feed, cursor }`
+ * Mis-reading the former as the latter drops feed + cursor on cache hit (empty page, "no more posts").
+ */
+function timelineFeedFromCache(cached: unknown): { feed: TimelineItem[]; cursor?: string } | null {
+  if (cached == null || typeof cached !== 'object') return null
+  const c = cached as { data?: { feed?: TimelineItem[]; cursor?: string }; feed?: TimelineItem[]; cursor?: string }
+  const feed = c.data?.feed ?? c.feed
+  const cursor = c.data?.cursor ?? c.cursor
+  if (Array.isArray(feed)) return { feed, cursor }
+  return null
+}
+
+/**
  * Get timeline feed with full lifecycle management
  */
 export async function getTimelineWithLifecycle(
@@ -2077,9 +2092,11 @@ export async function getTimelineWithLifecycle(
     return { data: { feed: [], cursor: undefined } } as unknown as Awaited<ReturnType<typeof agent.getTimeline>>
   }
   const cacheKey = `timeline:${feedCacheAccountKey()}:${limit}:${cursor ?? 'initial'}`
-  const cached = responseCache.get<{ feed: TimelineItem[]; cursor?: string }>(cacheKey)
-  if (cached) {
-    return { data: { feed: cached.feed ?? [], cursor: cached.cursor } } as any
+  const normalized = timelineFeedFromCache(responseCache.get<unknown>(cacheKey))
+  if (normalized) {
+    return { data: { feed: normalized.feed, cursor: normalized.cursor } } as unknown as Awaited<
+      ReturnType<typeof agent.getTimeline>
+    >
   }
   const result = await apiRequestManager.execute(
     `timeline:${feedCacheAccountKey()}:${limit}:${cursor ?? 'initial'}`,
@@ -2101,9 +2118,11 @@ export async function getFeedWithLifecycle(
     return { data: { feed: [], cursor: undefined } } as unknown as Awaited<ReturnType<typeof agent.app.bsky.feed.getFeed>>
   }
   const cacheKey = `feed:${feedCacheAccountKey()}:${feedUri}:${limit}:${cursor ?? 'initial'}`
-  const cached = responseCache.get<{ feed: TimelineItem[]; cursor?: string }>(cacheKey)
-  if (cached) {
-    return { data: { feed: cached.feed ?? [], cursor: cached.cursor } } as any
+  const normalized = timelineFeedFromCache(responseCache.get<unknown>(cacheKey))
+  if (normalized) {
+    return { data: { feed: normalized.feed, cursor: normalized.cursor } } as unknown as Awaited<
+      ReturnType<typeof agent.app.bsky.feed.getFeed>
+    >
   }
   const result = await apiRequestManager.execute(
     `feed:${feedCacheAccountKey()}:${feedUri}:${limit}:${cursor ?? 'initial'}`,

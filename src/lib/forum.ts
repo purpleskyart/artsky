@@ -6,11 +6,11 @@
  */
 
 import { agent, getSession, parseAtUri, publicAgent } from './bsky'
-import { FORUM_DISCOVERY_DIDS } from '../config/forumLexicon'
+import { FORUM_DISCOVERY_DIDS, FORUM_LEXICON_NSID_POST, FORUM_LEXICON_NSID_REPLY } from '../config/forumLexicon'
 import type { ForumPost, ForumReply } from '../types'
 
-const FORUM_POST_COLLECTION = 'app.artsky.forum.post'
-const FORUM_REPLY_COLLECTION = 'app.artsky.forum.reply'
+const FORUM_POST_COLLECTION = FORUM_LEXICON_NSID_POST
+const FORUM_REPLY_COLLECTION = FORUM_LEXICON_NSID_REPLY
 const FORUM_WIKI_COLLECTION = 'app.artsky.forum.wiki'
 const DRAFTS_KEY = 'artsky-forum-drafts'
 
@@ -43,15 +43,35 @@ async function collectFollowingDids(actor: string, max: number): Promise<string[
   if (max <= 0) return []
   const out: string[] = []
   let cursor: string | undefined
-  while (out.length < max) {
-    const res = await agent.app.bsky.graph.getFollows({ actor, limit: 100, cursor })
-    const follows = res.data.follows ?? []
-    for (const f of follows) {
-      if (out.length >= max) break
-      out.push(f.did)
+  try {
+    while (out.length < max) {
+      // Public endpoint first so this still works when auth scopes are limited.
+      const res = await publicAgent.app.bsky.graph.getFollows({ actor, limit: 100, cursor })
+      const follows = res.data.follows ?? []
+      for (const f of follows) {
+        if (out.length >= max) break
+        out.push(f.did)
+      }
+      cursor = res.data.cursor
+      if (!cursor) break
     }
-    cursor = res.data.cursor
-    if (!cursor) break
+  } catch {
+    // Fallback to authenticated client, then degrade gracefully.
+    try {
+      cursor = undefined
+      while (out.length < max) {
+        const res = await agent.app.bsky.graph.getFollows({ actor, limit: 100, cursor })
+        const follows = res.data.follows ?? []
+        for (const f of follows) {
+          if (out.length >= max) break
+          out.push(f.did)
+        }
+        cursor = res.data.cursor
+        if (!cursor) break
+      }
+    } catch {
+      // Keep forum usable even if follows lookup fails.
+    }
   }
   return out
 }
@@ -92,7 +112,7 @@ export async function discoverForumPosts(opts?: {
   nextCursorsByDid: Record<string, string | undefined>
   hasMore: boolean
 }> {
-  const maxRepos = opts?.maxRepos ?? 32
+  const maxRepos = opts?.maxRepos ?? 256
   const postsPerRepo = opts?.postsPerRepo ?? 10
   const append = opts?.append ?? false
   const prevCursors = opts?.cursorsByDid ?? {}
@@ -150,13 +170,27 @@ export async function listForumPosts(
   opts?: { limit?: number; cursor?: string }
 ): Promise<{ posts: ForumPost[]; cursor?: string }> {
   try {
-    const res = await publicAgent.com.atproto.repo.listRecords({
-      repo: did,
-      collection: FORUM_POST_COLLECTION,
-      limit: opts?.limit ?? 30,
-      cursor: opts?.cursor,
-      reverse: true,
-    })
+    let res: { data: { records?: Array<{ uri: string; cid: string; value: Record<string, unknown> }>; cursor?: string } }
+    try {
+      res = await publicAgent.com.atproto.repo.listRecords({
+        repo: did,
+        collection: FORUM_POST_COLLECTION,
+        limit: opts?.limit ?? 30,
+        cursor: opts?.cursor,
+        reverse: true,
+      })
+    } catch {
+      // Fallback for own repo/session edge-cases where authenticated agent succeeds.
+      const session = getSession()
+      if (!session?.did || session.did !== did) throw new Error('list records unavailable')
+      res = await agent.com.atproto.repo.listRecords({
+        repo: did,
+        collection: FORUM_POST_COLLECTION,
+        limit: opts?.limit ?? 30,
+        cursor: opts?.cursor,
+        reverse: true,
+      })
+    }
     const posts: ForumPost[] = (res.data.records ?? []).map(
       (r: { uri: string; cid: string; value: Record<string, unknown> }) => {
         const v = r.value as {
@@ -193,11 +227,25 @@ export async function getForumPost(uri: string): Promise<ForumPost | null> {
   const parsed = parseAtUri(uri)
   if (!parsed) return null
   try {
-    const res = await publicAgent.com.atproto.repo.getRecord({
-      repo: parsed.did,
-      collection: FORUM_POST_COLLECTION,
-      rkey: parsed.rkey,
-    })
+    let res: Awaited<ReturnType<typeof publicAgent.com.atproto.repo.getRecord>>
+    try {
+      res = await publicAgent.com.atproto.repo.getRecord({
+        repo: parsed.did,
+        collection: FORUM_POST_COLLECTION,
+        rkey: parsed.rkey,
+      })
+    } catch {
+      // Fallback for own-repo/session edge-cases where authenticated getRecord succeeds.
+      const session = getSession()
+      if (!session?.did || session.did !== parsed.did) throw new Error('get record unavailable')
+      res = await agent.com.atproto.repo.getRecord({
+        repo: parsed.did,
+        collection: FORUM_POST_COLLECTION,
+        rkey: parsed.rkey,
+      })
+    }
+    const cid = res.data.cid
+    if (!cid) return null
     const v = res.data.value as {
       title?: string
       body?: string
@@ -218,7 +266,7 @@ export async function getForumPost(uri: string): Promise<ForumPost | null> {
     }
     return {
       uri: res.data.uri as string,
-      cid: res.data.cid as string,
+      cid,
       did: parsed.did,
       rkey: parsed.rkey,
       title: v.title,

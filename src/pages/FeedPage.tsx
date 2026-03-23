@@ -1,4 +1,5 @@
 import { useCallback, useContext, useEffect, useMemo, useReducer, useRef, useState, startTransition, useSyncExternalStore } from 'react'
+import { createPortal } from 'react-dom'
 import { useLocation, useNavigate, useNavigationType } from 'react-router-dom'
 import {
   getPostMediaInfoForDisplay,
@@ -565,6 +566,8 @@ export default function FeedPage() {
   feedItemsRef.current = feedState.items
   /** When true, next initial load should run even if user is scrolled down (e.g. they changed feeds in the Feeds dropdown). */
   const feedMixChangedRef = useRef(false)
+  /** Monotonic marker for feed-selection changes; prevents stale requests from clearing refresh intent. */
+  const feedMixChangedVersionRef = useRef(0)
 
   function sameFeedSource(a: FeedSource, b: FeedSource): boolean {
     return (a.uri ?? a.label) === (b.uri ?? b.label)
@@ -575,6 +578,20 @@ export default function FeedPage() {
   const load = useCallback(async (nextCursor?: string, signal?: AbortSignal) => {
     const cols = Math.min(3, Math.max(1, viewMode === '1' ? 1 : viewMode === '2' ? 2 : 3))
     const limit = cols >= 2 ? cols * 10 : 20
+    const changeVersionAtStart = feedMixChangedVersionRef.current
+    const activeMixEntries = mixEntries.filter((e) => e.percent > 0)
+    const activeMixTotalPercent = activeMixEntries.reduce((s, e) => s + e.percent, 0)
+
+    // If mix is configured but every feed is at 0%, show an intentionally empty feed.
+    // This avoids falling back to "Following" on refresh, which makes toggles feel broken.
+    if (session && mixEntries.length > 0 && activeMixEntries.length === 0) {
+      if (!nextCursor) {
+        dispatch({ type: 'SET_ITEMS', items: [], cursor: undefined })
+      }
+      dispatch({ type: 'SET_LOADING', loading: false })
+      dispatch({ type: 'SET_LOADING_MORE', loadingMore: false })
+      return
+    }
     
     // Don't refresh feed (load new items at top) if user is scrolled down — unless they just changed which feeds are active
     if (!nextCursor && window.scrollY > 100 && !feedMixChangedRef.current) {
@@ -588,9 +605,6 @@ export default function FeedPage() {
         return
       }
 
-      const activeMixEntries = mixEntries.filter((e) => e.percent > 0)
-      const activeMixTotalPercent = activeMixEntries.reduce((s, e) => s + e.percent, 0)
-      
       if (nextCursor) dispatch({ type: 'SET_LOADING_MORE', loadingMore: true })
       else dispatch({ type: 'SET_LOADING', loading: true })
       dispatch({ type: 'SET_ERROR', error: null })
@@ -631,9 +645,11 @@ export default function FeedPage() {
             cursorsToUse = undefined
           }
         }
-        const capped = activeMixEntries.slice(0, 2)
-        const totalPct = capped.reduce((s, e) => s + e.percent, 0)
-        const normalized = totalPct > 0 ? capped.map((e) => ({ source: e.source, percent: (e.percent / totalPct) * 100 })) : capped.map((e) => ({ source: e.source, percent: e.percent }))
+        const totalPct = activeMixEntries.reduce((s, e) => s + e.percent, 0)
+        const normalized =
+          totalPct > 0
+            ? activeMixEntries.map((e) => ({ source: e.source, percent: (e.percent / totalPct) * 100 }))
+            : activeMixEntries.map((e) => ({ source: e.source, percent: e.percent }))
         const { feed, cursors: nextCursors } = await withTimeout(
           getMixedFeed(
             normalized,
@@ -718,18 +734,25 @@ export default function FeedPage() {
     } finally {
       dispatch({ type: 'SET_LOADING', loading: false })
       dispatch({ type: 'SET_LOADING_MORE', loadingMore: false })
-      /* Clear after initial load completes so scroll guard still treats in-flight refresh as "mix changed" (fixes Following missing after re-adding while scrolled). */
-      if (!nextCursor) feedMixChangedRef.current = false
+      /* Only clear for the latest non-aborted initial load; stale aborted requests must not reset this flag. */
+      if (!nextCursor && !signal?.aborted && feedMixChangedVersionRef.current === changeVersionAtStart) {
+        feedMixChangedRef.current = false
+      }
     }
   }, [source, session, mixEntries, mixTotalPercent])
 
   useEffect(() => {
     feedMixChangedRef.current = true
+    feedMixChangedVersionRef.current += 1
+    // Leaving "hide read" snapshot active across feed-source changes can make a re-enabled feed appear empty.
+    dispatch({ type: 'CLEAR_SEEN_SNAPSHOT' })
   }, [mixEntries, mixTotalPercent])
 
   /* Switching accounts must refresh the feed even when scrolled down (same as changing feed mix). */
   useEffect(() => {
     feedMixChangedRef.current = true
+    feedMixChangedVersionRef.current += 1
+    dispatch({ type: 'CLEAR_SEEN_SNAPSHOT' })
   }, [session?.did])
 
   useEffect(() => {
@@ -1400,16 +1423,21 @@ export default function FeedPage() {
         onTouchMove={useWrapperForPull ? undefined : handleTouchMove}
         onTouchEnd={useWrapperForPull ? undefined : handleTouchEnd}
       >
-        <div
-          className={`${styles.pullRefreshHeader} ${(pullRefresh.pullDistance > 0 || pullRefresh.isRefreshing) ? styles.pullRefreshHeaderActive : ''}`}
-          aria-hidden={pullRefresh.pullDistance === 0 && !pullRefresh.isRefreshing}
-          aria-live="polite"
-          aria-label={pullRefresh.isRefreshing ? 'Refreshing' : undefined}
-        >
-          {(pullRefresh.pullDistance > 0 || pullRefresh.isRefreshing) && (
-            <div className={styles.pullRefreshSpinner} />
+        {!isDesktop &&
+          typeof document !== 'undefined' &&
+          createPortal(
+            <div
+              className={`${styles.pullRefreshHeader} ${(pullRefresh.pullDistance > 0 || pullRefresh.isRefreshing) ? styles.pullRefreshHeaderActive : ''}`}
+              aria-hidden={pullRefresh.pullDistance === 0 && !pullRefresh.isRefreshing}
+              aria-live="polite"
+              aria-label={pullRefresh.isRefreshing ? 'Refreshing' : undefined}
+            >
+              {(pullRefresh.pullDistance > 0 || pullRefresh.isRefreshing) && (
+                <div className={styles.pullRefreshSpinner} />
+              )}
+            </div>,
+            document.body
           )}
-        </div>
         <div className={styles.pullRefreshContent}>
         <div
           key={mixEntries.length === 1 ? (mixEntries[0].source.uri ?? mixEntries[0].source.label) : 'mixed'}

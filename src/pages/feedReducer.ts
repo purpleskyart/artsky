@@ -32,6 +32,7 @@ export type FeedAction =
   | { type: 'SET_ACTIONS_MENU_OPEN'; index: number | null }
   | { type: 'MARK_SEEN'; uris: string[] }
   | { type: 'RESET_SEEN_SNAPSHOT' }
+  | { type: 'CLEAR_SEEN_SNAPSHOT' }
   | { type: 'CLEAR_SEEN' }
 
 export function feedReducer(state: FeedState, action: FeedAction): FeedState {
@@ -135,6 +136,12 @@ export function feedReducer(state: FeedState, action: FeedAction): FeedState {
       return {
         ...state,
         seenUrisAtReset: new Set(state.seenUris),
+      }
+
+    case 'CLEAR_SEEN_SNAPSHOT':
+      return {
+        ...state,
+        seenUrisAtReset: new Set(),
       }
 
     case 'CLEAR_SEEN':

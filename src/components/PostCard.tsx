@@ -900,6 +900,7 @@ function PostCardInner({ item, isSelected, cardRef: cardRefProp, addButtonRef: _
           onMouseLeave={onMediaLeave}
           {...(hasMedia && { onClick: handleMediaClick })}
         >
+          <div className={styles.mediaNsfwBlurTarget}>
           {(!hasMedia || mediaMode === 'text') ? (
             <div className={styles.textOnlyPreview}>
               {text ? (
@@ -1001,6 +1002,7 @@ function PostCardInner({ item, isSelected, cardRef: cardRefProp, addButtonRef: _
               <ProgressiveImage src={currentImageUrl} alt="" className={styles.media} loading="eager" onLoad={handleImageLoad} />
             </>
           )}
+          </div>
           {nsfwBlurred && onNsfwUnblur && (
             <div
               className={styles.nsfwOverlay}
