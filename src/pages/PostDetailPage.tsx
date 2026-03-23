@@ -7,7 +7,8 @@ import { getApiErrorMessage } from '../lib/apiErrors'
 import { takeInitialPostForUri, getCachedThread, invalidateThreadCache } from '../lib/postCache'
 import { getDownvoteCounts } from '../lib/constellation'
 import { useSession } from '../context/SessionContext'
-import { getArtboards, createArtboard, addPostToArtboard, isPostInArtboard } from '../lib/artboards'
+import { subscribeArtboards, getArtboardsSnapshot, getArtboard, createArtboard, addPostToArtboard, isPostInArtboard } from '../lib/artboards'
+import { putArtboardOnPds } from '../lib/artboardsPds'
 import { formatRelativeTime, formatExactDateTime } from '../lib/date'
 import Layout from '../components/Layout'
 import ProfileLink from '../components/ProfileLink'
@@ -1116,7 +1117,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
   const scrollIntoViewFromKeyboardRef = useRef(false)
   const appliedInitialFocusUriRef = useRef<string | null>(null)
   const prevSectionIndexRef = useRef(0)
-  const boards = getArtboards()
+  const boards = useSyncExternalStore(subscribeArtboards, getArtboardsSnapshot, getArtboardsSnapshot)
   const session = getSession()
   const { session: sessionFromContext, sessionsList, switchAccount } = useSession()
   const toast = useToast()
@@ -1485,7 +1486,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
     }
   }
 
-  function handleAddToArtboard() {
+  async function handleAddToArtboard() {
     if (!thread || !isThreadViewPost(thread)) return
     const hasSelection = addToBoardIds.size > 0 || newBoardName.trim().length > 0
     if (!hasSelection) return
@@ -1501,20 +1502,32 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
       thumb: media?.url ?? thumbs?.[0],
       thumbs,
     }
-    const added: string[] = []
+    const modifiedIds: string[] = []
     if (newBoardName.trim()) {
       const board = createArtboard(newBoardName.trim())
       addPostToArtboard(board.id, payload)
-      added.push(board.id)
+      modifiedIds.push(board.id)
       setNewBoardName('')
     }
     addToBoardIds.forEach((id) => {
       addPostToArtboard(id, payload)
-      added.push(id)
+      modifiedIds.push(id)
     })
-    setAddedToBoard(added[0] ?? null)
+    setAddedToBoard(modifiedIds[0] ?? null)
     setAddToBoardIds(new Set())
     setShowBoardDropdown(false)
+    if (session?.did && modifiedIds.length > 0) {
+      for (const boardId of [...new Set(modifiedIds)]) {
+        const board = getArtboard(boardId)
+        if (board) {
+          try {
+            await putArtboardOnPds(agent, session.did, board)
+          } catch {
+            // leave local as is
+          }
+        }
+      }
+    }
   }
 
   function toggleBoardSelection(boardId: string) {

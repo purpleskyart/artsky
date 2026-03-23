@@ -9,9 +9,10 @@ interface ProfileModalProps {
   onBack: () => void
   canGoBack: boolean
   isTopModal?: boolean
+  stackIndex?: number
 }
 
-export default function ProfileModal({ handle, onClose, onBack, canGoBack, isTopModal }: ProfileModalProps) {
+export default function ProfileModal({ handle, onClose, onBack, canGoBack, isTopModal, stackIndex }: ProfileModalProps) {
   const { openProfileModal } = useProfileModal()
   const [refreshFn, setRefreshFn] = useState<(() => void | Promise<void>) | null>(null)
 
@@ -25,6 +26,7 @@ export default function ProfileModal({ handle, onClose, onBack, canGoBack, isTop
       onPullToRefresh={refreshFn ? () => refreshFn() : undefined}
       scrollKey={handle}
       isTopModal={isTopModal}
+      stackIndex={stackIndex}
     >
       <ProfileContent
         handle={handle}

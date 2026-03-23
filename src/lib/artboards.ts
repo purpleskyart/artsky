@@ -1,5 +1,23 @@
 const ARTBOARDS_KEY = 'artsky-artboards'
 
+type ArtboardListener = () => void
+const artboardListeners = new Set<ArtboardListener>()
+
+function notifyArtboardListeners() {
+  artboardListeners.forEach((fn) => fn())
+}
+
+/** Subscribe to artboard list changes (local mutations and PDS sync). Use with useSyncExternalStore. */
+export function subscribeArtboards(onStoreChange: ArtboardListener): () => void {
+  artboardListeners.add(onStoreChange)
+  return () => artboardListeners.delete(onStoreChange)
+}
+
+/** Snapshot for useSyncExternalStore (same shape as getArtboards()). */
+export function getArtboardsSnapshot(): Artboard[] {
+  return cache
+}
+
 export interface ArtboardPost {
   uri: string
   cid: string
@@ -29,12 +47,17 @@ function load(): Artboard[] {
   }
 }
 
+/** In-memory cache; kept in sync with localStorage on every read/write so subscribers see updates. */
+let cache: Artboard[] = load()
+
 function save(boards: Artboard[]) {
+  cache = boards
   try {
     localStorage.setItem(ARTBOARDS_KEY, JSON.stringify(boards))
   } catch {
     // ignore
   }
+  notifyArtboardListeners()
 }
 
 /** Replace all artboards (e.g. after syncing from PDS). */
@@ -43,15 +66,15 @@ export function replaceAllArtboards(boards: Artboard[]): void {
 }
 
 export function getArtboards(): Artboard[] {
-  return load()
+  return cache
 }
 
 export function getArtboard(id: string): Artboard | undefined {
-  return load().find((b) => b.id === id)
+  return cache.find((b) => b.id === id)
 }
 
 export function createArtboard(name: string): Artboard {
-  const boards = load()
+  const boards = getArtboards()
   const id = `board-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
   const board: Artboard = {
     id,
@@ -65,7 +88,7 @@ export function createArtboard(name: string): Artboard {
 }
 
 export function updateArtboardName(id: string, name: string): void {
-  const boards = load()
+  const boards = getArtboards()
   const i = boards.findIndex((b) => b.id === id)
   if (i === -1) return
   boards[i].name = name.trim() || 'Untitled'
@@ -73,14 +96,14 @@ export function updateArtboardName(id: string, name: string): void {
 }
 
 export function deleteArtboard(id: string): void {
-  save(load().filter((b) => b.id !== id))
+  save(getArtboards().filter((b) => b.id !== id))
 }
 
 export function addPostToArtboard(
   boardId: string,
   post: { uri: string; cid: string; authorHandle?: string; text?: string; thumb?: string; thumbs?: string[] }
 ): boolean {
-  const boards = load()
+  const boards = getArtboards()
   const board = boards.find((b) => b.id === boardId)
   if (!board) return false
   if (board.posts.some((p) => p.uri === post.uri)) return true // already there
@@ -97,7 +120,7 @@ export function addPostToArtboard(
 }
 
 export function removePostFromArtboard(boardId: string, postUri: string): void {
-  const boards = load()
+  const boards = getArtboards()
   const board = boards.find((b) => b.id === boardId)
   if (!board) return
   board.posts = board.posts.filter((p) => p.uri !== postUri)
@@ -111,6 +134,5 @@ export function isPostInArtboard(boardId: string, postUri: string): boolean {
 
 /** True if the post is in at least one artboard (for card outline). */
 export function isPostInAnyArtboard(postUri: string): boolean {
-  const boards = load()
-  return boards.some((b) => b.posts.some((p) => p.uri === postUri))
+  return cache.some((b) => b.posts.some((p) => p.uri === postUri))
 }

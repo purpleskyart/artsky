@@ -5,6 +5,7 @@
 
 import type { AtpAgent } from '@atproto/api'
 import type { Artboard, ArtboardPost } from './artboards'
+import { agent, getSession, publicAgent } from './bsky'
 
 const COLLECTION = 'app.artsky.artboard'
 
@@ -35,6 +36,33 @@ function artboardToRecord(board: Artboard): ArtboardRecord {
       thumbs: p.thumbs,
     })),
     createdAt: board.createdAt,
+  }
+}
+
+/** Fetch a single artboard from any repo (public read). Used for shared collection links. */
+export async function getArtboardFromRepo(did: string, rkey: string): Promise<Artboard | null> {
+  try {
+    let res: Awaited<ReturnType<typeof publicAgent.com.atproto.repo.getRecord>>
+    try {
+      res = await publicAgent.com.atproto.repo.getRecord({
+        repo: did,
+        collection: COLLECTION,
+        rkey,
+      })
+    } catch {
+      const session = getSession()
+      if (!session?.did || session.did !== did) return null
+      res = await agent.com.atproto.repo.getRecord({
+        repo: did,
+        collection: COLLECTION,
+        rkey,
+      })
+    }
+    const value = res.data.value as ArtboardRecord | undefined
+    if (!value) return null
+    return recordToArtboard(rkey, value)
+  } catch {
+    return null
   }
 }
 

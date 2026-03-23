@@ -1,22 +1,70 @@
-import { useState, useEffect, useRef } from 'react'
-import { useParams } from 'react-router-dom'
+import { useState, useEffect, useRef, useSyncExternalStore, useCallback } from 'react'
+import { useParams, useSearchParams } from 'react-router-dom'
 import { Link } from 'react-router-dom'
-import { getArtboard, removePostFromArtboard } from '../lib/artboards'
-import { putArtboardOnPds } from '../lib/artboardsPds'
+import { getArtboard, removePostFromArtboard, subscribeArtboards, type Artboard } from '../lib/artboards'
+import { getArtboardFromRepo, putArtboardOnPds } from '../lib/artboardsPds'
 import { agent } from '../lib/bsky'
+import { getShareableCollectionUrl } from '../lib/appUrl'
 import { useSession } from '../context/SessionContext'
 import { useProfileModal } from '../context/ProfileModalContext'
+import { useToast } from '../context/ToastContext'
 import { useListKeyboardNav } from '../hooks/useListKeyboardNav'
 import Layout from '../components/Layout'
 import styles from './ArtboardDetailPage.module.css'
 
-export function ArtboardDetailContent({ id, inModal = false, onRegisterRefresh }: { id: string; inModal?: boolean; onRegisterRefresh?: (fn: () => void | Promise<void>) => void }) {
+export function ArtboardDetailContent({
+  id,
+  inModal = false,
+  ownerDid,
+  onRegisterRefresh,
+  onBoardName,
+}: {
+  id: string
+  inModal?: boolean
+  ownerDid?: string
+  onRegisterRefresh?: (fn: () => void | Promise<void>) => void
+  onBoardName?: (name: string) => void
+}) {
   const { session } = useSession()
+  const toast = useToast()
   const { openPostModal } = useProfileModal()
   const [, setTick] = useState(0)
   const [focusedIndex, setFocusedIndex] = useState(0)
   const gridRef = useRef<HTMLDivElement>(null)
-  const board = id ? getArtboard(id) : undefined
+  const isRemoteView = !!(ownerDid && ownerDid !== session?.did)
+  const [remoteBoard, setRemoteBoard] = useState<Artboard | null | undefined>(undefined)
+
+  const localBoard = useSyncExternalStore(
+    subscribeArtboards,
+    () => (id ? getArtboard(id) : undefined),
+    () => (id ? getArtboard(id) : undefined),
+  )
+
+  useEffect(() => {
+    if (!id || !ownerDid || ownerDid === session?.did) {
+      setRemoteBoard(undefined)
+      return
+    }
+    let cancelled = false
+    setRemoteBoard(undefined)
+    getArtboardFromRepo(ownerDid, id).then((b) => {
+      if (!cancelled) setRemoteBoard(b ?? null)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [id, ownerDid, session?.did])
+
+  const board: Artboard | undefined | null = isRemoteView
+    ? remoteBoard === undefined
+      ? undefined
+      : remoteBoard
+    : localBoard
+
+  useEffect(() => {
+    if (board?.name) onBoardName?.(board.name)
+  }, [board?.name, onBoardName])
+
   const posts = board?.posts ?? []
 
   useEffect(() => {
@@ -46,10 +94,45 @@ export function ArtboardDetailContent({ id, inModal = false, onRegisterRefresh }
     useCapture: true,
   })
 
-  if (!id || !board) {
+  const canShare = !!session?.did && !isRemoteView
+
+  const handleShareCollection = useCallback(() => {
+    if (!session?.did || !id) return
+    const url = getShareableCollectionUrl(id, session.did)
+    const tryCopy = () =>
+      navigator.clipboard.writeText(url).then(
+        () => toast?.showToast('Link copied'),
+        () => toast?.showToast('Could not copy link'),
+      )
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      navigator.share({ url }).catch(tryCopy)
+    } else {
+      void tryCopy()
+    }
+  }, [session?.did, id, toast])
+
+  if (!id) {
     return (
       <div className={styles.wrap}>
         <p className={styles.empty}>Collection not found.</p>
+      </div>
+    )
+  }
+
+  if (isRemoteView && remoteBoard === undefined) {
+    return (
+      <div className={styles.wrap}>
+        <p className={styles.muted}>Loading collection…</p>
+      </div>
+    )
+  }
+
+  if (!board) {
+    return (
+      <div className={styles.wrap}>
+        <p className={styles.empty}>
+          {isRemoteView ? 'Collection not found or not available.' : 'Collection not found.'}
+        </p>
       </div>
     )
   }
@@ -71,11 +154,24 @@ export function ArtboardDetailContent({ id, inModal = false, onRegisterRefresh }
     }
   }
 
+  const showRemove = !isRemoteView
+
   const wrap = (
     <div className={styles.wrap}>
-      <p className={styles.count}>{posts.length} post{posts.length !== 1 ? 's' : ''}</p>
+      <div className={styles.toolbar}>
+        <p className={styles.count}>
+          {posts.length} post{posts.length !== 1 ? 's' : ''}
+        </p>
+        {canShare ? (
+          <button type="button" className={styles.shareBtn} onClick={handleShareCollection}>
+            Share
+          </button>
+        ) : null}
+      </div>
       {posts.length === 0 ? (
-        <p className={styles.empty}>No posts saved yet. Add posts from the feed.</p>
+        <p className={styles.empty}>
+          {isRemoteView ? 'No posts in this collection.' : 'No posts saved yet. Add posts from the feed.'}
+        </p>
       ) : (
         <div ref={gridRef} className={styles.grid}>
           {posts.map((p, index) => (
@@ -121,6 +217,7 @@ export function ArtboardDetailContent({ id, inModal = false, onRegisterRefresh }
                   </div>
                 </Link>
               )}
+              {showRemove ? (
                 <button
                   type="button"
                   className={styles.remove}
@@ -129,11 +226,12 @@ export function ArtboardDetailContent({ id, inModal = false, onRegisterRefresh }
                 >
                   Remove
                 </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   )
 
   return wrap
@@ -141,9 +239,14 @@ export function ArtboardDetailContent({ id, inModal = false, onRegisterRefresh }
 
 export default function ArtboardDetailPage() {
   const { id } = useParams<{ id: string }>()
+  const [searchParams] = useSearchParams()
+  const ownerDid = searchParams.get('artboardOwner') ?? undefined
+  const [title, setTitle] = useState('Collection')
+  const localName = id ? getArtboard(id)?.name : undefined
+
   return (
-    <Layout title={getArtboard(id ?? '')?.name ?? 'Collection'} showNav>
-      <ArtboardDetailContent id={id ?? ''} />
+    <Layout title={localName ?? title} showNav>
+      <ArtboardDetailContent id={id ?? ''} ownerDid={ownerDid} onBoardName={setTitle} />
     </Layout>
   )
 }

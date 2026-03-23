@@ -8,9 +8,10 @@ interface TagModalProps {
   onBack: () => void
   canGoBack: boolean
   isTopModal?: boolean
+  stackIndex?: number
 }
 
-export default function TagModal({ tag, onClose, onBack, canGoBack, isTopModal }: TagModalProps) {
+export default function TagModal({ tag, onClose, onBack, canGoBack, isTopModal, stackIndex }: TagModalProps) {
   const [refreshFn, setRefreshFn] = useState<(() => void | Promise<void>) | null>(null)
 
   return (
@@ -22,6 +23,7 @@ export default function TagModal({ tag, onClose, onBack, canGoBack, isTopModal }
       onPullToRefresh={refreshFn ? () => refreshFn() : undefined}
       scrollKey={tag}
       isTopModal={isTopModal}
+      stackIndex={stackIndex}
     >
       <TagContent tag={tag} inModal onRegisterRefresh={(fn) => setRefreshFn(() => fn)} />
     </AppModal>

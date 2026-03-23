@@ -348,9 +348,10 @@ interface SearchModalProps {
   onBack: () => void
   canGoBack: boolean
   isTopModal?: boolean
+  stackIndex?: number
 }
 
-export default function SearchModal({ query, onClose, onBack, canGoBack, isTopModal }: SearchModalProps) {
+export default function SearchModal({ query, onClose, onBack, canGoBack, isTopModal, stackIndex }: SearchModalProps) {
   const [refreshFn, setRefreshFn] = useState<(() => void | Promise<void>) | null>(null)
 
   return (
@@ -362,6 +363,7 @@ export default function SearchModal({ query, onClose, onBack, canGoBack, isTopMo
       onPullToRefresh={refreshFn ? () => refreshFn() : undefined}
       scrollKey={query}
       isTopModal={isTopModal}
+      stackIndex={stackIndex}
     >
       <MediaModalTopBar
         centerContent={

@@ -1,10 +1,17 @@
-import { useRef, useEffect, useState, useCallback, useLayoutEffect, useMemo, memo } from 'react'
+import { useRef, useEffect, useState, useCallback, useLayoutEffect, useMemo, memo, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate, useLocation } from 'react-router-dom'
 import type Hls from 'hls.js'
 import { loadHls } from '../lib/loadHls'
 import { getPostMediaInfoForDisplay, getPostAllMediaForDisplay, getPostMediaUrlForDisplay, getPostExternalLink, POST_MEDIA_FEED_PREVIEW, agent, likePostWithLifecycle, unlikePostWithLifecycle, followAccountWithLifecycle, type TimelineItem } from '../lib/bsky'
-import { getArtboards, createArtboard, addPostToArtboard, isPostInArtboard, isPostInAnyArtboard, getArtboard } from '../lib/artboards'
+import {
+  subscribeArtboards,
+  getArtboardsSnapshot,
+  createArtboard,
+  addPostToArtboard,
+  isPostInArtboard,
+  getArtboard,
+} from '../lib/artboards'
 import { putArtboardOnPds } from '../lib/artboardsPds'
 import { useSession } from '../context/SessionContext'
 import { useLoginModal } from '../context/LoginModalContext'
@@ -157,7 +164,11 @@ function PostCardInner({ item, isSelected, cardRef: cardRefProp, addButtonRef: _
   const [likeLoading, setLikeLoading] = useState(false)
   const effectiveLikedUri = likedUriOverride !== undefined ? (likedUriOverride ?? undefined) : likedUri
   const isLiked = !!effectiveLikedUri
-  const inAnyArtboard = isPostInAnyArtboard(post.uri)
+  const boards = useSyncExternalStore(subscribeArtboards, getArtboardsSnapshot, getArtboardsSnapshot)
+  const inAnyArtboard = useMemo(
+    () => boards.some((b) => b.posts.some((p) => p.uri === post.uri)),
+    [boards, post.uri],
+  )
   const showTransFlagOutline = isLiked && inAnyArtboard
 
   const [mediaAspect, setMediaAspect] = useState<number | null>(() =>
@@ -353,12 +364,19 @@ function PostCardInner({ item, isSelected, cardRef: cardRefProp, addButtonRef: _
     setAddDropdownPosition(updateAddDropdownPosition())
   }, [addOpen, updateAddDropdownPosition])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!addOpen) return
-    const onScroll = () => setAddDropdownPosition((prev) => (prev ? updateAddDropdownPosition() ?? prev : prev))
-    window.addEventListener('scroll', onScroll, true)
-    return () => window.removeEventListener('scroll', onScroll, true)
-  }, [addOpen, updateAddDropdownPosition])
+    const onMove = () => setAddDropdownPosition((prev) => (prev ? updateAddDropdownPosition() ?? prev : prev))
+    window.addEventListener('scroll', onMove, true)
+    window.addEventListener('resize', onMove)
+    const modalScrollEl = modalScrollRef?.current ?? document.querySelector('[data-modal-scroll]')
+    modalScrollEl?.addEventListener('scroll', onMove, { passive: true })
+    return () => {
+      window.removeEventListener('scroll', onMove, true)
+      window.removeEventListener('resize', onMove)
+      modalScrollEl?.removeEventListener('scroll', onMove)
+    }
+  }, [addOpen, updateAddDropdownPosition, modalScrollRef])
 
   useEffect(() => {
     if (!addOpen) return
@@ -371,8 +389,6 @@ function PostCardInner({ item, isSelected, cardRef: cardRefProp, addButtonRef: _
     document.addEventListener('mousedown', onDocClick)
     return () => document.removeEventListener('mousedown', onDocClick)
   }, [addOpen])
-
-  const boards = getArtboards()
 
   const toggleBoardSelection = useCallback((boardId: string) => {
     setAddToBoardIds((prev) => {

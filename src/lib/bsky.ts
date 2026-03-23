@@ -584,8 +584,13 @@ export async function getMixedFeed(
     return { feed: [], cursors: {} }
   }
   const fetchLimit = limit
-  const results: { key: string; feed: TimelineItem[]; nextCursor: string | undefined }[] = []
-  for (const entry of entries) {
+
+  /** Fetch one mix slice; run all entries in parallel so multi-feed mixes don't wait serially. */
+  async function fetchMixEntry(entry: FeedMixEntryInput): Promise<{
+    key: string
+    feed: TimelineItem[]
+    nextCursor: string | undefined
+  }> {
     const key = entry.source.kind === 'timeline' ? 'timeline' : (entry.source.uri ?? '')
     const cursor = cursors?.[key]
     try {
@@ -593,14 +598,12 @@ export async function getMixedFeed(
 
       if (entry.source.kind === 'timeline') {
         if (!getSession()) {
-          results.push({ key, feed: [] as TimelineItem[], nextCursor: undefined })
-          continue
+          return { key, feed: [] as TimelineItem[], nextCursor: undefined }
         }
         const cacheKey = `timeline:${feedCacheAccountKey()}:${fetchLimit}:${cursor ?? 'initial'}`
         const normalized = timelineFeedFromCache(responseCache.get<unknown>(cacheKey))
         if (normalized) {
-          results.push({ key, feed: normalized.feed, nextCursor: normalized.cursor })
-          continue
+          return { key, feed: normalized.feed, nextCursor: normalized.cursor }
         }
         const res = await requestDeduplicator.dedupe(
           cacheKey,
@@ -610,21 +613,17 @@ export async function getMixedFeed(
           )
         )
         const result = { feed: res.data?.feed ?? [], cursor: res.data?.cursor ?? undefined }
-        // Feeds: 5 min TTL + 5 min stale-while-revalidate
         responseCache.set(cacheKey, result, 300_000, 300_000)
-        results.push({ key, feed: result.feed, nextCursor: result.cursor })
-        continue
+        return { key, feed: result.feed, nextCursor: result.cursor }
       }
       if (entry.source.uri) {
         if (!getSession()) {
-          results.push({ key, feed: [] as TimelineItem[], nextCursor: undefined })
-          continue
+          return { key, feed: [] as TimelineItem[], nextCursor: undefined }
         }
         const cacheKey = `feed:${feedCacheAccountKey()}:${entry.source.uri}:${fetchLimit}:${cursor ?? 'initial'}`
         const normalized = timelineFeedFromCache(responseCache.get<unknown>(cacheKey))
         if (normalized) {
-          results.push({ key, feed: normalized.feed, nextCursor: normalized.cursor })
-          continue
+          return { key, feed: normalized.feed, nextCursor: normalized.cursor }
         }
         const res = await requestDeduplicator.dedupe(
           cacheKey,
@@ -634,16 +633,16 @@ export async function getMixedFeed(
           )
         )
         const result = { feed: res.data?.feed ?? [], cursor: res.data?.cursor }
-        // Custom feeds: 5 min TTL + 5 min stale-while-revalidate
         responseCache.set(cacheKey, result, 300_000, 300_000)
-        results.push({ key, feed: result.feed, nextCursor: result.cursor })
-        continue
+        return { key, feed: result.feed, nextCursor: result.cursor }
       }
     } catch (error) {
       console.warn(getApiErrorMessage(error, `load ${key} feed`))
     }
-    results.push({ key, feed: [] as TimelineItem[], nextCursor: undefined })
+    return { key, feed: [] as TimelineItem[], nextCursor: undefined }
   }
+
+  const results = await Promise.all(entries.map((entry) => fetchMixEntry(entry)))
   const takePerEntry = results.map((_, i) => {
     const pct = entries[i]?.percent ?? 0
     return Math.round((limit * pct) / totalPercent)
@@ -1711,6 +1710,11 @@ export async function searchPostsByDomain(
   }
 }
 
+const SAVED_FEEDS_CACHE_TTL = 5 * 60 * 1000 // 5 minutes
+/** In-flight dedupe so parallel callers (e.g. layout + mount) share one getPreferences. */
+let savedFeedsPrefInFlight: Promise<{ id: string; type: string; value: string; pinned: boolean }[]> | null = null
+let savedFeedsCache: { data: { id: string; type: string; value: string; pinned: boolean }[]; timestamp: number } | null = null
+
 /** Get the current account's saved/pinned feeds from preferences. Returns array of { id, type, value, pinned }. */
 export async function getSavedFeedsFromPreferences(): Promise<
   { id: string; type: string; value: string; pinned: boolean }[]
@@ -1722,22 +1726,29 @@ export async function getSavedFeedsFromPreferences(): Promise<
     return savedFeedsCache.data
   }
 
-  try {
-    // Read same format we write: app.bsky.actor.getPreferences returns preferences array; saved feeds are in savedFeedsPrefV2
-    const { data } = await agent.app.bsky.actor.getPreferences({})
-    const prefs = (data?.preferences ?? []) as { $type?: string; items?: { id: string; type: string; value: string; pinned: boolean }[] }[]
-    const v2Type = 'app.bsky.actor.defs#savedFeedsPrefV2'
-    const existing = prefs.find((p) => p.$type === v2Type)
-    const list = existing?.items ?? []
+  if (savedFeedsPrefInFlight) return savedFeedsPrefInFlight
 
-    // Cache the result
-    savedFeedsCache = { data: list, timestamp: Date.now() }
-    return list
-  } catch {
-    // 401 Unauthorized (logged out / expired) or other error: return empty so UI doesn't fire repeated requests
-    savedFeedsCache = null
-    return []
-  }
+  savedFeedsPrefInFlight = (async () => {
+    try {
+      // Read same format we write: app.bsky.actor.getPreferences returns preferences array; saved feeds are in savedFeedsPrefV2
+      const { data } = await agent.app.bsky.actor.getPreferences({})
+      const prefs = (data?.preferences ?? []) as { $type?: string; items?: { id: string; type: string; value: string; pinned: boolean }[] }[]
+      const v2Type = 'app.bsky.actor.defs#savedFeedsPrefV2'
+      const existing = prefs.find((p) => p.$type === v2Type)
+      const list = existing?.items ?? []
+
+      savedFeedsCache = { data: list, timestamp: Date.now() }
+      return list
+    } catch {
+      // 401 Unauthorized (logged out / expired) or other error: return empty so UI doesn't fire repeated requests
+      savedFeedsCache = null
+      return []
+    } finally {
+      savedFeedsPrefInFlight = null
+    }
+  })()
+
+  return savedFeedsPrefInFlight
 }
 
 /** Parse a bsky.app profile feed URL into handle and feed slug. e.g. https://bsky.app/profile/foo.bsky.social/feed/for-you -> { handle: 'foo.bsky.social', feedSlug: 'for-you' } */
@@ -1802,8 +1813,6 @@ export async function addSavedFeed(uri: string): Promise<void> {
 }
 
 const feedNameCache = new Map<string, string>()
-let savedFeedsCache: { data: { id: string; type: string; value: string; pinned: boolean }[]; timestamp: number } | null = null
-const SAVED_FEEDS_CACHE_TTL = 5 * 60 * 1000 // 5 minutes
 
 /** Get display names for multiple feed URIs in a single batch operation. */
 export async function getFeedDisplayNamesBatch(uris: string[]): Promise<Map<string, string>> {

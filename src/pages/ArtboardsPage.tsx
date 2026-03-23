@@ -17,13 +17,16 @@ import {
   putArtboardOnPds,
 } from '../lib/artboardsPds'
 import { agent } from '../lib/bsky'
+import { getShareableCollectionUrl } from '../lib/appUrl'
 import { useSession } from '../context/SessionContext'
 import { useProfileModal } from '../context/ProfileModalContext'
+import { useToast } from '../context/ToastContext'
 import Layout from '../components/Layout'
 import styles from './ArtboardsPage.module.css'
 
 export function ArtboardsContent({ inModal = false, onRegisterRefresh }: { inModal?: boolean; onRegisterRefresh?: (fn: () => void | Promise<void>) => void }) {
   const { session } = useSession()
+  const toast = useToast()
   const { openArtboardModal } = useProfileModal()
   const [boards, setBoards] = useState<Artboard[]>(() => getArtboards())
   const [newName, setNewName] = useState('')
@@ -92,6 +95,23 @@ export function ArtboardsContent({ inModal = false, onRegisterRefresh }: { inMod
     setEditMenuOpenId(null)
     setEditingId(board.id)
     setEditName(board.name)
+  }
+
+  function handleShareCollection(boardId: string, e: React.MouseEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!session?.did) return
+    const url = getShareableCollectionUrl(boardId, session.did)
+    const tryCopy = () =>
+      navigator.clipboard.writeText(url).then(
+        () => toast?.showToast('Link copied'),
+        () => toast?.showToast('Could not copy link'),
+      )
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      navigator.share({ url }).catch(tryCopy)
+    } else {
+      void tryCopy()
+    }
   }
 
   async function saveEdit() {
@@ -216,11 +236,19 @@ export function ArtboardsContent({ inModal = false, onRegisterRefresh }: { inMod
                     </>
                   ) : editMenuOpenId === board.id ? (
                     <>
+                      {session?.did ? (
+                        <button type="button" className={styles.smallBtn} onClick={(e) => handleShareCollection(board.id, e)}>Share</button>
+                      ) : null}
                       <button type="button" className={styles.smallBtn} onClick={(e) => { e.preventDefault(); startEdit(board); }}>Rename</button>
                       <button type="button" className={styles.smallBtnDanger} onClick={(e) => { e.preventDefault(); handleDelete(board.id); setEditMenuOpenId(null); }}>Delete</button>
                     </>
                   ) : (
-                    <button type="button" className={styles.smallBtn} onClick={(e) => { e.preventDefault(); setEditMenuOpenId((id) => id === board.id ? null : board.id); }}>Edit</button>
+                    <>
+                      {session?.did ? (
+                        <button type="button" className={styles.smallBtn} onClick={(e) => handleShareCollection(board.id, e)}>Share</button>
+                      ) : null}
+                      <button type="button" className={styles.smallBtn} onClick={(e) => { e.preventDefault(); setEditMenuOpenId((id) => id === board.id ? null : board.id); }}>Edit</button>
+                    </>
                   )}
                 </div>
               </div>

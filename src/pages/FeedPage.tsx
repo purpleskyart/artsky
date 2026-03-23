@@ -5,8 +5,6 @@ import {
   getPostMediaInfoForDisplay,
   getPostAllMediaForDisplay,
   getGuestFeed,
-  getSavedFeedsFromPreferences,
-  getFeedDisplayNamesBatch,
   getMixedFeed,
   getTimelineWithLifecycle,
   getFeedWithLifecycle,
@@ -353,8 +351,7 @@ export default function FeedPage() {
   const { session } = useSession()
   const { viewMode } = useViewMode()
   const [source, setSource] = useState<FeedSource>(PRESET_SOURCES[0])
-  const [, setSavedFeedSources] = useState<FeedSource[]>([])
-  
+
   // Use the normalized like overrides cache from context
   const { likeOverrides, setLikeOverride } = useLikeOverrides()
   
@@ -449,43 +446,6 @@ export default function FeedPage() {
     }
   }, [seenPostsContext])
 
-  const loadSavedFeeds = useCallback(async () => {
-    if (!session) {
-      setSavedFeedSources([])
-      return
-    }
-    let feeds: { type: string; value: string }[] = []
-    try {
-      const list = await getSavedFeedsFromPreferences()
-      feeds = list.filter((f) => f.type === 'feed' && f.pinned)
-
-      if (feeds.length === 0) {
-        setSavedFeedSources([])
-        return
-      }
-
-      const feedUris = feeds.map((f) => f.value)
-      const labels = await getFeedDisplayNamesBatch(feedUris)
-
-      const withLabels = feeds.map((f) => ({
-        kind: 'custom' as const,
-        label: labels.get(f.value) ?? f.value,
-        uri: f.value,
-      }))
-      setSavedFeedSources(withLabels)
-    } catch {
-      setSavedFeedSources(
-        feeds.length > 0
-          ? feeds.map((f) => ({ kind: 'custom' as const, label: f.value, uri: f.value }))
-          : []
-      )
-    }
-  }, [session])
-
-  useEffect(() => {
-    loadSavedFeeds()
-  }, [loadSavedFeeds])
-
   // Purplesky-style: hide floating buttons + nav when scrolling down; show on scroll up or stop
   // Debounce scroll handler to reduce layout work during rapid scroll events
   useEffect(() => {
@@ -550,9 +510,13 @@ export default function FeedPage() {
     const stateSource = (location.state as { feedSource?: FeedSource })?.feedSource
     if (stateSource) {
       setSource(stateSource)
-      navigate(location.pathname, { replace: true })
+      /* Must keep search/hash — navigate(pathname) alone drops the query (breaks modals e.g. ?artboard=). */
+      navigate(
+        { pathname: location.pathname, search: location.search, hash: location.hash },
+        { replace: true },
+      )
     }
-  }, [location.state, location.pathname, navigate])
+  }, [location.state, location.pathname, location.search, location.hash, navigate])
 
   const {
     entries: mixEntries,
