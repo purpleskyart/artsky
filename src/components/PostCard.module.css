@@ -377,6 +377,8 @@ html[data-theme="dark"] [data-view-mode="1"] .card:focus-within:not(:has(.mediaG
   z-index: 1;
   max-width: 42%;
   pointer-events: none;
+  /* Mirror compact … menu trigger horizontal padding (PostActionsMenu .wrapCompact .trigger) */
+  padding-left: 0.35rem;
 }
 
 .cardActionRowLeft .cardActionRowTime {

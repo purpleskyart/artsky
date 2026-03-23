@@ -1,5 +1,5 @@
 /**
- * ArtSky Forum System – AT Protocol Lexicon for Forums
+ * PurpleSky Forum System – AT Protocol Lexicon for Forums
  *
  * Creates and lists forum posts (app.artsky.forum.post), threaded replies
  * (app.artsky.forum.reply), pinned posts, wiki pages, and draft posts.

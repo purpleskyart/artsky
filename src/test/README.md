@@ -1,6 +1,6 @@
 # Performance Testing Infrastructure
 
-This directory contains utilities and configuration for performance testing in the ArtSky application.
+This directory contains utilities and configuration for performance testing in the PurpleSky application.
 
 ## Overview
 

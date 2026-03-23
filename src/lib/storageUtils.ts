@@ -103,7 +103,7 @@ export async function clearAllCaches(): Promise<void> {
   }
 }
 
-/** Clear all ArtSky local storage (artboards, drafts, settings, sessions, etc.). Logs user out. */
+/** Clear all PurpleSky local storage (artboards, drafts, settings, sessions, etc.). Logs user out. */
 export function clearLocalData(): void {
   const { keys } = getLocalStorageUsage()
   for (const key of keys) {

@@ -9,10 +9,14 @@
  * - label: Short name shown in the UI (e.g. "Blender", "Godot Engine")
  */
 export const GUEST_FEED_ACCOUNTS = [
-  { handle: 'studio.blender.org', label: 'Blender' },
-  { handle: 'godotengine.org', label: 'Godot Engine' },
-  { handle: 'stsci.edu', label: 'NASA / STScI' },
   { handle: 'oseanworld.bsky.social', label: 'Osean World' },
+  { handle: 'certly.bsky.social', label: 'Certly' },
+  { handle: 'heytibo.bsky.social', label: 'Hey Tibo' },
+  { handle: 'discountvillain.bsky.social', label: 'Discount Villain' },
+  { handle: 'xenonb.bsky.social', label: 'Xenonb' },
+  { handle: 'asteroidill.bsky.social', label: 'Asteroidill' },
+  { handle: 'fabraz.bsky.social', label: 'Fabraz' },
+  { handle: 'bemmpo.bsky.social', label: 'Bemmpo' },
 ] as const
 
 export type GuestFeedAccount = (typeof GUEST_FEED_ACCOUNTS)[number]

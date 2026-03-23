@@ -14,7 +14,6 @@ import { useModeration } from '../context/ModerationContext'
 import { useProfileModal } from '../context/ProfileModalContext'
 import { setInitialPostForUri } from '../lib/postCache'
 import { useModalScroll } from '../context/ModalScrollContext'
-import { formatExactDateTime, getRelativeTimeParts } from '../lib/date'
 import PostText from './PostText'
 import ProfileLink from './ProfileLink'
 import PostActionsMenu from './PostActionsMenu'
@@ -65,6 +64,10 @@ interface Props {
   focusedMediaIndex?: number
   /** Called with (mediaIndex, element) so parent can scroll the focused media into view */
   onMediaRef?: (mediaIndex: number, el: HTMLElement | null) => void
+  /** Profile feed often omits post.author.viewer.following; when set, use this for follow UI if post.author.did matches. */
+  profileAuthorDid?: string
+  /** Follow record URI or null if not following; undefined = do not override author viewer from post */
+  profileAuthorFollowingUri?: string | null
 }
 
 const REASON_PIN = 'app.bsky.feed.defs#reasonPin'
@@ -102,7 +105,7 @@ function isHlsUrl(url: string): boolean {
 
 type InnerProps = Props & { setUnblurred: (uri: string, revealed: boolean) => void; isRevealed: boolean }
 
-function PostCardInner({ item, isSelected, cardRef: cardRefProp, addButtonRef: _addButtonRef, openAddDropdown, onAddClose, onPostClick, onAspectRatio, fillCell, nsfwBlurred, onNsfwUnblur, constrainMediaHeight, likedUriOverride, onLikedChange, seen, onActionsMenuOpenChange, cardIndex, actionsMenuOpenForIndex, focusedMediaIndex, onMediaRef, setUnblurred, isRevealed }: InnerProps) {
+function PostCardInner({ item, isSelected, cardRef: cardRefProp, addButtonRef: _addButtonRef, openAddDropdown, onAddClose, onPostClick, onAspectRatio, fillCell, nsfwBlurred, onNsfwUnblur, constrainMediaHeight, likedUriOverride, onLikedChange, seen, onActionsMenuOpenChange, cardIndex, actionsMenuOpenForIndex, focusedMediaIndex, onMediaRef, setUnblurred, isRevealed, profileAuthorDid, profileAuthorFollowingUri }: InnerProps) {
   const navigate = useNavigate()
   const { session } = useSession()
   const { openLoginModal } = useLoginModal()
@@ -133,7 +136,16 @@ function PostCardInner({ item, isSelected, cardRef: cardRefProp, addButtonRef: _
   })()
   const isPinned = reason?.$type === REASON_PIN
   const authorViewer = (post.author as { viewer?: { following?: string } }).viewer
-  const initialFollowingUri = authorViewer?.following
+  const initialFollowingUri = useMemo(() => {
+    if (
+      profileAuthorDid != null &&
+      post.author.did === profileAuthorDid &&
+      profileAuthorFollowingUri !== undefined
+    ) {
+      return profileAuthorFollowingUri || undefined
+    }
+    return authorViewer?.following
+  }, [profileAuthorDid, post.author.did, profileAuthorFollowingUri, authorViewer?.following])
   const [followUriOverride, setFollowUriOverride] = useState<string | null>(initialFollowingUri ?? null)
   const effectiveFollowingUri = followUriOverride ?? initialFollowingUri ?? null
   const isFollowingAuthor = !!effectiveFollowingUri
@@ -762,32 +774,6 @@ function PostCardInner({ item, isSelected, cardRef: cardRefProp, addButtonRef: _
     [cardRefProp],
   )
 
-  const createdAtForActionRow = (post.record as { createdAt?: string })?.createdAt
-  const actionRowTimeEl = useMemo(() => {
-    if (!createdAtForActionRow) return null
-    const parts = getRelativeTimeParts(createdAtForActionRow)
-    if (parts.kind === 'relative') {
-      return (
-        <span className={styles.cardActionRowTime} title={formatExactDateTime(createdAtForActionRow)} aria-hidden>
-          {parts.text}
-        </span>
-      )
-    }
-    return (
-      <span
-        className={`${styles.cardActionRowTime} ${styles.postTimeStacked}`}
-        title={formatExactDateTime(createdAtForActionRow)}
-        aria-hidden
-      >
-        <span className={styles.postTimeMonth}>{parts.month}</span>
-        <span className={styles.postTimeDayYear}>
-          {parts.day}
-          {parts.year ? ` ${parts.year}` : ''}
-        </span>
-      </span>
-    )
-  }, [createdAtForActionRow])
-
   return (
     <div ref={setCardRef} data-post-uri={post.uri} className={`${styles.card} ${nsfwBlurred ? styles.cardNsfwBlurred : ''} ${isSelected ? styles.cardSelected : ''} ${showTransFlagOutline ? styles.cardTransFlag : ''} ${!showTransFlagOutline && isLiked ? styles.cardLiked : ''} ${!showTransFlagOutline && inAnyArtboard ? styles.cardInArtboard : ''} ${seen && !isSelected ? styles.cardSeen : ''} ${fillCell ? styles.cardFillCell : ''} ${artOnly ? styles.cardArtOnly : ''} ${minimalist ? styles.cardMinimalist : ''}`}>
       <div
@@ -1092,7 +1078,6 @@ function PostCardInner({ item, isSelected, cardRef: cardRefProp, addButtonRef: _
         {(!artOnly || minimalist) && (
         <div className={styles.meta}>
           <div className={styles.cardActionRow} onClick={(e) => e.stopPropagation()}>
-            {actionRowTimeEl ? <div className={styles.cardActionRowLeft}>{actionRowTimeEl}</div> : null}
             <div className={styles.cardActionRowSpacer} aria-hidden="true" />
             <div className={styles.cardActionRowCenter}>
               <div
@@ -1282,27 +1267,13 @@ function PostCardInner({ item, isSelected, cardRef: cardRefProp, addButtonRef: _
                   </span>
                 )}
               </span>
-              <span className={styles.handleRowMeta}>
-                {isPinned && (
+              {isPinned ? (
+                <span className={styles.handleRowMeta}>
                   <span className={styles.pinIconWrap} title="Pinned">
                     <PinIcon />
                   </span>
-                )}
-                {(post.record as { createdAt?: string })?.createdAt && (() => {
-                  const createdAt = (post.record as { createdAt: string }).createdAt
-                  const parts = getRelativeTimeParts(createdAt)
-                  return parts.kind === 'relative' ? (
-                    <span className={styles.postTime} title={formatExactDateTime(createdAt)}>
-                      {parts.text}
-                    </span>
-                  ) : (
-                    <span className={`${styles.postTime} ${styles.postTimeStacked}`} title={formatExactDateTime(createdAt)}>
-                      <span className={styles.postTimeMonth}>{parts.month}</span>
-                      <span className={styles.postTimeDayYear}>{parts.day}{parts.year ? ` ${parts.year}` : ''}</span>
-                    </span>
-                  )
-                })()}
-              </span>
+                </span>
+              ) : null}
             </div>
           </div>
           )}
@@ -1363,7 +1334,9 @@ export default memo(PostCard, (prevProps, nextProps) => {
   if (prevProps.cardIndex !== nextProps.cardIndex) return false
   if (prevProps.actionsMenuOpenForIndex !== nextProps.actionsMenuOpenForIndex) return false
   if (prevProps.focusedMediaIndex !== nextProps.focusedMediaIndex) return false
-  
+  if (prevProps.profileAuthorDid !== nextProps.profileAuthorDid) return false
+  if (prevProps.profileAuthorFollowingUri !== nextProps.profileAuthorFollowingUri) return false
+
   // Check if the post content has changed (cid is the content identifier)
   if (prevProps.item.post.cid !== nextProps.item.post.cid) return false
   

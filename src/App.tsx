@@ -1,4 +1,4 @@
-// ArtSky – Bluesky client focused on art (deploy bump)
+// PurpleSky – Bluesky client focused on art (deploy bump)
 import { Component, lazy, Suspense, useEffect } from 'react'
 import type { ErrorInfo, ReactNode } from 'react'
 import { HashRouter, Navigate, Route, Routes, useParams } from 'react-router-dom'

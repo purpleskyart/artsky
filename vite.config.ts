@@ -17,8 +17,8 @@ export default defineConfig({
       registerType: 'prompt',
       includeAssets: ['favicon.ico', 'icon.svg', 'icon-pwa.svg'],
       manifest: {
-        name: 'ArtSky',
-        short_name: 'ArtSky',
+        name: 'PurpleSky',
+        short_name: 'PurpleSky',
         description: 'Bluesky feed & artboards',
         theme_color: '#1a1a2e',
         background_color: '#0f0f1a',

@@ -54,7 +54,7 @@ const clientId = `${appBase}client-metadata.json`;
 
 const metadata = {
   client_id: clientId,
-  client_name: 'ArtSky',
+  client_name: 'PurpleSky',
   client_uri: appBase,
   redirect_uris: [appBase],
   scope:

@@ -29,6 +29,9 @@ export interface ProfileColumnProps {
   isSelected: (index: number) => boolean
   /** When true, do not unblur NSFW on pointer/mouse enter (scroll can move content under a stationary cursor in modals). */
   suppressHoverNsfwUnblur?: boolean
+  /** Sync follow affordance on cards with profile header when author feed omits viewer.following */
+  profileAuthorDid?: string
+  profileAuthorFollowingUri?: string | null
 }
 
 export default function ProfileColumn(props: ProfileColumnProps) {
@@ -51,6 +54,8 @@ export default function ProfileColumn(props: ProfileColumnProps) {
     constrainMediaHeight = false,
     isSelected,
     suppressHoverNsfwUnblur = false,
+    profileAuthorDid,
+    profileAuthorFollowingUri,
   } = props
 
   if (column.length === 0) {
@@ -107,6 +112,8 @@ export default function ProfileColumn(props: ProfileColumnProps) {
               onActionsMenuOpenChange={(open) => onActionsMenuOpenChange(originalIndex, open)}
               cardIndex={originalIndex}
               actionsMenuOpenForIndex={actionsMenuOpenForIndex}
+              profileAuthorDid={profileAuthorDid}
+              profileAuthorFollowingUri={profileAuthorFollowingUri}
             />
           </div>
         )

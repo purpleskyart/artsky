@@ -578,7 +578,7 @@ export default function Layout({ title, children, showNav }: Props) {
   }, [path, seenPosts, navigate, isModalOpen, closeAllModals])
 
   useEffect(() => {
-    document.title = title ? `${title} · ArtSky` : 'ArtSky'
+    document.title = title ? `${title} · PurpleSky` : 'PurpleSky'
   }, [title])
 
   /* Global keyboard: Q = back; 1/2/3 = column view. Do not handle when a popup is open so the popup gets shortcuts and scroll. */
@@ -1601,8 +1601,8 @@ export default function Layout({ title, children, showNav }: Props) {
                       type="button"
                       className={`${styles.feedFloatBtn} ${styles.gearExpandableBtn} float-btn`}
                       onClick={() => setAboutOpen(true)}
-                      title="About ArtSky and keyboard shortcuts"
-                      aria-label="About ArtSky"
+                      title="About PurpleSky and keyboard shortcuts"
+                      aria-label="About PurpleSky"
                     >
                       <AboutIcon />
                       <span className={styles.gearExpandableLabel}>About</span>
@@ -1613,7 +1613,7 @@ export default function Layout({ title, children, showNav }: Props) {
               <Link
                 to="/feed"
                 className={styles.logoLink}
-                aria-label="ArtSky – back to feed"
+                aria-label="PurpleSky – back to feed"
                 title={path === '/feed' ? 'Home (hold to show all read posts)' : 'Back to feed'}
                 onPointerDown={startHomeHold}
                 onPointerUp={endHomeHold}
@@ -1622,7 +1622,7 @@ export default function Layout({ title, children, showNav }: Props) {
                 onClick={homeBtnClick}
               >
                 <img src={`${import.meta.env.BASE_URL || '/'}icon.svg`} alt="" className={styles.logoIcon} />
-                <span className={styles.logoText}>ArtSky</span>
+                <span className={styles.logoText}>PurpleSky</span>
                 {import.meta.env.VITE_APP_ENV === 'dev' && (
                   <span className={styles.logoDev}> dev</span>
                 )}
@@ -2026,8 +2026,8 @@ export default function Layout({ title, children, showNav }: Props) {
               type="button"
               className={`${styles.feedFloatBtn} ${styles.gearExpandableBtn} float-btn`}
               onClick={() => setAboutOpen(true)}
-              title="About ArtSky and keyboard shortcuts"
-              aria-label="About ArtSky"
+              title="About PurpleSky and keyboard shortcuts"
+              aria-label="About PurpleSky"
             >
               <AboutIcon />
               <span className={styles.gearExpandableLabel}>About</span>
@@ -2377,12 +2377,12 @@ export default function Layout({ title, children, showNav }: Props) {
               <div
                 className={styles.aboutOverlay}
                 role="dialog"
-                aria-label="About ArtSky"
+                aria-label="About PurpleSky"
                 onClick={(e) => { if (e.target === e.currentTarget) setAboutOpen(false) }}
                 onKeyDown={(e) => { if (e.key === 'Escape') setAboutOpen(false) }}
               >
                 <div className={styles.aboutCard}>
-                  <h2 className={styles.aboutTitle}>ArtSky</h2>
+                  <h2 className={styles.aboutTitle}>PurpleSky</h2>
                   <p className={styles.aboutIntro}>
                     A Bluesky client focused on art.
                   </p>

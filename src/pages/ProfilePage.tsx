@@ -967,6 +967,8 @@ export function ProfileContent({
                       isRevealed={unblurredUris.has(item.post.uri)}
                       likedUriOverride={likeOverrides[item.post.uri]}
                       onLikedChange={(uri, likeRecordUri) => setLikeOverrides((prev) => ({ ...prev, [uri]: likeRecordUri ?? null }))}
+                      profileAuthorDid={profile?.did}
+                      profileAuthorFollowingUri={profile != null ? followingUri ?? null : undefined}
                     />
                   </div>
                 ))}
@@ -1051,6 +1053,8 @@ export function ProfileContent({
                   onAddClose={() => setKeyboardAddOpen(false)}
                   suppressHoverNsfwUnblur={!!inModal}
                   isSelected={(index) => (tab === 'posts' || tab === 'reposts') && index === keyboardFocusIndex}
+                  profileAuthorDid={profile?.did}
+                  profileAuthorFollowingUri={profile != null ? followingUri ?? null : undefined}
                 />
               ))}
             </div>
