@@ -250,7 +250,7 @@ export function ForumContent({ inModal = false, onRegisterRefresh }: { inModal?:
             {filteredPosts.map((post, index) => {
               const isFocused = index === focusedIndex
               const handle = post.authorHandle ?? post.did.slice(0, 12)
-              const when = post.createdAt ? formatRelativeTime(new Date(post.createdAt)) : ''
+              const when = post.createdAt ? formatRelativeTime(post.createdAt) : ''
               const preview = bodyPreview(post.body)
               return (
                 <li key={post.uri} data-forum-index={index}>
