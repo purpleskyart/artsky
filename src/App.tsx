@@ -170,9 +170,11 @@ function ForumPostRedirect() {
   if (!trimmed) return <Navigate to="/feed?forum=1" replace />
   try {
     const uri = decodeURIComponent(trimmed)
-    return <Navigate to={`/feed?forum=1&post=${encodeURIComponent(uri)}`} replace />
+    const param = uri.includes('app.artsky.forum.post') ? 'forumPost' : 'post'
+    return <Navigate to={`/feed?forum=1&${param}=${encodeURIComponent(uri)}`} replace />
   } catch {
-    return <Navigate to={`/feed?forum=1&post=${encodeURIComponent(trimmed)}`} replace />
+    const param = trimmed.includes('app.artsky.forum.post') ? 'forumPost' : 'post'
+    return <Navigate to={`/feed?forum=1&${param}=${encodeURIComponent(trimmed)}`} replace />
   }
 }
 
