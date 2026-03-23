@@ -58,7 +58,7 @@ async function collectFollowingDids(actor: string, max: number): Promise<string[
 
 async function enrichForumPostsWithAuthors(posts: ForumPost[]): Promise<void> {
   if (posts.length === 0) return
-  const client = getSession() ? agent : publicAgent
+  const client = publicAgent
   const dids = [...new Set(posts.map((p) => p.did))]
   await Promise.all(
     dids.map(async (did) => {
@@ -144,14 +144,13 @@ export async function discoverForumPosts(opts?: {
   return { posts: merged, nextCursorsByDid: nextCursors, hasMore }
 }
 
-/** List forum posts from a user's repo. */
+/** List forum posts from a user's repo. Reads via `publicAgent` so OAuth (PDS-scoped) sessions still fetch other users' repos. */
 export async function listForumPosts(
   did: string,
   opts?: { limit?: number; cursor?: string }
 ): Promise<{ posts: ForumPost[]; cursor?: string }> {
-  const client = getSession() ? agent : publicAgent
   try {
-    const res = await client.com.atproto.repo.listRecords({
+    const res = await publicAgent.com.atproto.repo.listRecords({
       repo: did,
       collection: FORUM_POST_COLLECTION,
       limit: opts?.limit ?? 30,
@@ -193,9 +192,8 @@ export async function listForumPosts(
 export async function getForumPost(uri: string): Promise<ForumPost | null> {
   const parsed = parseAtUri(uri)
   if (!parsed) return null
-  const client = getSession() ? agent : publicAgent
   try {
-    const res = await client.com.atproto.repo.getRecord({
+    const res = await publicAgent.com.atproto.repo.getRecord({
       repo: parsed.did,
       collection: FORUM_POST_COLLECTION,
       rkey: parsed.rkey,
@@ -211,7 +209,7 @@ export async function getForumPost(uri: string): Promise<ForumPost | null> {
     let authorHandle: string | undefined
     let authorAvatar: string | undefined
     try {
-      const profile = await client.getProfile({ actor: parsed.did })
+      const profile = await publicAgent.getProfile({ actor: parsed.did })
       const d = profile.data as { handle?: string; avatar?: string }
       authorHandle = d.handle
       authorAvatar = d.avatar
@@ -330,7 +328,6 @@ export async function listForumReplies(
   postUri: string,
   knownDids: string[] = []
 ): Promise<ForumReply[]> {
-  const client = getSession() ? agent : publicAgent
   const session = getSession()
   const didsToCheck = [...new Set([...(session?.did ? [session.did] : []), ...knownDids])]
 
@@ -339,7 +336,7 @@ export async function listForumReplies(
 
   for (const did of didsToCheck) {
     try {
-      const res = await client.com.atproto.repo.listRecords({
+      const res = await publicAgent.com.atproto.repo.listRecords({
         repo: did,
         collection: FORUM_REPLY_COLLECTION,
         limit: 100,
@@ -355,7 +352,7 @@ export async function listForumReplies(
         seenUris.add(r.uri)
         let author = { did, handle: did } as ForumReply['author']
         try {
-          const profile = await client.getProfile({ actor: did })
+          const profile = await publicAgent.getProfile({ actor: did })
           const d = profile.data as { handle?: string; avatar?: string; displayName?: string }
           author = { did, handle: d.handle ?? did, avatar: d.avatar, displayName: d.displayName }
         } catch {
