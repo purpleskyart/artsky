@@ -115,7 +115,9 @@ export interface FeedPullRefreshHandlers {
 export const FeedPullRefreshContext = React.createContext<{
   wrapperRef: React.RefObject<HTMLDivElement | null> | null
   setHandlers: ((handlers: FeedPullRefreshHandlers | null) => void) | null
-}>({ wrapperRef: null, setHandlers: null })
+  /** FeedPage reports pull distance so Layout can translate the whole main column (selector + cards), not only the card grid. */
+  setPullOffsetPx: ((px: number) => void) | null
+}>({ wrapperRef: null, setHandlers: null, setPullOffsetPx: null })
 
 /** Home icon (purplesky-style: roof house) */
 function HomeIcon({ active }: { active?: boolean }) {
@@ -394,6 +396,7 @@ export default function Layout({ title, children, showNav }: Props) {
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const feedPullRefreshWrapperRef = useRef<HTMLDivElement>(null)
   const [feedPullRefreshHandlers, setFeedPullRefreshHandlers] = useState<FeedPullRefreshHandlers | null>(null)
+  const [feedPullOffsetPx, setFeedPullOffsetPx] = useState(0)
   const [notificationFilter, setNotificationFilter] = useState<'all' | 'reply' | 'follow'>('all')
   const [feedsDropdownOpen, setFeedsDropdownOpen] = useState(false)
   const [feedsClosingAngle, setFeedsClosingAngle] = useState<number | null>(null)
@@ -1501,9 +1504,14 @@ export default function Layout({ title, children, showNav }: Props) {
     () => ({
       wrapperRef: showNav && path === '/feed' ? feedPullRefreshWrapperRef : null,
       setHandlers: showNav && path === '/feed' ? setFeedPullRefreshHandlers : null,
+      setPullOffsetPx: showNav && path === '/feed' ? setFeedPullOffsetPx : null,
     }),
     [showNav, path]
   )
+
+  useEffect(() => {
+    if (path !== '/feed') setFeedPullOffsetPx(0)
+  }, [path])
 
   return (
     <div className={`${styles.wrap} ${showNav && isDesktop ? styles.wrapWithHeader : ''} ${showNav && !isDesktop ? styles.wrapMobileTop : ''}`}>
@@ -2082,6 +2090,12 @@ export default function Layout({ title, children, showNav }: Props) {
         {showNav && path === '/feed' ? (
           <div
             ref={feedPullRefreshWrapperRef}
+            className={!isDesktop ? styles.feedPullRefreshWrap : undefined}
+            style={
+              !isDesktop
+                ? { transform: `translateY(${feedPullOffsetPx}px)` }
+                : undefined
+            }
             onTouchStart={feedPullRefreshHandlers?.onTouchStart}
             onTouchMove={feedPullRefreshHandlers?.onTouchMove}
             onTouchEnd={feedPullRefreshHandlers?.onTouchEnd}

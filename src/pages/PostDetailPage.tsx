@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import type { AppBskyFeedDefs } from '@atproto/api'
 import type { AtpSessionData } from '@atproto/api'
-import { agent, publicAgent, postReply, getPostAllMedia, getPostMediaUrl, getQuotedPostView, getPostExternalLink, getSession, createQuotePost, createDownvote, deleteDownvote, listMyDownvotes, getPostThreadCached, getProfilesBatch, getProfileCached, getPostsBatch, likePostWithLifecycle, unlikePostWithLifecycle, repostPostWithLifecycle, deleteRepostWithLifecycle, followAccountWithLifecycle, unfollowAccountWithLifecycle, type PostView } from '../lib/bsky'
+import { agent, publicAgent, postReply, getPostAllMedia, getPostMediaUrl, getQuotedPostView, getPostExternalLink, getSession, createQuotePost, createDownvote, deleteDownvote, listMyDownvotes, getPostThreadCached, getProfilesBatch, getProfileCached, getPostsBatch, likePostWithLifecycle, unlikePostWithLifecycle, repostPostWithLifecycle, deleteRepostWithLifecycle, followAccountWithLifecycle, unfollowAccountWithLifecycle, POST_MEDIA_FULL, POST_MEDIA_FEED_PREVIEW, type PostView } from '../lib/bsky'
 import { getApiErrorMessage } from '../lib/apiErrors'
 import { takeInitialPostForUri, getCachedThread, invalidateThreadCache } from '../lib/postCache'
 import { getDownvoteCounts } from '../lib/constellation'
@@ -249,6 +249,34 @@ function collectThreadPostUris(
     : []
   for (const r of replies) uris.push(...collectThreadPostUris(r))
   return uris
+}
+
+/**
+ * Thread/feed snapshots can omit image `fullsize` URLs.
+ * Only hydrate with getPosts when at least one embedded image is missing fullsize.
+ */
+function rootPostNeedsCanonicalHydration(post: AppBskyFeedDefs.PostView): boolean {
+  const embed = post.embed as
+    | {
+        $type?: string
+        images?: Array<{ fullsize?: string; thumb?: string }>
+        media?: {
+          $type?: string
+          images?: Array<{ fullsize?: string; thumb?: string }>
+        }
+      }
+    | undefined
+  if (!embed) return false
+
+  const hasMissingFullsize = (images: Array<{ fullsize?: string; thumb?: string }> | undefined): boolean =>
+    Array.isArray(images) && images.some((img) => !!img?.thumb && !img?.fullsize)
+
+  if (embed.$type === 'app.bsky.embed.images#view' && hasMissingFullsize(embed.images)) return true
+  if (embed.$type === 'app.bsky.embed.recordWithMedia#view') {
+    const media = embed.media
+    if (media?.$type === 'app.bsky.embed.images#view' && hasMissingFullsize(media.images)) return true
+  }
+  return false
 }
 
 const DESKTOP_BREAKPOINT = 768
@@ -532,7 +560,7 @@ function PostBlock({
   const baseDown = downvoteCounts?.[post.uri] ?? postViewer.downvoteCount ?? 0
   const downDelta = downvoteCountOptimisticDelta?.[post.uri] ?? 0
   const downvoteCount = Math.max(0, baseDown + downDelta)
-  const allMedia = getPostAllMedia(post)
+  const allMedia = getPostAllMedia(post, POST_MEDIA_FULL)
   const text = (post.record as { text?: string })?.text ?? ''
   const handle = post.author.handle ?? post.author.did
   const avatar = post.author.avatar ?? undefined
@@ -846,7 +874,7 @@ function PostBlock({
         const post = node.post
         const handle = post.author?.handle ?? post.author?.did ?? ''
         const text = (post.record as { text?: string })?.text ?? ''
-        const mediaList = getPostAllMedia(post)
+        const mediaList = getPostAllMedia(post, POST_MEDIA_FEED_PREVIEW)
         const firstMedia = mediaList[0]
         return (
           <>
@@ -1282,6 +1310,17 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
       const threadRes = await getPostThreadCached(decodedUri, api)
       const threadData = threadRes.data.thread as AppBskyFeedDefs.ThreadViewPost | AppBskyFeedDefs.NotFoundPost | AppBskyFeedDefs.BlockedPost | { $type: string }
       setThread(threadData)
+      /* Canonical post view: only fetch when snapshot embed lacks image fullsize URLs. */
+      if (isThreadViewPost(threadData) && rootPostNeedsCanonicalHydration(threadData.post)) {
+        void getPostsBatch([decodedUri]).then((map) => {
+          const fresh = map.get(decodedUri)
+          if (!fresh) return
+          setThread((prev) => {
+            if (!prev || !isThreadViewPost(prev) || prev.post.uri !== decodedUri) return prev
+            return { ...prev, post: fresh }
+          })
+        })
+      }
       setLoading(false)
       setDownvoteCountOptimisticDelta({})
       const uris = isThreadViewPost(threadData) ? collectThreadPostUris(threadData) : []
@@ -1451,8 +1490,8 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
     const hasSelection = addToBoardIds.size > 0 || newBoardName.trim().length > 0
     if (!hasSelection) return
     const post = thread.post
-    const media = getPostMediaUrl(post)
-    const allMedia = getPostAllMedia(post)
+    const media = getPostMediaUrl(post, POST_MEDIA_FEED_PREVIEW)
+    const allMedia = getPostAllMedia(post, POST_MEDIA_FEED_PREVIEW)
     const thumbs = allMedia.length > 0 ? allMedia.map((m) => m.url) : undefined
     const payload = {
       uri: post.uri,
@@ -1507,7 +1546,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
   }, [showRepostDropdown])
 
   const rootMediaForNav =
-    thread && isThreadViewPost(thread) ? getPostAllMedia(thread.post) : []
+    thread && isThreadViewPost(thread) ? getPostAllMedia(thread.post, POST_MEDIA_FULL) : []
   const hasMediaSection = rootMediaForNav.length > 0
   const hasRepliesSection =
     thread && isThreadViewPost(thread) && 'replies' in thread &&
@@ -1602,7 +1641,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
     items.push({ type: 'description' })
     for (const flat of threadRepliesFlat) {
       const node = findReplyByUri(threadRepliesVisible, flat.uri)
-      const media = node ? getPostAllMedia(node.post) : []
+      const media = node ? getPostAllMedia(node.post, POST_MEDIA_FULL) : []
       for (let i = 0; i < media.length; i++) items.push({ type: 'commentMedia', commentUri: flat.uri, mediaIndex: i })
       items.push({ type: 'comment', commentUri: flat.uri })
     }
@@ -1910,7 +1949,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
   }
 
   const rootMedia =
-    thread && isThreadViewPost(thread) ? getPostAllMedia(thread.post) : []
+    thread && isThreadViewPost(thread) ? getPostAllMedia(thread.post, POST_MEDIA_FULL) : []
 
   const content = (
       <div className={`${styles.wrap}${onClose ? ` ${styles.wrapInModal}` : ''}${loading ? ` ${styles.wrapLoading}` : ''}`}>
@@ -1946,7 +1985,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                   if (!parentPost) return null
                   const parentHandle = parentPost.author?.handle ?? parentPost.author?.did ?? ''
                   const parentText = (parentPost.record as { text?: string })?.text ?? ''
-                  const parentMedia = getPostAllMedia(parentPost)
+                  const parentMedia = getPostAllMedia(parentPost, POST_MEDIA_FEED_PREVIEW)
                   return (
                     <div className={styles.parentPostWrap}>
                       <p className={styles.quotedPostLabel}>Replying to</p>
@@ -2105,7 +2144,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                   if (!quoted) return null
                   const quotedHandle = quoted.author?.handle ?? quoted.author?.did ?? ''
                   const quotedText = (quoted.record as { text?: string })?.text ?? ''
-                  const quotedMedia = getPostAllMedia(quoted)
+                  const quotedMedia = getPostAllMedia(quoted, POST_MEDIA_FEED_PREVIEW)
                   return (
                     <div className={styles.quotedPostWrap}>
                       <p className={styles.quotedPostLabel}>Quoting</p>
@@ -2575,7 +2614,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                       const post = thread.post
                       const handle = post.author?.handle ?? post.author?.did ?? ''
                       const text = (post.record as { text?: string })?.text ?? ''
-                      const mediaList = getPostAllMedia(post)
+                      const mediaList = getPostAllMedia(post, POST_MEDIA_FEED_PREVIEW)
                       const firstMedia = mediaList[0]
                       return (
                         <div className={styles.quoteComposerQuotedWrap}>

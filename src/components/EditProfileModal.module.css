@@ -7,8 +7,6 @@
   align-items: center;
   justify-content: flex-start;
   background: var(--overlay-bg);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
   padding: 1.5rem;
   padding-top: 2.5rem;
   padding-left: max(1.5rem, env(safe-area-inset-left));

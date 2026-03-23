@@ -655,8 +655,6 @@
   margin-bottom: 0.25rem;
   min-width: 140px;
   background: var(--glass-bg-strong);
-  -webkit-backdrop-filter: blur(var(--glass-blur-strong));
-  backdrop-filter: blur(var(--glass-blur-strong));
   border: 1px solid var(--glass-border);
   border-radius: var(--glass-radius-sm);
   box-shadow: var(--shadow-dropdown);
@@ -1687,8 +1685,6 @@
   overflow-y: auto;
   padding: 1.25rem;
   background: var(--glass-bg-strong);
-  -webkit-backdrop-filter: blur(var(--glass-blur-strong));
-  backdrop-filter: blur(var(--glass-blur-strong));
   border: 1px solid var(--glass-border);
   border-radius: var(--glass-radius);
   box-shadow: var(--shadow-dropdown);

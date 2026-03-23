@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { useNavigate, useLocation } from 'react-router-dom'
 import type Hls from 'hls.js'
 import { loadHls } from '../lib/loadHls'
-import { getPostMediaInfoForDisplay, getPostAllMediaForDisplay, getPostMediaUrlForDisplay, getPostExternalLink, agent, likePostWithLifecycle, unlikePostWithLifecycle, followAccountWithLifecycle, type TimelineItem } from '../lib/bsky'
+import { getPostMediaInfoForDisplay, getPostAllMediaForDisplay, getPostMediaUrlForDisplay, getPostExternalLink, POST_MEDIA_FEED_PREVIEW, agent, likePostWithLifecycle, unlikePostWithLifecycle, followAccountWithLifecycle, type TimelineItem } from '../lib/bsky'
 import { getArtboards, createArtboard, addPostToArtboard, isPostInArtboard, isPostInAnyArtboard, getArtboard } from '../lib/artboards'
 import { putArtboardOnPds } from '../lib/artboardsPds'
 import { useSession } from '../context/SessionContext'
@@ -123,11 +123,11 @@ function PostCardInner({ item, isSelected, cardRef: cardRefProp, addButtonRef: _
   const feedLabel = feedSource?.label ?? (feedSource?.kind === 'timeline' ? 'Following' : undefined)
   
   // Memoize derived state to prevent unnecessary recalculations
-  const media = useMemo(() => getPostMediaInfoForDisplay(post), [post])
+  const media = useMemo(() => getPostMediaInfoForDisplay(post, POST_MEDIA_FEED_PREVIEW), [post])
   const hasMedia = !!media
   const text = (post.record as { text?: string })?.text ?? ''
   const externalLink = useMemo(() => getPostExternalLink(post), [post])
-  const allMedia = useMemo(() => getPostAllMediaForDisplay(post), [post])
+  const allMedia = useMemo(() => getPostAllMediaForDisplay(post, POST_MEDIA_FEED_PREVIEW), [post])
   const handle = post.author.handle ?? post.author.did
   const repostedByHandle = reason?.by ? (reason.by.handle ?? reason.by.did) : null
   const isQuotePost = (() => {
@@ -386,7 +386,7 @@ function PostCardInner({ item, isSelected, cardRef: cardRefProp, addButtonRef: _
   const handleAddToArtboard = useCallback(async () => {
     const hasSelection = addToBoardIds.size > 0 || newBoardName.trim().length > 0
     if (!hasSelection) return
-    const mediaUrl = getPostMediaUrlForDisplay(post)
+    const mediaUrl = getPostMediaUrlForDisplay(post, POST_MEDIA_FEED_PREVIEW)
     const thumbs = allMedia.length > 0 ? allMedia.map((m) => m.url) : undefined
     const payload = {
       uri: post.uri,
