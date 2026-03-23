@@ -1,7 +1,7 @@
 import { useCallback, useContext, useEffect, useMemo, useReducer, useRef, useState, startTransition, useSyncExternalStore } from 'react'
 import { useLocation, useNavigate, useNavigationType } from 'react-router-dom'
 import {
-  getPostMediaInfo,
+  getPostMediaInfoForDisplay,
   getPostAllMediaForDisplay,
   getGuestFeed,
   getSavedFeedsFromPreferences,
@@ -155,7 +155,7 @@ export function buildDisplayEntries(items: TimelineItem[]): FeedDisplayEntry[] {
 
 function estimateEntryHeight(entry: FeedDisplayEntry): number {
   if (entry.type === 'carousel') return REPOST_CAROUSEL_ESTIMATE_HEIGHT
-  const media = getPostMediaInfo(entry.item.post)
+  const media = getPostMediaInfoForDisplay(entry.item.post)
   if (!media) return CARD_CHROME + 80
   if (media.aspectRatio != null && media.aspectRatio > 0) {
     return CARD_CHROME + ESTIMATE_COL_WIDTH / media.aspectRatio
@@ -581,13 +581,15 @@ export default function FeedPage() {
       dispatch({ type: 'SET_LOADING', loading: false })
       return
     }
-    if (!nextCursor) feedMixChangedRef.current = false
-    
+
     try {
       // Check if request was cancelled
       if (signal?.aborted) {
         return
       }
+
+      const activeMixEntries = mixEntries.filter((e) => e.percent > 0)
+      const activeMixTotalPercent = activeMixEntries.reduce((s, e) => s + e.percent, 0)
       
       if (nextCursor) dispatch({ type: 'SET_LOADING_MORE', loadingMore: true })
       else dispatch({ type: 'SET_LOADING', loading: true })
@@ -619,7 +621,7 @@ export default function FeedPage() {
         }
         if (nextCursor) startTransition(apply)
         else apply()
-      } else if (mixEntries.length >= 2 && mixTotalPercent >= 99) {
+      } else if (activeMixEntries.length >= 2 && activeMixTotalPercent >= 99) {
         const isLoadMore = !!nextCursor
         let cursorsToUse: Record<string, string> | undefined
         if (isLoadMore && nextCursor) {
@@ -629,7 +631,7 @@ export default function FeedPage() {
             cursorsToUse = undefined
           }
         }
-        const capped = mixEntries.slice(0, 2)
+        const capped = activeMixEntries.slice(0, 2)
         const totalPct = capped.reduce((s, e) => s + e.percent, 0)
         const normalized = totalPct > 0 ? capped.map((e) => ({ source: e.source, percent: (e.percent / totalPct) * 100 })) : capped.map((e) => ({ source: e.source, percent: e.percent }))
         const { feed, cursors: nextCursors } = await withTimeout(
@@ -658,8 +660,8 @@ export default function FeedPage() {
         }
         if (isLoadMore) startTransition(apply)
         else apply()
-      } else if (mixEntries.length === 1) {
-        const single = mixEntries[0].source
+      } else if (activeMixEntries.length === 1) {
+        const single = activeMixEntries[0].source
         if (single.kind === 'timeline') {
           const res = await withTimeout(getTimelineWithLifecycle(limit, nextCursor), FEED_LOAD_TIMEOUT_MS)
           const apply = () => {
@@ -716,6 +718,8 @@ export default function FeedPage() {
     } finally {
       dispatch({ type: 'SET_LOADING', loading: false })
       dispatch({ type: 'SET_LOADING_MORE', loadingMore: false })
+      /* Clear after initial load completes so scroll guard still treats in-flight refresh as "mix changed" (fixes Following missing after re-adding while scrolled). */
+      if (!nextCursor) feedMixChangedRef.current = false
     }
   }, [source, session, mixEntries, mixTotalPercent])
 
@@ -820,7 +824,7 @@ export default function FeedPage() {
   const { hideRepostsFromDids } = useHideReposts() ?? { hideRepostsFromDids: [] as string[] }
   const displayItems = useMemo(() =>
     (feedState.items ?? [])
-      .filter((item) => (mediaMode === 'media' ? getPostMediaInfo(item.post) : true))
+      .filter((item) => (mediaMode === 'media' ? getPostMediaInfoForDisplay(item.post) : true))
       .filter((item) => !feedState.seenUrisAtReset.has(item.post.uri))
       .filter((item) => nsfwPreference !== 'sfw' || !isPostNsfw(item.post))
       .filter((item) => {
@@ -833,7 +837,7 @@ export default function FeedPage() {
   const displayEntries = useMemo(() => buildDisplayEntries(displayItems), [displayItems])
   const itemsAfterOtherFilters = useMemo(() =>
     (feedState.items ?? [])
-      .filter((item) => (mediaMode === 'media' ? getPostMediaInfo(item.post) : true))
+      .filter((item) => (mediaMode === 'media' ? getPostMediaInfoForDisplay(item.post) : true))
       .filter((item) => nsfwPreference !== 'sfw' || !isPostNsfw(item.post)),
     [feedState.items, mediaMode, nsfwPreference]
   )
@@ -1377,6 +1381,13 @@ export default function FeedPage() {
     }
   }, [feedPullRefresh?.setHandlers, handleTouchStart, handleTouchMove, handleTouchEnd])
 
+  useEffect(() => {
+    const setPull = feedPullRefresh?.setPullOffsetPx
+    if (!setPull) return
+    setPull(pullRefresh.pullDistance)
+    return () => setPull(0)
+  }, [feedPullRefresh?.setPullOffsetPx, pullRefresh.pullDistance])
+
   const useWrapperForPull = !!feedPullRefresh?.wrapperRef
 
   return (
@@ -1399,12 +1410,7 @@ export default function FeedPage() {
             <div className={styles.pullRefreshSpinner} />
           )}
         </div>
-        <div
-          className={styles.pullRefreshContent}
-          style={{
-            transform: `translateY(${pullRefresh.pullDistance}px)`,
-          }}
-        >
+        <div className={styles.pullRefreshContent}>
         <div
           key={mixEntries.length === 1 ? (mixEntries[0].source.uri ?? mixEntries[0].source.label) : 'mixed'}
           className={styles.feedContentTransition}

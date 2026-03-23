@@ -719,8 +719,34 @@ export type PostMediaInfo = {
   aspectRatio?: number
 }
 
+/**
+ * Controls which image URL Bluesky embeds use.
+ * - `full` (default): prefer `fullsize` — use in post detail, galleries, and anywhere you need max quality.
+ * - `feed`: prefer `thumb` — smaller CDN assets for feed cards and list previews.
+ */
+export type PostMediaUrlOptions = {
+  imageQuality?: 'feed' | 'full'
+}
+
+/** Post detail & thread media: prefer Bluesky `fullsize` URLs (default when `opts` omitted). */
+export const POST_MEDIA_FULL: PostMediaUrlOptions = { imageQuality: 'full' }
+
+/** Feed cards, repost carousel tiles, quoted/parent preview cards: prefer `thumb` URLs. */
+export const POST_MEDIA_FEED_PREVIEW: PostMediaUrlOptions = { imageQuality: 'feed' }
+
+function embedImageUrl(
+  img: { thumb?: string; fullsize?: string },
+  opts: PostMediaUrlOptions | undefined,
+): string {
+  const preferThumb = opts?.imageQuality === 'feed'
+  if (preferThumb) {
+    return img.thumb ?? img.fullsize ?? ''
+  }
+  return img.fullsize ?? img.thumb ?? ''
+}
+
 /** Returns media info for a post: thumbnail/first image URL, type, and for video the playlist URL. */
-export function getPostMediaInfo(post: PostView): PostMediaInfo | null {
+export function getPostMediaInfo(post: PostView, opts?: PostMediaUrlOptions): PostMediaInfo | null {
   const embed = post.embed as
     | {
         $type?: string
@@ -736,7 +762,7 @@ export function getPostMediaInfo(post: PostView): PostMediaInfo | null {
       ? img.aspectRatio.width / img.aspectRatio.height
       : undefined
     return {
-      url: img.fullsize ?? img.thumb ?? '',
+      url: embedImageUrl(img, opts),
       type: 'image',
       imageCount: embed.images.length,
       aspectRatio: ar,
@@ -766,7 +792,7 @@ export function getPostMediaInfo(post: PostView): PostMediaInfo | null {
       ? img.aspectRatio.width / img.aspectRatio.height
       : undefined
     return {
-      url: img.fullsize ?? img.thumb ?? '',
+      url: embedImageUrl(img, opts),
       type: 'image',
       imageCount: media.images.length,
       aspectRatio: ar,
@@ -789,7 +815,10 @@ export function getPostMediaInfo(post: PostView): PostMediaInfo | null {
 }
 
 /** Returns all media items in a post (all images + video if any) for gallery view. */
-export function getPostAllMedia(post: PostView): Array<{ url: string; type: 'image' | 'video'; videoPlaylist?: string; aspectRatio?: number }> {
+export function getPostAllMedia(
+  post: PostView,
+  opts?: PostMediaUrlOptions,
+): Array<{ url: string; type: 'image' | 'video'; videoPlaylist?: string; aspectRatio?: number }> {
   const out: Array<{ url: string; type: 'image' | 'video'; videoPlaylist?: string; aspectRatio?: number }> = []
   const embed = post.embed as Record<string, unknown> | undefined
   if (!embed) return out
@@ -805,7 +834,7 @@ export function getPostAllMedia(post: PostView): Array<{ url: string; type: 'ima
       const ar = img.aspectRatio && img.aspectRatio.width > 0 && img.aspectRatio.height > 0
         ? img.aspectRatio.width / img.aspectRatio.height
         : undefined
-      out.push({ url: img.fullsize ?? img.thumb ?? '', type: 'image', aspectRatio: ar })
+      out.push({ url: embedImageUrl(img, opts), type: 'image', aspectRatio: ar })
     }
     return out
   }
@@ -828,7 +857,7 @@ export function getPostAllMedia(post: PostView): Array<{ url: string; type: 'ima
       const ar = img.aspectRatio && img.aspectRatio.width > 0 && img.aspectRatio.height > 0
         ? img.aspectRatio.width / img.aspectRatio.height
         : undefined
-      out.push({ url: img.fullsize ?? img.thumb ?? '', type: 'image', aspectRatio: ar })
+      out.push({ url: embedImageUrl(img, opts), type: 'image', aspectRatio: ar })
     }
     return out
   }
@@ -848,8 +877,8 @@ export function getPostAllMedia(post: PostView): Array<{ url: string; type: 'ima
 }
 
 /** @deprecated Use getPostMediaInfo. Returns first image or video thumbnail for card display. */
-export function getPostMediaUrl(post: PostView): { url: string; type: 'image' | 'video' } | null {
-  const info = getPostMediaInfo(post)
+export function getPostMediaUrl(post: PostView, opts?: PostMediaUrlOptions): { url: string; type: 'image' | 'video' } | null {
+  const info = getPostMediaInfo(post, opts)
   return info ? { url: info.url, type: info.type } : null
 }
 
@@ -857,24 +886,27 @@ export function getPostMediaUrl(post: PostView): { url: string; type: 'image' | 
  * Media for display: uses the post's own media, or for quote posts with no outer media, the quoted post's media.
  * Use for profile grid and cards so text-only quote posts show the quoted post's media.
  */
-export function getPostMediaInfoForDisplay(post: PostView): PostMediaInfo | null {
-  const info = getPostMediaInfo(post)
+export function getPostMediaInfoForDisplay(post: PostView, opts?: PostMediaUrlOptions): PostMediaInfo | null {
+  const info = getPostMediaInfo(post, opts)
   if (info) return info
   const quoted = getQuotedPostView(post)
-  return quoted ? getPostMediaInfo(quoted) : null
+  return quoted ? getPostMediaInfo(quoted, opts) : null
 }
 
 /** All media for display: same fallback as getPostMediaInfoForDisplay (quoted post's media when outer has none). */
-export function getPostAllMediaForDisplay(post: PostView): Array<{ url: string; type: 'image' | 'video'; videoPlaylist?: string; aspectRatio?: number }> {
-  const outer = getPostAllMedia(post)
+export function getPostAllMediaForDisplay(
+  post: PostView,
+  opts?: PostMediaUrlOptions,
+): Array<{ url: string; type: 'image' | 'video'; videoPlaylist?: string; aspectRatio?: number }> {
+  const outer = getPostAllMedia(post, opts)
   if (outer.length) return outer
   const quoted = getQuotedPostView(post)
-  return quoted ? getPostAllMedia(quoted) : []
+  return quoted ? getPostAllMedia(quoted, opts) : []
 }
 
 /** First media URL for display (e.g. thumb); uses quoted post's media when outer has none. */
-export function getPostMediaUrlForDisplay(post: PostView): { url: string; type: 'image' | 'video' } | null {
-  const info = getPostMediaInfoForDisplay(post)
+export function getPostMediaUrlForDisplay(post: PostView, opts?: PostMediaUrlOptions): { url: string; type: 'image' | 'video' } | null {
+  const info = getPostMediaInfoForDisplay(post, opts)
   return info ? { url: info.url, type: info.type } : null
 }
 

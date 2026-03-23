@@ -265,8 +265,6 @@
   -webkit-overflow-scrolling: touch;
   padding: 1.25rem;
   background: var(--glass-bg-strong);
-  -webkit-backdrop-filter: blur(var(--glass-blur-strong));
-  backdrop-filter: blur(var(--glass-blur-strong));
   border-radius: var(--glass-radius);
   box-shadow: var(--shadow-dropdown);
   pointer-events: auto;

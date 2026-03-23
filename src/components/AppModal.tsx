@@ -197,38 +197,21 @@ export default function AppModal({
           onTouchEnd={swipe.onTouchEnd}
           onClick={(e) => e.stopPropagation()}
         >
-          <button
-            type="button"
-            className={`${styles.modalFloatingBack}${modalScrollHidden ? ` ${styles.modalFloatingBackScrollHidden}` : ''}`}
-            onClick={canGoBack ? onBack : onClose}
-            aria-label={canGoBack ? 'Back' : 'Close'}
-            title={canGoBack ? 'Back' : 'Close'}
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <path d="M19 12H5M12 19l-7-7 7-7" />
-            </svg>
-          </button>
-          {!hideTopBar && (
-            <div className={`${styles.modalTopBar} ${transparentTopBar ? styles.modalTopBarTransparent : ''} ${styles.modalTopBarActionsBelow}`}>
-              <div className={styles.modalTopBarLeft} aria-hidden="true">
-                {/* Back/close is the floating circle button only (mobile and desktop) */}
-              </div>
-              <div ref={setTopBarSlotEl} className={styles.modalTopBarSlot} />
-              <div ref={setTopBarRightSlotEl} className={styles.modalTopBarRight} />
-            </div>
-          )}
           <div
-            ref={scrollRef}
-            data-modal-scroll
-            className={`${styles.scroll} ${transparentTopBar ? styles.scrollWithTransparentBar : ''} ${styles.scrollWithFloatingBack}`}
-            onTouchStart={pullRefresh.onTouchStart}
-            onTouchMove={pullRefresh.onTouchMove}
-            onTouchEnd={pullRefresh.onTouchEnd}
+            className={`${styles.modalPaneBody}${onPullToRefresh && isMobile ? ` ${styles.modalPanePullSnap}` : ''}`}
+            style={
+              onPullToRefresh && isMobile
+                ? { transform: `translateY(${pullRefresh.pullDistance}px)` }
+                : undefined
+            }
           >
-            {onPullToRefresh && (
+            {onPullToRefresh && isMobile && (
               <div
-                className={styles.pullRefreshHeader}
-                style={{ height: pullRefresh.pullDistance > 0 || pullRefresh.isRefreshing ? PULL_REFRESH_HOLD_PX : 0 }}
+                className={styles.modalPanePullRefreshHeader}
+                style={{
+                  height:
+                    pullRefresh.pullDistance > 0 || pullRefresh.isRefreshing ? PULL_REFRESH_HOLD_PX : 0,
+                }}
                 aria-hidden={pullRefresh.pullDistance === 0 && !pullRefresh.isRefreshing}
                 aria-live="polite"
                 aria-label={pullRefresh.isRefreshing ? 'Refreshing' : undefined}
@@ -238,9 +221,33 @@ export default function AppModal({
                 )}
               </div>
             )}
+            <button
+              type="button"
+              className={`${styles.modalFloatingBack}${modalScrollHidden ? ` ${styles.modalFloatingBackScrollHidden}` : ''}`}
+              onClick={canGoBack ? onBack : onClose}
+              aria-label={canGoBack ? 'Back' : 'Close'}
+              title={canGoBack ? 'Back' : 'Close'}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M19 12H5M12 19l-7-7 7-7" />
+              </svg>
+            </button>
+            {!hideTopBar && (
+              <div className={`${styles.modalTopBar} ${transparentTopBar ? styles.modalTopBarTransparent : ''} ${styles.modalTopBarActionsBelow}`}>
+                <div className={styles.modalTopBarLeft} aria-hidden="true">
+                  {/* Back/close is the floating circle button only (mobile and desktop) */}
+                </div>
+                <div ref={setTopBarSlotEl} className={styles.modalTopBarSlot} />
+                <div ref={setTopBarRightSlotEl} className={styles.modalTopBarRight} />
+              </div>
+            )}
             <div
-              className={onPullToRefresh ? styles.pullRefreshContent : undefined}
-              style={onPullToRefresh ? { transform: `translateY(${pullRefresh.pullDistance}px)` } : undefined}
+              ref={scrollRef}
+              data-modal-scroll
+              className={`${styles.scroll} ${transparentTopBar ? styles.scrollWithTransparentBar : ''} ${styles.scrollWithFloatingBack}`}
+              onTouchStart={pullRefresh.onTouchStart}
+              onTouchMove={pullRefresh.onTouchMove}
+              onTouchEnd={pullRefresh.onTouchEnd}
             >
               <ModalScrollProvider scrollRef={scrollRef}>
                 {children}

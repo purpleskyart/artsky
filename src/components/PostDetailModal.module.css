@@ -10,8 +10,6 @@
   align-items: center;
   justify-content: flex-start;
   background: var(--overlay-bg);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
   padding: 1.5rem;
   padding-top: 2.5rem;
   padding-left: max(1.5rem, env(safe-area-inset-left));
@@ -59,8 +57,6 @@
   cursor: pointer;
   color: var(--text);
   background: var(--glass-bg);
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
   box-shadow: var(--shadow-card);
   transition: transform var(--transition-fast), box-shadow var(--transition-fast);
 }
@@ -149,6 +145,30 @@
   padding-top: max(0.35rem, env(safe-area-inset-top));
 }
 
+/* Under swipe translateX: one column so pull-to-refresh moves top bar, back button, and scroll together */
+.modalPaneBody {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  min-width: 0;
+}
+
+.modalPanePullSnap {
+  transition: transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.modalPanePullRefreshHeader {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  overflow: hidden;
+  transition: height 0.2s ease-out;
+}
+
 .scroll {
   overflow-y: auto;
   overflow-x: hidden;
@@ -173,18 +193,7 @@
   }
 }
 
-/* Pull-to-refresh in modals (same behavior as mobile homepage) */
-.scroll .pullRefreshHeader {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--bg);
-  overflow: hidden;
-  transition: height 0.2s ease-out;
-}
-
-.scroll .pullRefreshSpinner {
+.pullRefreshSpinner {
   width: 24px;
   height: 24px;
   border: 2px solid var(--border);
@@ -197,10 +206,6 @@
   to {
     transform: rotate(360deg);
   }
-}
-
-.scroll .pullRefreshContent {
-  transition: transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 /* Big BETA alert at top of forums/collections popups */

@@ -1,4 +1,4 @@
-import { getPostMediaInfo, type TimelineItem } from '../lib/bsky'
+import { getPostMediaInfo, POST_MEDIA_FEED_PREVIEW, type TimelineItem } from '../lib/bsky'
 import styles from './RepostCarouselCard.module.css'
 
 function RepostIcon() {
@@ -42,7 +42,7 @@ export default function RepostCarouselCard({ items, onPostClick, cardRef, seen, 
           {items.map((item) => {
             const uri = item.post.uri
             const handle = handleFor(item)
-            const media = getPostMediaInfo(item.post)
+            const media = getPostMediaInfo(item.post, POST_MEDIA_FEED_PREVIEW)
             const authorAvatar = item.post.author?.avatar
             const thumb = media?.url ?? authorAvatar
 
