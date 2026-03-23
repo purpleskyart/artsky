@@ -67,7 +67,7 @@ export default function AppModal({
     scrollRef,
     touchTargetRef: scrollRef,
     onRefresh: onPullToRefresh ?? (() => {}),
-    enabled: !!onPullToRefresh && !isMobile,
+    enabled: !!onPullToRefresh && isMobile,
   })
   const [topBarSlotEl, setTopBarSlotEl] = useState<HTMLDivElement | null>(null)
   const [topBarRightSlotEl, setTopBarRightSlotEl] = useState<HTMLDivElement | null>(null)

@@ -1302,7 +1302,8 @@ export default function FeedPage() {
         window.scrollTo(0, 0)
       })
     },
-    enabled: isDesktop,
+    /* Touch pull-to-refresh: intended for phones and installed PWAs (no browser chrome refresh). */
+    enabled: !isDesktop,
     maxTouchStartY: 130,
   })
 

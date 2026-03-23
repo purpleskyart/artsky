@@ -5,7 +5,7 @@ import { useSession } from '../context/SessionContext'
 import { useProfileModal } from '../context/ProfileModalContext'
 import { useEditProfile } from '../context/EditProfileContext'
 import { useModalTopBarSlot } from '../context/ModalTopBarSlotContext'
-import { agent, publicAgent, getPostMediaInfo, getPostMediaInfoForDisplay, getActorFeeds, listActivitySubscriptions, putActivitySubscription, isPostNsfw, getProfileCached, likePostWithLifecycle, unlikePostWithLifecycle, followAccountWithLifecycle, unfollowAccountWithLifecycle, type TimelineItem, type ProfileViewBasic } from '../lib/bsky'
+import { agent, publicAgent, getSession as getBskyApiSession, getPostMediaInfo, getPostMediaInfoForDisplay, getActorFeeds, listActivitySubscriptions, putActivitySubscription, isPostNsfw, getProfileCached, likePostWithLifecycle, unlikePostWithLifecycle, followAccountWithLifecycle, unfollowAccountWithLifecycle, type TimelineItem, type ProfileViewBasic } from '../lib/bsky'
 import { setInitialPostForUri } from '../lib/postCache'
 import PostCard from '../components/PostCard'
 import ProfileColumn from '../components/ProfileColumn'
@@ -199,7 +199,9 @@ export function ProfileContent({
   const [notificationLoading, setNotificationLoading] = useState(false)
   const { session } = useSession()
   const { viewMode, setViewMode } = useViewMode()
-  const readAgent = session ? agent : publicAgent
+  /** Use the live API agent only when it actually has a JWT. React session can come from storage before OAuth/credential resume attaches the agent (refresh → “Authentication Required” on getAuthorFeed). */
+  const hasLiveBskyAuth = !!getBskyApiSession()?.accessJwt
+  const readAgent = hasLiveBskyAuth ? agent : publicAgent
   const loadMoreSentinelRef = useRef<HTMLDivElement>(null)
   /** One sentinel per column so we load more when the user nears the bottom of any column (avoids blank space in short columns). */
   const loadMoreSentinelRefs = useRef<(HTMLDivElement | null)[]>([])
@@ -328,17 +330,23 @@ export function ProfileContent({
     }
   }, [handle, profile?.did, session?.did])
 
-  // Run only when handle changes to avoid duplicate getAuthorFeed when session/readAgent becomes available (rate limit fix).
+  const prevAuthorFeedHandleRef = useRef<string | undefined>(undefined)
+  // Initial / refetch author feed: depend on handle and live agent auth (not React session alone — storage can be ahead of the agent after refresh).
   useEffect(() => {
     if (!handle) return
-    setProfile(null)
-    setFollowUriOverride(null)
-    setTab('posts')
-    setProfilePostsFilter('all')
-    setLikedItems([])
-    setLikedCursor(undefined)
+    const prev = prevAuthorFeedHandleRef.current
+    prevAuthorFeedHandleRef.current = handle
+    const handleChanged = prev !== undefined && prev !== handle
+    if (handleChanged) {
+      setProfile(null)
+      setFollowUriOverride(null)
+      setTab('posts')
+      setProfilePostsFilter('all')
+      setLikedItems([])
+      setLikedCursor(undefined)
+    }
     loadRef.current()
-  }, [handle])
+  }, [handle, hasLiveBskyAuth])
 
   useEffect(() => {
     if (profilePostsFilter === 'liked' && handle && session && profile && session.did === profile.did) {
@@ -1041,6 +1049,7 @@ export function ProfileContent({
                     setKeyboardFocusIndex(originalIndex)
                   }}
                   onAddClose={() => setKeyboardAddOpen(false)}
+                  suppressHoverNsfwUnblur={!!inModal}
                   isSelected={(index) => (tab === 'posts' || tab === 'reposts') && index === keyboardFocusIndex}
                 />
               ))}

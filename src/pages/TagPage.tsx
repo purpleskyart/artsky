@@ -284,6 +284,7 @@ export function TagContent({ tag, inModal = false, onRegisterRefresh }: { tag: s
                 onActionsMenuOpenChange={() => {}}
                 onMouseEnter={(originalIndex) => setKeyboardFocusIndex(originalIndex)}
                 onAddClose={() => setKeyboardAddOpen(false)}
+                suppressHoverNsfwUnblur={inModal}
                 isSelected={(index) => index === keyboardFocusIndex}
               />
             ))}
