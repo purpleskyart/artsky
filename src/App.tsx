@@ -1,7 +1,7 @@
 // PurpleSky – Bluesky client focused on art (deploy bump)
 import { Component, lazy, Suspense, useEffect } from 'react'
 import type { ErrorInfo, ReactNode } from 'react'
-import { HashRouter, Navigate, Route, Routes, useParams } from 'react-router-dom'
+import { HashRouter, Navigate, Route, Routes, useParams, useSearchParams } from 'react-router-dom'
 import { REPO_URL } from './config/repo'
 import { initPerformanceMetrics } from './lib/performanceMetrics'
 import { CoreProvidersGroup } from './context/CoreProvidersGroup'
@@ -160,7 +160,13 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
 /** Redirect to feed with artboard modal open (for direct /artboard/:id links). */
 function ArtboardRedirect() {
   const { id } = useParams<{ id: string }>()
-  return <Navigate to={id ? `/feed?artboard=${encodeURIComponent(id)}` : '/feed'} replace />
+  const [searchParams] = useSearchParams()
+  const owner = searchParams.get('artboardOwner')
+  if (!id) return <Navigate to="/feed" replace />
+  const q = new URLSearchParams()
+  q.set('artboard', id)
+  if (owner) q.set('artboardOwner', owner)
+  return <Navigate to={`/feed?${q.toString()}`} replace />
 }
 
 /** Redirect to feed with forum post modal open (for direct /forum/post/:uri links). */

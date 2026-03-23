@@ -9,6 +9,9 @@ import { useSwipeToClose } from '../hooks/useSwipeToClose'
 import { usePullToRefresh, PULL_REFRESH_HOLD_PX } from '../hooks/usePullToRefresh'
 import styles from './PostDetailModal.module.css'
 
+/** Must match `.overlay` in PostDetailModal.module.css; incremented per stack layer so paint order stays correct when lazy chunks mount after eager siblings. */
+const MODAL_OVERLAY_Z_BASE = 1000
+
 const MOBILE_BREAKPOINT = 768
 function subscribeMobile(cb: () => void) {
   if (typeof window === 'undefined') return () => {}
@@ -41,6 +44,8 @@ interface AppModalProps {
   scrollKey?: string
   /** When false, this modal is under another; only the top modal should capture wheel to avoid scrolling the wrong pane */
   isTopModal?: boolean
+  /** Index in the modal stack (0 = bottom). Sets z-index so layers paint correctly when portals mount out of order (e.g. lazy list loads after eager detail). */
+  stackIndex?: number
 }
 
 export default function AppModal({
@@ -56,6 +61,7 @@ export default function AppModal({
   onPullToRefresh,
   scrollKey,
   isTopModal = true,
+  stackIndex,
 }: AppModalProps) {
   const overlayRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -184,6 +190,7 @@ export default function AppModal({
       <div
         ref={overlayRef}
         className={`${styles.overlay}${transparentTopBar ? ` ${styles.overlayFlushTop}` : ''}${expanded ? ` ${styles.overlayExpanded}` : ''}`}
+        style={stackIndex !== undefined ? { zIndex: MODAL_OVERLAY_Z_BASE + stackIndex } : undefined}
         onClick={handleBackdropClick}
         role="dialog"
         aria-modal="true"

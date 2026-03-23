@@ -132,7 +132,8 @@ button.bentoLink {
   grid-template-rows: repeat(2, 1fr);
   gap: 0.35rem;
   min-height: 100px;
-  height: clamp(120px, 28vw, 200px);
+  /* Cap vw so cards inside a narrow modal (not full viewport width) don’t balloon */
+  height: clamp(120px, min(28vw, 42vh), 200px);
   padding: 0.5rem;
   flex-shrink: 0;
 }
@@ -140,7 +141,7 @@ button.bentoLink {
 @media (min-width: 600px) {
   .bentoThumbs {
     min-height: 140px;
-    height: clamp(160px, 22vw, 220px);
+    height: clamp(160px, min(22vw, 38vh), 220px);
   }
 }
 
@@ -164,7 +165,7 @@ button.bentoLink {
 
 .bentoEmpty {
   min-height: 100px;
-  height: clamp(120px, 28vw, 200px);
+  height: clamp(120px, min(28vw, 42vh), 200px);
   padding: 0.5rem;
   display: flex;
   align-items: center;
