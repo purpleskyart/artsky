@@ -227,7 +227,7 @@ export async function getForumPost(uri: string): Promise<ForumPost | null> {
   const parsed = parseAtUri(uri)
   if (!parsed) return null
   try {
-    let res: { data: { uri: string; cid: string; value: unknown } }
+    let res: Awaited<ReturnType<typeof publicAgent.com.atproto.repo.getRecord>>
     try {
       res = await publicAgent.com.atproto.repo.getRecord({
         repo: parsed.did,
@@ -244,6 +244,8 @@ export async function getForumPost(uri: string): Promise<ForumPost | null> {
         rkey: parsed.rkey,
       })
     }
+    const cid = res.data.cid
+    if (!cid) return null
     const v = res.data.value as {
       title?: string
       body?: string
@@ -264,7 +266,7 @@ export async function getForumPost(uri: string): Promise<ForumPost | null> {
     }
     return {
       uri: res.data.uri as string,
-      cid: res.data.cid as string,
+      cid,
       did: parsed.did,
       rkey: parsed.rkey,
       title: v.title,
