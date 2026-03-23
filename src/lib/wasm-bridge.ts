@@ -1,7 +1,7 @@
 /**
  * WASM Bridge – Consensus analysis (JS fallback)
  *
- * PurpleSky uses Rust WASM for consensus clustering. Artsky uses a JS-only
+ * PurpleSky uses Rust WASM for consensus clustering. This build uses a JS-only
  * fallback for now. Add wasm-pack build later for full Polis-style clustering.
  */
 

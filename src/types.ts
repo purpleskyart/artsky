@@ -16,7 +16,7 @@ export interface FeedMixEntry {
   percent: number
 }
 
-// ── Forum (ArtSky PDS-based) ─────────────────────────────────────────────
+// ── Forum (PurpleSky PDS-based) ─────────────────────────────────────────────
 
 export interface ForumPost {
   uri: string

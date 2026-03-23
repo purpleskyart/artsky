@@ -2,14 +2,12 @@ import { useCallback, useEffect, useState } from 'react'
 
 interface SWUpdateState {
   needRefresh: boolean
-  offlineReady: boolean
   updateServiceWorker: (reloadPage?: boolean) => Promise<void>
   close: () => void
 }
 
 export function useSWUpdate(): SWUpdateState {
   const [needRefresh, setNeedRefresh] = useState(false)
-  const [offlineReady, setOfflineReady] = useState(false)
   const [updateServiceWorkerFn, setUpdateServiceWorkerFn] = useState<(reloadPage?: boolean) => Promise<void>>(() => Promise.resolve())
 
   useEffect(() => {
@@ -19,9 +17,6 @@ export function useSWUpdate(): SWUpdateState {
           const updateSW = registerSW({
             onNeedRefresh() {
               setNeedRefresh(true)
-            },
-            onOfflineReady() {
-              setOfflineReady(true)
             },
           })
           setUpdateServiceWorkerFn(() => updateSW)
@@ -34,12 +29,10 @@ export function useSWUpdate(): SWUpdateState {
 
   const close = useCallback(() => {
     setNeedRefresh(false)
-    setOfflineReady(false)
   }, [])
 
   return {
     needRefresh,
-    offlineReady,
     updateServiceWorker: updateServiceWorkerFn,
     close,
   }

@@ -184,7 +184,7 @@ export default function LoginCard({ initialMode = 'signin', onSuccess, onClose }
         </button>
       )}
       <div className={onClose ? styles.cardContentWithClose : undefined}>
-      <h1 className={styles.title}>ArtSky</h1>
+      <h1 className={styles.title}>PurpleSky</h1>
       <p className={styles.subtitle}>Bluesky feed & collections</p>
 
       {mode === 'create' && (

@@ -8,7 +8,7 @@ import styles from './SearchBar.module.css'
 
 const DEBOUNCE_MS = 200
 
-/** Extract profile handle from pasted URL: bsky.app/profile/handle or ...?profile=handle (ArtSky). */
+/** Extract profile handle from pasted URL: bsky.app/profile/handle or ...?profile=handle (PurpleSky). */
 function extractProfileHandleFromSearchQuery(text: string): string | null {
   const pathMatch = text.match(/\/profile\/([^/?\s#]+)/i)
   if (pathMatch) {
@@ -27,11 +27,11 @@ function extractProfileHandleFromSearchQuery(text: string): string | null {
   }
 }
 
-/** If pasted text contains a post link, extract post (full at-uri or handle+rkey). Handles ?post= (ArtSky), /post/ path, and /profile/.../post/ (bsky.app). */
+/** If pasted text contains a post link, extract post (full at-uri or handle+rkey). Handles ?post= (PurpleSky), /post/ path, and /profile/.../post/ (bsky.app). */
 function extractPostFromSearchQuery(
   text: string
 ): { type: 'uri'; uri: string } | { type: 'handleRkey'; handle: string; rkey: string } | null {
-  /* ArtSky / any URL with post= query param (e.g. #/feed?post=at%3A%2F%2F...) */
+  /* PurpleSky / any URL with post= query param (e.g. #/feed?post=at%3A%2F%2F...) */
   const fullUriParam = text.match(/[?&]post=(at%3A%2F%2F[^&\s]+)/i)
   if (fullUriParam) {
     try {

@@ -113,6 +113,7 @@ export default function QuotesModal({ postUri, onClose, onBack, canGoBack, isTop
                 onActionsMenuOpenChange={() => {}}
                 onMouseEnter={() => {}}
                 onAddClose={() => {}}
+                suppressHoverNsfwUnblur
                 isSelected={() => false}
               />
             </div>

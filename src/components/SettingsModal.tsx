@@ -198,7 +198,7 @@ export default function SettingsModal({ onClose, showToast, onLocalDataCleared }
               className={styles.settingsActionBtn}
               onClick={handleCheckUpdates}
               disabled={checkingUpdate || !('serviceWorker' in navigator)}
-              title="Check for a new version of ArtSky"
+              title="Check for a new version of PurpleSky"
             >
               {checkingUpdate ? 'Checking…' : 'Check for updates'}
             </button>

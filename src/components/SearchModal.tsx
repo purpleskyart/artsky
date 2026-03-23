@@ -332,6 +332,7 @@ function SearchContent({ query, onRegisterRefresh }: { query: string; onRegister
               onActionsMenuOpenChange={() => {}}
               onMouseEnter={(originalIndex) => setKeyboardFocusIndex(originalIndex)}
               onAddClose={() => setKeyboardAddOpen(false)}
+              suppressHoverNsfwUnblur
               isSelected={(index) => index === keyboardFocusIndex}
             />
           ))}
