@@ -891,6 +891,45 @@ html[data-theme="dark"] [data-view-mode="1"] .card:focus-within:not(:has(.mediaG
 .cardNsfwBlurred {
 }
 
+/*
+ * NSFW media blur: one wrapper + small-radius filter (single composited layer per card).
+ * display:contents when unblurred keeps spacer+grid layout identical; no backdrop-filter.
+ */
+.mediaNsfwBlurTarget {
+  display: contents;
+}
+
+.cardNsfwBlurred .mediaNsfwBlurTarget {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  filter: blur(6px);
+  transform: scale(1.03);
+  transform-origin: center center;
+  pointer-events: none;
+}
+
+.cardNsfwBlurred .mediaNsfwBlurTarget * {
+  pointer-events: none;
+}
+
+.cardNsfwBlurred .mediaWrapMultiStack .mediaNsfwBlurTarget {
+  align-items: stretch;
+  justify-content: flex-start;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cardNsfwBlurred .mediaNsfwBlurTarget {
+    filter: none;
+    transform: none;
+  }
+}
+
 /* Ensure media wrap clips the extended blur overlay so no overflow shows */
 .mediaWrap {
   isolation: isolate;
@@ -903,7 +942,7 @@ html[data-theme="dark"] [data-view-mode="1"] .card:focus-within:not(:has(.mediaG
   min-height: unset;
 }
 
-/* NSFW blurred mode: overlay with blur and "Tap to reveal". inset: 0 so one blur layer only (card glass disabled via .cardNsfwBlurred). */
+/* NSFW blurred mode: dim + label over .mediaNsfwBlurTarget (actual blur on media). inset: 0 (card glass disabled via .cardNsfwBlurred). */
 .nsfwOverlay {
   position: absolute;
   inset: 0;
