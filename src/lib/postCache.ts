@@ -12,6 +12,8 @@ type Cached = { data: ThreadData; at: number }
 
 const cache = new Map<string, Cached>()
 const inFlight = new Map<string, Promise<{ data: ThreadData }>>()
+/** Bumped when a thread is invalidated so in-flight getPostThread results are not applied (stale deduped fetch). */
+const threadFetchEpoch = new Map<string, number>()
 const INITIAL_POST_STORE_MAX = 120
 const initialPostStore = new Map<string, unknown>()
 
@@ -48,9 +50,16 @@ export function getCachedThread(uri: string): ThreadData | null {
   return c.data
 }
 
+/** Monotonic epoch for thread URI; used to discard stale in-flight fetches after invalidation. */
+export function getThreadFetchEpoch(uri: string): number {
+  return threadFetchEpoch.get(uri) ?? 0
+}
+
 /** Invalidate cached thread for a post URI so the next load fetches fresh data (e.g. after posting a reply). */
 export function invalidateThreadCache(uri: string): void {
   cache.delete(uri)
+  inFlight.delete(uri)
+  threadFetchEpoch.set(uri, (threadFetchEpoch.get(uri) ?? 0) + 1)
 }
 
 /** Store thread in cache. */

@@ -410,6 +410,11 @@ export function getSession(): AtpSessionData | null {
   return null
 }
 
+/** DID segment for feed/timeline caches so account switches never reuse another user's cached responses. */
+function feedCacheAccountKey(): string {
+  return getSession()?.did ?? 'guest'
+}
+
 export type TimelineResponse = Awaited<ReturnType<typeof agent.getTimeline>>
 export type TimelineItem = TimelineResponse['data']['feed'][number]
 export type PostView = TimelineItem['post']
@@ -591,7 +596,7 @@ export async function getMixedFeed(
           results.push({ key, feed: [] as TimelineItem[], nextCursor: undefined })
           continue
         }
-        const cacheKey = `timeline:${fetchLimit}:${cursor ?? 'initial'}`
+        const cacheKey = `timeline:${feedCacheAccountKey()}:${fetchLimit}:${cursor ?? 'initial'}`
         const cached = responseCache.get<{ feed: TimelineItem[]; cursor?: string }>(cacheKey)
         if (cached) {
           results.push({ key, feed: cached.feed ?? [], nextCursor: cached.cursor })
@@ -615,7 +620,7 @@ export async function getMixedFeed(
           results.push({ key, feed: [] as TimelineItem[], nextCursor: undefined })
           continue
         }
-        const cacheKey = `feed:${entry.source.uri}:${fetchLimit}:${cursor ?? 'initial'}`
+        const cacheKey = `feed:${feedCacheAccountKey()}:${entry.source.uri}:${fetchLimit}:${cursor ?? 'initial'}`
         const cached = responseCache.get<{ feed: TimelineItem[]; cursor?: string }>(cacheKey)
         if (cached) {
           results.push({ key, feed: cached.feed ?? [], nextCursor: cached.cursor })
@@ -675,16 +680,29 @@ export async function getPostThreadCached(
   uri: string,
   api: { app: { bsky: { feed: { getPostThread: (opts: { uri: string; depth: number }) => Promise<{ data: { thread: unknown } }> } } } },
 ): Promise<{ data: { thread: unknown } }> {
-  const { getCachedThread, setCachedThread, dedupeFetch } = await import('./postCache')
-  const cached = getCachedThread(uri)
-  if (cached) {
-    return { data: { thread: cached } }
+  const { getCachedThread, setCachedThread, dedupeFetch, getThreadFetchEpoch } = await import('./postCache')
+  const MAX_STALE_RETRIES = 6
+  for (let attempt = 0; attempt < MAX_STALE_RETRIES; attempt++) {
+    const cached = getCachedThread(uri)
+    if (cached) {
+      return { data: { thread: cached } }
+    }
+    const epochBefore = getThreadFetchEpoch(uri)
+    const res = await dedupeFetch(uri, () =>
+      retryWithBackoff(
+        () => api.app.bsky.feed.getPostThread({ uri, depth: 10 }),
+        { shouldRetry: shouldRetryIncluding429, initialDelay: 3000, maxRetries: 2 },
+      ),
+    )
+    if (getThreadFetchEpoch(uri) !== epochBefore) {
+      continue
+    }
+    setCachedThread(uri, res.data.thread)
+    return res
   }
-  const res = await dedupeFetch(uri, () =>
-    retryWithBackoff(
-      () => api.app.bsky.feed.getPostThread({ uri, depth: 10 }),
-      { shouldRetry: shouldRetryIncluding429, initialDelay: 3000, maxRetries: 2 },
-    ),
+  const res = await retryWithBackoff(
+    () => api.app.bsky.feed.getPostThread({ uri, depth: 10 }),
+    { shouldRetry: shouldRetryIncluding429, initialDelay: 3000, maxRetries: 2 },
   )
   setCachedThread(uri, res.data.thread)
   return res
@@ -1989,12 +2007,12 @@ export async function postReply(
   parentUri: string,
   parentCid: string,
   text: string
-) {
+): Promise<{ uri: string; cid: string }> {
   const t = text.trim()
   if (!t) throw new Error('Comment text is required')
   const rt = new RichText({ text: t })
   await rt.detectFacets(agent)
-  return agent.post({
+  const res = await agent.post({
     text: rt.text,
     facets: rt.facets,
     createdAt: new Date().toISOString(),
@@ -2003,6 +2021,7 @@ export async function postReply(
       parent: { uri: parentUri, cid: parentCid },
     },
   })
+  return { uri: res.uri, cid: res.cid }
 }
 
 
@@ -2020,13 +2039,13 @@ export async function getTimelineWithLifecycle(
   if (!getSession()) {
     return { data: { feed: [], cursor: undefined } } as unknown as Awaited<ReturnType<typeof agent.getTimeline>>
   }
-  const cacheKey = `timeline:${limit}:${cursor ?? 'initial'}`
+  const cacheKey = `timeline:${feedCacheAccountKey()}:${limit}:${cursor ?? 'initial'}`
   const cached = responseCache.get<{ feed: TimelineItem[]; cursor?: string }>(cacheKey)
   if (cached) {
     return { data: { feed: cached.feed ?? [], cursor: cached.cursor } } as any
   }
   const result = await apiRequestManager.execute(
-    `timeline:${limit}:${cursor ?? 'initial'}`,
+    `timeline:${feedCacheAccountKey()}:${limit}:${cursor ?? 'initial'}`,
     () => agent.getTimeline({ limit, cursor }),
     { priority: RequestPriority.MEDIUM, ttl: 300_000, staleWhileRevalidate: 300_000, cacheKey, timeout: 30000 }
   )
@@ -2044,13 +2063,13 @@ export async function getFeedWithLifecycle(
   if (!getSession()) {
     return { data: { feed: [], cursor: undefined } } as unknown as Awaited<ReturnType<typeof agent.app.bsky.feed.getFeed>>
   }
-  const cacheKey = `feed:${feedUri}:${limit}:${cursor ?? 'initial'}`
+  const cacheKey = `feed:${feedCacheAccountKey()}:${feedUri}:${limit}:${cursor ?? 'initial'}`
   const cached = responseCache.get<{ feed: TimelineItem[]; cursor?: string }>(cacheKey)
   if (cached) {
     return { data: { feed: cached.feed ?? [], cursor: cached.cursor } } as any
   }
   const result = await apiRequestManager.execute(
-    `feed:${feedUri}:${limit}:${cursor ?? 'initial'}`,
+    `feed:${feedCacheAccountKey()}:${feedUri}:${limit}:${cursor ?? 'initial'}`,
     () => agent.app.bsky.feed.getFeed({ feed: feedUri, limit, cursor }),
     { priority: RequestPriority.MEDIUM, ttl: 300_000, staleWhileRevalidate: 300_000, cacheKey, timeout: 30000 }
   )

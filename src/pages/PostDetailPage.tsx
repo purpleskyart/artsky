@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import type { AppBskyFeedDefs } from '@atproto/api'
 import type { AtpSessionData } from '@atproto/api'
-import { agent, publicAgent, postReply, getPostAllMedia, getPostMediaUrl, getQuotedPostView, getPostExternalLink, getSession, createQuotePost, createDownvote, deleteDownvote, listMyDownvotes, getPostThreadCached, getProfilesBatch, getProfileCached, likePostWithLifecycle, unlikePostWithLifecycle, repostPostWithLifecycle, deleteRepostWithLifecycle, followAccountWithLifecycle, unfollowAccountWithLifecycle } from '../lib/bsky'
+import { agent, publicAgent, postReply, getPostAllMedia, getPostMediaUrl, getQuotedPostView, getPostExternalLink, getSession, createQuotePost, createDownvote, deleteDownvote, listMyDownvotes, getPostThreadCached, getProfilesBatch, getProfileCached, getPostsBatch, likePostWithLifecycle, unlikePostWithLifecycle, repostPostWithLifecycle, deleteRepostWithLifecycle, followAccountWithLifecycle, unfollowAccountWithLifecycle, type PostView } from '../lib/bsky'
 import { getApiErrorMessage } from '../lib/apiErrors'
 import { takeInitialPostForUri, getCachedThread, invalidateThreadCache } from '../lib/postCache'
 import { getDownvoteCounts } from '../lib/constellation'
@@ -194,6 +194,46 @@ function findReplyByUri(
         : []
     const found = findReplyByUri(nested, uri)
     if (found) return found
+  }
+  return null
+}
+
+function filterThreadReplies(thread: AppBskyFeedDefs.ThreadViewPost): AppBskyFeedDefs.ThreadViewPost[] {
+  return 'replies' in thread && Array.isArray(thread.replies)
+    ? (thread.replies as unknown[]).filter((x): x is AppBskyFeedDefs.ThreadViewPost => isThreadViewPost(x as Parameters<typeof isThreadViewPost>[0]))
+    : []
+}
+
+/** Insert a new reply under `parentUri` (or at root replies if parent not found in subtree). */
+function mergeReplyIntoThread(
+  thread: AppBskyFeedDefs.ThreadViewPost,
+  newReply: AppBskyFeedDefs.ThreadViewPost,
+  parentUri: string,
+): AppBskyFeedDefs.ThreadViewPost {
+  if (collectThreadPostUris(thread).includes(newReply.post.uri)) return thread
+  if (thread.post.uri === parentUri) {
+    const existing = filterThreadReplies(thread)
+    return { ...thread, replies: [...existing, newReply] } as AppBskyFeedDefs.ThreadViewPost
+  }
+  const replies = filterThreadReplies(thread)
+  let childChanged = false
+  const nextReplies = replies.map((r) => {
+    const merged = mergeReplyIntoThread(r, newReply, parentUri)
+    if (merged !== r) childChanged = true
+    return merged
+  })
+  if (childChanged) return { ...thread, replies: nextReplies } as AppBskyFeedDefs.ThreadViewPost
+  return { ...thread, replies: [...replies, newReply] } as AppBskyFeedDefs.ThreadViewPost
+}
+
+async function fetchNewPostViewAfterComment(postUri: string): Promise<PostView | null> {
+  const delayMs = 400
+  const maxAttempts = 8
+  for (let i = 0; i < maxAttempts; i++) {
+    const map = await getPostsBatch([postUri])
+    const p = map.get(postUri)
+    if (p) return p
+    await new Promise((r) => setTimeout(r, delayMs))
   }
   return null
 }
@@ -591,11 +631,6 @@ function PostBlock({
               ↑{showCommentCounts ? ` ${likeCount}` : ''}
             </button>
           )}
-          {onLike && onDownvote && showCommentCounts && (
-            <span className={styles.commentVoteTotal} aria-label={`Score: ${likeCount - downvoteCount} (upvotes minus downvotes)`}>
-              {likeCount - downvoteCount}
-            </span>
-          )}
           {onDownvote && (
             <button
               type="button"
@@ -617,11 +652,11 @@ function PostBlock({
                 aria-expanded={commentRepostDropdownOpen === post.uri}
                 aria-haspopup="true"
                 title="Repost or quote"
+                aria-label="Repost or quote"
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
                   <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z" />
                 </svg>
-                <span>Repost</span>
               </button>
               {commentRepostDropdownOpen === post.uri && (
                 <div className={styles.commentRepostDropdown} role="menu">
@@ -1056,6 +1091,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
   const boards = getArtboards()
   const session = getSession()
   const { session: sessionFromContext, sessionsList, switchAccount } = useSession()
+  const toast = useToast()
   const [replyAsProfile, setReplyAsProfile] = useState<{ handle: string; avatar?: string } | null>(null)
 
   useEffect(() => {
@@ -1309,40 +1345,59 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
     return () => window.removeEventListener('keydown', onKey)
   }, [replyingTo])
 
-  async function handlePostReply(e: React.FormEvent) {
-    e.preventDefault()
+  function notifyCommentError(message: string) {
+    if (toast) toast.showToast(message)
+    else alert(message)
+  }
+
+  async function submitThreadComment(parentUri: string, parentCid: string) {
     if (!thread || !isThreadViewPost(thread) || !comment.trim()) return
+    if (!getSession()?.did) {
+      notifyCommentError('Log in to post a comment.')
+      return
+    }
     const rootPost = thread.post
-    const parent = replyingTo ?? { uri: rootPost.uri, cid: rootPost.cid }
+    const text = comment.trim()
     setPosting(true)
     try {
-      await postReply(rootPost.uri, rootPost.cid, parent.uri, parent.cid, comment.trim())
+      const res = await postReply(rootPost.uri, rootPost.cid, parentUri, parentCid, text)
       setComment('')
       setReplyingTo(null)
       invalidateThreadCache(decodedUri)
+      const newPostView = await fetchNewPostViewAfterComment(res.uri)
       await load()
+      setThread((prev) => {
+        if (!prev || !isThreadViewPost(prev)) return prev
+        if (collectThreadPostUris(prev).includes(res.uri)) return prev
+        if (!newPostView) return prev
+        const newNode: AppBskyFeedDefs.ThreadViewPost = {
+          $type: 'app.bsky.feed.defs#threadViewPost',
+          post: newPostView,
+          replies: [],
+        }
+        return mergeReplyIntoThread(prev, newNode, parentUri)
+      })
+      if (toast) toast.showToast('Comment posted.')
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Failed to post comment')
+      notifyCommentError(err instanceof Error ? err.message : 'Failed to post comment')
     } finally {
       setPosting(false)
     }
   }
 
-  async function handlePostReplyFromTop(e: React.FormEvent) {
+  function handlePostReply(e: React.FormEvent) {
     e.preventDefault()
     if (!thread || !isThreadViewPost(thread) || !comment.trim()) return
     const rootPost = thread.post
-    setPosting(true)
-    try {
-      await postReply(rootPost.uri, rootPost.cid, rootPost.uri, rootPost.cid, comment.trim())
-      setComment('')
-      invalidateThreadCache(decodedUri)
-      await load()
-    } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Failed to post comment')
-    } finally {
-      setPosting(false)
-    }
+    const parent = replyingTo ?? { uri: rootPost.uri, cid: rootPost.cid }
+    void submitThreadComment(parent.uri, parent.cid)
+  }
+
+  function handlePostReplyFromTop(e: React.FormEvent) {
+    e.preventDefault()
+    if (!thread || !isThreadViewPost(thread) || !comment.trim()) return
+    const rootPost = thread.post
+    void submitThreadComment(rootPost.uri, rootPost.cid)
   }
 
   function handleReplyTo(parentUri: string, parentCid: string, handle: string) {

@@ -622,17 +622,16 @@
 }
 
 .commentRepostBtn {
-  padding: 0.2rem 0.5rem;
+  padding: 0.2rem;
   font-size: 0.8rem;
   background: transparent;
   color: var(--muted);
   border: 1px solid var(--border);
   border-radius: 0.35rem;
   cursor: pointer;
-  white-space: nowrap;
   display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
+  justify-content: center;
 }
 
 .commentRepostBtn svg {
@@ -719,15 +718,6 @@
 
 .commentViewQuotesBtn svg {
   flex-shrink: 0;
-}
-
-.commentVoteTotal {
-}
-
-.commentVoteTotal {
-  font-size: 0.8rem;
-  color: var(--muted);
-  padding: 0 0.25rem;
 }
 
 .avatar {
