@@ -626,12 +626,8 @@ export default function FeedPage() {
         }
         
         const apply = () => {
-          const items = dedupeFeedByPostUri(nextCursor ? [...feedItemsRef.current, ...feed] : feed)
-          if (nextCursor) {
-            dispatch({ type: 'APPEND_ITEMS', items: feed, cursor: next })
-          } else {
-            dispatch({ type: 'SET_ITEMS', items, cursor: next })
-          }
+          const merged = dedupeFeedByPostUri(nextCursor ? [...feedItemsRef.current, ...feed] : feed)
+          dispatch({ type: 'SET_ITEMS', items: merged, cursor: next })
         }
         if (nextCursor) startTransition(apply)
         else apply()
@@ -666,13 +662,9 @@ export default function FeedPage() {
         }
         
         const apply = () => {
-          const items = dedupeFeedByPostUri(isLoadMore ? [...feedItemsRef.current, ...feed] : feed)
+          const merged = dedupeFeedByPostUri(isLoadMore ? [...feedItemsRef.current, ...feed] : feed)
           const cursor = Object.keys(nextCursors).length > 0 ? JSON.stringify(nextCursors) : undefined
-          if (isLoadMore) {
-            dispatch({ type: 'APPEND_ITEMS', items: feed, cursor })
-          } else {
-            dispatch({ type: 'SET_ITEMS', items, cursor })
-          }
+          dispatch({ type: 'SET_ITEMS', items: merged, cursor })
         }
         if (isLoadMore) startTransition(apply)
         else apply()
@@ -681,24 +673,16 @@ export default function FeedPage() {
         if (single.kind === 'timeline') {
           const res = await withTimeout(getTimelineWithLifecycle(limit, nextCursor), FEED_LOAD_TIMEOUT_MS)
           const apply = () => {
-            const items = dedupeFeedByPostUri(nextCursor ? [...feedItemsRef.current, ...res.data.feed] : res.data.feed)
-            if (nextCursor) {
-              dispatch({ type: 'APPEND_ITEMS', items: res.data.feed, cursor: res.data.cursor })
-            } else {
-              dispatch({ type: 'SET_ITEMS', items, cursor: res.data.cursor })
-            }
+            const merged = dedupeFeedByPostUri(nextCursor ? [...feedItemsRef.current, ...res.data.feed] : res.data.feed)
+            dispatch({ type: 'SET_ITEMS', items: merged, cursor: res.data.cursor })
           }
           if (nextCursor) startTransition(apply)
           else apply()
         } else if (single.uri) {
           const res = await withTimeout(getFeedWithLifecycle(single.uri, limit, nextCursor), FEED_LOAD_TIMEOUT_MS)
           const apply = () => {
-            const items = dedupeFeedByPostUri(nextCursor ? [...feedItemsRef.current, ...res.data.feed] : res.data.feed)
-            if (nextCursor) {
-              dispatch({ type: 'APPEND_ITEMS', items: res.data.feed, cursor: res.data.cursor })
-            } else {
-              dispatch({ type: 'SET_ITEMS', items, cursor: res.data.cursor })
-            }
+            const merged = dedupeFeedByPostUri(nextCursor ? [...feedItemsRef.current, ...res.data.feed] : res.data.feed)
+            dispatch({ type: 'SET_ITEMS', items: merged, cursor: res.data.cursor })
           }
           if (nextCursor) startTransition(apply)
           else apply()
@@ -706,24 +690,16 @@ export default function FeedPage() {
       } else if (source.kind === 'timeline') {
         const res = await withTimeout(getTimelineWithLifecycle(limit, nextCursor), FEED_LOAD_TIMEOUT_MS)
         const apply = () => {
-          const items = dedupeFeedByPostUri(nextCursor ? [...feedItemsRef.current, ...res.data.feed] : res.data.feed)
-          if (nextCursor) {
-            dispatch({ type: 'APPEND_ITEMS', items: res.data.feed, cursor: res.data.cursor })
-          } else {
-            dispatch({ type: 'SET_ITEMS', items, cursor: res.data.cursor })
-          }
+          const merged = dedupeFeedByPostUri(nextCursor ? [...feedItemsRef.current, ...res.data.feed] : res.data.feed)
+          dispatch({ type: 'SET_ITEMS', items: merged, cursor: res.data.cursor })
         }
         if (nextCursor) startTransition(apply)
         else apply()
       } else if (source.uri) {
         const res = await withTimeout(getFeedWithLifecycle(source.uri, limit, nextCursor), FEED_LOAD_TIMEOUT_MS)
         const apply = () => {
-          const items = dedupeFeedByPostUri(nextCursor ? [...feedItemsRef.current, ...res.data.feed] : res.data.feed)
-          if (nextCursor) {
-            dispatch({ type: 'APPEND_ITEMS', items: res.data.feed, cursor: res.data.cursor })
-          } else {
-            dispatch({ type: 'SET_ITEMS', items, cursor: res.data.cursor })
-          }
+          const merged = dedupeFeedByPostUri(nextCursor ? [...feedItemsRef.current, ...res.data.feed] : res.data.feed)
+          dispatch({ type: 'SET_ITEMS', items: merged, cursor: res.data.cursor })
         }
         if (nextCursor) startTransition(apply)
         else apply()
