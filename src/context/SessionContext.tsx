@@ -126,12 +126,14 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     setSession(bsky.getSessionStateForReact())
   }, [])
 
-  let sessionsList: AtpSessionData[] = []
-  try {
-    sessionsList = bsky.getSessionsList()
-  } catch {
-    // localStorage or bsky not ready yet
-  }
+  const sessionsList = useMemo<AtpSessionData[]>(() => {
+    try {
+      return bsky.getSessionsList()
+    } catch {
+      // localStorage or bsky not ready yet
+      return []
+    }
+  }, [session?.did, authResolved])
 
   const value: SessionContextValue = useMemo(
     () => ({

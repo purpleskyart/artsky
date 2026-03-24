@@ -7,6 +7,7 @@ import { useEditProfile } from '../context/EditProfileContext'
 import { useModalTopBarSlot } from '../context/ModalTopBarSlotContext'
 import { agent, publicAgent, isAgentAuthenticated, getPostMediaInfo, getPostMediaInfoForDisplay, getActorFeeds, listActivitySubscriptions, putActivitySubscription, isPostNsfw, getProfileCached, likePostWithLifecycle, unlikePostWithLifecycle, followAccountWithLifecycle, unfollowAccountWithLifecycle, type TimelineItem, type ProfileViewBasic } from '../lib/bsky'
 import { setInitialPostForUri } from '../lib/postCache'
+import { getPreloadedProfileSnapshot } from '../lib/modalPreload'
 import PostCard from '../components/PostCard'
 import ProfileColumn from '../components/ProfileColumn'
 import { useModalScroll } from '../context/ModalScrollContext'
@@ -194,7 +195,9 @@ export function ProfileContent({
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [profile, setProfile] = useState<ProfileState | null>(null)
+  const [profile, setProfile] = useState<ProfileState | null>(
+    () => (getPreloadedProfileSnapshot(handle) as ProfileState | null) ?? null
+  )
   const [followLoading, setFollowLoading] = useState(false)
   const [followUriOverride, setFollowUriOverride] = useState<string | null>(null)
   const [notificationSubscribed, setNotificationSubscribed] = useState<boolean | null>(null)
@@ -232,6 +235,7 @@ export function ProfileContent({
   const mouseMovedRef = useRef(false)
 
   useEffect(() => {
+    setProfile((getPreloadedProfileSnapshot(handle) as ProfileState | null) ?? null)
     if (!handle) return
     let cancelled = false
     getProfileCached(handle, !session)
@@ -433,6 +437,12 @@ export function ProfileContent({
   const isFollowing = !!followingUri
   const isOwnProfile = !!session && !!profile && session.did === profile.did
   const showFollowButton = !!session && !!profile && !isOwnProfile
+  const showInitialPlaceholder =
+    loading &&
+    !profile &&
+    items.length === 0 &&
+    likedItems.length === 0 &&
+    feeds.length === 0
 
   const isRepost = (item: TimelineItem) => (item.reason as { $type?: string })?.$type === REASON_REPOST
   const isPinned = (item: TimelineItem) => (item.reason as { $type?: string })?.$type === REASON_PIN
@@ -457,9 +467,23 @@ export function ProfileContent({
     tab === 'posts'
       ? [...authorFeedItemsRaw].sort((a, b) => (isPinned(b) ? 1 : 0) - (isPinned(a) ? 1 : 0))
       : authorFeedItemsRaw
+  const mediaByPostUri = useMemo(() => {
+    const out = new Map<string, ReturnType<typeof getPostMediaInfoForDisplay>>()
+    const record = (list: TimelineItem[]) => {
+      for (const item of list) {
+        const uri = item.post.uri
+        if (!uri || out.has(uri)) continue
+        out.set(uri, getPostMediaInfoForDisplay(item.post))
+      }
+    }
+    record(items)
+    record(likedItems)
+    record(authorFeedItems)
+    return out
+  }, [items, likedItems, authorFeedItems])
   const { nsfwPreference, cycleNsfwPreference, unblurredUris, setUnblurred } = useModeration()
   const mediaItems = authorFeedItems
-    .filter((item) => getPostMediaInfoForDisplay(item.post))
+    .filter((item) => mediaByPostUri.get(item.post.uri))
     .filter((item) => nsfwPreference !== 'sfw' || !isPostNsfw(item.post))
   const profileGridItems = mediaItems
 
@@ -467,15 +491,15 @@ export function ProfileContent({
   const tabHasContent = useMemo(() => {
     const postsSource = profilePostsFilter === 'liked' ? likedItems : items
     const postsMedia = profilePostsFilter === 'liked' ? postsSource : postsSource.filter((i) => !isRepost(i) && (!isQuotePost(i) || !!getPostMediaInfo(i.post)))
-      .filter((i) => getPostMediaInfoForDisplay(i.post))
+      .filter((i) => mediaByPostUri.get(i.post.uri))
       .filter((i) => nsfwPreference !== 'sfw' || !isPostNsfw(i.post))
     const repostsMedia = items.filter(isRepostOrQuote)
-      .filter((i) => getPostMediaInfoForDisplay(i.post))
+      .filter((i) => mediaByPostUri.get(i.post.uri))
       .filter((i) => nsfwPreference !== 'sfw' || !isPostNsfw(i.post))
     /* Text tab: same source as posts (all or liked). Includes quote posts with only text (getPostMediaInfoForDisplay is null when outer and quoted have no media). */
     const textOnly = postsSource.filter((i) => !isRepost(i)).filter((i) => {
       const text = (i.post.record as { text?: string })?.text?.trim() ?? ''
-      const hasMedia = getPostMediaInfoForDisplay(i.post)
+      const hasMedia = mediaByPostUri.get(i.post.uri)
       const isReplyPost = !!(i.post.record as { reply?: unknown })?.reply
       return text.length > 0 && !hasMedia && !isReplyPost
     })
@@ -485,7 +509,7 @@ export function ProfileContent({
       text: textOnly.length > 0,
       feeds: feeds.length > 0,
     }
-  }, [items, likedItems, profilePostsFilter, feeds, nsfwPreference])
+  }, [items, likedItems, profilePostsFilter, feeds, nsfwPreference, mediaByPostUri])
 
   const visibleTabs = useMemo((): ProfileTab[] => {
     const t: ProfileTab[] = []
@@ -635,7 +659,7 @@ export function ProfileContent({
   const textItems = authorFeedItems.filter(
     (item) =>
       postText(item.post).length > 0 &&
-      !getPostMediaInfoForDisplay(item.post) &&
+      !mediaByPostUri.get(item.post.uri) &&
       !isReply(item.post),
   )
 
@@ -943,9 +967,7 @@ export function ProfileContent({
         )}
         {error && <p className={styles.error}>{error}</p>}
         <div className={styles.profileContent}>
-        {loading ? (
-          <div className={styles.loading}>Loading…</div>
-        ) : tab === 'text' ? (
+        {showInitialPlaceholder ? null : tab === 'text' ? (
           textItems.length === 0 ? (
             <div className={styles.empty}>No text-only posts (no media, no replies).</div>
           ) : (

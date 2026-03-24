@@ -31,6 +31,37 @@ interface ProgressiveImageProps {
   preloadDistance?: number
 }
 
+type ObserverPoolEntry = {
+  observer: IntersectionObserver
+  callbacks: WeakMap<Element, () => void>
+}
+const observerPool = new Map<string, ObserverPoolEntry>()
+
+function getObserverPoolEntry(preloadDistance: number): ObserverPoolEntry | null {
+  if (typeof window === 'undefined' || typeof IntersectionObserver === 'undefined') return null
+  const margin = `${preloadDistance}px`
+  const key = `${margin}|${margin}|${margin}|${margin}`
+  const existing = observerPool.get(key)
+  if (existing) return existing
+  const callbacks = new WeakMap<Element, () => void>()
+  const observer = new IntersectionObserver(
+    (entries) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue
+        const cb = callbacks.get(entry.target)
+        if (!cb) continue
+        callbacks.delete(entry.target)
+        observer.unobserve(entry.target)
+        cb()
+      }
+    },
+    { rootMargin: `${margin} ${margin} ${margin} ${margin}`, threshold: 0 }
+  )
+  const created = { observer, callbacks }
+  observerPool.set(key, created)
+  return created
+}
+
 /**
  * ProgressiveImage component with blur-up placeholder loading
  *
@@ -72,7 +103,7 @@ export function ProgressiveImage({
   const loadTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const imgRef = useRef<HTMLImageElement | null>(null)
-  const observerRef = useRef<IntersectionObserver | null>(null)
+  const observerPoolRef = useRef<ObserverPoolEntry | null>(null)
   const loadFinishedRef = useRef(false)
 
   const webpSrc = useMemo(() => webpImageUrl(src), [src])
@@ -151,7 +182,10 @@ export function ProgressiveImage({
     return () => {
       if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current)
       if (loadTimeoutRef.current) clearTimeout(loadTimeoutRef.current)
-      if (observerRef.current) observerRef.current.disconnect()
+      if (observerPoolRef.current && containerRef.current) {
+        observerPoolRef.current.callbacks.delete(containerRef.current)
+        observerPoolRef.current.observer.unobserve(containerRef.current)
+      }
     }
   }, [])
 
@@ -176,30 +210,19 @@ export function ProgressiveImage({
     const container = containerRef.current
     if (!container) return
 
-    const margin = `${preloadDistance}px`
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) {
-            setShouldPreload(true)
-            observer.disconnect()
-          }
-        }
-      },
-      {
-        /* All sides: multi-column feed has images left/right of center; vertical-only margin missed some near-viewport cells */
-        rootMargin: `${margin} ${margin} ${margin} ${margin}`,
-        threshold: 0,
-      },
-    )
-
-    observerRef.current = observer
-    observer.observe(container)
+    const pooled = getObserverPoolEntry(preloadDistance)
+    if (!pooled) {
+      setShouldPreload(true)
+      return
+    }
+    observerPoolRef.current = pooled
+    pooled.callbacks.set(container, () => setShouldPreload(true))
+    pooled.observer.observe(container)
 
     return () => {
-      observer.disconnect()
-      if (observerRef.current === observer) {
-        observerRef.current = null
+      if (pooled && container) {
+        pooled.callbacks.delete(container)
+        pooled.observer.unobserve(container)
       }
     }
   }, [loading, preloadDistance, isLoaded, src])

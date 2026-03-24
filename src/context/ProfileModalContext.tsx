@@ -4,6 +4,7 @@ import { ChunkLoadError } from '../components/ChunkLoadError'
 import { isHandleBoardPath } from '../lib/routes'
 import { getPostOverlayPath } from '../lib/appUrl'
 import { getOverlayBackgroundLocation, hasPathOverlayStack } from '../lib/overlayNavigation'
+import { preloadProfileOpen } from '../lib/modalPreload'
 
 const PostDetailModal = lazy(() => import('../components/PostDetailModal'))
 const ProfileModal = lazy(() => import('../components/ProfileModal'))
@@ -174,6 +175,7 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
   }, [navigate, location])
 
   const openProfileModal = useCallback((handle: string) => {
+    preloadProfileOpen(handle)
     const path = `/profile/${encodeURIComponent(handle)}`
     const bg = getOverlayBackgroundLocation(location)
     navigate({ pathname: path, search: '' }, { replace: false, state: { backgroundLocation: bg } })

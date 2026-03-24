@@ -3,6 +3,17 @@ import { agent, getPostThreadCached, getProfileCached, getSession, publicAgent }
 let overlayChunksPreloaded = false
 const postPrefetchInFlight = new Set<string>()
 const profilePrefetchInFlight = new Set<string>()
+const preloadedProfileByHandle = new Map<string, {
+  handle?: string
+  displayName?: string
+  avatar?: string
+  description?: string
+  did?: string
+  viewer?: { following?: string; blocking?: string }
+  verification?: { verifiedStatus?: string }
+  createdAt?: string
+  indexedAt?: string
+}>()
 
 export function preloadOverlayChunks(): void {
   if (overlayChunksPreloaded) return
@@ -35,10 +46,17 @@ export function preloadProfileOpen(handle: string): void {
   if (profilePrefetchInFlight.has(normalized)) return
   profilePrefetchInFlight.add(normalized)
   void getProfileCached(normalized)
+    .then((data) => {
+      preloadedProfileByHandle.set(normalized.toLowerCase(), data)
+    })
     .catch(() => {
       // Best-effort prefetch only.
     })
     .finally(() => {
       profilePrefetchInFlight.delete(normalized)
     })
+}
+
+export function getPreloadedProfileSnapshot(handle: string) {
+  return preloadedProfileByHandle.get(handle.trim().toLowerCase()) ?? null
 }

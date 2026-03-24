@@ -806,6 +806,16 @@ export default function FeedPage() {
     [feedState.items, mediaMode, feedState.seenUrisAtReset, nsfwPreference, hideRepostsFromDids]
   )
   const displayEntries = useMemo(() => buildDisplayEntries(displayItems), [displayItems])
+  const mediaCountByUri = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const entry of displayEntries) {
+      if (entry.type !== 'post') continue
+      const uri = entry.item.post.uri
+      if (!uri) continue
+      map.set(uri, Math.max(1, getPostAllMediaForDisplay(entry.item.post).length))
+    }
+    return map
+  }, [displayEntries])
   const itemsAfterOtherFilters = useMemo(() =>
     (feedState.items ?? [])
       .filter((item) => (mediaMode === 'media' ? getPostMediaInfoForDisplay(item.post) : true))
@@ -851,14 +861,14 @@ export default function FeedPage() {
     const out: { cardIndex: number; mediaIndex: number }[] = []
     displayEntries.forEach((entry, cardIndex) => {
       if (entry.type === 'post') {
-        const n = mediaMode === 'text' ? 1 : Math.max(1, getPostAllMediaForDisplay(entry.item.post).length)
+        const n = mediaMode === 'text' ? 1 : (mediaCountByUri.get(entry.item.post.uri) ?? 1)
         for (let m = 0; m < n; m++) out.push({ cardIndex, mediaIndex: m })
       } else {
         out.push({ cardIndex, mediaIndex: 0 })
       }
     })
     return out
-  }, [displayEntries, mediaMode])
+  }, [displayEntries, mediaMode, mediaCountByUri])
   /** First focus index for each card (top image; for S and A/D). */
   const firstFocusIndexForCard = useMemo(() => {
     const out: number[] = []
@@ -866,23 +876,41 @@ export default function FeedPage() {
     displayEntries.forEach((_entry, cardIndex) => {
       out[cardIndex] = idx
       const entry = displayEntries[cardIndex]
-      const n = entry.type === 'post' ? (mediaMode === 'text' ? 1 : Math.max(1, getPostAllMediaForDisplay(entry.item.post).length)) : 1
+      const n = entry.type === 'post' ? (mediaMode === 'text' ? 1 : (mediaCountByUri.get(entry.item.post.uri) ?? 1)) : 1
       idx += n
     })
     return out
-  }, [displayEntries, mediaMode])
+  }, [displayEntries, mediaMode, mediaCountByUri])
   /** Last focus index for each card (bottom image; for W when moving to card above). */
   const lastFocusIndexForCard = useMemo(() => {
     const out: number[] = []
     displayEntries.forEach((entry, cardIndex) => {
-      const n = entry.type === 'post' ? (mediaMode === 'text' ? 1 : Math.max(1, getPostAllMediaForDisplay(entry.item.post).length)) : 1
+      const n = entry.type === 'post' ? (mediaMode === 'text' ? 1 : (mediaCountByUri.get(entry.item.post.uri) ?? 1)) : 1
       out[cardIndex] = firstFocusIndexForCard[cardIndex] + n - 1
     })
     return out
-  }, [displayEntries, firstFocusIndexForCard, mediaMode])
+  }, [displayEntries, firstFocusIndexForCard, mediaMode, mediaCountByUri])
   mediaItemsRef.current = displayItems
   keyboardFocusIndexRef.current = feedState.keyboardFocusIndex
   actionsMenuOpenForIndexRef.current = feedState.actionsMenuOpenForIndex
+  const displayEntriesRef = useRef(displayEntries)
+  const focusTargetsRef = useRef(focusTargets)
+  const firstFocusIndexForCardRef = useRef(firstFocusIndexForCard)
+  const lastFocusIndexForCardRef = useRef(lastFocusIndexForCard)
+  const distributedColumnsRef = useRef(distributedColumns)
+  const colsRef = useRef(cols)
+  const likeOverridesRef = useRef(likeOverrides)
+  const blockConfirmRefState = useRef(blockConfirm)
+  const sessionRef = useRef(session)
+  displayEntriesRef.current = displayEntries
+  focusTargetsRef.current = focusTargets
+  firstFocusIndexForCardRef.current = firstFocusIndexForCard
+  lastFocusIndexForCardRef.current = lastFocusIndexForCard
+  distributedColumnsRef.current = distributedColumns
+  colsRef.current = cols
+  likeOverridesRef.current = likeOverrides
+  blockConfirmRefState.current = blockConfirm
+  sessionRef.current = session
 
   // Stable callback refs to prevent unnecessary re-renders
   const handleCardRef = useCallback((index: number) => (el: HTMLDivElement | null) => {
@@ -1083,25 +1111,34 @@ export default function FeedPage() {
       if (e.ctrlKey || e.metaKey) return
 
       const i = keyboardFocusIndexRef.current
-      if (displayEntries.length === 0 || focusTargets.length === 0) return
+      const currentEntries = displayEntriesRef.current
+      const currentFocusTargets = focusTargetsRef.current
+      const currentFirstByCard = firstFocusIndexForCardRef.current
+      const currentLastByCard = lastFocusIndexForCardRef.current
+      const currentCols = colsRef.current
+      const currentDistribution = distributedColumnsRef.current
+      const currentLikeOverrides = likeOverridesRef.current
+      const currentSession = sessionRef.current
+      const currentBlockConfirm = blockConfirmRefState.current
+      if (currentEntries.length === 0 || currentFocusTargets.length === 0) return
 
       setFocusSetByMouse(false)
-      const focusTarget = focusTargets[i]
+      const focusTarget = currentFocusTargets[i]
       const currentCardIndex = focusTarget?.cardIndex ?? 0
-      const focusedEntry = displayEntries[currentCardIndex]
+      const focusedEntry = currentEntries[currentCardIndex]
       const focusedItem = focusedEntry?.type === 'post' ? focusedEntry.item : focusedEntry?.type === 'carousel' ? focusedEntry.items[0] : null
 
       const key = e.key.toLowerCase()
       const focusInActionsMenu = (document.activeElement as HTMLElement)?.closest?.('[role="menu"]')
       const focusInCollectionMenu = (document.activeElement as HTMLElement)?.closest?.('[data-collection-menu="true"]')
       const collectionMenuOpen = document.querySelector('[data-collection-menu="true"]') != null
-      const menuOpenForFocusedCard = feedState.actionsMenuOpenForIndex === currentCardIndex
+      const menuOpenForFocusedCard = actionsMenuOpenForIndexRef.current === currentCardIndex
       if ((focusInActionsMenu || focusInCollectionMenu || collectionMenuOpen || menuOpenForFocusedCard) && (key === 'w' || key === 's' || key === 'e' || key === 'enter' || key === 'q' || key === 'escape' || e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
         return
       }
       /* Ignore key repeat for left/right only (so A/D don’t skip); allow repeat for W/S so holding moves up/down */
       if (e.repeat && (key === 'a' || key === 'd' || e.key === 'ArrowLeft' || e.key === 'ArrowRight')) return
-      if (blockConfirm) {
+      if (currentBlockConfirm) {
         if (key === 'escape') {
           e.preventDefault()
           setBlockConfirm(null)
@@ -1113,7 +1150,7 @@ export default function FeedPage() {
 
       /* Use ref + concrete value (not functional updater) so Strict Mode double-invoke doesn't move two steps */
       const fromNone = i < 0
-      const columns = cols >= 2 ? distributedColumns : null
+      const columns = currentCols >= 2 ? currentDistribution : null
       const getRect = (idx: number) => cardRefsRef.current[idx]?.getBoundingClientRect()
       if (key === 'w' || e.key === 'ArrowUp') {
         if (hoverFocusEnabledRef.current) {
@@ -1124,14 +1161,14 @@ export default function FeedPage() {
         mouseRearmStartPosRef.current = lastMouseClientPosRef.current
         setKeyboardNavActive(true)
         scrollIntoViewFromKeyboardRef.current = true
-        const onFirstImageOfCard = i === firstFocusIndexForCard[currentCardIndex]
+        const onFirstImageOfCard = i === currentFirstByCard[currentCardIndex]
         const next = fromNone
-          ? (lastFocusIndexForCard[displayEntries.length - 1] ?? focusTargets.length - 1)
+          ? (currentLastByCard[currentEntries.length - 1] ?? currentFocusTargets.length - 1)
           : !onFirstImageOfCard
             ? Math.max(0, i - 1)
             : (() => {
-                const nextCard = cols >= 2 && columns ? indexAbove(columns, currentCardIndex) : Math.max(0, currentCardIndex - 1)
-                return lastFocusIndexForCard[nextCard] ?? firstFocusIndexForCard[nextCard] ?? 0
+                const nextCard = currentCols >= 2 && columns ? indexAbove(columns, currentCardIndex) : Math.max(0, currentCardIndex - 1)
+                return currentLastByCard[nextCard] ?? currentFirstByCard[nextCard] ?? 0
               })()
         dispatch({ type: 'SET_KEYBOARD_FOCUS', index: next })
         return
@@ -1145,14 +1182,14 @@ export default function FeedPage() {
         mouseRearmStartPosRef.current = lastMouseClientPosRef.current
         setKeyboardNavActive(true)
         scrollIntoViewFromKeyboardRef.current = true
-        const onLastImageOfCard = i === lastFocusIndexForCard[currentCardIndex]
+        const onLastImageOfCard = i === currentLastByCard[currentCardIndex]
         const next = fromNone
           ? 0
           : !onLastImageOfCard
-            ? Math.min(focusTargets.length - 1, i + 1)
+            ? Math.min(currentFocusTargets.length - 1, i + 1)
             : (() => {
-                const nextCard = cols >= 2 && columns ? indexBelow(columns, currentCardIndex) : Math.min(displayEntries.length - 1, currentCardIndex + 1)
-                return firstFocusIndexForCard[nextCard] ?? i
+                const nextCard = currentCols >= 2 && columns ? indexBelow(columns, currentCardIndex) : Math.min(currentEntries.length - 1, currentCardIndex + 1)
+                return currentFirstByCard[nextCard] ?? i
               })()
         dispatch({ type: 'SET_KEYBOARD_FOCUS', index: next })
         return
@@ -1166,8 +1203,8 @@ export default function FeedPage() {
         mouseRearmStartPosRef.current = lastMouseClientPosRef.current
         setKeyboardNavActive(true)
         scrollIntoViewFromKeyboardRef.current = true
-        const nextCard = fromNone ? 0 : cols >= 2 && columns ? indexLeftClosest(columns, currentCardIndex, getRect) : currentCardIndex
-        const next = fromNone ? 0 : nextCard !== currentCardIndex ? (lastFocusIndexForCard[nextCard] ?? i) : i
+        const nextCard = fromNone ? 0 : currentCols >= 2 && columns ? indexLeftClosest(columns, currentCardIndex, getRect) : currentCardIndex
+        const next = fromNone ? 0 : nextCard !== currentCardIndex ? (currentLastByCard[nextCard] ?? i) : i
         if (next !== i) dispatch({ type: 'SET_ACTIONS_MENU_OPEN', index: null })
         dispatch({ type: 'SET_KEYBOARD_FOCUS', index: next })
         return
@@ -1181,8 +1218,8 @@ export default function FeedPage() {
         mouseRearmStartPosRef.current = lastMouseClientPosRef.current
         setKeyboardNavActive(true)
         scrollIntoViewFromKeyboardRef.current = true
-        const nextCard = fromNone ? 0 : cols >= 2 && columns ? indexRightClosest(columns, currentCardIndex, getRect) : currentCardIndex
-        const next = fromNone ? 0 : nextCard !== currentCardIndex ? (lastFocusIndexForCard[nextCard] ?? i) : i
+        const nextCard = fromNone ? 0 : currentCols >= 2 && columns ? indexRightClosest(columns, currentCardIndex, getRect) : currentCardIndex
+        const next = fromNone ? 0 : nextCard !== currentCardIndex ? (currentLastByCard[nextCard] ?? i) : i
         if (next !== i) dispatch({ type: 'SET_ACTIONS_MENU_OPEN', index: null })
         dispatch({ type: 'SET_KEYBOARD_FOCUS', index: next })
         return
@@ -1213,7 +1250,7 @@ export default function FeedPage() {
         const item = focusedItem
         if (!item?.post?.uri || !item?.post?.cid) return
         const uri = item.post.uri
-        const currentLikeUri = uri in likeOverrides ? (likeOverrides[uri] ?? undefined) : (item.post as { viewer?: { like?: string } }).viewer?.like
+        const currentLikeUri = uri in currentLikeOverrides ? (currentLikeOverrides[uri] ?? undefined) : (item.post as { viewer?: { like?: string } }).viewer?.like
         if (currentLikeUri) {
           unlikePostWithLifecycle(currentLikeUri).then(() => {
             setLikeOverride(uri, null)
@@ -1232,7 +1269,7 @@ export default function FeedPage() {
       if (key === 'f') {
         const author = focusedItem?.post?.author as { did: string; viewer?: { following?: string } } | undefined
         const postUri = focusedItem?.post?.uri
-        if (author && session?.did && session.did !== author.did && postUri) {
+        if (author && currentSession?.did && currentSession.did !== author.did && postUri) {
           const followingUri = author.viewer?.following
           if (followingUri) {
             unfollowAccountWithLifecycle(followingUri).then(() => {
@@ -1288,7 +1325,7 @@ export default function FeedPage() {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [cols, isModalOpen, openPostModal, blockConfirm, session, likeOverrides, feedState.actionsMenuOpenForIndex, focusTargets, firstFocusIndexForCard, lastFocusIndexForCard, openLoginModal])
+  }, [isModalOpen, openPostModal, setLikeOverride])
 
   useEffect(() => {
     if (blockConfirm) blockCancelRef.current?.focus()
