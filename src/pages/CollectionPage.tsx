@@ -14,6 +14,7 @@ import { useModalScroll } from '../context/ModalScrollContext'
 import { useToast } from '../context/ToastContext'
 import { useCollectionSaveActions } from '../context/CollectionSaveContext'
 import { useProfileModal } from '../context/ProfileModalContext'
+import { useColumnCount } from '../hooks/useViewportWidth'
 import feedGridStyles from './FeedPage.module.css'
 import styles from './CollectionPage.module.css'
 
@@ -162,7 +163,7 @@ export function CollectionDetailContent({ uri: decodedUri }: CollectionDetailCon
   }, [loading, session?.did, refreshUnionFromPds])
 
   const isOwner = !!(session?.did && ownerDid && session.did === ownerDid)
-  const cols = viewMode === '1' ? 1 : viewMode === '2' ? 2 : 3
+  const cols = useColumnCount(viewMode, 150)
 
   const displayItems = useMemo(
     () =>
@@ -294,7 +295,10 @@ export function CollectionDetailContent({ uri: decodedUri }: CollectionDetailCon
       ) : displayItems.length === 0 ? (
         <div className={styles.empty}>No posts to show (removed or unavailable).</div>
       ) : (
-        <div className={`${feedGridStyles.gridColumns} ${feedGridStyles[`gridView${viewMode}`]}`} data-view-mode={viewMode}>
+        <div
+          className={`${feedGridStyles.gridColumns} ${viewMode === 'a' ? feedGridStyles.gridView3 : feedGridStyles[`gridView${viewMode}`]}`}
+          data-view-mode={viewMode}
+        >
           {distributeByHeight(displayItems, cols).map((column, colIndex) => (
             <ProfileColumn
               key={colIndex}

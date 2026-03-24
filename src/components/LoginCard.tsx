@@ -16,6 +16,16 @@ function toFriendlyLoginError(err: unknown, context: 'app-password' | 'oauth'): 
       ? String((err as { message: string }).message)
       : ''
   const lower = raw.toLowerCase()
+  const isOAuthConfigFetchFailure =
+    context === 'oauth' &&
+    (lower.includes('client-metadata') ||
+      lower.includes('.well-known') ||
+      lower.includes('oauth') ||
+      lower.includes('authorization server')) &&
+    (lower.includes('fetch') || lower.includes('network') || lower.includes('failed to fetch'))
+  if (isOAuthConfigFetchFailure) {
+    return "Can't open Bluesky sign-in from this page. Open PurpleSky from the normal website and try again."
+  }
   if (lower.includes('loopback') || lower.includes('path component') || lower.includes('client id')) {
     return context === 'oauth'
       ? "Sign-in with Bluesky isn't available from this page address. Try opening the app from its main URL, or use an App Password to log in instead."

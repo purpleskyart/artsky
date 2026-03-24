@@ -31,7 +31,7 @@ import { useSeenPosts } from '../context/SeenPostsContext'
 import { useLikeOverrides } from '../context/LikeOverridesContext'
 import { usePullToRefresh, PULL_THRESHOLD_PX } from '../hooks/usePullToRefresh'
 import { useStandalonePwa } from '../hooks/useStandalonePwa'
-import { useColumnCount } from '../hooks/useViewportWidth'
+import { getColumnCountForViewMode, useColumnCount } from '../hooks/useViewportWidth'
 import FeedColumn from '../components/FeedColumn'
 import { feedReducer, type FeedState } from './feedReducer'
 import { debounce } from '../lib/utils'
@@ -191,7 +191,7 @@ function distributeEntriesByHeight(
   numCols: number,
   previousDistribution?: Array<Array<{ entry: FeedDisplayEntry; originalIndex: number }>>
 ): Array<Array<{ entry: FeedDisplayEntry; originalIndex: number }>> {
-  const cols = Math.min(3, Math.max(1, Math.floor(numCols)))
+  const cols = Math.max(1, Math.floor(numCols))
   if (cols < 1) return []
 
   // Reuse each card's column from the last layout when column count is unchanged — including when
@@ -548,8 +548,8 @@ export default function FeedPage() {
   const FEED_LOAD_TIMEOUT_MS = 15_000
 
   const load = useCallback(async (nextCursor?: string, signal?: AbortSignal) => {
-    const cols = Math.min(3, Math.max(1, viewMode === '1' ? 1 : viewMode === '2' ? 2 : 3))
-    const limit = cols >= 2 ? cols * 10 : 20
+    const cols = getColumnCountForViewMode(viewMode, window.innerWidth)
+    const limit = Math.min(60, cols >= 2 ? cols * 10 : 20)
     const changeVersionAtStart = feedMixChangedVersionRef.current
     const activeMixEntries = mixEntries.filter((e) => e.percent > 0)
     const activeMixTotalPercent = activeMixEntries.reduce((s, e) => s + e.percent, 0)
@@ -727,7 +727,7 @@ export default function FeedPage() {
     const refs = loadMoreSentinelRefs.current
     let rafId = 0
     let retryId = 0
-    const cols = Math.min(3, Math.max(1, viewMode === '1' ? 1 : viewMode === '2' ? 2 : 3))
+    const cols = getColumnCountForViewMode(viewMode, window.innerWidth)
 
     /** True when any column's sentinel is above (viewport bottom + margin) so we load before user reaches end. */
     const anyColumnShort = () => {
@@ -1469,7 +1469,7 @@ export default function FeedPage() {
           <>
             <div
               ref={gridRef}
-              className={`${styles.gridColumns} ${styles[`gridView${viewMode}`]}`}
+              className={`${styles.gridColumns} ${viewMode === 'a' ? styles.gridView3 : styles[`gridView${viewMode}`]}`}
               data-feed-cards
               data-view-mode={viewMode}
               data-keyboard-nav={keyboardNavActive || undefined}

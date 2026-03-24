@@ -45,6 +45,16 @@ function Column3Icon() {
     </svg>
   )
 }
+function ColumnAutoIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="2" y="4" width="4" height="16" rx="1" />
+      <rect x="8" y="4" width="4" height="16" rx="1" />
+      <rect x="14" y="4" width="4" height="16" rx="1" />
+      <path d="M21 8v8M19 10l2-2 2 2M19 14l2 2 2-2" />
+    </svg>
+  )
+}
 
 
 /** Renders optional center content + SFW, eye, and column toggles into modal top bar slots. Use inside AppModal. */
@@ -84,6 +94,7 @@ export default function MediaModalTopBar({ centerContent }: { centerContent?: Re
                 {viewMode === '1' && <Column1Icon />}
                 {viewMode === '2' && <Column2Icon />}
                 {viewMode === '3' && <Column3Icon />}
+                {viewMode === 'a' && <ColumnAutoIcon />}
               </button>
               <button
                 type="button"

@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { debounce } from '../lib/utils'
+import type { ViewMode } from '../context/ViewModeContext'
 
 /**
  * Hook to track viewport width with debouncing to minimize re-renders on resize.
@@ -37,15 +38,26 @@ export function useViewportWidth(debounceMs = 150): number {
  * Hook to calculate number of columns based on viewport width and view mode.
  * Memoizes the result to prevent unnecessary recalculations.
  * 
- * @param viewMode - View mode ('1', '2', or '3' columns)
+ * @param viewMode - View mode ('1', '2', '3', or auto/all columns)
  * @param debounceMs - Milliseconds to debounce resize events (default: 150ms)
- * @returns Number of columns (1-3)
+ * @returns Number of columns (1+)
  */
-export function useColumnCount(viewMode: '1' | '2' | '3', debounceMs = 150): number {
+const DESKTOP_BREAKPOINT = 768
+const AUTO_MIN_COLUMN_WIDTH = 300
+const AUTO_MAX_COLUMNS = 8
+
+export function getColumnCountForViewMode(viewMode: ViewMode, width: number): number {
+  if (viewMode === '1') return 1
+  if (viewMode === '2') return 2
+  if (viewMode === '3') return 3
+  if (width < DESKTOP_BREAKPOINT) return 1
+  return Math.max(1, Math.min(AUTO_MAX_COLUMNS, Math.floor(width / AUTO_MIN_COLUMN_WIDTH)))
+}
+
+export function useColumnCount(viewMode: ViewMode, debounceMs = 150): number {
   const width = useViewportWidth(debounceMs)
   
   return useMemo(() => {
-    const cols = viewMode === '1' ? 1 : viewMode === '2' ? 2 : 3
-    return Math.min(3, Math.max(1, cols))
+    return getColumnCountForViewMode(viewMode, width)
   }, [viewMode, width])
 }

@@ -117,10 +117,15 @@ describe('FeedPage - Viewport Resize Optimization', () => {
       expect(result.current).toBe(3)
     })
 
+    it('should calculate responsive column count for all-columns mode on desktop', () => {
+      const { result } = renderHook(() => useColumnCount('a', 150))
+      expect(result.current).toBe(3)
+    })
+
     it('should memoize column count when viewport width changes but view mode stays same', () => {
       const { result } = renderHook(
         ({ viewMode }) => useColumnCount(viewMode, 150),
-        { initialProps: { viewMode: '2' as '1' | '2' | '3' } }
+        { initialProps: { viewMode: '2' as '1' | '2' | '3' | 'a' } }
       )
       
       const initialCols = result.current
@@ -140,7 +145,7 @@ describe('FeedPage - Viewport Resize Optimization', () => {
     it('should update column count when view mode changes', () => {
       const { result, rerender } = renderHook(
         ({ viewMode }) => useColumnCount(viewMode, 150),
-        { initialProps: { viewMode: '2' as '1' | '2' | '3' } }
+        { initialProps: { viewMode: '2' as '1' | '2' | '3' | 'a' } }
       )
       
       expect(result.current).toBe(2)
