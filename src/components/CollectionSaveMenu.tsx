@@ -87,10 +87,34 @@ export default function CollectionSaveMenu({ postUri, openSignal }: Props) {
 
   useEffect(() => {
     if (!open) return
-    const onScroll = () => setDropdownPosition((prev) => (prev ? updateDropdownPosition() ?? prev : prev))
+    const isInsideMenu = (target: EventTarget | null) => {
+      const node = target as Node | null
+      if (!node) return false
+      if (wrapRef.current?.contains(node)) return true
+      if (dropdownRef.current?.contains(node)) return true
+      return false
+    }
+    const onPointerDown = (e: PointerEvent) => {
+      if (isInsideMenu(e.target)) return
+      setOpen(false)
+    }
+    const onTouchStart = (e: TouchEvent) => {
+      if (isInsideMenu(e.target)) return
+      setOpen(false)
+    }
+    const onScroll = (e: Event) => {
+      if (isInsideMenu(e.target)) return
+      setOpen(false)
+    }
     window.addEventListener('scroll', onScroll, true)
-    return () => window.removeEventListener('scroll', onScroll, true)
-  }, [open, updateDropdownPosition])
+    document.addEventListener('pointerdown', onPointerDown)
+    document.addEventListener('touchstart', onTouchStart)
+    return () => {
+      window.removeEventListener('scroll', onScroll, true)
+      document.removeEventListener('pointerdown', onPointerDown)
+      document.removeEventListener('touchstart', onTouchStart)
+    }
+  }, [open])
 
   useEffect(() => {
     if (!open || !session?.did) return
@@ -110,18 +134,6 @@ export default function CollectionSaveMenu({ postUri, openSignal }: Props) {
       cancelled = true
     }
   }, [open, postUri, session?.did])
-
-  useEffect(() => {
-    if (!open) return
-    const onDoc = (e: MouseEvent) => {
-      const t = e.target as Node
-      if (wrapRef.current?.contains(t)) return
-      if (dropdownRef.current?.contains(t)) return
-      setOpen(false)
-    }
-    document.addEventListener('mousedown', onDoc)
-    return () => document.removeEventListener('mousedown', onDoc)
-  }, [open])
 
   const markSavedRowChecked = useCallback(() => {
     setRows((prev) =>
