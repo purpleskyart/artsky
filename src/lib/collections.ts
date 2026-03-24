@@ -1,5 +1,5 @@
 /**
- * Public post collections (app.purplesky.collection) — stored on the user’s PDS, readable by anyone.
+ * Post collections (app.purplesky.collection) with app-level public/private visibility.
  */
 
 import { agent, getSession, parseAtUri, publicAgent } from './bsky'
@@ -36,6 +36,8 @@ const plcPdsBaseCache = new Map<string, string | null>()
 export type CollectionRecordValue = {
   $type: typeof COLLECTION_LEXICON
   title: string
+  /** App-level visibility flag; private collections are only readable by their owner in-app. */
+  private?: boolean
   /** Share URL segment: `handle/slug` (lowercase letters, digits, hyphens). */
   slug?: string
   items: string[]
@@ -48,6 +50,7 @@ export type CollectionView = {
   did: string
   rkey: string
   title: string
+  isPrivate: boolean
   /** When set, share links use `handle/slug` instead of `handle/rkey`. */
   slug: string | null
   items: string[]
@@ -110,6 +113,10 @@ function normalizeStoredSlug(raw: unknown): string | null {
   if (!t || t.length > MAX_COLLECTION_SLUG_LENGTH) return null
   if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(t)) return null
   return t
+}
+
+function normalizePrivateFlag(raw: unknown): boolean {
+  return raw === true
 }
 
 /** `handle/slug` or `handle/rkey` for query params (pass owner actor + board fields). */
@@ -367,11 +374,13 @@ async function loadCollectionViewFromDidRkey(did: string, rkey: string): Promise
     const cid = data.cid
     const v = data.value as {
       title?: string
+      private?: boolean
       slug?: string
       items?: string[]
       createdAt?: string
     }
     const title = (v.title ?? 'Collection').trim() || 'Collection'
+    const isPrivate = normalizePrivateFlag(v.private)
     const slug = normalizeStoredSlug(v.slug)
     const items = Array.isArray(v.items) ? v.items.filter((u) => typeof u === 'string' && isFeedPostUri(u)) : []
     const createdAt = v.createdAt ?? new Date().toISOString()
@@ -381,6 +390,7 @@ async function loadCollectionViewFromDidRkey(did: string, rkey: string): Promise
       did,
       rkey,
       title,
+      isPrivate,
       slug,
       items,
       createdAt,
@@ -391,14 +401,18 @@ async function loadCollectionViewFromDidRkey(did: string, rkey: string): Promise
 }
 
 /**
- * Load a public collection by full AT-URI or compact `handle/{rkey|slug}` (works logged out).
+ * Load a collection by full AT-URI or compact `handle/{rkey|slug}`.
+ * Private collections are only returned for the signed-in owner.
  */
 export async function getCollectionByAtUri(ref: string): Promise<CollectionView | null> {
+  const sessionDid = getSession()?.did ?? null
   const n = normalizeAtUriParam(ref.trim())
   if (n.startsWith('at://')) {
     const parsed = parseAtUri(n)
     if (!parsed || parsed.collection !== COLLECTION_LEXICON) return null
-    return loadCollectionViewFromDidRkey(parsed.did, parsed.rkey)
+    const view = await loadCollectionViewFromDidRkey(parsed.did, parsed.rkey)
+    if (view?.isPrivate && sessionDid !== view.did) return null
+    return view
   }
   const slash = parseSlashSeparatedCollectionRef(n)
   if (!slash) return null
@@ -406,7 +420,9 @@ export async function getCollectionByAtUri(ref: string): Promise<CollectionView 
   if (!did) return null
   const rkey = await resolveBoardSegmentToRkey(did, slash.segment)
   if (!rkey) return null
-  return loadCollectionViewFromDidRkey(did, rkey)
+  const view = await loadCollectionViewFromDidRkey(did, rkey)
+  if (view?.isPrivate && sessionDid !== view.did) return null
+  return view
 }
 
 /** List this account’s collection records (newest rkeys tend to sort last; we reverse for recency). */
@@ -440,7 +456,8 @@ export async function loadUnionSavedPostUris(): Promise<Set<string>> {
     })
     const union = new Set<string>()
     for (const r of res.data.records ?? []) {
-      const v = r.value as { items?: string[] }
+      const v = r.value as { private?: boolean; items?: string[] }
+      if (normalizePrivateFlag(v.private)) continue
       for (const u of v.items ?? []) {
         if (typeof u === 'string' && isFeedPostUri(u)) union.add(u)
       }
@@ -451,7 +468,7 @@ export async function loadUnionSavedPostUris(): Promise<Set<string>> {
   }
 }
 
-export type CollectionPickerRow = { uri: string; title: string; hasPost: boolean }
+export type CollectionPickerRow = { uri: string; title: string; hasPost: boolean; isPrivate: boolean }
 
 function isSavedCollectionTitle(title: string): boolean {
   return title.trim().toLowerCase() === 'saved'
@@ -480,10 +497,10 @@ export async function listCollectionsWithMembership(postUri: string): Promise<Co
     const rows: CollectionPickerRow[] = []
     for (const r of res.data.records ?? []) {
       const uri = r.uri as string
-      const v = r.value as { title?: string; items?: string[] }
+      const v = r.value as { title?: string; private?: boolean; items?: string[] }
       const items = Array.isArray(v.items) ? v.items : []
       const title = (v.title ?? 'Collection').trim() || 'Collection'
-      rows.push({ uri, title, hasPost: items.includes(postUri) })
+      rows.push({ uri, title, hasPost: items.includes(postUri), isPrivate: normalizePrivateFlag(v.private) })
     }
     return sortSavedFirst(rows.reverse())
   } catch {
@@ -496,6 +513,7 @@ const COLLECTION_INDEX_PREVIEW_COUNT = 4
 export type CollectionSummary = {
   uri: string
   title: string
+  isPrivate: boolean
   /** Record rkey (always); share URLs prefer `slug` when set. */
   rkey: string
   slug: string | null
@@ -518,12 +536,13 @@ export async function listMyCollectionSummaries(): Promise<CollectionSummary[]> 
     for (const r of res.data.records ?? []) {
       const uri = r.uri as string
       const p = parseAtUri(uri)
-      const v = r.value as { title?: string; slug?: string; items?: string[] }
+      const v = r.value as { title?: string; private?: boolean; slug?: string; items?: string[] }
       const items = Array.isArray(v.items) ? v.items : []
       const title = (v.title ?? 'Collection').trim() || 'Collection'
       rows.push({
         uri,
         title,
+        isPrivate: normalizePrivateFlag(v.private),
         rkey: p?.rkey ?? '',
         slug: normalizeStoredSlug(v.slug),
         itemCount: items.length,
@@ -536,7 +555,7 @@ export async function listMyCollectionSummaries(): Promise<CollectionSummary[]> 
   }
 }
 
-export async function createCollection(title: string): Promise<{ uri: string; cid: string }> {
+export async function createCollection(title: string, opts?: { isPrivate?: boolean }): Promise<{ uri: string; cid: string }> {
   const session = getSession()
   if (!session?.did) throw new Error('Not logged in')
   const rkey = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
@@ -544,6 +563,7 @@ export async function createCollection(title: string): Promise<{ uri: string; ci
   const record: CollectionRecordValue = {
     $type: COLLECTION_LEXICON,
     title: title.trim() || 'Saved',
+    private: opts?.isPrivate === true,
     slug,
     items: [],
     createdAt: new Date().toISOString(),
@@ -566,6 +586,7 @@ async function writeCollectionItems(view: CollectionView, nextItems: string[]): 
   const record: CollectionRecordValue = {
     $type: COLLECTION_LEXICON,
     title: view.title,
+    private: view.isPrivate,
     slug,
     items: capped,
     createdAt: view.createdAt,
@@ -612,7 +633,31 @@ export async function renameCollection(collectionAtUri: string, nextTitle: strin
   const record: CollectionRecordValue = {
     $type: COLLECTION_LEXICON,
     title: trimmedTitle,
+    private: view.isPrivate,
     slug: view.slug ?? (await mintUniqueCollectionSlug(view.did, trimmedTitle)),
+    items: view.items.slice(0, MAX_COLLECTION_ITEMS),
+    createdAt: view.createdAt,
+  }
+  await agent.com.atproto.repo.putRecord({
+    repo: session.did,
+    collection: COLLECTION_LEXICON,
+    rkey: view.rkey,
+    record,
+    validate: false,
+  })
+}
+
+/** Update collection visibility while preserving title, slug, items, and createdAt. */
+export async function setCollectionPrivacy(collectionAtUri: string, isPrivate: boolean): Promise<void> {
+  const view = await getCollectionByAtUri(collectionAtUri)
+  if (!view) throw new Error('Collection not found')
+  const session = getSession()
+  if (!session?.did || session.did !== view.did) throw new Error('Not authorized')
+  const record: CollectionRecordValue = {
+    $type: COLLECTION_LEXICON,
+    title: view.title,
+    private: isPrivate,
+    slug: view.slug ?? (await mintUniqueCollectionSlug(view.did, view.title)),
     items: view.items.slice(0, MAX_COLLECTION_ITEMS),
     createdAt: view.createdAt,
   }

@@ -77,6 +77,7 @@ export function CollectionDetailContent({ uri: decodedUri }: CollectionDetailCon
   const { refreshUnionFromPds } = useCollectionSaveActions()
 
   const [title, setTitle] = useState('')
+  const [isPrivate, setIsPrivate] = useState(false)
   const [ownerDid, setOwnerDid] = useState<string | null>(null)
   const [items, setItems] = useState<TimelineItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -94,6 +95,7 @@ export function CollectionDetailContent({ uri: decodedUri }: CollectionDetailCon
     setResolvedAtUri(null)
     setShareHandle(null)
     setBoardSlug(null)
+    setIsPrivate(false)
   }, [decodedUri])
 
   const load = useCallback(async () => {
@@ -103,15 +105,17 @@ export function CollectionDetailContent({ uri: decodedUri }: CollectionDetailCon
     try {
       const col = await getCollectionByAtUri(decodedUri)
       if (!col) {
-        setError('Collection not found or not a public board.')
+        setError('Collection not found, or it is private.')
         setItems([])
         setTitle('')
+        setIsPrivate(false)
         setOwnerDid(null)
         setResolvedAtUri(null)
         setBoardSlug(null)
         return
       }
       setTitle(col.title)
+      setIsPrivate(col.isPrivate)
       setOwnerDid(col.did)
       setResolvedAtUri(col.uri)
       setBoardSlug(col.slug)
@@ -126,6 +130,7 @@ export function CollectionDetailContent({ uri: decodedUri }: CollectionDetailCon
       setError(e instanceof Error ? e.message : 'Failed to load collection')
       setItems([])
       setTitle('')
+      setIsPrivate(false)
       setOwnerDid(null)
       setResolvedAtUri(null)
       setBoardSlug(null)
@@ -267,7 +272,7 @@ export function CollectionDetailContent({ uri: decodedUri }: CollectionDetailCon
           <h1 className={styles.title}>{loading ? '…' : title || 'Collection'}</h1>
           <p className={styles.meta}>
             {items.length} {items.length === 1 ? 'post' : 'posts'}
-            {!session ? ' · Anyone with the link can view this board' : ''}
+            {isPrivate ? ' · Private collection' : !session ? ' · Anyone with the link can view this board' : ''}
           </p>
         </div>
         <div className={styles.actions}>
@@ -276,7 +281,7 @@ export function CollectionDetailContent({ uri: decodedUri }: CollectionDetailCon
             type="button"
             className={styles.actionBtn}
             onClick={copyShare}
-            disabled={!shareUrl}
+            disabled={!shareUrl || isPrivate}
           >
             Copy link
           </button>

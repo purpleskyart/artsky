@@ -11,9 +11,10 @@ import { useModeration } from '../context/ModerationContext'
 import CollectionSaveMenu from './CollectionSaveMenu'
 import { useProfileModal } from '../context/ProfileModalContext'
 import { setInitialPostForUri } from '../lib/postCache'
-import { getPostAppPath } from '../lib/appUrl'
+import { getPostOverlayPath } from '../lib/appUrl'
 import { getOverlayBackgroundLocation } from '../lib/overlayNavigation'
 import { useModalScroll } from '../context/ModalScrollContext'
+import { preloadPostOpen } from '../lib/modalPreload'
 import PostText from './PostText'
 import ProfileLink from './ProfileLink'
 import PostActionsMenu from './PostActionsMenu'
@@ -560,6 +561,7 @@ function PostCardInner({
 
   /** Open post in modal (profile page) or navigate to feed with post param (other pages). Same behavior as when onPostClick is provided. */
   const openPostInModalOrFeed = useCallback(() => {
+    preloadPostOpen(post.uri)
     /* Mobile: touch unblur runs before paint; synthetic click can fire after nsfwBlurred is already false — suppress opening. */
     if (nsfwTouchUnblurOnlyRef.current) {
       nsfwTouchUnblurOnlyRef.current = false
@@ -577,7 +579,7 @@ function PostCardInner({
       setInitialPostForUri(post.uri, item)
       openPostModal(post.uri, undefined, undefined, post.author.handle)
     } else {
-      const path = getPostAppPath(post.uri, post.author.handle)
+      const path = getPostOverlayPath(post.uri)
       navigate(path, { state: { backgroundLocation: getOverlayBackgroundLocation(location) } })
     }
   }, [onPostClick, post.uri, item, navigate, location, openPostModal, nsfwBlurred, onNsfwUnblur])

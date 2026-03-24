@@ -5,6 +5,7 @@ import { BrowserRouter, Navigate, Route, Routes, useLocation, type Location } fr
 import { REPO_URL } from './config/repo'
 import { initPerformanceMetrics } from './lib/performanceMetrics'
 import { appAbsoluteUrl } from './lib/appUrl'
+import { preloadOverlayChunks } from './lib/modalPreload'
 import { CoreProvidersGroup } from './context/CoreProvidersGroup'
 import { FeedProvidersGroup } from './context/FeedProvidersGroup'
 import { ModalProvidersGroup } from './context/ModalProvidersGroup'
@@ -202,6 +203,17 @@ function AppRoutes() {
 export default function App() {
   useEffect(() => {
     initPerformanceMetrics()
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const run = () => preloadOverlayChunks()
+    if ('requestIdleCallback' in window) {
+      const id = window.requestIdleCallback(run, { timeout: 1200 })
+      return () => window.cancelIdleCallback(id)
+    }
+    const t = window.setTimeout(run, 300)
+    return () => window.clearTimeout(t)
   }, [])
 
   return (

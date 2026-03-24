@@ -9,8 +9,8 @@ const SWIPE_DRAG_CAP_PX = 140
 export interface UseSwipeToCloseOptions {
   /** When false, touch handlers are no-ops and translateX stays 0 */
   enabled: boolean
-  /** Called when user completes a swipe to the right (go back / close) */
-  onSwipeRight: () => void
+  /** Optional: called when user completes a swipe to the right (go back / close) */
+  onSwipeRight?: () => void
   /** Optional: called when user completes a swipe to the left (e.g. open profile) */
   onSwipeLeft?: () => void
 }
@@ -88,9 +88,9 @@ export function useSwipeToClose({
       const triggered =
         horizontalSwipeRef.current &&
         Math.abs(dx) > SWIPE_TRIGGER_PX &&
-        (dx > 0 ? true : dx < 0 && !!onSwipeLeft)
+        (dx > 0 ? !!onSwipeRight : dx < 0 && !!onSwipeLeft)
       if (triggered) {
-        if (dx > 0) onSwipeRight()
+        if (dx > 0 && onSwipeRight) onSwipeRight()
         else if (onSwipeLeft) onSwipeLeft()
       } else {
         setIsReturning(true)

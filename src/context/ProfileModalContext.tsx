@@ -2,7 +2,7 @@ import { createContext, lazy, Suspense, useCallback, useContext, useEffect, useM
 import { useLocation, useNavigate, type Location } from 'react-router-dom'
 import { ChunkLoadError } from '../components/ChunkLoadError'
 import { isHandleBoardPath } from '../lib/routes'
-import { getPostAppPath } from '../lib/appUrl'
+import { getPostOverlayPath } from '../lib/appUrl'
 import { getOverlayBackgroundLocation, hasPathOverlayStack } from '../lib/overlayNavigation'
 
 const PostDetailModal = lazy(() => import('../components/PostDetailModal'))
@@ -159,9 +159,9 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
     return () => cancelAnimationFrame(t)
   }, [location.search, location.pathname])
 
-  /** Opens post at short path `/profile/handle/post/rkey` (or `/post/…` fallback) with optional `reply` / `focus` query. */
-  const openPostModal = useCallback((uri: string, openReply?: boolean, focusUri?: string, authorHandle?: string) => {
-    const path = getPostAppPath(uri, authorHandle ?? null)
+  /** Opens post via URI path with optional `reply` / `focus` query for instant modal resolution. */
+  const openPostModal = useCallback((uri: string, openReply?: boolean, focusUri?: string, _authorHandle?: string) => {
+    const path = getPostOverlayPath(uri)
     const q = new URLSearchParams()
     if (openReply) q.set('reply', '1')
     if (focusUri) q.set('focus', focusUri)

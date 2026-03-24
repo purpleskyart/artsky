@@ -32,7 +32,7 @@ type Ctx = {
   quickSavePost: (postUri: string) => Promise<void>
   savePostToCollection: (postUri: string, collectionAtUri: string) => Promise<void>
   removePostFromCollectionUi: (postUri: string, collectionAtUri: string) => Promise<void>
-  createCollectionAndAddPost: (postUri: string, title: string) => Promise<void>
+  createCollectionAndAddPost: (postUri: string, title: string, opts?: { isPrivate?: boolean }) => Promise<void>
 }
 
 const CollectionSaveContext = createContext<Ctx | null>(null)
@@ -189,7 +189,7 @@ export function CollectionSaveProvider({ children }: { children: ReactNode }) {
   )
 
   const createCollectionAndAddPost = useCallback(
-    async (postUri: string, title: string) => {
+    async (postUri: string, title: string, opts?: { isPrivate?: boolean }) => {
       if (!session?.did) {
         openLoginModal()
         return
@@ -198,7 +198,7 @@ export function CollectionSaveProvider({ children }: { children: ReactNode }) {
       opLockRef.current = true
       setSavingUri(postUri)
       try {
-        const { uri } = await createCollection(title)
+        const { uri } = await createCollection(title, { isPrivate: opts?.isPrivate === true })
         await addPostToCollection(uri, postUri)
         rememberActiveCollectionAtUri(session.did, uri)
         setActiveCollectionAtUri(uri)

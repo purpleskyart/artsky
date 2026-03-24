@@ -84,10 +84,8 @@ export default function AppModal({
   const [topBarRightSlotEl, setTopBarRightSlotEl] = useState<HTMLDivElement | null>(null)
   const { expanded, setExpanded } = useModalExpand()
   const scrollLock = useScrollLock()
-  const handleSwipeRight = () => (canGoBack ? onBack() : onClose())
   const swipe = useSwipeToClose({
     enabled: isMobile,
-    onSwipeRight: handleSwipeRight,
     onSwipeLeft,
   })
 
