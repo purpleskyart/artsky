@@ -7,6 +7,7 @@ import { useProfileModal } from '../context/ProfileModalContext'
 import { useScrollLock } from '../context/ScrollLockContext'
 import { useSwipeToClose } from '../hooks/useSwipeToClose'
 import { usePullToRefresh, PULL_REFRESH_HOLD_PX } from '../hooks/usePullToRefresh'
+import { useStandalonePwa } from '../hooks/useStandalonePwa'
 import styles from './PostDetailModal.module.css'
 
 /** Must match `.overlay` in PostDetailModal.module.css; incremented per stack layer so paint order stays correct when lazy chunks mount after eager siblings. */
@@ -46,6 +47,8 @@ interface AppModalProps {
   isTopModal?: boolean
   /** Index in the modal stack (0 = bottom). Sets z-index so layers paint correctly when portals mount out of order (e.g. lazy list loads after eager detail). */
   stackIndex?: number
+  /** When true, pane uses --bg like the feed behind preview cards (default: --surface) */
+  feedBackground?: boolean
 }
 
 export default function AppModal({
@@ -62,6 +65,7 @@ export default function AppModal({
   scrollKey,
   isTopModal = true,
   stackIndex,
+  feedBackground = false,
 }: AppModalProps) {
   const overlayRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -69,11 +73,12 @@ export default function AppModal({
   const lastScrollYRef = useRef(0)
   const scrollEndTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isMobile = useSyncExternalStore(subscribeMobile, getMobileSnapshot, () => false)
+  const isStandalonePwa = useStandalonePwa()
   const pullRefresh = usePullToRefresh({
     scrollRef,
     touchTargetRef: scrollRef,
     onRefresh: onPullToRefresh ?? (() => {}),
-    enabled: !!onPullToRefresh && isMobile,
+    enabled: !!onPullToRefresh && isMobile && isStandalonePwa,
   })
   const [topBarSlotEl, setTopBarSlotEl] = useState<HTMLDivElement | null>(null)
   const [topBarRightSlotEl, setTopBarRightSlotEl] = useState<HTMLDivElement | null>(null)
@@ -189,7 +194,7 @@ export default function AppModal({
     <ModalTopBarSlotContext.Provider value={{ centerSlot: topBarSlotEl, rightSlot: topBarRightSlotEl, isMobile }}>
       <div
         ref={overlayRef}
-        className={`${styles.overlay}${transparentTopBar ? ` ${styles.overlayFlushTop}` : ''}${expanded ? ` ${styles.overlayExpanded}` : ''}`}
+        className={`${styles.overlay}${!isTopModal ? ` ${styles.overlayStackedUnder}` : ''}${transparentTopBar ? ` ${styles.overlayFlushTop}` : ''}${expanded ? ` ${styles.overlayExpanded}` : ''}`}
         style={stackIndex !== undefined ? { zIndex: MODAL_OVERLAY_Z_BASE + stackIndex } : undefined}
         onClick={handleBackdropClick}
         role="dialog"
@@ -197,7 +202,7 @@ export default function AppModal({
         aria-label={ariaLabel}
       >
         <div
-          className={`${styles.pane}${swipe.isReturning ? ` ${styles.paneSwipeReturning}` : ''}${transparentTopBar ? ` ${styles.paneNoRightBorder}` : ''}${compact ? ` ${styles.paneCompact}` : ''}${expanded ? ` ${styles.paneExpanded}` : ''}`}
+          className={`${styles.pane}${swipe.isReturning ? ` ${styles.paneSwipeReturning}` : ''}${transparentTopBar ? ` ${styles.paneNoRightBorder}` : ''}${compact ? ` ${styles.paneCompact}` : ''}${expanded ? ` ${styles.paneExpanded}` : ''}${feedBackground ? ` ${styles.paneFeedBackground}` : ''}`}
           style={swipe.style}
           onTouchStart={swipe.onTouchStart}
           onTouchMove={swipe.onTouchMove}
@@ -205,14 +210,14 @@ export default function AppModal({
           onClick={(e) => e.stopPropagation()}
         >
           <div
-            className={`${styles.modalPaneBody}${onPullToRefresh && isMobile ? ` ${styles.modalPanePullSnap}` : ''}`}
+            className={`${styles.modalPaneBody}${onPullToRefresh && isMobile && isStandalonePwa ? ` ${styles.modalPanePullSnap}` : ''}`}
             style={
-              onPullToRefresh && isMobile
+              onPullToRefresh && isMobile && isStandalonePwa
                 ? { transform: `translateY(${pullRefresh.pullDistance}px)` }
                 : undefined
             }
           >
-            {onPullToRefresh && isMobile && (
+            {onPullToRefresh && isMobile && isStandalonePwa && (
               <div
                 className={styles.modalPanePullRefreshHeader}
                 style={{

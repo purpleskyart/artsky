@@ -14,7 +14,6 @@ const FeedCard = memo(function FeedCard({
   originalIndex,
   isSelected,
   focusedMediaIndex,
-  openAddDropdown,
   actionsMenuOpenForIndex,
   nsfwPreference,
   unblurredUris,
@@ -23,7 +22,6 @@ const FeedCard = memo(function FeedCard({
   onMediaRef,
   onActionsMenuOpenChange,
   onMouseEnter,
-  onAddClose,
   setUnblurred,
   setLikeOverrides,
   openPostModal,
@@ -34,7 +32,6 @@ const FeedCard = memo(function FeedCard({
   originalIndex: number
   isSelected: boolean
   focusedMediaIndex: number | undefined
-  openAddDropdown: boolean
   actionsMenuOpenForIndex: number | null
   nsfwPreference: 'nsfw' | 'sfw' | 'blurred'
   unblurredUris: Set<string>
@@ -43,7 +40,6 @@ const FeedCard = memo(function FeedCard({
   onMediaRef: (index: number, mediaIndex: number, el: HTMLElement | null) => void
   onActionsMenuOpenChange: (index: number, open: boolean) => void
   onMouseEnter: (index: number) => void
-  onAddClose: () => void
   setUnblurred: (uri: string, revealed: boolean) => void
   setLikeOverrides: (postUri: string, likeUri: string | null) => void
   openPostModal: (uri: string, openReply?: boolean, focusUri?: string) => void
@@ -68,8 +64,6 @@ const FeedCard = memo(function FeedCard({
           focusedMediaIndex={focusedMediaIndex}
           onMediaRef={(mediaIndex, el) => onMediaRef(originalIndex, mediaIndex, el)}
           cardRef={() => {}} // No-op since we're using the wrapper div ref above
-          openAddDropdown={openAddDropdown}
-          onAddClose={onAddClose}
           onActionsMenuOpenChange={(open) => onActionsMenuOpenChange(originalIndex, open)}
           cardIndex={originalIndex}
           actionsMenuOpenForIndex={actionsMenuOpenForIndex}
@@ -118,7 +112,6 @@ const FeedCard = memo(function FeedCard({
   // Check props that affect this specific card
   if (prevProps.isSelected !== nextProps.isSelected) return false
   if (prevProps.focusedMediaIndex !== nextProps.focusedMediaIndex) return false
-  if (prevProps.openAddDropdown !== nextProps.openAddDropdown) return false
   if (prevProps.actionsMenuOpenForIndex !== nextProps.actionsMenuOpenForIndex) return false
   if (prevProps.nsfwPreference !== nextProps.nsfwPreference) return false
   
@@ -148,7 +141,6 @@ export interface FeedColumnProps {
   focusTargets: { cardIndex: number; mediaIndex: number }[]
   firstFocusIndexForCard: number[]
   focusSetByMouse: boolean
-  keyboardAddOpen: boolean
   actionsMenuOpenForIndex: number | null
   nsfwPreference: 'nsfw' | 'sfw' | 'blurred'
   unblurredUris: Set<string>
@@ -161,7 +153,6 @@ export interface FeedColumnProps {
   onMediaRef: (index: number, mediaIndex: number, el: HTMLElement | null) => void
   onActionsMenuOpenChange: (index: number, open: boolean) => void
   onMouseEnter: (index: number) => void
-  onAddClose: () => void
   constrainMediaHeight?: boolean
 }
 
@@ -172,7 +163,6 @@ const FeedColumn = memo(function FeedColumn({
   keyboardFocusIndex,
   focusTargets,
   focusSetByMouse,
-  keyboardAddOpen,
   actionsMenuOpenForIndex,
   nsfwPreference,
   unblurredUris,
@@ -185,7 +175,6 @@ const FeedColumn = memo(function FeedColumn({
   onMediaRef,
   onActionsMenuOpenChange,
   onMouseEnter,
-  onAddClose,
   constrainMediaHeight = false,
 }: FeedColumnProps) {
   if (column.length === 0) {
@@ -219,7 +208,6 @@ const FeedColumn = memo(function FeedColumn({
             originalIndex={originalIndex}
             isSelected={isSelected}
             focusedMediaIndex={focusedMediaIndex}
-            openAddDropdown={isSelected && keyboardAddOpen}
             actionsMenuOpenForIndex={actionsMenuOpenForIndex}
             nsfwPreference={nsfwPreference}
             unblurredUris={unblurredUris}
@@ -228,7 +216,6 @@ const FeedColumn = memo(function FeedColumn({
             onMediaRef={onMediaRef}
             onActionsMenuOpenChange={onActionsMenuOpenChange}
             onMouseEnter={onMouseEnter}
-            onAddClose={onAddClose}
             setUnblurred={setUnblurred}
             setLikeOverrides={setLikeOverrides}
             openPostModal={openPostModal}

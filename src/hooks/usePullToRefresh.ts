@@ -1,10 +1,17 @@
 import { useRef, useState, useCallback, useEffect } from 'react'
 
-const PULL_THRESHOLD_PX = 58
+/** Visual offset (px) past which releasing triggers refresh — tuned to match iOS with rubber-band mapping. */
+export const PULL_THRESHOLD_PX = 62
 const PULL_COMMIT_PX = 8
-const PULL_CAP_PX = 90
 /** Offset (px) to hold content at while refreshing (iPhone-style). */
 export const PULL_REFRESH_HOLD_PX = 56
+
+/** Finger delta → on-screen pull (iOS UIScrollView-style rubber band, not 1:1). */
+function fingerDeltaToPullOffset(dy: number): number {
+  if (dy <= 0) return 0
+  const maxVisual = 100
+  return maxVisual * (1 - Math.exp(-dy * 0.0173))
+}
 
 export interface UsePullToRefreshOptions {
   /** Scroll container ref. When null, use window/document for scroll position. */
@@ -36,8 +43,8 @@ function getScrollTop(scrollRef: React.RefObject<HTMLElement | null> | null): nu
 }
 
 /**
- * Pull-to-refresh for mobile: when user is at top and pulls down, trigger onRefresh.
- * Attach returned handlers to the scroll container (or a wrapper); when scrollRef is null (window scroll), still attach to a root element so touch events are captured.
+ * Pull-to-refresh for installed PWAs: at scroll top, pull down triggers onRefresh with iOS-like rubber banding.
+ * In mobile browsers, disable this hook so the system pull-to-refresh can reload the page.
  */
 export function usePullToRefresh({
   scrollRef,
@@ -53,23 +60,72 @@ export function usePullToRefresh({
   const pullDistanceRef = useRef(0)
   const [pullDistance, setPullDistance] = useState(0)
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const isRefreshingRef = useRef(false)
   const onRefreshRef = useRef(onRefresh)
+  const snapRafRef = useRef<number | null>(null)
   onRefreshRef.current = onRefresh
 
+  useEffect(() => {
+    isRefreshingRef.current = isRefreshing
+  }, [isRefreshing])
+
+  const cancelSnap = useCallback(() => {
+    if (snapRafRef.current != null) {
+      cancelAnimationFrame(snapRafRef.current)
+      snapRafRef.current = null
+    }
+  }, [])
+
+  const snapBackToZero = useCallback(
+    (from: number) => {
+      cancelSnap()
+      if (from <= 0) return
+      const start = performance.now()
+      const duration = 280
+      const tick = (now: number) => {
+        const t = Math.min(1, (now - start) / duration)
+        const eased = 1 - (1 - t) ** 3
+        const v = from * (1 - eased)
+        pullDistanceRef.current = v
+        setPullDistance(v)
+        if (t < 1) {
+          snapRafRef.current = requestAnimationFrame(tick)
+        } else {
+          snapRafRef.current = null
+          pullDistanceRef.current = 0
+          setPullDistance(0)
+        }
+      }
+      snapRafRef.current = requestAnimationFrame(tick)
+    },
+    [cancelSnap]
+  )
+
   const runRefresh = useCallback(async () => {
+    cancelSnap()
     setIsRefreshing(true)
     setPullDistance(PULL_REFRESH_HOLD_PX)
     try {
+      if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+        navigator.vibrate(10)
+      }
       await Promise.resolve(onRefreshRef.current())
     } finally {
       setIsRefreshing(false)
       setPullDistance(0)
     }
+  }, [cancelSnap])
+
+  const applyPullFromDy = useCallback((dy: number) => {
+    const visual = fingerDeltaToPullOffset(dy)
+    pullDistanceRef.current = visual
+    setPullDistance(visual)
   }, [])
 
   const onTouchStart = useCallback(
     (e: React.TouchEvent) => {
       if (!enabled || e.touches.length !== 1) return
+      cancelSnap()
       pullingRef.current = false
       setPullDistance(0)
       const x = e.touches[0].clientX
@@ -79,7 +135,7 @@ export function usePullToRefresh({
       startYRef.current = y
       startScrollTopRef.current = getScrollTop(scrollRef)
     },
-    [enabled, scrollRef, maxTouchStartY]
+    [enabled, scrollRef, maxTouchStartY, cancelSnap]
   )
 
   const onTouchMove = useCallback(
@@ -88,8 +144,7 @@ export function usePullToRefresh({
       const scrollTop = getScrollTop(scrollRef)
       const dx = e.touches[0].clientX - startXRef.current
       const dy = e.touches[0].clientY - startYRef.current
-      
-      // Don't pull if this is clearly a horizontal swipe (swiping back)
+
       if (Math.abs(dx) > Math.abs(dy) * 2) {
         return
       }
@@ -104,56 +159,56 @@ export function usePullToRefresh({
 
       if (pullingRef.current && scrollTop <= 2 && dy > 0) {
         e.preventDefault()
-        const capped = Math.min(PULL_CAP_PX, dy)
-        pullDistanceRef.current = capped
-        setPullDistance(capped)
+        applyPullFromDy(dy)
       }
     },
-    [enabled, scrollRef]
+    [enabled, scrollRef, applyPullFromDy]
   )
 
   const onTouchEnd = useCallback(
     (e: React.TouchEvent) => {
       if (!enabled || e.changedTouches.length !== 1) {
         pullingRef.current = false
+        cancelSnap()
         setPullDistance(0)
         return
       }
       if (pullingRef.current) {
         const distance = pullDistanceRef.current
-        if (distance >= PULL_THRESHOLD_PX && !isRefreshing) {
-          runRefresh()
+        if (distance >= PULL_THRESHOLD_PX && !isRefreshingRef.current) {
+          void runRefresh()
         } else {
-          pullDistanceRef.current = 0
-          setPullDistance(0)
+          snapBackToZero(distance)
         }
         pullingRef.current = false
       }
     },
-    [enabled, isRefreshing, runRefresh]
+    [enabled, runRefresh, snapBackToZero, cancelSnap]
   )
 
-  /* Attach touchstart/touchmove with passive: false so preventDefault() works when pulling at top. */
+  /* touchmove with passive: false so preventDefault() works when pulling at top. */
   useEffect(() => {
     const el = touchTargetRef?.current ?? scrollRef?.current
     if (!enabled || !el) return
     const onStart = (e: TouchEvent) => {
-      if (e.touches.length === 1) {
-        startXRef.current = e.touches[0].clientX
-        startYRef.current = e.touches[0].clientY
-      }
+      if (e.touches.length !== 1) return
+      cancelSnap()
+      pullingRef.current = false
+      pullDistanceRef.current = 0
+      setPullDistance(0)
+      startXRef.current = e.touches[0].clientX
+      startYRef.current = e.touches[0].clientY
     }
     const onMove = (e: TouchEvent) => {
       if (e.touches.length !== 1) return
       const scrollTop = getScrollTop(scrollRef)
       const dx = e.touches[0].clientX - startXRef.current
       const dy = e.touches[0].clientY - startYRef.current
-      
-      // Don't pull if this is clearly a horizontal swipe (swiping back)
+
       if (Math.abs(dx) > Math.abs(dy) * 2) {
         return
       }
-      
+
       if (maxTouchStartY != null && startYRef.current > maxTouchStartY) return
       if (!pullingRef.current) {
         if (scrollTop <= 2 && dy > PULL_COMMIT_PX) pullingRef.current = true
@@ -161,9 +216,7 @@ export function usePullToRefresh({
       }
       if (pullingRef.current && scrollTop <= 2 && dy > 0) {
         e.preventDefault()
-        const capped = Math.min(PULL_CAP_PX, dy)
-        pullDistanceRef.current = capped
-        setPullDistance(capped)
+        applyPullFromDy(dy)
       }
     }
     el.addEventListener('touchstart', onStart, { passive: true })
@@ -172,7 +225,11 @@ export function usePullToRefresh({
       el.removeEventListener('touchstart', onStart)
       el.removeEventListener('touchmove', onMove)
     }
-  }, [enabled, scrollRef, touchTargetRef, maxTouchStartY])
+  }, [enabled, scrollRef, touchTargetRef, maxTouchStartY, applyPullFromDy, cancelSnap])
+
+  useEffect(() => {
+    return () => cancelSnap()
+  }, [cancelSnap])
 
   return {
     onTouchStart,

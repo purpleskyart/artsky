@@ -1,7 +1,7 @@
 // PurpleSky – Bluesky client focused on art (deploy bump)
 import { Component, lazy, Suspense, useEffect } from 'react'
 import type { ErrorInfo, ReactNode } from 'react'
-import { HashRouter, Navigate, Route, Routes, useParams, useSearchParams } from 'react-router-dom'
+import { HashRouter, Navigate, Route, Routes, useParams } from 'react-router-dom'
 import { REPO_URL } from './config/repo'
 import { initPerformanceMetrics } from './lib/performanceMetrics'
 import { CoreProvidersGroup } from './context/CoreProvidersGroup'
@@ -18,6 +18,8 @@ const PostDetailPage = lazy(() => import('./pages/PostDetailPage'))
 const ProfilePage = lazy(() => import('./pages/ProfilePage'))
 const TagPage = lazy(() => import('./pages/TagPage'))
 const ConsensusPage = lazy(() => import('./pages/ConsensusPage'))
+const CollectionPage = lazy(() => import('./pages/CollectionPage'))
+const CollectionsIndexPage = lazy(() => import('./pages/CollectionsIndexPage'))
 
 /** Official Git SCM logo (https://git-scm.com/images/logos/downloads/Git-Icon-1788C.svg) */
 function GitLogo() {
@@ -157,18 +159,6 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
   }
 }
 
-/** Redirect to feed with artboard modal open (for direct /artboard/:id links). */
-function ArtboardRedirect() {
-  const { id } = useParams<{ id: string }>()
-  const [searchParams] = useSearchParams()
-  const owner = searchParams.get('artboardOwner')
-  if (!id) return <Navigate to="/feed" replace />
-  const q = new URLSearchParams()
-  q.set('artboard', id)
-  if (owner) q.set('artboardOwner', owner)
-  return <Navigate to={`/feed?${q.toString()}`} replace />
-}
-
 /** Redirect to feed with forum post modal open (for direct /forum/post/:uri links). */
 function ForumPostRedirect() {
   const { '*': splat } = useParams<{ '*': string }>()
@@ -192,8 +182,8 @@ function AppRoutes() {
           <Route path="/feed" element={<FeedPage />} />
           <Route path="/forum" element={<Navigate to="/feed?forum=1" replace />} />
           <Route path="/consensus" element={<ConsensusPage />} />
-          <Route path="/artboards" element={<Navigate to="/feed?artboards=1" replace />} />
-          <Route path="/artboard/:id" element={<ArtboardRedirect />} />
+          <Route path="/collections" element={<ModalErrorBoundary><CollectionsIndexPage /></ModalErrorBoundary>} />
+          <Route path="/collection/:uri" element={<ModalErrorBoundary><CollectionPage /></ModalErrorBoundary>} />
           <Route path="/post/:uri" element={<ModalErrorBoundary><PostDetailPage /></ModalErrorBoundary>} />
           <Route path="/profile/:handle" element={<ModalErrorBoundary><ProfilePage /></ModalErrorBoundary>} />
           <Route path="/tag/:tag" element={<ModalErrorBoundary><TagPage /></ModalErrorBoundary>} />

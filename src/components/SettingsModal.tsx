@@ -133,7 +133,7 @@ export default function SettingsModal({ onClose, showToast, onLocalDataCleared }
                 </p>
                 <ul className={styles.settingsBreakdown}>
                   <li>
-                    App data (settings, artboards, sessions):{' '}
+                    App data (settings, sessions):{' '}
                     {formatBytes(storage.localStorageBytes)}
                   </li>
                   {storage.cacheBreakdown.map((c) => (
@@ -171,7 +171,7 @@ export default function SettingsModal({ onClose, showToast, onLocalDataCleared }
                 className={`${styles.settingsActionBtn} ${styles.settingsActionBtnDanger}`}
                 onClick={handleClearLocalData}
                 disabled={clearing !== null}
-                title="Clear all local data including artboards, drafts, and sessions. You will be logged out."
+                title="Clear all local data including drafts and sessions. You will be logged out."
               >
                 {clearing === 'local'
                   ? 'Clearing…'

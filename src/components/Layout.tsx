@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback, useSyncExternalStore } from 'react'
-import { flushSync } from 'react-dom'
+import { createPortal, flushSync } from 'react-dom'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useSession } from '../context/SessionContext'
 import { useTheme } from '../context/ThemeContext'
@@ -119,12 +119,23 @@ export const FeedPullRefreshContext = React.createContext<{
   setPullOffsetPx: ((px: number) => void) | null
 }>({ wrapperRef: null, setHandlers: null, setPullOffsetPx: null })
 
-/** Home icon (purplesky-style: roof house) */
+/** Home icon (purplesky-style: roof house); filled when selected like other nav icons */
 function HomeIcon({ active }: { active?: boolean }) {
-  const sw = active ? 2.5 : 2
+  if (active) {
+    return (
+      <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden>
+        <path
+          fill="currentColor"
+          fillRule="evenodd"
+          clipRule="evenodd"
+          d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM9 12h6v10H9z"
+        />
+      </svg>
+    )
+  }
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
       <polyline points="9 22 9 12 15 12 15 22" />
     </svg>
   )
@@ -140,17 +151,6 @@ function SeenPostsIcon() {
   )
 }
 
-function ArtboardsIcon() {
-  return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <rect x="3" y="3" width="7" height="7" />
-      <rect x="14" y="3" width="7" height="7" />
-      <rect x="14" y="14" width="7" height="7" />
-      <rect x="3" y="14" width="7" height="7" />
-    </svg>
-  )
-}
-
 function SearchIcon({ active }: { active?: boolean }) {
   const sw = active ? 2.5 : 2
   return (
@@ -161,11 +161,23 @@ function SearchIcon({ active }: { active?: boolean }) {
   )
 }
 
-/** Forums: chat bubble (purplesky-style) */
-function ForumIcon() {
+/** Same bookmark shape as post “save to collection” (CollectionSaveMenu) */
+function CollectionsBookmarkNavIcon({ active }: { active?: boolean }) {
+  const sw = active ? 2.5 : 2
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
+    <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden>
+      {active ? (
+        <path fill="currentColor" d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2v16z" />
+      ) : (
+        <path
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={sw}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2v16z"
+        />
+      )}
     </svg>
   )
 }
@@ -347,10 +359,8 @@ function subscribeDesktop(cb: () => void) {
 export default function Layout({ title, children, showNav }: Props) {
   const loc = useLocation()
   const navigate = useNavigate()
-  const { openProfileModal, openPostModal, isModalOpen, modalScrollHidden, openForumModal, openArtboardsModal, closeAllModals } = useProfileModal()
-  const search = loc.search
-  const isForumModalOpen = /\bforum=1\b/.test(search)
-  const isArtboardsModalOpen = /\bartboards=1\b/.test(search) || /\bartboard=/.test(search)
+  const { openProfileModal, openPostModal, isModalOpen, modalScrollHidden, openForumModal, closeAllModals, openCollectionsModal } =
+    useProfileModal()
   const { openLoginModal } = useLoginModal()
   const editProfile = useEditProfile()
   const { session, sessionsList, logout, switchAccount } = useSession()
@@ -389,6 +399,9 @@ export default function Layout({ title, children, showNav }: Props) {
   const { nsfwPreference, cycleNsfwPreference } = useModeration()
   const { mediaMode, cycleMediaMode } = useMediaOnly()
   const path = loc.pathname
+  const feedModalSearch = useMemo(() => new URLSearchParams(loc.search), [loc.search])
+  /** Mobile gear FAB: same view/theme/column controls as the home feed */
+  const showFeedStyleSettingsFloat = path === '/feed' || path === '/collections' || path.startsWith('/collection/')
   const isDesktop = useSyncExternalStore(subscribeDesktop, getDesktopSnapshot, () => false)
   const scrollLock = useScrollLock()
   const [, setAccountSheetOpen] = useState(false)
@@ -1185,9 +1198,14 @@ export default function Layout({ title, children, showNav }: Props) {
     return () => composePreviewUrls.forEach((u) => URL.revokeObjectURL(u))
   }, [composePreviewUrls])
 
-  /* Mobile nav: Feed, Forum, New, Search, Accounts (right). Desktop: Feed, Artboards, New, Search, Forum, Accounts */
+  /* Mobile nav: Home, [Collections], New, Search, Profile. Desktop tray: Home, New, Search, [Collections]. Forums: account menu. */
   const searchActive = mobileSearchOpen && !isDesktop
   const homeActive = path === '/feed' && !isModalOpen && !searchActive
+  const collectionsActive =
+    !!session &&
+    path === '/feed' &&
+    (feedModalSearch.get('collections') === '1' || !!feedModalSearch.get('collection')) &&
+    !searchActive
   const navTrayItems = (
     <>
       <button
@@ -1204,17 +1222,6 @@ export default function Layout({ title, children, showNav }: Props) {
         <span className={styles.navIcon}><HomeIcon active={homeActive} /></span>
         <span className={styles.navLabel}>Home</span>
       </button>
-      {isDesktop && (
-        <button
-          type="button"
-          className={isArtboardsModalOpen && !searchActive ? styles.navActive : ''}
-          onClick={openArtboardsModal}
-          aria-pressed={isArtboardsModalOpen}
-        >
-          <span className={styles.navIcon}><ArtboardsIcon /></span>
-          <span className={styles.navLabel}>Collections</span>
-        </button>
-      )}
       <button
         type="button"
         className={styles.navBtn}
@@ -1228,25 +1235,29 @@ export default function Layout({ title, children, showNav }: Props) {
         <span className={styles.navIcon}><SearchIcon active={searchActive} /></span>
         <span className={styles.navLabel}>Search</span>
       </button>
-      <button
-        type="button"
-        className={isForumModalOpen && !searchActive ? styles.navActive : ''}
-        onClick={openForumModal}
-        aria-pressed={isForumModalOpen}
-      >
-        <span className={styles.navIcon}><ForumIcon /></span>
-        <span className={styles.navLabel}>Forums</span>
-      </button>
+      {session && (
+        <button
+          type="button"
+          className={collectionsActive ? styles.navActive : styles.navBtn}
+          onClick={() => openCollectionsModal()}
+          aria-current={collectionsActive ? 'page' : undefined}
+          aria-label="Collections"
+          title="Collections"
+        >
+          <span className={styles.navIcon}><CollectionsBookmarkNavIcon active={collectionsActive} /></span>
+          <span className={styles.navLabel}>Collections</span>
+        </button>
+      )}
     </>
   )
 
   const navItems = (
     <>
       {isDesktop ? (
-        /* Desktop: Feed, Artboards, New, Search, Forum */
+        /* Desktop: Home, New, Search, [Collections] */
         navTrayItems
       ) : (
-        /* Mobile: Home, Forums, New, Search, Profile (right). Seen-posts button floats above Home; Collections in account menu. */
+        /* Mobile: Home, Collections, New, Search, Profile (right). Seen-posts button floats above Home. */
         <>
           <div className={styles.navHomeWrap}>
             <button
@@ -1263,15 +1274,18 @@ export default function Layout({ title, children, showNav }: Props) {
               <span className={styles.navIcon}><HomeIcon active={homeActive} /></span>
             </button>
           </div>
-          <button
-            type="button"
-            className={isForumModalOpen && !searchActive ? styles.navActive : ''}
-            onClick={openForumModal}
-            aria-pressed={isForumModalOpen}
-            aria-label="Forums"
-          >
-            <span className={styles.navIcon}><ForumIcon /></span>
-          </button>
+          {session && (
+            <button
+              type="button"
+              className={collectionsActive ? styles.navActive : styles.navBtn}
+              onClick={() => openCollectionsModal()}
+              aria-current={collectionsActive ? 'page' : undefined}
+              aria-label="Collections"
+              title="Collections"
+            >
+              <span className={styles.navIcon}><CollectionsBookmarkNavIcon active={collectionsActive} /></span>
+            </button>
+          )}
           <button type="button" className={styles.navBtn} onClick={openCompose} aria-label="New post">
             <span className={styles.navIcon}><PlusIcon /></span>
           </button>
@@ -1396,21 +1410,6 @@ export default function Layout({ title, children, showNav }: Props) {
         <>
           <section className={styles.menuSection}>
             <div className={styles.menuProfileAndAccounts}>
-              <button
-                type="button"
-                className={`${styles.menuProfileBtn} ${styles.menuProfileBtnAccentHover}`}
-                onClick={() => {
-                  setAccountMenuOpen(false)
-                  setAccountSheetOpen(false)
-                  openArtboardsModal()
-                }}
-                title="Collections"
-              >
-                <span className={styles.menuProfileIconWrap} aria-hidden>
-                  <ArtboardsIcon />
-                </span>
-                <span>Collections</span>
-              </button>
               <div className={styles.menuAccountsBlock}>
                 {sessionsList.map((s) => {
             const profile = accountProfiles[s.did]
@@ -1452,6 +1451,17 @@ export default function Layout({ title, children, showNav }: Props) {
               </div>
             </div>
             <div className={styles.menuActions}>
+              <button
+                type="button"
+                className={styles.menuActionBtn}
+                onClick={() => {
+                  setAccountMenuOpen(false)
+                  setAccountSheetOpen(false)
+                  openForumModal()
+                }}
+              >
+                Forums
+              </button>
               <button type="button" className={styles.menuActionBtn} onClick={handleAddAccount}>
                 Add account
               </button>
@@ -1694,14 +1704,16 @@ export default function Layout({ title, children, showNav }: Props) {
                     <SearchBar inputRef={searchInputRef} compact={isDesktop} onSelectFeed={handleSelectFeedFromSearch} />
                   </div>
                   <div className={styles.headerSearchSide}>
-                    <button
-                      type="button"
-                      className={session ? styles.headerForumLink : styles.headerForumLinkLoggedOut}
-                      aria-label="Forums"
-                      onClick={openForumModal}
-                    >
-                      Forums
-                    </button>
+                    {session && (
+                      <button
+                        type="button"
+                        className={styles.headerForumLink}
+                        aria-label="Collections"
+                        onClick={() => openCollectionsModal()}
+                      >
+                        Collections
+                      </button>
+                    )}
                   </div>
                 </div>
               ) : (
@@ -1950,7 +1962,7 @@ export default function Layout({ title, children, showNav }: Props) {
           )}
         </div>
       )}
-      {showNav && !isDesktop && path === '/feed' && (
+      {showNav && !isDesktop && showFeedStyleSettingsFloat && (
         <div ref={gearFloatWrapRef} className={`${styles.gearFloatWrap} ${isModalOpen ? styles.gearFloatWrapModalOpen : ''} ${mobileNavScrollHidden || (isModalOpen && modalScrollHidden) ? styles.gearFloatWrapScrollHidden : ''}`}>
           <button
             type="button"
@@ -2090,7 +2102,6 @@ export default function Layout({ title, children, showNav }: Props) {
         {showNav && path === '/feed' ? (
           <div
             ref={feedPullRefreshWrapperRef}
-            className={!isDesktop ? styles.feedPullRefreshWrap : undefined}
             style={
               !isDesktop
                 ? { transform: `translateY(${feedPullOffsetPx}px)` }
@@ -2411,7 +2422,6 @@ export default function Layout({ title, children, showNav }: Props) {
                     <dt>R</dt><dd>Reply to post</dd>
                     <dt>T</dt><dd>Toggle text view</dd>
                     <dt>F</dt><dd>Like / unlike</dd>
-                    <dt>C</dt><dd>Collect post</dd>
                     <dt>B</dt><dd>Block author (feed)</dd>
                     <dt>4</dt><dd>Follow author</dd>
                     <dt>Escape</dt><dd>Escape all windows</dd>
@@ -2431,11 +2441,27 @@ export default function Layout({ title, children, showNav }: Props) {
           )}
         </>
       )}
-      {toast?.toastMessage && (
-        <div className="app-toast float-btn" role="status" aria-live="polite">
-          {toast.toastMessage}
-        </div>
-      )}
+      {toast?.toastMessage &&
+        createPortal(
+          <div
+            className={`app-toast float-btn${toast.toastPosition ? ' app-toast--anchored' : ''}`}
+            style={
+              toast.toastPosition
+                ? {
+                    top: toast.toastPosition.y,
+                    left: toast.toastPosition.cx,
+                    bottom: 'auto',
+                    transform: 'translateX(-50%)',
+                  }
+                : undefined
+            }
+            role="status"
+            aria-live="polite"
+          >
+            {toast.toastMessage}
+          </div>,
+          document.body
+        )}
       <SWUpdateToast />
       </FeedSwipeProvider>
       </FeedPullRefreshContext.Provider>

@@ -9,8 +9,6 @@ interface OptimizedPostCardProps {
   focusedMediaIndex?: number
   onMediaRef: (mediaIndex: number, el: HTMLElement | null) => void
   cardRef: (el: HTMLDivElement | null) => void
-  openAddDropdown: boolean
-  onAddClose: () => void
   onActionsMenuOpenChange: (open: boolean) => void
   cardIndex: number
   actionsMenuOpenForIndex: number | null

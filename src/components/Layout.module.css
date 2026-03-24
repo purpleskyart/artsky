@@ -619,26 +619,6 @@
     align-items: center;
     gap: 0.75rem;
   }
-  .headerArtboardsLink {
-    font-size: 0.9rem;
-    font-weight: 500;
-    color: var(--text);
-    text-decoration: none;
-    padding: 0.4rem 0.75rem;
-    border-radius: var(--glass-radius-sm);
-    background: var(--glass-highlight);
-    transition: background 0.15s ease, color 0.15s ease;
-  }
-  button.headerArtboardsLink {
-    border: none;
-    cursor: pointer;
-    font: inherit;
-  }
-  .headerArtboardsLink:hover {
-    color: var(--accent);
-    background: var(--accent-subtle);
-    text-decoration: none;
-  }
   .headerForumLink {
     font-size: 0.9rem;
     font-weight: 500;
@@ -1779,11 +1759,6 @@ button.logoLink {
   margin: 0 auto;
   padding-left: env(safe-area-inset-left);
   padding-right: env(safe-area-inset-right);
-}
-
-/* Pull-to-refresh: whole main column (feed selector + cards) moves together */
-.feedPullRefreshWrap {
-  transition: transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 /* Keep feed selector (pills + Add Custom Feed) visible when scrolling the homepage */

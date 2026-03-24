@@ -37,8 +37,6 @@ describe('Property 4: Lazy Loading of Heavy Dependencies', () => {
           '../components/TagModal',
           '../components/ForumModal',
           '../components/ForumPostModal',
-          '../components/ArtboardsModal',
-          '../components/ArtboardModal',
           '../components/SearchModal',
           '../components/QuotesModal'
         ),
@@ -216,12 +214,10 @@ describe('Property 4: Lazy Loading of Heavy Dependencies', () => {
             'TagModal',
             'ForumModal',
             'ForumPostModal',
-            'ArtboardsModal',
-            'ArtboardModal',
             'SearchModal',
             'QuotesModal'
           ),
-          { minLength: 1, maxLength: 12 }
+          { minLength: 1, maxLength: 10 }
         ),
         async (dependencies) => {
           // Simulate initial bundle contents

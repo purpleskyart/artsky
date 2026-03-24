@@ -20,7 +20,7 @@ export type ListKeyboardNavOptions = {
 /**
  * Shared keyboard nav for list/grid content in modals and full pages.
  * Handles W/S/A/D and Arrow keys for movement, Enter/E for activate.
- * Use in Forum list, Collections list, Collection detail grid, Forum post detail, etc.
+ * Use in Forum list, Forum post detail, etc.
  */
 export function useListKeyboardNav({
   enabled,

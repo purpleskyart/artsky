@@ -208,7 +208,6 @@ export function ProfileContent({
   const loadingMoreRef = useRef(false)
   const [tabsBarVisible] = useState(true)
   const [keyboardFocusIndex, setKeyboardFocusIndex] = useState(0)
-  const [keyboardAddOpen, setKeyboardAddOpen] = useState(false)
   const [actionsMenuOpenForIndex, setActionsMenuOpenForIndex] = useState<number | null>(null)
   const [showBlockedMutedModal, setShowBlockedMutedModal] = useState(false)
   const [followListModal, setFollowListModal] = useState<'followers' | 'following' | 'mutuals' | 'followedByFollows' | null>(null)
@@ -540,7 +539,7 @@ export function ProfileContent({
       if (items.length === 0) return
       const i = keyboardFocusIndexRef.current
       const key = e.key.toLowerCase()
-      if (key === 'w' || key === 's' || key === 'a' || key === 'd' || key === 'e' || key === 'enter' || key === 'f' || key === 'c' || key === 'm' || key === '`' || e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') e.preventDefault()
+      if (key === 'w' || key === 's' || key === 'a' || key === 'd' || key === 'e' || key === 'enter' || key === 'f' || key === 'm' || key === '`' || e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') e.preventDefault()
 
       if (key === 'w' || e.key === 'ArrowUp') {
         mouseMovedRef.current = false
@@ -617,9 +616,6 @@ export function ProfileContent({
           }).catch(() => {})
         }
         return
-      }
-      if (key === 'c') {
-        setKeyboardAddOpen(true)
       }
     }
     window.addEventListener('keydown', onKeyDown)
@@ -1034,7 +1030,6 @@ export function ProfileContent({
                   }
                   hasCursor={!!cursor}
                   keyboardFocusIndex={keyboardFocusIndex}
-                  keyboardAddOpen={keyboardAddOpen}
                   actionsMenuOpenForIndex={actionsMenuOpenForIndex}
                   nsfwPreference={nsfwPreference}
                   unblurredUris={unblurredUris}
@@ -1050,7 +1045,6 @@ export function ProfileContent({
                     mouseMovedRef.current = false
                     setKeyboardFocusIndex(originalIndex)
                   }}
-                  onAddClose={() => setKeyboardAddOpen(false)}
                   suppressHoverNsfwUnblur={!!inModal}
                   isSelected={(index) => (tab === 'posts' || tab === 'reposts') && index === keyboardFocusIndex}
                   profileAuthorDid={profile?.did}

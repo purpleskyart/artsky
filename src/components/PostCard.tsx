@@ -1,23 +1,14 @@
-import { useRef, useEffect, useState, useCallback, useLayoutEffect, useMemo, memo, useSyncExternalStore } from 'react'
-import { createPortal } from 'react-dom'
+import { useRef, useEffect, useLayoutEffect, useState, useCallback, useMemo, memo } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import type Hls from 'hls.js'
 import { loadHls } from '../lib/loadHls'
-import { getPostMediaInfoForDisplay, getPostAllMediaForDisplay, getPostMediaUrlForDisplay, getPostExternalLink, POST_MEDIA_FEED_PREVIEW, agent, likePostWithLifecycle, unlikePostWithLifecycle, followAccountWithLifecycle, type TimelineItem } from '../lib/bsky'
-import {
-  subscribeArtboards,
-  getArtboardsSnapshot,
-  createArtboard,
-  addPostToArtboard,
-  isPostInArtboard,
-  getArtboard,
-} from '../lib/artboards'
-import { putArtboardOnPds } from '../lib/artboardsPds'
+import { getPostMediaInfoForDisplay, getPostAllMediaForDisplay, getPostExternalLink, POST_MEDIA_FEED_PREVIEW, likePostWithLifecycle, unlikePostWithLifecycle, followAccountWithLifecycle, type TimelineItem } from '../lib/bsky'
 import { useSession } from '../context/SessionContext'
 import { useLoginModal } from '../context/LoginModalContext'
 import { useArtOnly } from '../context/ArtOnlyContext'
 import { useMediaOnly } from '../context/MediaOnlyContext'
 import { useModeration } from '../context/ModerationContext'
+import CollectionSaveMenu from './CollectionSaveMenu'
 import { useProfileModal } from '../context/ProfileModalContext'
 import { setInitialPostForUri } from '../lib/postCache'
 import { useModalScroll } from '../context/ModalScrollContext'
@@ -29,16 +20,10 @@ import styles from './PostCard.module.css'
 
 interface Props {
   item: TimelineItem
-  /** When true, show keyboard-focus ring and parent can use cardRef/addButtonRef */
+  /** When true, show keyboard-focus ring and parent can use cardRef */
   isSelected?: boolean
   /** Optional ref (object or callback) to the card root (for scroll-into-view) */
   cardRef?: React.Ref<HTMLDivElement | null>
-  /** Optional ref to the add-to-artboard button (for C key) */
-  addButtonRef?: React.RefObject<HTMLButtonElement | null>
-  /** When true, open the add-to-artboard dropdown (e.g. from C key) */
-  openAddDropdown?: boolean
-  /** Called when the add-to-artboard dropdown is closed */
-  onAddClose?: () => void
   /** When provided, opening the post calls this instead of navigating to /post/:uri (e.g. open in modal) */
   onPostClick?: (uri: string, options?: { openReply?: boolean; initialItem?: unknown }) => void
   /** Called when media aspect ratio is known (for bento layout) */
@@ -75,12 +60,13 @@ interface Props {
   profileAuthorDid?: string
   /** Follow record URI or null if not following; undefined = do not override author viewer from post */
   profileAuthorFollowingUri?: string | null
+  /** When set (e.g. on your collection page), ⋮ menu includes removing this post from that collection */
+  onRemovePostFromCollection?: (postUri: string) => void | Promise<void>
+  /** Match homepage feed preview: centered collect / avatar / like, ⋮ on the right (also when card mode is Art Cards) */
+  feedPreviewActionRow?: boolean
 }
 
 const REASON_PIN = 'app.bsky.feed.defs#reasonPin'
-/** Used to clamp collect dropdown so it stays in view (min-width 200px + padding in CSS). */
-const ADD_DROPDOWN_CLAMP_WIDTH = 280
-const ADD_DROPDOWN_VIEWPORT_PAD = 8
 
 function RepostIcon() {
   return (
@@ -98,25 +84,46 @@ function PinIcon() {
   )
 }
 
-function CollectIcon() {
-  return (
-    <svg className={styles.collectIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
-    </svg>
-  )
-}
-
 function isHlsUrl(url: string): boolean {
   return /\.m3u8(\?|$)/i.test(url) || url.includes('m3u8')
 }
 
-type InnerProps = Props & { setUnblurred: (uri: string, revealed: boolean) => void; isRevealed: boolean }
+type InnerProps = Props & {
+  setUnblurred: (uri: string, revealed: boolean) => void
+  isRevealed: boolean
+}
 
-function PostCardInner({ item, isSelected, cardRef: cardRefProp, addButtonRef: _addButtonRef, openAddDropdown, onAddClose, onPostClick, onAspectRatio, fillCell, nsfwBlurred, onNsfwUnblur, constrainMediaHeight, likedUriOverride, onLikedChange, seen, onActionsMenuOpenChange, cardIndex, actionsMenuOpenForIndex, focusedMediaIndex, onMediaRef, setUnblurred, isRevealed, profileAuthorDid, profileAuthorFollowingUri }: InnerProps) {
+function PostCardInner({
+  item,
+  isSelected,
+  cardRef: cardRefProp,
+  onPostClick,
+  onAspectRatio,
+  fillCell,
+  nsfwBlurred,
+  onNsfwUnblur,
+  constrainMediaHeight,
+  likedUriOverride,
+  onLikedChange,
+  seen,
+  onActionsMenuOpenChange,
+  cardIndex,
+  actionsMenuOpenForIndex,
+  focusedMediaIndex,
+  onMediaRef,
+  setUnblurred,
+  isRevealed,
+  profileAuthorDid,
+  profileAuthorFollowingUri,
+  onRemovePostFromCollection,
+  feedPreviewActionRow = false,
+}: InnerProps) {
   const navigate = useNavigate()
   const { session } = useSession()
   const { openLoginModal } = useLoginModal()
   const { artOnly, minimalist } = useArtOnly()
+  const showFeedStyleActionRow = feedPreviewActionRow || !artOnly || minimalist
+  const showArtOnlyCornerActions = artOnly && !minimalist && !feedPreviewActionRow
   const { mediaMode } = useMediaOnly()
   const { openQuotesModal, openPostModal, isModalOpen } = useProfileModal()
   const location = useLocation()
@@ -164,26 +171,12 @@ function PostCardInner({ item, isSelected, cardRef: cardRefProp, addButtonRef: _
   const [likeLoading, setLikeLoading] = useState(false)
   const effectiveLikedUri = likedUriOverride !== undefined ? (likedUriOverride ?? undefined) : likedUri
   const isLiked = !!effectiveLikedUri
-  const boards = useSyncExternalStore(subscribeArtboards, getArtboardsSnapshot, getArtboardsSnapshot)
-  const inAnyArtboard = useMemo(
-    () => boards.some((b) => b.posts.some((p) => p.uri === post.uri)),
-    [boards, post.uri],
-  )
-  const showTransFlagOutline = isLiked && inAnyArtboard
 
   const [mediaAspect, setMediaAspect] = useState<number | null>(() =>
     hasMedia && media?.aspectRatio != null ? media.aspectRatio : null
   )
-  const [addOpen, setAddOpen] = useState(false)
   const [actionsMenuOpen, setActionsMenuOpen] = useState(false)
   const actionsMenuDropdownRef = useRef<HTMLDivElement>(null)
-  const [addToBoardIds, setAddToBoardIds] = useState<Set<string>>(new Set())
-  const [newBoardName, setNewBoardName] = useState('')
-  const addRef = useRef<HTMLDivElement>(null)
-  const addRefMobile = useRef<HTMLDivElement>(null)
-  const addBtnRef = useRef<HTMLButtonElement>(null)
-  const addDropdownRef = useRef<HTMLDivElement>(null)
-  const [addDropdownPosition, setAddDropdownPosition] = useState<{ bottom: number; left: number } | null>(null)
   const cardRef = useRef<HTMLDivElement>(null)
   const prevSelectedRef = useRef(isSelected)
   const lastTapRef = useRef(0)
@@ -313,10 +306,6 @@ function PostCardInner({ item, isSelected, cardRef: cardRefProp, addButtonRef: _
   }, [session?.did, openLoginModal, likeLoading, effectiveLikedUri, post.uri, post.cid, onLikedChange])
 
   useEffect(() => {
-    if (openAddDropdown) setAddOpen(true)
-  }, [openAddDropdown])
-
-  useEffect(() => {
     return () => {
       if (openDelayTimerRef.current) {
         clearTimeout(openDelayTimerRef.current)
@@ -335,110 +324,6 @@ function PostCardInner({ item, isSelected, cardRef: cardRefProp, addButtonRef: _
     mediaClickFromTouchRef.current = false
     didDoubleTapRef.current = false
   }, [isModalOpen])
-
-  const prevAddOpenRef = useRef(addOpen)
-  useEffect(() => {
-    if (prevAddOpenRef.current && !addOpen) onAddClose?.()
-    prevAddOpenRef.current = addOpen
-  }, [addOpen, onAddClose])
-
-  const updateAddDropdownPosition = useCallback(() => {
-    if (!addRef.current) return null
-    const rect = addRef.current.getBoundingClientRect()
-    const half = ADD_DROPDOWN_CLAMP_WIDTH / 2
-    const minLeft = ADD_DROPDOWN_VIEWPORT_PAD + half
-    const maxLeft = window.innerWidth - ADD_DROPDOWN_VIEWPORT_PAD - half
-    const centerLeft = rect.left + rect.width / 2
-    const left = Math.max(minLeft, Math.min(maxLeft, centerLeft))
-    return {
-      bottom: window.innerHeight - rect.top,
-      left,
-    }
-  }, [])
-
-  useLayoutEffect(() => {
-    if (!addOpen || !addRef.current) {
-      setAddDropdownPosition(null)
-      return
-    }
-    setAddDropdownPosition(updateAddDropdownPosition())
-  }, [addOpen, updateAddDropdownPosition])
-
-  useLayoutEffect(() => {
-    if (!addOpen) return
-    const onMove = () => setAddDropdownPosition((prev) => (prev ? updateAddDropdownPosition() ?? prev : prev))
-    window.addEventListener('scroll', onMove, true)
-    window.addEventListener('resize', onMove)
-    const modalScrollEl = modalScrollRef?.current ?? document.querySelector('[data-modal-scroll]')
-    modalScrollEl?.addEventListener('scroll', onMove, { passive: true })
-    return () => {
-      window.removeEventListener('scroll', onMove, true)
-      window.removeEventListener('resize', onMove)
-      modalScrollEl?.removeEventListener('scroll', onMove)
-    }
-  }, [addOpen, updateAddDropdownPosition, modalScrollRef])
-
-  useEffect(() => {
-    if (!addOpen) return
-    function onDocClick(e: MouseEvent) {
-      const target = e.target as Node
-      if (addRef.current?.contains(target) || addRefMobile.current?.contains(target)) return
-      if (addDropdownRef.current?.contains(target)) return
-      setAddOpen(false)
-    }
-    document.addEventListener('mousedown', onDocClick)
-    return () => document.removeEventListener('mousedown', onDocClick)
-  }, [addOpen])
-
-  const toggleBoardSelection = useCallback((boardId: string) => {
-    setAddToBoardIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(boardId)) next.delete(boardId)
-      else next.add(boardId)
-      return next
-    })
-  }, [])
-
-  const handleAddToArtboard = useCallback(async () => {
-    const hasSelection = addToBoardIds.size > 0 || newBoardName.trim().length > 0
-    if (!hasSelection) return
-    const mediaUrl = getPostMediaUrlForDisplay(post, POST_MEDIA_FEED_PREVIEW)
-    const thumbs = allMedia.length > 0 ? allMedia.map((m) => m.url) : undefined
-    const payload = {
-      uri: post.uri,
-      cid: post.cid,
-      authorHandle: post.author.handle,
-      text: (post.record as { text?: string })?.text?.slice(0, 200),
-      thumb: mediaUrl?.url ?? thumbs?.[0],
-      thumbs,
-    }
-    const modifiedIds: string[] = []
-    if (newBoardName.trim()) {
-      const board = createArtboard(newBoardName.trim())
-      addPostToArtboard(board.id, payload)
-      modifiedIds.push(board.id)
-      setNewBoardName('')
-    }
-    addToBoardIds.forEach((id) => {
-      addPostToArtboard(id, payload)
-      modifiedIds.push(id)
-    })
-    setAddToBoardIds(new Set())
-    setAddOpen(false)
-    if (session?.did && modifiedIds.length > 0) {
-      for (const boardId of modifiedIds) {
-        const board = getArtboard(boardId)
-        if (board) {
-          try {
-            await putArtboardOnPds(agent, session.did, board)
-          } catch {
-            // leave local as is
-          }
-        }
-      }
-    }
-  }, [addToBoardIds, newBoardName, post, allMedia, session?.did])
-
 
   const isVideo = hasMedia && media!.type === 'video' && media!.videoPlaylist
   const isMultipleImages = hasMedia && media!.type === 'image' && (media!.imageCount ?? 0) > 1
@@ -791,7 +676,11 @@ function PostCardInner({ item, isSelected, cardRef: cardRefProp, addButtonRef: _
   )
 
   return (
-    <div ref={setCardRef} data-post-uri={post.uri} className={`${styles.card} ${nsfwBlurred ? styles.cardNsfwBlurred : ''} ${isSelected ? styles.cardSelected : ''} ${showTransFlagOutline ? styles.cardTransFlag : ''} ${!showTransFlagOutline && isLiked ? styles.cardLiked : ''} ${!showTransFlagOutline && inAnyArtboard ? styles.cardInArtboard : ''} ${seen && !isSelected ? styles.cardSeen : ''} ${fillCell ? styles.cardFillCell : ''} ${artOnly ? styles.cardArtOnly : ''} ${minimalist ? styles.cardMinimalist : ''}`}>
+    <div
+      ref={setCardRef}
+      data-post-uri={post.uri}
+      className={`${styles.card} ${nsfwBlurred ? styles.cardNsfwBlurred : ''} ${isSelected ? styles.cardSelected : ''} ${isLiked ? styles.cardLiked : ''} ${seen && !isSelected ? styles.cardSeen : ''} ${fillCell ? styles.cardFillCell : ''} ${artOnly ? styles.cardArtOnly : ''} ${minimalist ? styles.cardMinimalist : ''} ${feedPreviewActionRow ? styles.cardFeedPreviewActions : ''}`}
+    >
       <div
         role="button"
         tabIndex={0}
@@ -1070,8 +959,9 @@ function PostCardInner({ item, isSelected, cardRef: cardRefProp, addButtonRef: _
             </div>
           )}
         </div>
-        {artOnly && !minimalist && (
+        {showArtOnlyCornerActions && (
           <div className={styles.artOnlyActions} onClick={(e) => e.stopPropagation()}>
+            <CollectionSaveMenu postUri={post.uri} />
             <PostActionsMenu
               postUri={post.uri}
               postCid={post.cid}
@@ -1090,97 +980,18 @@ function PostCardInner({ item, isSelected, cardRef: cardRefProp, addButtonRef: _
               feedLabel={feedLabel}
               postedAt={(post.record as { createdAt?: string })?.createdAt}
               onViewQuotes={openQuotesModal}
+              onRemoveFromThisCollection={
+                onRemovePostFromCollection ? () => onRemovePostFromCollection(post.uri) : undefined
+              }
             />
           </div>
         )}
-        {(!artOnly || minimalist) && (
+        {showFeedStyleActionRow && (
         <div className={styles.meta}>
           <div className={styles.cardActionRow} onClick={(e) => e.stopPropagation()}>
             <div className={styles.cardActionRowSpacer} aria-hidden="true" />
             <div className={styles.cardActionRowCenter}>
-              <div
-                className={`${styles.addWrap} ${addOpen ? styles.addWrapOpen : ''}`}
-                ref={addRef}
-              >
-                <button
-                  ref={addBtnRef}
-                  type="button"
-                  className={`${styles.addToBoardBtn} ${inAnyArtboard ? styles.addToBoardBtnInCollection : ''}`}
-                  onTouchStart={(e) => e.stopPropagation()}
-                  onTouchEnd={(e) => e.stopPropagation()}
-                  onClick={(e) => {
-                    e.preventDefault()
-                    e.stopPropagation()
-                    if (!session?.did) {
-                      openLoginModal()
-                      return
-                    }
-                    setAddOpen((o) => !o)
-                  }}
-                  aria-label="Collect"
-                  aria-expanded={addOpen}
-                >
-                  <CollectIcon />
-                </button>
-                {addOpen && addDropdownPosition &&
-                  createPortal(
-                    <div
-                      ref={addDropdownRef}
-                      className={`${styles.addDropdown} ${styles.addDropdownFixed}`}
-                      style={{
-                        position: 'fixed',
-                        bottom: addDropdownPosition.bottom,
-                        left: addDropdownPosition.left,
-                        transform: 'translateX(-50%)',
-                        zIndex: 1001,
-                      }}
-                    >
-                      {boards.length === 0 ? null : (
-                        <>
-                          {boards.map((b) => {
-                            const alreadyIn = isPostInArtboard(b.id, post.uri)
-                            const selected = addToBoardIds.has(b.id)
-                            return (
-                              <label key={b.id} className={styles.addBoardLabel}>
-                                <input
-                                  type="checkbox"
-                                  checked={selected}
-                                  onChange={() => !alreadyIn && toggleBoardSelection(b.id)}
-                                  disabled={alreadyIn}
-                                  className={styles.addBoardCheckbox}
-                                />
-                                <span className={styles.addBoardText}>
-                                  {alreadyIn ? <>✓ {b.name}</> : b.name}
-                                </span>
-                              </label>
-                            )
-                          })}
-                        </>
-                      )}
-                      <div className={styles.addDropdownNew}>
-                        <input
-                          type="text"
-                          placeholder="New collection name"
-                          value={newBoardName}
-                          onChange={(e) => setNewBoardName(e.target.value)}
-                          className={styles.addBoardInput}
-                          onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddToArtboard())}
-                        />
-                      </div>
-                      <div className={styles.addDropdownActions}>
-                        <button
-                          type="button"
-                          className={styles.addBoardSubmit}
-                          onClick={handleAddToArtboard}
-                          disabled={addToBoardIds.size === 0 && !newBoardName.trim()}
-                        >
-                          Add to selected
-                        </button>
-                      </div>
-                    </div>,
-                    document.body
-                  )}
-              </div>
+              <CollectionSaveMenu postUri={post.uri} />
               {post.author.avatar && (
                 isOwnPost || !session || isFollowingAuthor ? (
                   <ProfileLink
@@ -1243,10 +1054,13 @@ function PostCardInner({ item, isSelected, cardRef: cardRefProp, addButtonRef: _
                 feedLabel={feedLabel}
                 postedAt={(post.record as { createdAt?: string })?.createdAt}
                 onViewQuotes={openQuotesModal}
+                onRemoveFromThisCollection={
+                  onRemovePostFromCollection ? () => onRemovePostFromCollection(post.uri) : undefined
+                }
               />
             </div>
           </div>
-          {!minimalist && (
+          {!minimalist && (!artOnly || !feedPreviewActionRow) && (
           <div className={styles.handleBlock}>
             <div className={styles.handleRow}>
               {post.author.avatar ? (
@@ -1295,7 +1109,7 @@ function PostCardInner({ item, isSelected, cardRef: cardRefProp, addButtonRef: _
             </div>
           </div>
           )}
-          {!minimalist && hasMedia && text ? (
+          {!minimalist && (!artOnly || !feedPreviewActionRow) && hasMedia && text ? (
             <p className={styles.text} onClick={(e) => { e.stopPropagation(); handleCardClick(e); }}>
               <PostText text={text} facets={(post.record as { facets?: unknown[] })?.facets} maxLength={80} stopPropagation interactive={false} />
             </p>
@@ -1348,12 +1162,13 @@ export default memo(PostCard, (prevProps, nextProps) => {
   if (prevProps.isRevealed !== nextProps.isRevealed) return false
   if (prevProps.fillCell !== nextProps.fillCell) return false
   if (prevProps.constrainMediaHeight !== nextProps.constrainMediaHeight) return false
-  if (prevProps.openAddDropdown !== nextProps.openAddDropdown) return false
   if (prevProps.cardIndex !== nextProps.cardIndex) return false
   if (prevProps.actionsMenuOpenForIndex !== nextProps.actionsMenuOpenForIndex) return false
   if (prevProps.focusedMediaIndex !== nextProps.focusedMediaIndex) return false
   if (prevProps.profileAuthorDid !== nextProps.profileAuthorDid) return false
   if (prevProps.profileAuthorFollowingUri !== nextProps.profileAuthorFollowingUri) return false
+  if (prevProps.onRemovePostFromCollection !== nextProps.onRemovePostFromCollection) return false
+  if (prevProps.feedPreviewActionRow !== nextProps.feedPreviewActionRow) return false
 
   // Check if the post content has changed (cid is the content identifier)
   if (prevProps.item.post.cid !== nextProps.item.post.cid) return false

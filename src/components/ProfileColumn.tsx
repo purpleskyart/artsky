@@ -1,8 +1,10 @@
+import type { ReactNode } from 'react'
 import type { TimelineItem } from '../lib/bsky'
 import { isPostNsfw } from '../lib/bsky'
 import PostCard from './PostCard'
 import { setInitialPostForUri } from '../lib/postCache'
-import styles from '../pages/ProfilePage.module.css'
+import profileStyles from '../pages/ProfilePage.module.css'
+import feedStyles from '../pages/FeedPage.module.css'
 
 type ColumnItem = { item: TimelineItem; originalIndex: number }
 
@@ -13,7 +15,6 @@ export interface ProfileColumnProps {
   loadMoreSentinelRef?: (el: HTMLDivElement | null) => void
   hasCursor?: boolean
   keyboardFocusIndex: number
-  keyboardAddOpen: boolean
   actionsMenuOpenForIndex: number | null
   nsfwPreference: 'nsfw' | 'sfw' | 'blurred'
   unblurredUris: Set<string>
@@ -24,7 +25,6 @@ export interface ProfileColumnProps {
   cardRef: (index: number) => (el: HTMLDivElement | null) => void
   onActionsMenuOpenChange: (index: number, open: boolean) => void
   onMouseEnter: (index: number) => void
-  onAddClose: () => void
   constrainMediaHeight?: boolean
   isSelected: (index: number) => boolean
   /** When true, do not unblur NSFW on pointer/mouse enter (scroll can move content under a stationary cursor in modals). */
@@ -32,6 +32,14 @@ export interface ProfileColumnProps {
   /** Sync follow affordance on cards with profile header when author feed omits viewer.following */
   profileAuthorDid?: string
   profileAuthorFollowingUri?: string | null
+  /** Optional row under each card (e.g. collection owner controls) */
+  belowCard?: (ctx: { item: TimelineItem; originalIndex: number }) => ReactNode
+  /** When set (e.g. collection page owner), ⋮ menu can remove post from that collection */
+  onRemovePostFromCollection?: (postUri: string) => void | Promise<void>
+  /** Use feed column/card spacing (e.g. collection grid) instead of profile/tighter gaps */
+  layout?: 'profile' | 'feed'
+  /** Center collect / avatar / like with ⋮ on the right (homepage preview layout) */
+  feedPreviewActionRow?: boolean
 }
 
 export default function ProfileColumn(props: ProfileColumnProps) {
@@ -39,7 +47,6 @@ export default function ProfileColumn(props: ProfileColumnProps) {
     column,
     loadMoreSentinelRef,
     hasCursor,
-    keyboardAddOpen,
     actionsMenuOpenForIndex,
     nsfwPreference,
     unblurredUris,
@@ -50,13 +57,18 @@ export default function ProfileColumn(props: ProfileColumnProps) {
     cardRef,
     onActionsMenuOpenChange,
     onMouseEnter,
-    onAddClose,
     constrainMediaHeight = false,
     isSelected,
     suppressHoverNsfwUnblur = false,
     profileAuthorDid,
     profileAuthorFollowingUri,
+    belowCard,
+    onRemovePostFromCollection,
+    layout = 'profile',
+    feedPreviewActionRow = false,
   } = props
+
+  const styles = layout === 'feed' ? feedStyles : profileStyles
 
   if (column.length === 0) {
     return (
@@ -94,8 +106,6 @@ export default function ProfileColumn(props: ProfileColumnProps) {
               item={item}
               isSelected={isSelected(originalIndex)}
               cardRef={() => {}} // No-op since we're using the wrapper div ref above
-              openAddDropdown={isSelected(originalIndex) && keyboardAddOpen}
-              onAddClose={onAddClose}
               onPostClick={(uri, opts) => {
                 if (opts?.initialItem) setInitialPostForUri(uri, opts.initialItem)
                 openPostModal(uri, opts?.openReply)
@@ -114,7 +124,10 @@ export default function ProfileColumn(props: ProfileColumnProps) {
               actionsMenuOpenForIndex={actionsMenuOpenForIndex}
               profileAuthorDid={profileAuthorDid}
               profileAuthorFollowingUri={profileAuthorFollowingUri}
+              onRemovePostFromCollection={onRemovePostFromCollection}
+              feedPreviewActionRow={feedPreviewActionRow}
             />
+          {belowCard ? belowCard({ item, originalIndex }) : null}
           </div>
         )
       })}

@@ -91,6 +91,16 @@ function TrashIcon() {
   )
 }
 
+function RemoveFromCollectionIcon() {
+  return (
+    <svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2v16z" />
+      <line x1="9" y1="10" x2="15" y2="16" />
+      <line x1="15" y1="10" x2="9" y2="16" />
+    </svg>
+  )
+}
+
 interface PostActionsMenuProps {
   /** Post/reply URI */
   postUri: string
@@ -127,6 +137,8 @@ interface PostActionsMenuProps {
   dropdownRef?: React.RefObject<HTMLDivElement | null>
   /** When set, show "View Quotes" and call this with postUri when clicked */
   onViewQuotes?: (postUri: string) => void
+  /** When set (e.g. owner viewing their collection page), show "Remove from this collection" in the menu */
+  onRemoveFromThisCollection?: () => void | Promise<void>
 }
 
 function PostActionsMenu({
@@ -148,6 +160,7 @@ function PostActionsMenu({
   downloadLoading,
   dropdownRef: dropdownRefProp,
   onViewQuotes,
+  onRemoveFromThisCollection,
 }: PostActionsMenuProps) {
   const session = getSession()
   const [openUncontrolled, setOpenUncontrolled] = useState(false)
@@ -688,6 +701,28 @@ function PostActionsMenu({
                 <span className={styles.itemIcon}><LinkIcon /></span>
                 Copy link to post
               </button>
+              {onRemoveFromThisCollection && (
+                <button
+                  type="button"
+                  className={styles.item}
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    setLoading('removeFromCollection')
+                    void Promise.resolve(onRemoveFromThisCollection())
+                      .then(() => setOpen(false))
+                      .catch(() => {})
+                      .finally(() => setLoading(null))
+                  }}
+                  disabled={loading === 'removeFromCollection'}
+                  role="menuitem"
+                >
+                  <span className={styles.itemIcon}>
+                    {loading === 'removeFromCollection' ? '…' : <RemoveFromCollectionIcon />}
+                  </span>
+                  {loading === 'removeFromCollection' ? '' : 'Remove from this collection'}
+                </button>
+              )}
             </>
           )}
           </div>,
