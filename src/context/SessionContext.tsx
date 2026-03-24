@@ -9,6 +9,8 @@ interface SessionContextValue {
   session: AtpSessionData | null
   sessionsList: AtpSessionData[]
   loading: boolean
+  /** False only on first paint when persisted login may exist but OAuth/credential restore has not finished yet. */
+  authResolved: boolean
   login: (identifier: string, password: string) => Promise<void>
   logout: () => Promise<void>
   switchAccount: (did: string) => Promise<boolean>
@@ -25,10 +27,20 @@ function getInitialSession(): AtpSessionData | null {
   }
 }
 
+function getInitialAuthResolved(): boolean {
+  if (typeof window === 'undefined') return true
+  try {
+    return !bsky.hasPersistedLoginHint()
+  } catch {
+    return true
+  }
+}
+
 export function SessionProvider({ children }: { children: React.ReactNode }) {
   // Show the app immediately; never block on a loading screen so localhost always loads
   const [session, setSession] = useState<AtpSessionData | null>(getInitialSession)
   const [loading] = useState(false)
+  const [authResolved, setAuthResolved] = useState(getInitialAuthResolved)
 
   useEffect(() => {
     // Removed requestPersistentStorage - modern browsers handle storage persistence automatically
@@ -81,7 +93,13 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       }
       if (!cancelled) finish()
     }
-    init().catch(() => finish())
+    init()
+      .catch(() => {
+        if (!cancelled) finish()
+      })
+      .finally(() => {
+        if (!cancelled) setAuthResolved(true)
+      })
 
     return () => {
       cancelled = true
@@ -120,12 +138,13 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       session,
       sessionsList,
       loading,
+      authResolved,
       login,
       logout,
       switchAccount,
       refreshSession,
     }),
-    [session, sessionsList, loading, login, logout, switchAccount, refreshSession]
+    [session, sessionsList, loading, authResolved, login, logout, switchAccount, refreshSession]
   )
 
   return (

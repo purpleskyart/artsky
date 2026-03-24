@@ -21,7 +21,7 @@ export interface ProfileColumnProps {
   setUnblurred: (uri: string, revealed: boolean) => void
   likeOverrides: Record<string, string | null>
   setLikeOverrides: React.Dispatch<React.SetStateAction<Record<string, string | null>>>
-  openPostModal: (uri: string, openReply?: boolean) => void
+  openPostModal: (uri: string, openReply?: boolean, focusUri?: string, authorHandle?: string) => void
   cardRef: (index: number) => (el: HTMLDivElement | null) => void
   onActionsMenuOpenChange: (index: number, open: boolean) => void
   onMouseEnter: (index: number) => void
@@ -108,7 +108,7 @@ export default function ProfileColumn(props: ProfileColumnProps) {
               cardRef={() => {}} // No-op since we're using the wrapper div ref above
               onPostClick={(uri, opts) => {
                 if (opts?.initialItem) setInitialPostForUri(uri, opts.initialItem)
-                openPostModal(uri, opts?.openReply)
+                openPostModal(uri, opts?.openReply, undefined, item.post.author?.handle)
               }}
               constrainMediaHeight={constrainMediaHeight}
               nsfwBlurred={isNsfwBlurred}

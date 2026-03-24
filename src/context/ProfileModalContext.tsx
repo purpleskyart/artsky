@@ -1,16 +1,15 @@
 import { createContext, lazy, Suspense, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate, type Location } from 'react-router-dom'
 import { ChunkLoadError } from '../components/ChunkLoadError'
+import { isHandleBoardPath } from '../lib/routes'
+import { getPostAppPath } from '../lib/appUrl'
+import { getOverlayBackgroundLocation, hasPathOverlayStack } from '../lib/overlayNavigation'
 
 const PostDetailModal = lazy(() => import('../components/PostDetailModal'))
 const ProfileModal = lazy(() => import('../components/ProfileModal'))
 const TagModal = lazy(() => import('../components/TagModal'))
-const ForumModal = lazy(() => import('../components/ForumModal'))
-const ForumPostModal = lazy(() => import('../components/ForumPostModal'))
 const SearchModal = lazy(() => import('../components/SearchModal'))
 const QuotesModal = lazy(() => import('../components/QuotesModal'))
-const CollectionsIndexModal = lazy(() => import('../components/CollectionsIndexModal'))
-const CollectionDetailModal = lazy(() => import('../components/CollectionDetailModal'))
 
 export type ModalItem =
   | { type: 'post'; uri: string; openReply?: boolean; focusUri?: string }
@@ -18,27 +17,21 @@ export type ModalItem =
   | { type: 'tag'; tag: string }
   | { type: 'search'; query: string }
   | { type: 'quotes'; uri: string }
-  | { type: 'forum' }
-  | { type: 'forumPost'; documentUri: string }
-  | { type: 'collections' }
-  | { type: 'collection'; uri: string }
 
 type ProfileModalContextValue = {
   openProfileModal: (handle: string) => void
   closeProfileModal: () => void
-  openPostModal: (uri: string, openReply?: boolean, focusUri?: string) => void
+  openPostModal: (uri: string, openReply?: boolean, focusUri?: string, authorHandle?: string) => void
   closePostModal: () => void
   openTagModal: (tag: string) => void
   openSearchModal: (query: string) => void
-  openForumModal: () => void
-  openForumPostModal: (documentUri: string) => void
   openQuotesModal: (postUri: string) => void
   openCollectionsModal: () => void
   /** Go back to previous modal (Q or back button). */
   closeModal: () => void
   /** Close all modals (ESC, backdrop click, or X). */
   closeAllModals: () => void
-  /** True if any modal (post or profile or tag or forum) is open. */
+  /** True if any modal is open. */
   isModalOpen: boolean
   /** True if more than one modal is open (show back button). */
   canGoBack: boolean
@@ -54,13 +47,12 @@ const ProfileModalContext = createContext<ProfileModalContextValue | null>(null)
  * To add a new modal type: add the variant to ModalItem, then in parseSearchToModalStack (read param)
  * and modalItemToSearch (write param). openXxx() just navigates; stack is derived from location.search each render (no lag vs URL).
  * When both profile= and post= are in the URL, stack is [profile, post] so back from post returns to profile.
- * When forum=1 and post= are both set, stack is [forum, post] so back returns to the forums list.
  */
 function parseSearchToModalStack(search: string): ModalItem[] {
   const params = new URLSearchParams(search)
-  const forumPostLegacy = params.get('forumPost')
+  const forumPostParam = params.get('forumPost')
   const bskyThreadFromLegacy =
-    forumPostLegacy && forumPostLegacy.includes('app.bsky.feed.post') ? forumPostLegacy : null
+    forumPostParam && forumPostParam.includes('app.bsky.feed.post') ? forumPostParam : null
   const postUriParam = params.get('post')
   const resolvedPostUriRaw = postUriParam ?? bskyThreadFromLegacy
   const resolvedPostUri =
@@ -69,12 +61,6 @@ function parseSearchToModalStack(search: string): ModalItem[] {
   const stack: ModalItem[] = []
   const profileHandle = params.get('profile')
   if (profileHandle) stack.push({ type: 'profile', handle: profileHandle })
-  if (params.get('forum') === '1' || bskyThreadFromLegacy) stack.push({ type: 'forum' })
-  if (params.get('collections') === '1') stack.push({ type: 'collections' })
-  const collectionParam = params.get('collection')
-  if (collectionParam) {
-    stack.push({ type: 'collection', uri: collectionParam })
-  }
 
   if (resolvedPostUri) {
     const focusUri = params.get('focus') ?? undefined
@@ -85,11 +71,6 @@ function parseSearchToModalStack(search: string): ModalItem[] {
       focusUri: focusUri ?? undefined,
     })
   }
-  const lexiconForumPostUri =
-    forumPostLegacy && forumPostLegacy.includes('app.artsky.forum.post') ? forumPostLegacy : null
-  if (lexiconForumPostUri) {
-    stack.push({ type: 'forumPost', documentUri: lexiconForumPostUri })
-  }
   if (stack.length > 0) return stack
   const tag = params.get('tag')
   if (tag) return [{ type: 'tag', tag }]
@@ -97,7 +78,6 @@ function parseSearchToModalStack(search: string): ModalItem[] {
   if (searchQuery) return [{ type: 'search', query: searchQuery }]
   const quotesUri = params.get('quotes')
   if (quotesUri) return [{ type: 'quotes', uri: quotesUri }]
-  if (forumPostLegacy) return [{ type: 'forumPost', documentUri: forumPostLegacy }]
   return []
 }
 
@@ -125,22 +105,6 @@ function appendModalItemToSearchParams(p: URLSearchParams, item: ModalItem): voi
     p.set('quotes', item.uri)
     return
   }
-  if (item.type === 'forum') {
-    p.set('forum', '1')
-    return
-  }
-  if (item.type === 'forumPost') {
-    p.set('forumPost', item.documentUri)
-    return
-  }
-  if (item.type === 'collections') {
-    p.set('collections', '1')
-    return
-  }
-  if (item.type === 'collection') {
-    p.set('collection', item.uri)
-    return
-  }
 }
 
 function modalStackToSearch(stack: ModalItem[]): string {
@@ -161,7 +125,9 @@ function modalItemToSearch(item: ModalItem): string {
  */
 function pathForModalNavigation(pathname: string): string {
   if (pathname.startsWith('/post/')) return '/feed'
-  if (pathname === '/collections' || pathname.startsWith('/collection/')) return '/feed'
+  if (/^\/profile\/[^/]+\/post\//.test(pathname)) return '/feed'
+  if (/^\/profile\/[^/]+$/.test(pathname)) return '/feed'
+  if (pathname === '/collections' || isHandleBoardPath(pathname)) return '/feed'
   return pathname
 }
 
@@ -172,43 +138,46 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
   /** Same render as router URL — avoids one-frame (or stuck) stale stack when useEffect lagged behind navigate(). */
   const modalStack = useMemo(() => parseSearchToModalStack(location.search), [location.search])
 
-  /* Modal URL changed → show floating back again (defer avoids react-hooks/set-state-in-effect on sync setState). */
+  /** Legacy `/feed?profile=handle` → canonical `/profile/handle` with overlay (keep `?profile=&post=` stacks). */
+  useEffect(() => {
+    if (location.pathname !== '/feed') return
+    const stack = parseSearchToModalStack(location.search)
+    if (stack.length !== 1 || stack[0].type !== 'profile') return
+    const h = stack[0].handle
+    const params = new URLSearchParams(location.search)
+    params.delete('profile')
+    const feedSearch = params.toString()
+    const feedBg: Location = { ...location, pathname: '/feed', search: feedSearch ? `?${feedSearch}` : '', hash: '' }
+    navigate(
+      { pathname: `/profile/${encodeURIComponent(h)}`, search: '' },
+      { replace: true, state: { backgroundLocation: feedBg } }
+    )
+  }, [location, navigate])
+
   useEffect(() => {
     const t = requestAnimationFrame(() => setModalScrollHidden(false))
     return () => cancelAnimationFrame(t)
-  }, [location.search])
+  }, [location.search, location.pathname])
 
-  /** Open modal: when on a profile (page or modal), push [profile, post] so back returns to profile. Only use profile from URL if it's already the top of the stack (avoids reopening profile after user closed it). */
-  const openPostModal = useCallback((uri: string, openReply?: boolean, focusUri?: string) => {
-    const postItem: ModalItem = { type: 'post', uri, openReply, focusUri }
-    const params = new URLSearchParams(location.search)
-    const profileFromSearch = params.get('profile')
-    const profileFromPath = location.pathname.match(/^\/profile\/([^/]+)/)?.[1]
-    const stackFromUrl = parseSearchToModalStack(location.search)
-    const topItem = stackFromUrl[stackFromUrl.length - 1]
-    const profileAlreadyOpen = topItem?.type === 'profile' && profileFromSearch && topItem.handle === profileFromSearch
-    const forumAlreadyOpen = topItem?.type === 'forum'
-    const inCollectionsFlow = stackFromUrl.some(
-      (i) => i.type === 'collections' || i.type === 'collection',
+  /** Opens post at short path `/profile/handle/post/rkey` (or `/post/…` fallback) with optional `reply` / `focus` query. */
+  const openPostModal = useCallback((uri: string, openReply?: boolean, focusUri?: string, authorHandle?: string) => {
+    const path = getPostAppPath(uri, authorHandle ?? null)
+    const q = new URLSearchParams()
+    if (openReply) q.set('reply', '1')
+    if (focusUri) q.set('focus', focusUri)
+    const qs = q.toString()
+    const bg = getOverlayBackgroundLocation(location)
+    navigate(
+      { pathname: path, search: qs ? `?${qs}` : '' },
+      { replace: false, state: { backgroundLocation: bg } }
     )
-    const stack: ModalItem[] = profileAlreadyOpen
-      ? [...stackFromUrl, postItem]
-      : forumAlreadyOpen
-        ? [...stackFromUrl, postItem]
-        : inCollectionsFlow && stackFromUrl.length > 0
-          ? [...stackFromUrl, postItem]
-          : profileFromPath
-            ? [{ type: 'profile', handle: decodeURIComponent(profileFromPath) }, postItem]
-            : [postItem]
-    const search = stack.length > 0 ? `?${modalStackToSearch(stack)}` : ''
-    navigate({ pathname: pathForModalNavigation(location.pathname), search }, { replace: false })
-  }, [location.pathname, location.search, navigate])
+  }, [navigate, location])
 
   const openProfileModal = useCallback((handle: string) => {
-    const item: ModalItem = { type: 'profile', handle }
-    const search = `?${modalItemToSearch(item)}`
-    navigate({ pathname: pathForModalNavigation(location.pathname), search }, { replace: false })
-  }, [location.pathname, navigate])
+    const path = `/profile/${encodeURIComponent(handle)}`
+    const bg = getOverlayBackgroundLocation(location)
+    navigate({ pathname: path, search: '' }, { replace: false, state: { backgroundLocation: bg } })
+  }, [navigate, location])
 
   const openTagModal = useCallback((tag: string) => {
     const item: ModalItem = { type: 'tag', tag }
@@ -222,17 +191,6 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
     navigate({ pathname: pathForModalNavigation(location.pathname), search }, { replace: false })
   }, [location.pathname, navigate])
 
-  const openForumModal = useCallback(() => {
-    const item: ModalItem = { type: 'forum' }
-    const search = `?${modalItemToSearch(item)}`
-    navigate({ pathname: pathForModalNavigation(location.pathname), search }, { replace: false })
-  }, [location.pathname, navigate])
-
-  const openForumPostModal = useCallback((documentUri: string) => {
-    const search = `?forum=1&forumPost=${encodeURIComponent(documentUri)}`
-    navigate({ pathname: pathForModalNavigation(location.pathname), search }, { replace: false })
-  }, [location.pathname, navigate])
-
   const openQuotesModal = useCallback((postUri: string) => {
     const item: ModalItem = { type: 'quotes', uri: postUri }
     const search = `?${modalItemToSearch(item)}`
@@ -240,23 +198,30 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
   }, [location.pathname, navigate])
 
   const openCollectionsModal = useCallback(() => {
-    const item: ModalItem = { type: 'collections' }
-    const search = `?${modalItemToSearch(item)}`
-    navigate({ pathname: pathForModalNavigation(location.pathname), search }, { replace: false })
-  }, [location.pathname, navigate])
+    const bg = getOverlayBackgroundLocation(location)
+    navigate({ pathname: '/collections', search: '' }, { replace: false, state: { backgroundLocation: bg } })
+  }, [navigate, location])
 
   const closeModal = useCallback(() => {
+    if (hasPathOverlayStack(location)) {
+      navigate(-1)
+      return
+    }
     const current = parseSearchToModalStack(location.search)
     const next = current.length > 1 ? current.slice(0, -1) : []
     const search = next.length > 0 ? `?${modalStackToSearch(next)}` : ''
     navigate({ pathname: pathForModalNavigation(location.pathname), search }, { replace: true })
-  }, [location.pathname, location.search, navigate])
+  }, [location, navigate])
 
   const closeAllModals = useCallback(() => {
+    if (hasPathOverlayStack(location)) {
+      navigate(-1)
+      return
+    }
     navigate({ pathname: pathForModalNavigation(location.pathname), search: '' }, { replace: true })
-  }, [location.pathname, navigate])
+  }, [location, navigate])
 
-  const isModalOpen = modalStack.length > 0
+  const isModalOpen = modalStack.length > 0 || hasPathOverlayStack(location)
   const canGoBack = modalStack.length > 1
 
   const value: ProfileModalContextValue = useMemo(() => ({
@@ -266,8 +231,6 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
     openPostModal,
     openTagModal,
     openSearchModal,
-    openForumModal,
-    openForumPostModal,
     openQuotesModal,
     openCollectionsModal,
     closeModal,
@@ -282,8 +245,6 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
     openPostModal,
     openTagModal,
     openSearchModal,
-    openForumModal,
-    openForumPostModal,
     openQuotesModal,
     openCollectionsModal,
     closeAllModals,
@@ -292,8 +253,6 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
     modalScrollHidden,
   ])
 
-  /* Render the full modal stack so underlying modals (e.g. profile) stay mounted and preserve scroll when a post modal opens on top.
-   * Each lazy modal has its own Suspense — one outer Suspense would replace the whole stack with fallback (null) while a chunk loads. */
   const modalStackElements = modalStack.map((item, index) => {
     const isTop = index === modalStack.length - 1
     const canGoBackFromThis = isTop && modalStack.length > 1
@@ -308,13 +267,7 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
               ? item.query
               : item.type === 'quotes'
                 ? item.uri
-                : item.type === 'forumPost'
-                  ? item.documentUri
-                  : item.type === 'collection'
-                    ? item.uri
-                    : item.type === 'collections'
-                      ? 'list'
-                      : index
+                : index
     }`
     const wrap = (node: ReactNode) => (
       <Suspense key={key} fallback={null}>
@@ -383,44 +336,6 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
         />,
       )
     }
-    if (item.type === 'forum') {
-      return wrap(<ForumModal onClose={closeAllModals} onBack={closeModal} canGoBack={canGoBackFromThis} isTopModal={isTop} stackIndex={index} />)
-    }
-    if (item.type === 'forumPost') {
-      return wrap(
-        <ForumPostModal
-          documentUri={item.documentUri}
-          onClose={closeAllModals}
-          onBack={closeModal}
-          canGoBack={canGoBackFromThis}
-          isTopModal={isTop}
-          stackIndex={index}
-        />,
-      )
-    }
-    if (item.type === 'collections') {
-      return wrap(
-        <CollectionsIndexModal
-          onClose={closeAllModals}
-          onBack={closeModal}
-          canGoBack={canGoBackFromThis}
-          isTopModal={isTop}
-          stackIndex={index}
-        />,
-      )
-    }
-    if (item.type === 'collection') {
-      return wrap(
-        <CollectionDetailModal
-          uri={item.uri}
-          onClose={closeAllModals}
-          onBack={closeModal}
-          canGoBack={canGoBackFromThis}
-          isTopModal={isTop}
-          stackIndex={index}
-        />,
-      )
-    }
     return null
   })
 
@@ -442,8 +357,6 @@ export function useProfileModal() {
       closePostModal: () => {},
       openTagModal: () => {},
       openSearchModal: () => {},
-      openForumModal: () => {},
-      openForumPostModal: () => {},
       openQuotesModal: () => {},
       openCollectionsModal: () => {},
       closeModal: () => {},

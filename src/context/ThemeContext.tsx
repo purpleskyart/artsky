@@ -3,10 +3,13 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 const STORAGE_KEY = 'artsky-theme'
 export type ThemeMode = 'light' | 'dark' | 'system'
 
+/** Effective palette on `document.documentElement` (`data-theme`). */
+export type ThemeResolved = 'light' | 'dark'
+
 type ThemeContextValue = {
   theme: ThemeMode
   setTheme: (mode: ThemeMode) => void
-  resolved: 'light' | 'dark'
+  resolved: ThemeResolved
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null)
@@ -21,7 +24,7 @@ function getStored(): ThemeMode {
   return 'dark'
 }
 
-function getResolved(mode: ThemeMode): 'light' | 'dark' {
+function getResolved(mode: ThemeMode): ThemeResolved {
   if (mode === 'light') return 'light'
   if (mode === 'dark') return 'dark'
   try {
@@ -32,13 +35,15 @@ function getResolved(mode: ThemeMode): 'light' | 'dark' {
   return 'dark'
 }
 
-const THEME_COLOR_LIGHT = '#ebeae6'
+const THEME_COLOR_LIGHT = '#fdf6f9'
 const THEME_COLOR_DARK = '#0f0f1a'
 
-function setThemeColorMeta(resolved: 'light' | 'dark') {
+function setThemeColorMeta(resolved: ThemeResolved) {
   try {
     const meta = document.querySelector('meta[name="theme-color"]')
-    if (meta) meta.setAttribute('content', resolved === 'light' ? THEME_COLOR_LIGHT : THEME_COLOR_DARK)
+    if (!meta) return
+    const content = resolved === 'light' ? THEME_COLOR_LIGHT : THEME_COLOR_DARK
+    meta.setAttribute('content', content)
   } catch {
     /* ignore */
   }
@@ -46,7 +51,7 @@ function setThemeColorMeta(resolved: 'light' | 'dark') {
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<ThemeMode>(getStored)
-  const [resolved, setResolved] = useState<'light' | 'dark'>(() => getResolved(theme))
+  const [resolved, setResolved] = useState<ThemeResolved>(() => getResolved(theme))
 
   useEffect(() => {
     try {

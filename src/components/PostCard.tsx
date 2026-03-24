@@ -11,6 +11,8 @@ import { useModeration } from '../context/ModerationContext'
 import CollectionSaveMenu from './CollectionSaveMenu'
 import { useProfileModal } from '../context/ProfileModalContext'
 import { setInitialPostForUri } from '../lib/postCache'
+import { getPostAppPath } from '../lib/appUrl'
+import { getOverlayBackgroundLocation } from '../lib/overlayNavigation'
 import { useModalScroll } from '../context/ModalScrollContext'
 import PostText from './PostText'
 import ProfileLink from './ProfileLink'
@@ -64,6 +66,8 @@ interface Props {
   onRemovePostFromCollection?: (postUri: string) => void | Promise<void>
   /** Match homepage feed preview: centered collect / avatar / like, ⋮ on the right (also when card mode is Art Cards) */
   feedPreviewActionRow?: boolean
+  /** Incrementing token from parent to open the collection picker menu programmatically. */
+  openCollectionMenuSignal?: number
 }
 
 const REASON_PIN = 'app.bsky.feed.defs#reasonPin'
@@ -117,6 +121,7 @@ function PostCardInner({
   profileAuthorFollowingUri,
   onRemovePostFromCollection,
   feedPreviewActionRow = false,
+  openCollectionMenuSignal,
 }: InnerProps) {
   const navigate = useNavigate()
   const { session } = useSession()
@@ -570,11 +575,12 @@ function PostCardInner({
     }
     if (location.pathname.startsWith('/profile/')) {
       setInitialPostForUri(post.uri, item)
-      openPostModal(post.uri)
+      openPostModal(post.uri, undefined, undefined, post.author.handle)
     } else {
-      navigate(`/feed?post=${encodeURIComponent(post.uri)}`)
+      const path = getPostAppPath(post.uri, post.author.handle)
+      navigate(path, { state: { backgroundLocation: getOverlayBackgroundLocation(location) } })
     }
-  }, [onPostClick, post.uri, item, navigate, location.pathname, openPostModal, nsfwBlurred, onNsfwUnblur])
+  }, [onPostClick, post.uri, item, navigate, location, openPostModal, nsfwBlurred, onNsfwUnblur])
 
   const handleCardClick = useCallback((e: React.MouseEvent) => {
     if (nsfwTouchUnblurOnlyRef.current) {
@@ -961,11 +967,12 @@ function PostCardInner({
         </div>
         {showArtOnlyCornerActions && (
           <div className={styles.artOnlyActions} onClick={(e) => e.stopPropagation()}>
-            <CollectionSaveMenu postUri={post.uri} />
+            <CollectionSaveMenu postUri={post.uri} openSignal={openCollectionMenuSignal} />
             <PostActionsMenu
               postUri={post.uri}
               postCid={post.cid}
               authorDid={post.author.did}
+              shareAuthorHandle={post.author.handle}
               rootUri={post.uri}
               isOwnPost={isOwnPost}
               compact
@@ -991,7 +998,7 @@ function PostCardInner({
           <div className={styles.cardActionRow} onClick={(e) => e.stopPropagation()}>
             <div className={styles.cardActionRowSpacer} aria-hidden="true" />
             <div className={styles.cardActionRowCenter}>
-              <CollectionSaveMenu postUri={post.uri} />
+              <CollectionSaveMenu postUri={post.uri} openSignal={openCollectionMenuSignal} />
               {post.author.avatar && (
                 isOwnPost || !session || isFollowingAuthor ? (
                   <ProfileLink
@@ -1040,6 +1047,7 @@ function PostCardInner({
                 postUri={post.uri}
                 postCid={post.cid}
                 authorDid={post.author.did}
+                shareAuthorHandle={post.author.handle}
                 rootUri={post.uri}
                 isOwnPost={isOwnPost}
                 compact
@@ -1169,6 +1177,7 @@ export default memo(PostCard, (prevProps, nextProps) => {
   if (prevProps.profileAuthorFollowingUri !== nextProps.profileAuthorFollowingUri) return false
   if (prevProps.onRemovePostFromCollection !== nextProps.onRemovePostFromCollection) return false
   if (prevProps.feedPreviewActionRow !== nextProps.feedPreviewActionRow) return false
+  if (prevProps.openCollectionMenuSignal !== nextProps.openCollectionMenuSignal) return false
 
   // Check if the post content has changed (cid is the content identifier)
   if (prevProps.item.post.cid !== nextProps.item.post.cid) return false

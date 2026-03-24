@@ -35,8 +35,6 @@ describe('Property 4: Lazy Loading of Heavy Dependencies', () => {
           '../components/PostDetailModal',
           '../components/ProfileModal',
           '../components/TagModal',
-          '../components/ForumModal',
-          '../components/ForumPostModal',
           '../components/SearchModal',
           '../components/QuotesModal'
         ),
@@ -212,8 +210,6 @@ describe('Property 4: Lazy Loading of Heavy Dependencies', () => {
             'PostDetailModal',
             'ProfileModal',
             'TagModal',
-            'ForumModal',
-            'ForumPostModal',
             'SearchModal',
             'QuotesModal'
           ),

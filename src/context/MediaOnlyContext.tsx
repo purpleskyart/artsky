@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
 import { useToast } from './ToastContext'
+import { useSession } from './SessionContext'
 
 const STORAGE_KEY = 'artsky-feed-media-only'
 
@@ -7,8 +8,8 @@ export type MediaMode = 'mediaText' | 'media' | 'text'
 
 export const MEDIA_MODE_LABELS: Record<MediaMode, string> = {
   mediaText: 'All Posts',
-  media: 'Media only',
-  text: 'Text only',
+  media: 'Media Posts',
+  text: 'Text Posts',
 }
 
 type MediaOnlyContextValue = {
@@ -27,20 +28,23 @@ type MediaOnlyContextValue = {
 
 const MediaOnlyContext = createContext<MediaOnlyContextValue | null>(null)
 
-function getStored(): MediaMode {
+/** When nothing is stored: guests default to Media only; logged-in (or auth still resolving) default to All Posts. */
+function readStored(useLoggedInDefaults: boolean): MediaMode {
   try {
     const v = localStorage.getItem(STORAGE_KEY)
-    if (v === 'media' || v === 'text') return v
+    if (v === 'media' || v === 'text' || v === 'mediaText') return v
     if (v === '1' || v === 'true') return 'media' // legacy
-    return 'mediaText'
+    return useLoggedInDefaults ? 'mediaText' : 'media'
   } catch {
-    return 'mediaText'
+    return useLoggedInDefaults ? 'mediaText' : 'media'
   }
 }
 
 export function MediaOnlyProvider({ children }: { children: ReactNode }) {
   const toast = useToast()
-  const [mediaMode, setMediaModeState] = useState<MediaMode>(getStored)
+  const { session, authResolved } = useSession()
+  const useLoggedInDefaults = Boolean(session?.did) || !authResolved
+  const [mediaMode, setMediaModeState] = useState<MediaMode>(() => readStored(useLoggedInDefaults))
 
   useEffect(() => {
     try {

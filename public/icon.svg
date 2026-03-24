@@ -4,35 +4,37 @@
       <stop offset="0%" stop-color="#8B52EE"/>
       <stop offset="100%" stop-color="#7D55FC"/>
     </linearGradient>
-    <clipPath id="artsky-abdomen">
-      <ellipse cx="256" cy="334" rx="58" ry="80"/>
-    </clipPath>
   </defs>
-  <g fill="url(#artsky-purple)">
-    <ellipse cx="156" cy="214" rx="104" ry="62" transform="rotate(-34 156 214)"/>
-    <ellipse cx="356" cy="214" rx="104" ry="62" transform="rotate(34 356 214)"/>
-  </g>
-  <path fill="url(#artsky-purple)" d="M256 396 L236 432 L276 432 Z"/>
-  <g fill="url(#artsky-purple)">
-    <ellipse cx="256" cy="334" rx="58" ry="80"/>
-    <ellipse cx="256" cy="262" rx="28" ry="18"/>
-    <ellipse cx="256" cy="206" rx="50" ry="46"/>
-    <circle cx="256" cy="118" r="48"/>
-  </g>
-  <g clip-path="url(#artsky-abdomen)">
-    <rect x="190" y="278" width="132" height="14" fill="#3d2572"/>
-    <rect x="190" y="308" width="132" height="14" fill="#3d2572"/>
-    <rect x="190" y="338" width="132" height="14" fill="#3d2572"/>
-    <rect x="190" y="368" width="132" height="14" fill="#3d2572"/>
-  </g>
-  <circle cx="228" cy="112" r="11" fill="#1a0f32"/>
-  <circle cx="284" cy="112" r="11" fill="#1a0f32"/>
-  <g fill="none" stroke-width="9" stroke-linecap="round" stroke-linejoin="round">
-    <path stroke="url(#artsky-purple)" d="M232 82 Q 205 52 188 38"/>
-    <path stroke="url(#artsky-purple)" d="M280 82 Q 307 52 324 38"/>
-  </g>
-  <g fill="url(#artsky-purple)">
-    <circle cx="188" cy="38" r="7"/>
-    <circle cx="324" cy="38" r="7"/>
+  <g transform="translate(256,256) scale(1.12,1) translate(-256,-256)">
+    <defs>
+      <clipPath id="artsky-abdomen">
+        <ellipse cx="256" cy="338" rx="68" ry="88"/>
+      </clipPath>
+    </defs>
+    <g fill="url(#artsky-purple)">
+      <ellipse cx="156" cy="214" rx="90" ry="54" transform="rotate(-34 156 214)"/>
+      <ellipse cx="356" cy="214" rx="90" ry="54" transform="rotate(34 356 214)"/>
+    </g>
+    <path fill="url(#artsky-purple)" d="M256 408 L228 434 L284 434 Z"/>
+    <g fill="url(#artsky-purple)">
+      <ellipse cx="256" cy="338" rx="68" ry="88"/>
+      <ellipse cx="256" cy="262" rx="28" ry="18"/>
+      <ellipse cx="256" cy="206" rx="50" ry="46"/>
+      <circle cx="256" cy="110" r="56"/>
+    </g>
+    <g clip-path="url(#artsky-abdomen)">
+      <rect x="188" y="282" width="136" height="14" fill="#3d2572"/>
+      <rect x="188" y="312" width="136" height="14" fill="#3d2572"/>
+      <rect x="188" y="342" width="136" height="14" fill="#3d2572"/>
+      <rect x="188" y="372" width="136" height="14" fill="#3d2572"/>
+    </g>
+    <g fill="none" stroke-width="14" stroke-linecap="round" stroke-linejoin="round">
+      <path stroke="url(#artsky-purple)" d="M232 82 Q 205 52 188 38"/>
+      <path stroke="url(#artsky-purple)" d="M280 82 Q 307 52 324 38"/>
+    </g>
+    <g fill="url(#artsky-purple)">
+      <circle cx="188" cy="38" r="9"/>
+      <circle cx="324" cy="38" r="9"/>
+    </g>
   </g>
 </svg>

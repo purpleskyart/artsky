@@ -31,15 +31,17 @@ function BookmarkIcon({ filled }: { filled?: boolean }) {
 
 interface Props {
   postUri: string
+  openSignal?: number
 }
 
-export default function CollectionSaveMenu({ postUri }: Props) {
+export default function CollectionSaveMenu({ postUri, openSignal }: Props) {
   const { session } = useSession()
   const { openLoginModal } = useLoginModal()
   const toast = useToast()
   const savedAnywhere = useIsPostSavedToAnyCollection(postUri)
   const {
     savingUri,
+    quickSavePost,
     savePostToCollection,
     removePostFromCollectionUi,
     createCollectionAndAddPost,
@@ -49,6 +51,9 @@ export default function CollectionSaveMenu({ postUri }: Props) {
   const [rows, setRows] = useState<CollectionPickerRow[]>([])
   const [loadingRows, setLoadingRows] = useState(false)
   const [newTitle, setNewTitle] = useState('')
+  const [editingNewTitle, setEditingNewTitle] = useState(false)
+  const [optimisticSaved, setOptimisticSaved] = useState(false)
+  const [forceSavedRowCheck, setForceSavedRowCheck] = useState(false)
   const [dropdownPosition, setDropdownPosition] = useState<{
     bottom: number
     left: number
@@ -57,8 +62,10 @@ export default function CollectionSaveMenu({ postUri }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const newTitleInputRef = useRef<HTMLInputElement>(null)
 
   const saving = savingUri === postUri
+  const effectiveSavedAnywhere = savedAnywhere || optimisticSaved
 
   const updateDropdownPosition = useCallback(() => {
     if (!triggerRef.current) return null
@@ -115,49 +122,181 @@ export default function CollectionSaveMenu({ postUri }: Props) {
     return () => document.removeEventListener('mousedown', onDoc)
   }, [open])
 
+  const markSavedRowChecked = useCallback(() => {
+    setRows((prev) =>
+      prev.map((r) =>
+        r.title.trim().toLowerCase() === 'saved' ? { ...r, hasPost: true } : r
+      )
+    )
+  }, [])
+
+  useEffect(() => {
+    if (openSignal == null) return
+    let cancelled = false
+    ;(async () => {
+      if (!session?.did) {
+        openLoginModal()
+        return
+      }
+      if (cancelled) return
+      setOpen(true)
+      if (!effectiveSavedAnywhere) {
+        setOptimisticSaved(true)
+        setForceSavedRowCheck(true)
+        markSavedRowChecked()
+        quickSavePost(postUri).catch(() => {
+          /* context handles toasts */
+          if (!cancelled) {
+            setOptimisticSaved(false)
+            setForceSavedRowCheck(false)
+          }
+        })
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [openSignal, session?.did, openLoginModal, quickSavePost, postUri, markSavedRowChecked, effectiveSavedAnywhere])
+
   useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
+      const key = e.key.toLowerCase()
+      if (key === 'escape' || key === 'q') {
         e.preventDefault()
         setOpen(false)
         triggerRef.current?.focus()
+        return
+      }
+      const target = e.target as HTMLElement | null
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+        return
+      }
+      if (key === 'w' || key === 's' || key === 'e' || key === 'enter' || e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+        const dropdown = dropdownRef.current
+        if (!dropdown) return
+        const navItems = Array.from(
+          dropdown.querySelectorAll<HTMLElement>('[data-collect-nav="item"]')
+        ).filter((el) => !(el as HTMLButtonElement).disabled)
+        if (navItems.length === 0) return
+        const current = document.activeElement as HTMLElement | null
+        const idx = current && navItems.includes(current) ? navItems.indexOf(current) : -1
+        if (key === 'e' || key === 'enter') {
+          e.preventDefault()
+          e.stopPropagation()
+          if (idx < 0) return
+          const active = navItems[idx]
+          if (active.dataset.collectInputProxy === 'true') {
+            setEditingNewTitle(true)
+            requestAnimationFrame(() => newTitleInputRef.current?.focus())
+            return
+          }
+          ;(active as HTMLButtonElement).click()
+          return
+        }
+        if (key === 'w' || e.key === 'ArrowUp') {
+          e.preventDefault()
+          const nextIdx = idx <= 0 ? navItems.length - 1 : idx - 1
+          navItems[nextIdx].focus()
+          return
+        }
+        if (key === 's' || e.key === 'ArrowDown') {
+          e.preventDefault()
+          const nextIdx = idx < 0 || idx >= navItems.length - 1 ? 0 : idx + 1
+          navItems[nextIdx].focus()
+          return
+        }
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [open])
 
+  useEffect(() => {
+    if (!open) return
+    if (editingNewTitle) {
+      requestAnimationFrame(() => newTitleInputRef.current?.focus())
+      return
+    }
+    const dropdown = dropdownRef.current
+    if (!dropdown) return
+    const items = dropdown.querySelectorAll<HTMLElement>('[data-collect-nav="item"]')
+    const first = items[0]
+    if (first) first.focus()
+  }, [open, loadingRows, editingNewTitle])
+
+  useEffect(() => {
+    if (!open || !editingNewTitle) return
+    requestAnimationFrame(() => newTitleInputRef.current?.focus())
+  }, [open, editingNewTitle, saving])
+
+  useEffect(() => {
+    if (!open) setEditingNewTitle(false)
+  }, [open])
+
+  useEffect(() => {
+    setOptimisticSaved(false)
+    setForceSavedRowCheck(false)
+  }, [postUri])
+
+  useEffect(() => {
+    if (savedAnywhere) setForceSavedRowCheck(false)
+  }, [savedAnywhere])
+
   const onTriggerClick = useCallback(
     (e: ReactMouseEvent) => {
       e.preventDefault()
       e.stopPropagation()
-      if (!session?.did) {
-        openLoginModal()
+      if (open) {
+        setOpen(false)
         return
       }
-      setOpen((o) => !o)
+      ;(async () => {
+        if (!session?.did) {
+          openLoginModal()
+          return
+        }
+        setOpen(true)
+        setEditingNewTitle(true)
+        requestAnimationFrame(() => newTitleInputRef.current?.focus())
+        if (!effectiveSavedAnywhere) {
+          setOptimisticSaved(true)
+          setForceSavedRowCheck(true)
+          markSavedRowChecked()
+          quickSavePost(postUri).catch(() => {
+            /* context handles toasts */
+            setOptimisticSaved(false)
+            setForceSavedRowCheck(false)
+          })
+        }
+      })()
     },
-    [session?.did, openLoginModal]
+    [open, session?.did, openLoginModal, quickSavePost, postUri, markSavedRowChecked, effectiveSavedAnywhere]
   )
 
   const toggleRow = useCallback(
     async (row: CollectionPickerRow) => {
       if (saving) return
+      const isSavedRow = row.title.trim().toLowerCase() === 'saved'
+      const effectiveHasPost = row.hasPost || (isSavedRow && (optimisticSaved || forceSavedRowCheck))
       try {
-        if (row.hasPost) {
+        if (effectiveHasPost) {
           await removePostFromCollectionUi(postUri, row.uri)
+          if (isSavedRow) {
+            setForceSavedRowCheck(false)
+            setOptimisticSaved(false)
+          }
         } else {
           await savePostToCollection(postUri, row.uri)
         }
         setRows((prev) =>
-          prev.map((r) => (r.uri === row.uri ? { ...r, hasPost: !r.hasPost } : r))
+          prev.map((r) => (r.uri === row.uri ? { ...r, hasPost: !effectiveHasPost } : r))
         )
       } catch {
         /* toast from context */
       }
     },
-    [postUri, saving, removePostFromCollectionUi, savePostToCollection]
+    [postUri, saving, removePostFromCollectionUi, savePostToCollection, optimisticSaved, forceSavedRowCheck]
   )
 
   const onCreate = useCallback(async () => {
@@ -187,15 +326,15 @@ export default function CollectionSaveMenu({ postUri }: Props) {
       <button
         ref={triggerRef}
         type="button"
-        className={`${styles.trigger} ${savedAnywhere ? styles.triggerSaved : ''}`}
+        className={`${styles.trigger} ${effectiveSavedAnywhere ? styles.triggerSaved : ''}`}
         onClick={onTriggerClick}
         disabled={saving}
         aria-expanded={open}
         aria-haspopup="dialog"
-        aria-label={savedAnywhere ? 'Saved — choose collection' : 'Save to collection'}
-        title={savedAnywhere ? 'Saved — choose collection' : 'Save to collection'}
+        aria-label={effectiveSavedAnywhere ? 'Saved — choose collection' : 'Save to collection'}
+        title={effectiveSavedAnywhere ? 'Saved — choose collection' : 'Save to collection'}
       >
-        <BookmarkIcon filled={savedAnywhere} />
+        <BookmarkIcon filled={effectiveSavedAnywhere} />
       </button>
       {open && dropdownPosition &&
         createPortal(
@@ -208,6 +347,7 @@ export default function CollectionSaveMenu({ postUri }: Props) {
               left: dropdownPosition.left,
             }}
             role="dialog"
+            data-collection-menu="true"
             aria-label="Save to collection"
             onClick={(e) => e.stopPropagation()}
             onTouchStart={(e) => e.stopPropagation()}
@@ -225,11 +365,12 @@ export default function CollectionSaveMenu({ postUri }: Props) {
                     type="button"
                     className={styles.row}
                     role="menuitem"
+                    data-collect-nav="item"
                     disabled={saving}
                     onClick={() => toggleRow(row)}
                   >
                     <span className={styles.rowTitle}>{row.title}</span>
-                    {row.hasPost ? (
+                    {row.hasPost || ((optimisticSaved || forceSavedRowCheck) && row.title.trim().toLowerCase() === 'saved') ? (
                       <span className={styles.check} aria-hidden>
                         ✓
                       </span>
@@ -239,23 +380,45 @@ export default function CollectionSaveMenu({ postUri }: Props) {
               </div>
             )}
             <div className={styles.newBlock}>
-              <input
-                className={styles.input}
-                type="text"
-                placeholder="New collection name"
-                value={newTitle}
-                onChange={(e) => setNewTitle(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault()
-                    void onCreate()
-                  }
-                }}
-                maxLength={200}
-                disabled={saving}
-                autoComplete="off"
-              />
-              <button type="button" className={styles.createBtn} disabled={saving} onClick={() => void onCreate()}>
+              {editingNewTitle ? (
+                <input
+                  ref={newTitleInputRef}
+                  className={styles.input}
+                  type="text"
+                  data-collect-input="true"
+                  placeholder="New Collection"
+                  value={newTitle}
+                  onBlur={() => setEditingNewTitle(false)}
+                  onChange={(e) => setNewTitle(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      void onCreate()
+                    } else if (e.key === 'Escape') {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      setEditingNewTitle(false)
+                    }
+                  }}
+                  maxLength={200}
+                  autoComplete="off"
+                />
+              ) : (
+                <button
+                  type="button"
+                  className={styles.inputProxy}
+                  data-collect-nav="item"
+                  data-collect-input-proxy="true"
+                  onClick={() => {
+                    setEditingNewTitle(true)
+                    requestAnimationFrame(() => newTitleInputRef.current?.focus())
+                  }}
+                >
+                  {newTitle.trim() ? newTitle : 'New Collection'}
+                </button>
+              )}
+              <button type="button" className={styles.createBtn} data-collect-nav="item" disabled={saving} onClick={() => void onCreate()}>
                 Create and save here
               </button>
             </div>

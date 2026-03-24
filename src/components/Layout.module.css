@@ -147,6 +147,13 @@
   z-index: 1001;
 }
 
+@media (min-width: 768px) {
+  .header.headerAboveModal {
+    padding-left: max(0.35rem, env(safe-area-inset-left));
+    padding-right: max(0.35rem, env(safe-area-inset-right));
+  }
+}
+
 @media (max-width: 767px) {
   /* Mobile: header from top of screen (same color in safe area + bar), no rounded bottom, no border/shadow lines. */
   .header {
@@ -357,6 +364,12 @@
   gap: 0.5rem;
 }
 
+@media (min-width: 768px) {
+  .headerLeftModalBackGear {
+    gap: 0.125rem;
+  }
+}
+
 .headerGearWrap {
   position: relative;
   display: flex;
@@ -382,22 +395,31 @@
   position: absolute;
   top: 100%;
   left: 0;
-  margin-top: 0.5rem;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 0.35rem;
-  padding: 0.5rem;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--glass-radius-sm);
-  box-shadow: var(--shadow-dropdown);
   z-index: 100;
   opacity: 0;
   pointer-events: none;
   max-height: 0;
+  min-height: 0;
   overflow: hidden;
-  transition: opacity var(--transition-fast);
+  margin-top: 0;
+  padding: 0;
+  border: 0 solid transparent;
+  border-radius: var(--glass-radius-sm);
+  background: transparent;
+  box-shadow: none;
+  /* Fade + collapse together; when closed, no padding/border/background so max-height:0 doesn’t leave a bordered sliver */
+  transition:
+    opacity var(--transition-fast),
+    max-height var(--transition-fast),
+    margin-top var(--transition-fast),
+    padding var(--transition-fast),
+    border-width var(--transition-fast),
+    box-shadow var(--transition-fast),
+    background-color var(--transition-fast);
 }
 
 .headerGearExpandable.feedFloatButtonsExpandableOpen {
@@ -405,6 +427,13 @@
   pointer-events: auto;
   max-height: 360px;
   overflow: visible;
+  margin-top: 0.5rem;
+  padding: 0.5rem;
+  border-width: 1px;
+  border-style: solid;
+  border-color: var(--border);
+  background: var(--surface);
+  box-shadow: var(--shadow-dropdown);
 }
 
 .headerCenter {
@@ -693,29 +722,43 @@
     position: relative;
   }
   .headerFeedsLink {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 36px;
     font-size: 0.9rem;
     font-weight: 500;
     color: var(--text);
     padding: 0.4rem 0.75rem;
     border-radius: var(--glass-radius-sm);
-    background: var(--glass-highlight);
+    background: color-mix(in srgb, var(--glass-bg) 88%, var(--glass-highlight));
     border: none;
+    box-shadow: var(--shadow-card);
     cursor: pointer;
     font: inherit;
-    transition: background 0.15s ease, color 0.15s ease;
+    transition:
+      background var(--transition-fast),
+      color var(--transition-fast),
+      box-shadow var(--transition-fast);
   }
   .headerFeedsLink:hover {
     color: var(--accent);
-    background: var(--accent-subtle);
+    background: color-mix(in srgb, var(--glass-bg) 72%, var(--glass-highlight));
+    box-shadow: var(--shadow-card);
   }
   .headerFeedsLinkActive {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 36px;
     font-size: 0.9rem;
     font-weight: 500;
     color: var(--accent);
     padding: 0.4rem 0.75rem;
     border-radius: var(--glass-radius-sm);
-    background: var(--accent-muted);
+    background: var(--accent-subtle);
     border: none;
+    box-shadow: var(--shadow-card);
     cursor: pointer;
     font: inherit;
   }
@@ -1054,7 +1097,7 @@ button.logoLink {
 .gearFloatWrap {
   position: fixed;
   top: max(var(--space-md), env(safe-area-inset-top, 59px));
-  left: max(var(--space-md), env(safe-area-inset-left));
+  left: max(var(--space-sm), env(safe-area-inset-left));
   z-index: 1101;
   display: flex;
   flex-direction: column;
@@ -1063,9 +1106,16 @@ button.logoLink {
   pointer-events: auto;
 }
 
+/* Circle gear control — same 36×36 as modal back / desktop .headerGearBtn */
+.gearFloatWrap > .feedFloatBtn:first-of-type {
+  width: 36px;
+  height: 36px;
+  box-sizing: border-box;
+}
+
 /* When modal is open, position gear to the right of the back button */
 .gearFloatWrap.gearFloatWrapModalOpen {
-  left: calc(max(var(--space-md), env(safe-area-inset-left)) + 2rem + 0.5rem);
+  left: calc(max(var(--space-sm), env(safe-area-inset-left)) + 36px + 0.5rem);
 }
 
 .gearFloatWrap > .feedFloatBtn {
@@ -1116,6 +1166,41 @@ button.logoLink {
   font-size: inherit;
   font-weight: inherit;
   white-space: nowrap;
+}
+
+/* Gear dropdown rows: same primary color as glass float buttons (NSFW row); override feedFloatBtn’s global --muted */
+.gearFloatExpandable .feedFloatBtn.gearExpandableBtn,
+.gearFloatExpandable .nsfwFloatBtn.gearExpandableBtn {
+  color: var(--text);
+}
+
+.gearFloatExpandable .feedFloatBtn.gearExpandableBtn > svg,
+.gearFloatExpandable .nsfwFloatBtn.gearExpandableBtn > svg {
+  width: 1.125rem;
+  height: 1.125rem;
+  flex-shrink: 0;
+}
+
+.gearFloatExpandable .feedFloatThemeIcon {
+  transform: none;
+}
+
+.gearFloatExpandable .feedFloatThemeIcon svg,
+.gearFloatExpandable .mediaModeIconWrap svg,
+.gearFloatExpandable .gearExpandableIconSlot svg {
+  width: 1.125rem;
+  height: 1.125rem;
+  flex-shrink: 0;
+}
+
+.gearExpandableIconSlot {
+  display: inline-flex;
+  flex-shrink: 0;
+  width: 1.125rem;
+  min-width: 1.125rem;
+  height: 1.125rem;
+  align-items: center;
+  justify-content: center;
 }
 
 /* Fixed-size media icon – same width as other gear icons to keep button width consistent */
@@ -1961,7 +2046,7 @@ button.logoLink {
   pointer-events: auto;
 }
 
-/* Expandable view-options row – fade in/out only (no vertical slide) */
+/* Expandable view-options row – fade + max-height so close doesn’t leave a clipped sliver */
 .feedFloatButtonsExpandable {
   display: flex;
   flex-direction: column;
@@ -1970,8 +2055,9 @@ button.logoLink {
   opacity: 0;
   pointer-events: none;
   max-height: 0;
+  min-height: 0;
   overflow: hidden;
-  transition: opacity var(--transition-fast);
+  transition: opacity var(--transition-fast), max-height var(--transition-fast);
 }
 
 .feedFloatButtonsExpandableOpen {
@@ -1979,7 +2065,6 @@ button.logoLink {
   pointer-events: auto;
   max-height: 320px;
   overflow: visible;
-  transition: opacity var(--transition-fast);
 }
 
 .feedFloatButtonsExpandable .nsfwFloatBtn,

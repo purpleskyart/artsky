@@ -5,7 +5,7 @@
  */
 
 const CONSTELLATION_BASE = 'https://constellation.microcosm.blue'
-const DOWNVOTE_COLLECTION = 'app.artsky.feed.downvote'
+const DOWNVOTE_COLLECTION = 'app.purplesky.feed.downvote'
 const DOWNVOTE_PATH = '.subject.uri'
 
 /** Get the number of distinct users who have downvoted a post. */

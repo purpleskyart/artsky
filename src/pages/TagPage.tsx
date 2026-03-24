@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { searchPostsByTag, getPostMediaInfo, isPostNsfw, likePostWithLifecycle, unlikePostWithLifecycle } from '../lib/bsky'
 import type { TimelineItem } from '../lib/bsky'
 import type { AppBskyFeedDefs } from '@atproto/api'
@@ -12,6 +12,8 @@ import { useModeration } from '../context/ModerationContext'
 import { useModalScroll } from '../context/ModalScrollContext'
 import styles from './TagPage.module.css'
 import profileGridStyles from './ProfilePage.module.css'
+import { getPostAppPath } from '../lib/appUrl'
+import { getOverlayBackgroundLocation } from '../lib/overlayNavigation'
 
 const ESTIMATE_COL_WIDTH = 280
 const CARD_CHROME = 100
@@ -60,6 +62,7 @@ function distributeByHeight(
 
 export function TagContent({ tag, inModal = false, onRegisterRefresh }: { tag: string; inModal?: boolean; onRegisterRefresh?: (refresh: () => void | Promise<void>) => void }) {
   const navigate = useNavigate()
+  const location = useLocation()
   const { session } = useSession()
   const { viewMode } = useViewMode()
   const { isModalOpen, openPostModal } = useProfileModal()
@@ -203,8 +206,11 @@ export function TagContent({ tag, inModal = false, onRegisterRefresh }: { tag: s
       if (key === 'e' || key === 'enter') {
         const item = items[i]
         if (item) {
-          if (inModal) openPostModal(item.post.uri)
-          else navigate(`/feed?post=${encodeURIComponent(item.post.uri)}`)
+          if (inModal) openPostModal(item.post.uri, undefined, undefined, item.post.author?.handle)
+          else {
+            const path = getPostAppPath(item.post.uri, item.post.author?.handle)
+            navigate(path, { state: { backgroundLocation: getOverlayBackgroundLocation(location) } })
+          }
         }
         return
       }
@@ -227,7 +233,7 @@ export function TagContent({ tag, inModal = false, onRegisterRefresh }: { tag: s
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [mediaItems.length, cols, navigate, isModalOpen, inModal, openPostModal, likeOverrides, session])
+  }, [mediaItems.length, cols, navigate, location, isModalOpen, inModal, openPostModal, likeOverrides, session])
 
   if (!tag) return null
 
@@ -273,7 +279,17 @@ export function TagContent({ tag, inModal = false, onRegisterRefresh }: { tag: s
                 openPostModal={
                   inModal
                     ? openPostModal
-                    : (uri) => navigate(`/feed?post=${encodeURIComponent(uri)}`)
+                    : (uri, openReply, focusUri, authorHandle) => {
+                        const path = getPostAppPath(uri, authorHandle)
+                        const q = new URLSearchParams()
+                        if (openReply) q.set('reply', '1')
+                        if (focusUri) q.set('focus', focusUri)
+                        const qs = q.toString()
+                        navigate(
+                          { pathname: path, search: qs ? `?${qs}` : '' },
+                          { state: { backgroundLocation: getOverlayBackgroundLocation(location) } }
+                        )
+                      }
                 }
                 cardRef={(index) => (el) => { cardRefsRef.current[index] = el }}
                 onActionsMenuOpenChange={() => {}}

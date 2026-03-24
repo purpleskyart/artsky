@@ -8,16 +8,10 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 import type { AppBskyActorDefs } from '@atproto/api'
-import {
-  searchActorsTypeahead,
-  searchForumDocuments,
-  searchPostsByTag,
-  getStandardSiteDocumentUrl,
-} from '../lib/bsky'
-import type { StandardSiteDocumentView } from '../lib/bsky'
+import { searchActorsTypeahead, searchPostsByTag } from '../lib/bsky'
 import styles from './ComposerSuggestions.module.css'
 
-const TRIGGERS = ['@', '#', '%'] as const
+const TRIGGERS = ['@', '#'] as const
 const DEBOUNCE_MS = 200
 const MAX_SUGGESTIONS = 8
 
@@ -62,8 +56,7 @@ export type ComposerSuggestionsProps = {
 
 type SuggestionUser = { type: 'user'; handle: string; displayName?: string; avatar?: string }
 type SuggestionTag = { type: 'tag'; tag: string; count?: number }
-type SuggestionForum = { type: 'forum'; doc: StandardSiteDocumentView }
-type Suggestion = SuggestionUser | SuggestionTag | SuggestionForum
+type Suggestion = SuggestionUser | SuggestionTag
 
 export default function ComposerSuggestions({
   value,
@@ -151,17 +144,6 @@ export default function ComposerSuggestions({
         }
         return
       }
-      if (trigger === '%') {
-        setLoading(true)
-        try {
-          const docs = await searchForumDocuments(query, MAX_SUGGESTIONS)
-          setSuggestions(docs.map((doc) => ({ type: 'forum' as const, doc })))
-        } catch {
-          setSuggestions([])
-        } finally {
-          setLoading(false)
-        }
-      }
     },
     []
   )
@@ -197,10 +179,8 @@ export default function ComposerSuggestions({
       let insertion: string
       if (s.type === 'user') {
         insertion = `@${s.handle}`
-      } else if (s.type === 'tag') {
-        insertion = `#${s.tag}`
       } else {
-        insertion = getStandardSiteDocumentUrl(s.doc)
+        insertion = `#${s.tag}`
       }
       const before = value.slice(0, start)
       const after = value.slice(end)
@@ -391,13 +371,7 @@ export default function ComposerSuggestions({
               <ul ref={listRef} className={styles.list}>
                 {suggestions.map((s, i) => (
                   <li
-                    key={
-                      s.type === 'user'
-                        ? s.handle
-                        : s.type === 'tag'
-                          ? s.tag
-                          : s.doc.uri
-                    }
+                    key={s.type === 'user' ? s.handle : s.tag}
                     className={i === activeIndex ? styles.itemActive : styles.item}
                     role="option"
                     aria-selected={i === activeIndex}
@@ -428,16 +402,6 @@ export default function ComposerSuggestions({
                         <span className={styles.tag}>#{s.tag}</span>
                         {s.count != null && s.count > 0 && (
                           <span className={styles.meta}>{s.count} posts</span>
-                        )}
-                      </span>
-                    )}
-                    {s.type === 'forum' && (
-                      <span className={styles.itemMain}>
-                        <span className={styles.forumTitle}>
-                          {s.doc.title ?? s.doc.path ?? s.doc.uri}
-                        </span>
-                        {s.doc.authorHandle && (
-                          <span className={styles.meta}>@{s.doc.authorHandle}</span>
                         )}
                       </span>
                     )}

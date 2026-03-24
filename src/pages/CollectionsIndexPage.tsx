@@ -1,16 +1,26 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link, Navigate } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
+import Layout from '../components/Layout'
 import { ProgressiveImage } from '../components/ProgressiveImage'
 import { useSession } from '../context/SessionContext'
 import { useLoginModal } from '../context/LoginModalContext'
 import {
   getPostMediaInfoForDisplay,
   getPostsBatch,
+  getProfileCached,
   POST_MEDIA_FEED_PREVIEW,
   type PostView,
 } from '../lib/bsky'
-import { listMyCollectionSummaries, type CollectionSummary } from '../lib/collections'
+import {
+  collectionShareRef,
+  deleteCollection,
+  listMyCollectionSummaries,
+  renameCollection,
+  type CollectionSummary,
+} from '../lib/collections'
 import styles from './CollectionsIndexPage.module.css'
+import type { BackgroundLocationState } from '../lib/overlayNavigation'
+import { useToast } from '../context/ToastContext'
 
 const PREVIEW_SLOTS = 4
 
@@ -48,12 +58,23 @@ function PreviewStrip({
 
 /** Body only — used inside AppModal (floating back + gear align with post modals) */
 export function CollectionsIndexContent() {
+  const location = useLocation()
+  const bg = (location.state as BackgroundLocationState | null)?.backgroundLocation
+  const collectionLinkState = bg != null ? { backgroundLocation: bg } : undefined
   const { session } = useSession()
   const { openLoginModal } = useLoginModal()
+  const toast = useToast()
   const [items, setItems] = useState<CollectionSummary[]>([])
   const [postByUri, setPostByUri] = useState<Map<string, PostView>>(() => new Map())
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [editMode, setEditMode] = useState(false)
+  const [editingUri, setEditingUri] = useState<string | null>(null)
+  const [editingTitle, setEditingTitle] = useState('')
+  const [savingEdit, setSavingEdit] = useState(false)
+  const [deletingUri, setDeletingUri] = useState<string | null>(null)
+  /** Handle (or DID) for `handle/slug` links in the list. */
+  const [pathActor, setPathActor] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     if (!session?.did) return
@@ -62,6 +83,13 @@ export function CollectionsIndexContent() {
     try {
       const list = await listMyCollectionSummaries()
       setItems(list)
+      try {
+        const prof = await getProfileCached(session.did)
+        const h = prof.handle?.replace(/^@/, '').trim()
+        setPathActor(h || session.did)
+      } catch {
+        setPathActor(session.did)
+      }
       const allUris = [...new Set(list.flatMap((c) => c.previewPostUris))]
       if (allUris.length === 0) {
         setPostByUri(new Map())
@@ -73,6 +101,7 @@ export function CollectionsIndexContent() {
       setError(e instanceof Error ? e.message : 'Could not load collections')
       setItems([])
       setPostByUri(new Map())
+      setPathActor(null)
     } finally {
       setLoading(false)
     }
@@ -81,6 +110,65 @@ export function CollectionsIndexContent() {
   useEffect(() => {
     load()
   }, [load])
+
+  useEffect(() => {
+    if (!editMode) {
+      setEditingUri(null)
+      setEditingTitle('')
+      setSavingEdit(false)
+      setDeletingUri(null)
+    }
+  }, [editMode])
+
+  const startEdit = useCallback((collection: CollectionSummary) => {
+    setEditingUri(collection.uri)
+    setEditingTitle(collection.title)
+  }, [])
+
+  const saveEdit = useCallback(async () => {
+    if (!editingUri) return
+    if (savingEdit) return
+    const nextTitle = editingTitle.trim()
+    if (!nextTitle) {
+      toast?.showToast('Enter a collection name')
+      return
+    }
+    setSavingEdit(true)
+    try {
+      await renameCollection(editingUri, nextTitle)
+      setItems((prev) => prev.map((c) => (c.uri === editingUri ? { ...c, title: nextTitle } : c)))
+      setEditingUri(null)
+      setEditingTitle('')
+      toast?.showToast('Collection renamed')
+    } catch (e) {
+      toast?.showToast(e instanceof Error ? e.message : 'Could not rename collection')
+    } finally {
+      setSavingEdit(false)
+    }
+  }, [editingUri, editingTitle, savingEdit, toast])
+
+  const onDelete = useCallback(
+    async (collection: CollectionSummary) => {
+      if (deletingUri) return
+      const confirmed = window.confirm(`Delete "${collection.title}"? This cannot be undone.`)
+      if (!confirmed) return
+      setDeletingUri(collection.uri)
+      try {
+        await deleteCollection(collection.uri)
+        setItems((prev) => prev.filter((c) => c.uri !== collection.uri))
+        if (editingUri === collection.uri) {
+          setEditingUri(null)
+          setEditingTitle('')
+        }
+        toast?.showToast('Collection deleted')
+      } catch (e) {
+        toast?.showToast(e instanceof Error ? e.message : 'Could not delete collection')
+      } finally {
+        setDeletingUri(null)
+      }
+    },
+    [deletingUri, editingUri, toast]
+  )
 
   if (!session?.did) {
     return (
@@ -97,9 +185,21 @@ export function CollectionsIndexContent() {
   return (
     <div className={styles.wrap}>
       <h1 className={styles.title}>Collections</h1>
-      <p className={styles.sub}>
-        Open a collection to browse or share it. Use the bookmark on any post to save to a collection or create a new one.
-      </p>
+      <div className={styles.topRow}>
+        <p className={styles.sub}>
+          Open a collection to browse or share it. Use the bookmark on any post to save to a collection or create a new one.
+        </p>
+        {items.length > 0 && !loading ? (
+          <button
+            type="button"
+            className={styles.editBtn}
+            onClick={() => setEditMode((v) => !v)}
+            aria-pressed={editMode}
+          >
+            {editMode ? 'Done' : 'Edit'}
+          </button>
+        ) : null}
+      </div>
       {error && <p className={styles.error}>{error}</p>}
       {loading ? (
         <div className={styles.loading}>Loading…</div>
@@ -111,18 +211,88 @@ export function CollectionsIndexContent() {
         <ul className={styles.list}>
           {items.map((c) => (
             <li key={c.uri}>
-              <Link
-                className={styles.card}
-                to={`/feed?collections=1&collection=${encodeURIComponent(c.uri)}`}
-              >
-                <PreviewStrip previewPostUris={c.previewPostUris} postByUri={postByUri} />
-                <div className={styles.cardFooter}>
-                  <span className={styles.cardTitle}>{c.title}</span>
-                  <span className={styles.meta}>
-                    {c.itemCount} {c.itemCount === 1 ? 'post' : 'posts'}
-                  </span>
-                </div>
-              </Link>
+              <div className={styles.cardWrap}>
+                <Link
+                  className={styles.card}
+                  to={`/${collectionShareRef(pathActor ?? session.did ?? '', c.slug, c.rkey)}`}
+                  state={collectionLinkState}
+                >
+                  <PreviewStrip previewPostUris={c.previewPostUris} postByUri={postByUri} />
+                  <div className={styles.cardFooter}>
+                    <span className={styles.cardTitle}>{c.title}</span>
+                    <span className={styles.meta}>
+                      {c.itemCount} {c.itemCount === 1 ? 'post' : 'posts'}
+                    </span>
+                  </div>
+                </Link>
+                {editMode ? (
+                  <div className={styles.editRow}>
+                    {editingUri === c.uri ? (
+                      <>
+                        <input
+                          type="text"
+                          className={styles.editInput}
+                          value={editingTitle}
+                          onChange={(e) => setEditingTitle(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault()
+                              e.stopPropagation()
+                              void saveEdit()
+                            }
+                            if (e.key === 'Escape') {
+                              e.preventDefault()
+                              e.stopPropagation()
+                              setEditingUri(null)
+                              setEditingTitle('')
+                            }
+                          }}
+                          maxLength={200}
+                          autoFocus
+                        />
+                        <button
+                          type="button"
+                          className={styles.smallBtn}
+                          onClick={() => void saveEdit()}
+                          disabled={savingEdit}
+                        >
+                          Save
+                        </button>
+                        <button
+                          type="button"
+                          className={styles.smallBtnMuted}
+                          onClick={() => {
+                            setEditingUri(null)
+                            setEditingTitle('')
+                          }}
+                          disabled={savingEdit}
+                        >
+                          Cancel
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          className={styles.smallBtn}
+                          onClick={() => startEdit(c)}
+                          disabled={!!deletingUri}
+                        >
+                          Rename
+                        </button>
+                        <button
+                          type="button"
+                          className={styles.smallBtnDanger}
+                          onClick={() => void onDelete(c)}
+                          disabled={deletingUri === c.uri}
+                        >
+                          {deletingUri === c.uri ? 'Deleting…' : 'Delete'}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                ) : null}
+              </div>
             </li>
           ))}
         </ul>
@@ -131,7 +301,10 @@ export function CollectionsIndexContent() {
   )
 }
 
-/** Legacy path → modal URL */
 export default function CollectionsIndexPage() {
-  return <Navigate to="/feed?collections=1" replace />
+  return (
+    <Layout title="Collections" showNav>
+      <CollectionsIndexContent />
+    </Layout>
+  )
 }

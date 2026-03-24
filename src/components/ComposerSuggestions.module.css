@@ -130,13 +130,6 @@
   font-weight: 500;
 }
 
-.forumTitle {
-  font-weight: 500;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .meta {
   font-size: 0.8rem;
   color: var(--muted);

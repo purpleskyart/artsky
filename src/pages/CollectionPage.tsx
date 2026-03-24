@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, useParams } from 'react-router-dom'
+import Layout from '../components/Layout'
+import { RESERVED_APP_PATH_SEGMENTS } from '../lib/routes'
 import type { AppBskyFeedDefs } from '@atproto/api'
 import ProfileColumn from '../components/ProfileColumn'
-import { getPostMediaInfo, getPostsBatch, isPostNsfw, type TimelineItem } from '../lib/bsky'
-import { getCollectionByAtUri, removePostFromCollection, COLLECTION_LEXICON } from '../lib/collections'
+import { getPostMediaInfo, getPostsBatch, getProfileCached, isPostNsfw, type TimelineItem } from '../lib/bsky'
+import { getCollectionByAtUri, isLikelyCollectionRefParam, removePostFromCollection } from '../lib/collections'
 import { getShareableCollectionUrl } from '../lib/appUrl'
 import { useSession } from '../context/SessionContext'
 import { useViewMode } from '../context/ViewModeContext'
@@ -83,6 +85,15 @@ export function CollectionDetailContent({ uri: decodedUri }: CollectionDetailCon
   const keyboardFocusIndexRef = useRef(0)
   const displayItemsRef = useRef<TimelineItem[]>([])
   const copyLinkBtnRef = useRef<HTMLButtonElement>(null)
+  const [resolvedAtUri, setResolvedAtUri] = useState<string | null>(null)
+  const [shareHandle, setShareHandle] = useState<string | null>(null)
+  const [boardSlug, setBoardSlug] = useState<string | null>(null)
+
+  useEffect(() => {
+    setResolvedAtUri(null)
+    setShareHandle(null)
+    setBoardSlug(null)
+  }, [decodedUri])
 
   /** Refetch when `session?.did` appears so OAuth restore after refresh can use the owner agent if needed. */
   const load = useCallback(async () => {
@@ -96,10 +107,14 @@ export function CollectionDetailContent({ uri: decodedUri }: CollectionDetailCon
         setItems([])
         setTitle('')
         setOwnerDid(null)
+        setResolvedAtUri(null)
+        setBoardSlug(null)
         return
       }
       setTitle(col.title)
       setOwnerDid(col.did)
+      setResolvedAtUri(col.uri)
+      setBoardSlug(col.slug)
       const map = await getPostsBatch(col.items)
       const next: TimelineItem[] = []
       for (const u of col.items) {
@@ -110,6 +125,10 @@ export function CollectionDetailContent({ uri: decodedUri }: CollectionDetailCon
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load collection')
       setItems([])
+      setTitle('')
+      setOwnerDid(null)
+      setResolvedAtUri(null)
+      setBoardSlug(null)
     } finally {
       setLoading(false)
     }
@@ -118,6 +137,24 @@ export function CollectionDetailContent({ uri: decodedUri }: CollectionDetailCon
   useEffect(() => {
     load()
   }, [load])
+
+  useEffect(() => {
+    if (!ownerDid) {
+      setShareHandle(null)
+      return
+    }
+    let cancelled = false
+    void getProfileCached(ownerDid)
+      .then((p) => {
+        if (!cancelled) setShareHandle(p.handle ?? null)
+      })
+      .catch(() => {
+        if (!cancelled) setShareHandle(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [ownerDid])
 
   useEffect(() => {
     if (loading || !session?.did) return
@@ -175,14 +212,18 @@ export function CollectionDetailContent({ uri: decodedUri }: CollectionDetailCon
       }
       if (key === 'e' || key === 'enter') {
         const item = list[i]
-        if (item) openPostModal(item.post.uri)
+        if (item) openPostModal(item.post.uri, undefined, undefined, item.post.author?.handle)
       }
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [displayItems.length, cols, openPostModal])
 
-  const shareUrl = decodedUri ? getShareableCollectionUrl(decodedUri) : ''
+  const shareUrl = useMemo(() => {
+    if (!decodedUri || !isLikelyCollectionRefParam(decodedUri)) return ''
+    const ref = resolvedAtUri ?? decodedUri
+    return getShareableCollectionUrl(ref, shareHandle, boardSlug)
+  }, [decodedUri, resolvedAtUri, shareHandle, boardSlug])
 
   const copyShare = useCallback(() => {
     if (!shareUrl) return
@@ -200,11 +241,12 @@ export function CollectionDetailContent({ uri: decodedUri }: CollectionDetailCon
         await removePostFromCollection(decodedUri, postUri)
         setItems((prev) => prev.filter((t) => t.post.uri !== postUri))
         void refreshUnionFromPds()
+        void load()
       } catch (e) {
         toast?.showToast(e instanceof Error ? e.message : 'Could not remove')
       }
     },
-    [isOwner, decodedUri, refreshUnionFromPds, toast]
+    [isOwner, decodedUri, refreshUnionFromPds, toast, load]
   )
 
   if (!decodedUri) {
@@ -215,7 +257,7 @@ export function CollectionDetailContent({ uri: decodedUri }: CollectionDetailCon
     )
   }
 
-  if (!decodedUri.includes(COLLECTION_LEXICON)) {
+  if (!isLikelyCollectionRefParam(decodedUri)) {
     return (
       <div className={styles.wrap}>
         <p className={styles.error}>Invalid collection link.</p>
@@ -267,7 +309,9 @@ export function CollectionDetailContent({ uri: decodedUri }: CollectionDetailCon
               setUnblurred={setUnblurred}
               likeOverrides={likeOverrides}
               setLikeOverrides={setLikeOverrides}
-              openPostModal={(uri) => openPostModal(uri)}
+              openPostModal={(uri, openReply, focusUri, authorHandle) =>
+                openPostModal(uri, openReply, focusUri, authorHandle)
+              }
               cardRef={() => () => {}}
               onActionsMenuOpenChange={() => {}}
               onMouseEnter={(originalIndex) => setKeyboardFocusIndex(originalIndex)}
@@ -282,12 +326,17 @@ export function CollectionDetailContent({ uri: decodedUri }: CollectionDetailCon
   )
 }
 
-/** Legacy `#/collection/:uri` → modal stack URL */
+/** Full-page board: `/handle/collection-slug` (share URL). */
 export default function CollectionPage() {
-  const { uri: uriParam } = useParams<{ uri: string }>()
-  if (!uriParam) {
-    return <Navigate to="/feed" replace />
-  }
-  const decoded = decodeURIComponent(uriParam)
-  return <Navigate to={`/feed?collection=${encodeURIComponent(decoded)}`} replace />
+  const { handle, boardSlug } = useParams<{ handle: string; boardSlug: string }>()
+  const h = handle?.trim()
+  const s = boardSlug?.trim()
+  if (!h || !s) return <Navigate to="/feed" replace />
+  if (RESERVED_APP_PATH_SEGMENTS.has(h.toLowerCase())) return <Navigate to="/feed" replace />
+  const uri = `${h}/${s}`
+  return (
+    <Layout title="Collection" showNav>
+      <CollectionDetailContent uri={uri} />
+    </Layout>
+  )
 }
