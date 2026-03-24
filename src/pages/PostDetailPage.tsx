@@ -13,6 +13,7 @@ import ProfileLink from '../components/ProfileLink'
 import VideoWithHls from '../components/VideoWithHls'
 import PostText from '../components/PostText'
 import PostActionsMenu from '../components/PostActionsMenu'
+import CollectionSaveMenu from '../components/CollectionSaveMenu'
 import ComposerSuggestions from '../components/ComposerSuggestions'
 import CharacterCountWithCircle from '../components/CharacterCountWithCircle'
 import { useProfileModal } from '../context/ProfileModalContext'
@@ -2187,16 +2188,22 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
               </div>
             <section className={styles.actions} aria-label="Post actions">
               <div className={styles.actionRow}>
+                {onClose && thread && isThreadViewPost(thread) && (
+                  <span className={styles.actionRowCollectWrap}>
+                    <CollectionSaveMenu postUri={thread.post.uri} variant="detail" />
+                  </span>
+                )}
                 <button
                   type="button"
                   className={`${styles.likeRepostBtn} ${isLiked ? styles.likeRepostBtnActive : ''}`}
+                  style={{ order: onClose ? 3 : 1 }}
                   onClick={handleLike}
                   disabled={likeLoading}
                   title={isLiked ? 'Remove like' : 'Like'}
                 >
                   {likeLoading ? '…' : isLiked ? '♥' : '♡'} Like
                 </button>
-                <div className={styles.repostWrap} ref={repostDropdownRef}>
+                <div className={styles.repostWrap} ref={repostDropdownRef} style={{ order: 2 }}>
                   <button
                     type="button"
                     className={`${styles.likeRepostBtn} ${isReposted ? styles.likeRepostBtnActive : ''} ${showRepostDropdown ? styles.repostTriggerOpen : ''}`}
@@ -2239,6 +2246,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                   <button
                     type="button"
                     className={styles.likeRepostBtn}
+                    style={{ order: 3 }}
                     onClick={() => openQuotesModal(thread.post.uri)}
                     title="View posts that quote this"
                     aria-label="View quotes"
@@ -2248,21 +2256,23 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                   </button>
                 )}
                 {thread && isThreadViewPost(thread) && (
-                  <PostActionsMenu
-                    postUri={thread.post.uri}
-                    postCid={thread.post.cid}
-                    authorDid={thread.post.author.did}
-                    shareAuthorHandle={thread.post.author.handle}
-                    rootUri={thread.post.uri}
-                    isOwnPost={session?.did === thread.post.author.did}
-                    compact
-                    verticalIcon
-                    open={openActionsMenuUri === thread.post.uri}
-                    onOpenChange={(open) => setOpenActionsMenuUri(open ? thread.post.uri : null)}
-                    onHidden={() => navigate('/feed')}
-                    postedAt={(thread.post.record as { createdAt?: string })?.createdAt}
-                    onViewQuotes={openQuotesModal}
-                  />
+                  <span className={styles.actionRowMenuWrap}>
+                    <PostActionsMenu
+                      postUri={thread.post.uri}
+                      postCid={thread.post.cid}
+                      authorDid={thread.post.author.did}
+                      shareAuthorHandle={thread.post.author.handle}
+                      rootUri={thread.post.uri}
+                      isOwnPost={session?.did === thread.post.author.did}
+                      compact
+                      verticalIcon
+                      open={openActionsMenuUri === thread.post.uri}
+                      onOpenChange={(open) => setOpenActionsMenuUri(open ? thread.post.uri : null)}
+                      onHidden={() => navigate('/feed')}
+                      postedAt={(thread.post.record as { createdAt?: string })?.createdAt}
+                      onViewQuotes={openQuotesModal}
+                    />
+                  </span>
                 )}
               </div>
             </section>

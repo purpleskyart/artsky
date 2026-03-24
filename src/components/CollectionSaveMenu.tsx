@@ -32,9 +32,11 @@ function BookmarkIcon({ filled }: { filled?: boolean }) {
 interface Props {
   postUri: string
   openSignal?: number
+  /** Pilled button with "Collect" label — matches post detail Like / Repost row */
+  variant?: 'icon' | 'detail'
 }
 
-export default function CollectionSaveMenu({ postUri, openSignal }: Props) {
+export default function CollectionSaveMenu({ postUri, openSignal, variant = 'icon' }: Props) {
   const { session } = useSession()
   const { openLoginModal } = useLoginModal()
   const toast = useToast()
@@ -340,7 +342,11 @@ export default function CollectionSaveMenu({ postUri, openSignal }: Props) {
       <button
         ref={triggerRef}
         type="button"
-        className={`${styles.trigger} ${effectiveSavedAnywhere ? styles.triggerSaved : ''}`}
+        className={
+          variant === 'detail'
+            ? `${styles.triggerDetail} ${effectiveSavedAnywhere ? styles.triggerDetailSaved : ''} ${open ? styles.triggerDetailOpen : ''}`
+            : `${styles.trigger} ${effectiveSavedAnywhere ? styles.triggerSaved : ''}`
+        }
         onClick={onTriggerClick}
         disabled={saving}
         aria-expanded={open}
@@ -348,7 +354,16 @@ export default function CollectionSaveMenu({ postUri, openSignal }: Props) {
         aria-label={effectiveSavedAnywhere ? 'Saved — choose collection' : 'Save to collection'}
         title={effectiveSavedAnywhere ? 'Saved — choose collection' : 'Save to collection'}
       >
-        <BookmarkIcon filled={effectiveSavedAnywhere} />
+        {variant === 'detail' ? (
+          <>
+            <span className={styles.triggerDetailIcon} aria-hidden>
+              <BookmarkIcon filled={effectiveSavedAnywhere} />
+            </span>
+            <span>Collect</span>
+          </>
+        ) : (
+          <BookmarkIcon filled={effectiveSavedAnywhere} />
+        )}
       </button>
       {open && dropdownPosition &&
         createPortal(
