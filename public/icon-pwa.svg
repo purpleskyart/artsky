@@ -4,17 +4,43 @@
       <stop offset="0%" stop-color="#8B52EE"/>
       <stop offset="100%" stop-color="#7D55FC"/>
     </linearGradient>
-    <!-- 3D-style purple glow around butterfly (like Bluesky’s blue shadow) -->
+    <clipPath id="artsky-abdomen-pwa">
+      <ellipse cx="256" cy="334" rx="58" ry="80"/>
+    </clipPath>
     <filter id="purpleShadow" x="-40%" y="-40%" width="180%" height="180%">
       <feDropShadow dx="0" dy="2" stdDeviation="8" flood-color="#5a3bb8" flood-opacity="0.5"/>
       <feDropShadow dx="0" dy="0" stdDeviation="12" flood-color="#8B52EE" flood-opacity="0.7"/>
       <feDropShadow dx="0" dy="0" stdDeviation="6" flood-color="#7D55FC" flood-opacity="0.9"/>
     </filter>
   </defs>
-  <!-- Full rect so no transparent (white) area; purple gradient everywhere -->
   <rect width="512" height="512" fill="url(#artsky-purple-pwa)"/>
-  <!-- Black butterfly with purple shadow, scaled and centered -->
-  <g transform="translate(256, 256) scale(0.72) translate(-255.9995, -226.133)">
-    <path fill="#000" filter="url(#purpleShadow)" fill-rule="nonzero" d="M110.985 30.442c58.695 44.217 121.837 133.856 145.013 181.961 23.176-48.105 86.322-137.744 145.016-181.961 42.361-31.897 110.985-56.584 110.985 21.96 0 15.681-8.962 131.776-14.223 150.628-18.272 65.516-84.873 82.228-144.112 72.116 103.55 17.68 129.889 76.238 73 134.8-108.04 111.223-155.288-27.905-167.385-63.554-3.489-10.262-2.991-10.498-6.561 0-12.098 35.649-59.342 174.777-167.382 63.554-56.89-58.562-30.551-117.12 72.999-134.8-59.239 10.112-125.84-6.6-144.112-72.116C8.962 184.178 0 68.083 0 52.402c0-78.544 68.633-53.857 110.985-21.96z"/>
+  <g transform="translate(256, 256) scale(0.92) translate(-256, -256)" filter="url(#purpleShadow)">
+    <g fill="url(#artsky-purple-pwa)" stroke="#4a2d88" stroke-width="2.5" stroke-opacity="0.9">
+      <ellipse cx="156" cy="214" rx="104" ry="62" transform="rotate(-34 156 214)"/>
+      <ellipse cx="356" cy="214" rx="104" ry="62" transform="rotate(34 356 214)"/>
+    </g>
+    <path fill="url(#artsky-purple-pwa)" stroke="#4a2d88" stroke-width="2" stroke-opacity="0.9" d="M256 396 L236 432 L276 432 Z"/>
+    <g fill="url(#artsky-purple-pwa)" stroke="#4a2d88" stroke-width="2.5" stroke-opacity="0.9">
+      <ellipse cx="256" cy="334" rx="58" ry="80"/>
+      <ellipse cx="256" cy="262" rx="28" ry="18"/>
+      <ellipse cx="256" cy="206" rx="50" ry="46"/>
+      <circle cx="256" cy="118" r="48"/>
+    </g>
+    <g clip-path="url(#artsky-abdomen-pwa)">
+      <rect x="190" y="278" width="132" height="14" fill="#2a1848"/>
+      <rect x="190" y="308" width="132" height="14" fill="#2a1848"/>
+      <rect x="190" y="338" width="132" height="14" fill="#2a1848"/>
+      <rect x="190" y="368" width="132" height="14" fill="#2a1848"/>
+    </g>
+    <circle cx="228" cy="112" r="11" fill="#120a24" stroke="#4a2d88" stroke-width="1.5"/>
+    <circle cx="284" cy="112" r="11" fill="#120a24" stroke="#4a2d88" stroke-width="1.5"/>
+    <g fill="none" stroke="#2a1848" stroke-width="10" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M232 82 Q 205 52 188 38"/>
+      <path d="M280 82 Q 307 52 324 38"/>
+    </g>
+    <g fill="url(#artsky-purple-pwa)" stroke="#4a2d88" stroke-width="1.5">
+      <circle cx="188" cy="38" r="7"/>
+      <circle cx="324" cy="38" r="7"/>
+    </g>
   </g>
 </svg>

@@ -553,8 +553,8 @@
     gap: 0.25rem;
   }
   .logoIcon {
-    width: 18px;
-    height: 18px;
+    width: 22px;
+    height: 22px;
   }
   .logoText {
     font-size: 0.95rem;
@@ -786,8 +786,8 @@ button.logoLink {
 }
 
 .logoIcon {
-  width: 22px;
-  height: 22px;
+  width: 28px;
+  height: 28px;
   display: block;
 }
 
