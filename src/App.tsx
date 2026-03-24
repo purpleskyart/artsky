@@ -206,14 +206,13 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    if (typeof window === 'undefined') return
     const run = () => preloadOverlayChunks()
-    if ('requestIdleCallback' in window) {
-      const id = window.requestIdleCallback(run, { timeout: 1200 })
-      return () => window.cancelIdleCallback(id)
+    if (typeof globalThis.requestIdleCallback === 'function') {
+      const id = globalThis.requestIdleCallback(run, { timeout: 1200 })
+      return () => globalThis.cancelIdleCallback(id)
     }
-    const t = window.setTimeout(run, 300)
-    return () => window.clearTimeout(t)
+    const t = globalThis.setTimeout(run, 300)
+    return () => globalThis.clearTimeout(t)
   }, [])
 
   return (
