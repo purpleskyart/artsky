@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import { ModalTopBarSlotContext } from '../context/ModalTopBarSlotContext'
 import { ModalScrollProvider } from '../context/ModalScrollContext'
@@ -84,9 +84,14 @@ export default function AppModal({
   const [topBarRightSlotEl, setTopBarRightSlotEl] = useState<HTMLDivElement | null>(null)
   const { expanded, setExpanded } = useModalExpand()
   const scrollLock = useScrollLock()
+  const handleSwipeRight = useCallback(() => {
+    if (canGoBack) onBack()
+    else onClose()
+  }, [canGoBack, onBack, onClose])
   const swipe = useSwipeToClose({
-    enabled: isMobile,
+    enabled: isMobile && isTopModal,
     onSwipeLeft,
+    onSwipeRight: handleSwipeRight,
   })
 
   useEffect(() => {

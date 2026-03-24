@@ -5,6 +5,11 @@ const SWIPE_COMMIT_PX = 28
 const SWIPE_HORIZONTAL_RATIO = 2
 const SWIPE_TRIGGER_PX = 80
 const SWIPE_DRAG_CAP_PX = 140
+/**
+ * Swipe-right-to-close only when the gesture did not start in the OS/browser “back from edge” zone.
+ * Otherwise WebKit may also pop history → double back.
+ */
+const SWIPE_RIGHT_MIN_START_X_PX = 44
 
 export interface UseSwipeToCloseOptions {
   /** When false, touch handlers are no-ops and translateX stays 0 */
@@ -67,6 +72,13 @@ export function useSwipeToClose({
           return
         }
         const direction: 'left' | 'right' = dx < 0 ? 'left' : 'right'
+        if (
+          direction === 'right' &&
+          onSwipeRight &&
+          touchStartXRef.current < SWIPE_RIGHT_MIN_START_X_PX
+        ) {
+          return
+        }
         const canSwipeDirection =
           (direction === 'right' && !!onSwipeRight) ||
           (direction === 'left' && !!onSwipeLeft)
