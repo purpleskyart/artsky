@@ -556,6 +556,8 @@ export default function Layout({ title, children, showNav }: Props) {
   const accountHoldTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const seenPosts = useSeenPosts()
   const toast = useToast()
+  const previousSessionDidRef = useRef<string | null>(session?.did ?? null)
+  const userInitiatedLogoutRef = useRef(false)
   const HOME_HOLD_MS = 500
   const { entries: mixEntries, setEntryPercent, toggleSource, addEntry, setSingleFeed } = useFeedMix()
   const presetUris = new Set((PRESET_FEED_SOURCES.map((s) => s.uri).filter((uri): uri is string => !!uri)))
@@ -1132,6 +1134,18 @@ export default function Layout({ title, children, showNav }: Props) {
     searchInputRef.current?.blur()
   }
 
+  useEffect(() => {
+    const prevDid = previousSessionDidRef.current
+    const currentDid = session?.did ?? null
+    if (prevDid && !currentDid && authResolved) {
+      if (!userInitiatedLogoutRef.current) {
+        toast?.showToast('You were logged out.')
+      }
+      userInitiatedLogoutRef.current = false
+    }
+    previousSessionDidRef.current = currentDid
+  }, [session?.did, authResolved, toast])
+
   async function handleSelectAccount(did: string) {
     const ok = await switchAccount(did)
     if (ok) {
@@ -1149,9 +1163,10 @@ export default function Layout({ title, children, showNav }: Props) {
   }
 
   function handleLogout() {
+    userInitiatedLogoutRef.current = true
     setAccountSheetOpen(false)
     setAccountMenuOpen(false)
-    logout()
+    void logout()
   }
 
   const POST_MAX_LENGTH = 300

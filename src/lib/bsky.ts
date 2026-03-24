@@ -335,17 +335,23 @@ export async function getGuestFeed(
 export async function resumeSession(): Promise<boolean> {
   const session = getStoredSession()
   if (!session?.accessJwt) return false
-  try {
-    await credentialAgent.resumeSession(session)
-    return true
-  } catch (err) {
-    const status = (err as { status?: number; statusCode?: number })?.status
-      ?? (err as { status?: number; statusCode?: number })?.statusCode
-    if (status === 401 || status === 400) {
-      try { localStorage.removeItem(SESSION_KEY) } catch { /* ignore */ }
+  const maxAttempts = 3
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      await credentialAgent.resumeSession(session)
+      return true
+    } catch (err) {
+      const status = (err as { status?: number; statusCode?: number })?.status
+        ?? (err as { status?: number; statusCode?: number })?.statusCode
+      // Invalid/expired token is not recoverable by retrying in this boot cycle.
+      if (status === 401 || status === 400) return false
+      // Brief retry for transient failures (network, temporary upstream errors).
+      if (attempt < maxAttempts) {
+        await new Promise((resolve) => setTimeout(resolve, attempt * 300))
+      }
     }
-    return false
   }
+  return false
 }
 
 export async function login(identifier: string, password: string) {

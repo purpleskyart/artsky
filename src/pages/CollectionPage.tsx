@@ -96,7 +96,6 @@ export function CollectionDetailContent({ uri: decodedUri }: CollectionDetailCon
     setBoardSlug(null)
   }, [decodedUri])
 
-  /** Refetch when `session?.did` appears so OAuth restore after refresh can use the owner agent if needed. */
   const load = useCallback(async () => {
     if (!decodedUri) return
     setLoading(true)
@@ -133,7 +132,7 @@ export function CollectionDetailContent({ uri: decodedUri }: CollectionDetailCon
     } finally {
       setLoading(false)
     }
-  }, [decodedUri, session?.did])
+  }, [decodedUri])
 
   useEffect(() => {
     load()
@@ -156,11 +155,6 @@ export function CollectionDetailContent({ uri: decodedUri }: CollectionDetailCon
       cancelled = true
     }
   }, [ownerDid])
-
-  useEffect(() => {
-    if (loading || !session?.did) return
-    void refreshUnionFromPds()
-  }, [loading, session?.did, refreshUnionFromPds])
 
   const isOwner = !!(session?.did && ownerDid && session.did === ownerDid)
   const cols = useColumnCount(viewMode, 150)

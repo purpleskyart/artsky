@@ -12,6 +12,7 @@ import { ModerationProvider } from './context/ModerationContext'
 import { ChunkLoadError } from './components/ChunkLoadError'
 import { ModalErrorBoundary } from './components/ModalErrorBoundary'
 import OfflineIndicator from './components/OfflineIndicator'
+import { useScrollRestoration } from './hooks/useScrollRestoration'
 
 // Lazy load route components for code splitting
 const FeedPage = lazy(() => import('./pages/FeedPage'))
@@ -166,6 +167,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
 }
 
 function AppRoutes() {
+  useScrollRestoration()
   const location = useLocation()
   const backgroundLocation = (location.state as { backgroundLocation?: Location } | null)?.backgroundLocation
 
