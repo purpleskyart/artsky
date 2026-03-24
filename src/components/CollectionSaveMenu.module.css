@@ -49,6 +49,80 @@
   background: var(--glass-highlight);
 }
 
+/* Post detail modal row — same footprint as Like / Repost pills */
+.triggerDetail {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.9rem;
+  font-family: inherit;
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  cursor: pointer;
+  width: auto;
+  height: auto;
+  min-height: unset;
+  outline: none;
+  transition: color 0.15s ease, border-color 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.triggerDetailIcon {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+}
+
+.triggerDetail:hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--text);
+}
+
+.triggerDetail:focus-visible {
+  outline: none;
+}
+
+.triggerDetail:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+.triggerDetailOpen {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.triggerDetailOpen .triggerDetailIcon {
+  color: var(--accent);
+}
+
+.triggerDetailSaved {
+  color: #0ea5e9;
+  border-color: #38bdf8;
+}
+
+.triggerDetailSaved:hover:not(:disabled) {
+  color: #38bdf8;
+  border-color: #7dd3fc;
+}
+
+.triggerDetailSaved .triggerDetailIcon {
+  color: #0ea5e9;
+}
+
+.triggerDetailSaved.triggerDetailOpen {
+  border-color: #38bdf8;
+  color: #38bdf8;
+}
+
+.triggerDetailSaved.triggerDetailOpen .triggerDetailIcon {
+  color: #0ea5e9;
+}
+
 .dropdown {
   min-width: 220px;
   max-width: min(320px, calc(100vw - 16px));

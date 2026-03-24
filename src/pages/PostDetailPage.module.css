@@ -1067,6 +1067,18 @@
   gap: 0.5rem 1rem;
 }
 
+.actionRowCollectWrap {
+  order: 1;
+  display: inline-flex;
+  align-items: center;
+}
+
+.actionRowMenuWrap {
+  order: 4;
+  display: inline-flex;
+  align-items: center;
+}
+
 .likeRepostBtn {
   display: inline-flex;
   align-items: center;
