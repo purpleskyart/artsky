@@ -68,6 +68,13 @@
   }
 }
 
+/* Match Layout account/search “above nav” offset — floating pill is hidden at 768px+ */
+@media (max-width: 767px) {
+  .toast {
+    bottom: calc(max(0.75rem, env(safe-area-inset-bottom)) + 4rem);
+  }
+}
+
 @media (max-width: 480px) {
   .toast {
     left: 12px;

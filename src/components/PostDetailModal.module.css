@@ -19,6 +19,7 @@
   padding-bottom: 1.75rem;
   box-sizing: border-box;
   overflow: hidden;
+  overscroll-behavior: contain;
 }
 
 /* Non-top layer in a stacked modal: pane still has pointer-events:auto by default; disable entire subtree so the layer above receives clicks. */
@@ -182,6 +183,7 @@
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
   /* Allow vertical touch scroll even when body has touch-action: none from scroll lock */
   touch-action: pan-y;
   flex: 1;
