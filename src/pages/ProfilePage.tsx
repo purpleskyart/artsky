@@ -598,7 +598,7 @@ export function ProfileContent({
       }
       if (key === 'e' || key === 'enter') {
         const item = items[i]
-        if (item) openPostModal(item.post.uri)
+        if (item) openPostModal(item.post.uri, undefined, undefined, item.post.author?.handle)
         return
       }
       if (key === 'f') {
@@ -955,7 +955,7 @@ export function ProfileContent({
                       item={item}
                       onPostClick={(uri, opts) => {
                         if (opts?.initialItem) setInitialPostForUri(uri, opts.initialItem)
-                        openPostModal(uri, opts?.openReply)
+                        openPostModal(uri, opts?.openReply, undefined, item.post.author?.handle)
                       }}
                       nsfwBlurred={nsfwPreference === 'blurred' && isPostNsfw(item.post) && !unblurredUris.has(item.post.uri)}
                       onNsfwUnblur={() => setUnblurred(item.post.uri, true)}

@@ -14,8 +14,8 @@
   background: var(--overlay-bg);
   padding: 1.5rem;
   padding-top: 2.5rem;
-  padding-left: max(1.5rem, env(safe-area-inset-left));
-  padding-right: max(1.5rem, env(safe-area-inset-right));
+  padding-left: max(0.75rem, env(safe-area-inset-left));
+  padding-right: max(0.75rem, env(safe-area-inset-right));
   padding-bottom: 1.75rem;
   box-sizing: border-box;
   overflow: hidden;
@@ -48,53 +48,47 @@
   padding-top: max(3.5rem, calc(env(safe-area-inset-top) + 2.5rem));
 }
 
-/* Floating back button in top-left corner of modal pane */
+/* Floating back — same 36px circle as .headerGearBtn / floating gear (.feedFloatBtn); glass from .float-btn */
 .modalFloatingBack {
   position: absolute;
   top: var(--space-md);
   left: var(--space-md);
-  z-index: 10;
+  /* Above scroll content (cards use z-index up to 10); after scroll in DOM + this keeps back visible */
+  z-index: 30;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 2rem;
-  height: 2rem;
+  width: 36px;
+  height: 36px;
   padding: 0;
-  border: 1px solid var(--glass-border);
   border-radius: 50%;
-  cursor: pointer;
-  color: var(--text);
-  background: var(--glass-bg);
-  box-shadow: var(--shadow-card);
-  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+  box-sizing: border-box;
 }
 
 /* Mobile PWA: align back button with gear (same top/left as Layout .gearFloatWrap) so they sit in a row */
 @media (max-width: 767px) {
   .modalFloatingBack {
     top: max(var(--space-md), env(safe-area-inset-top, 59px));
-    left: max(var(--space-md), env(safe-area-inset-left));
+    left: max(var(--space-sm), env(safe-area-inset-left));
   }
 }
 
-/* Desktop: same floating back position as mobile (one back button everywhere) */
+/* Desktop: back + gear live in Layout (fixed, same row as mobile); hide duplicate in-pane button */
 @media (min-width: 768px) {
   .modalFloatingBack {
-    top: max(var(--space-md), env(safe-area-inset-top));
-    left: max(var(--space-md), env(safe-area-inset-left));
+    display: none;
+  }
+}
+
+@media (min-width: 768px) {
+  .scrollWithFloatingBack.scroll:not(.scrollWithTransparentBar) {
+    padding-top: var(--space-md);
   }
 }
 
 .modalFloatingBack svg {
   width: 1.125rem;
   height: 1.125rem;
-}
-.modalFloatingBack:hover {
-  transform: scale(1.05);
-  box-shadow: var(--shadow-dropdown);
-}
-.modalFloatingBack:active {
-  transform: scale(0.97);
 }
 
 /* Hide back button when scrolling down in modal (same as nav) */
@@ -166,6 +160,8 @@
   min-height: 0;
   width: 100%;
   min-width: 0;
+  position: relative;
+  isolation: isolate;
 }
 
 .modalPanePullSnap {
@@ -193,6 +189,7 @@
   width: 100%;
   min-width: 0;
   pointer-events: auto;
+  z-index: 0;
 }
 
 /* Top padding so content (images, text) isn't covered by floating back, feed pill, or gear (all sit above the modal on mobile) */

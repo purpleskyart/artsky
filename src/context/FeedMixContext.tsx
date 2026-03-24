@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { FeedMixEntry, FeedSource } from '../types'
+import { getPersistedActiveDid } from '../lib/bsky'
 import { useSession } from './SessionContext'
 
 const STORAGE_KEY_PREFIX = 'artsky-feed-mix'
@@ -59,8 +60,15 @@ type FeedMixContextValue = {
 const FeedMixContext = createContext<FeedMixContextValue | null>(null)
 
 export function FeedMixProvider({ children }: { children: ReactNode }) {
-  const { session } = useSession()
-  const did = session?.did ?? 'guest'
+  const { session, authResolved } = useSession()
+  const did = useMemo(() => {
+    if (session?.did) return session.did
+    if (!authResolved) {
+      const p = getPersistedActiveDid()
+      if (p) return p
+    }
+    return 'guest'
+  }, [session?.did, authResolved])
   const prevDidRef = useRef(did)
   const [entries, setEntries] = useState<FeedMixEntry[]>(() => loadStored(did).entries)
   const [enabled, setEnabledState] = useState(() => loadStored(did).enabled)

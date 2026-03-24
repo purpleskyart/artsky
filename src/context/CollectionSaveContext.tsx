@@ -15,6 +15,7 @@ import { useToast } from './ToastContext'
 import {
   addPostToCollection,
   createCollection,
+  listMyCollectionSummaries,
   loadUnionSavedPostUris,
   rememberActiveCollectionAtUri,
   removePostFromCollection,
@@ -28,6 +29,7 @@ type Ctx = {
   activeCollectionAtUri: string | null
   /** Reload union of saved post URIs from the PDS (e.g. after edits on a collection page). */
   refreshUnionFromPds: () => Promise<void>
+  quickSavePost: (postUri: string) => Promise<void>
   savePostToCollection: (postUri: string, collectionAtUri: string) => Promise<void>
   removePostFromCollectionUi: (postUri: string, collectionAtUri: string) => Promise<void>
   createCollectionAndAddPost: (postUri: string, title: string) => Promise<void>
@@ -71,6 +73,40 @@ export function CollectionSaveProvider({ children }: { children: ReactNode }) {
     const atUri = await resolveActiveCollectionAtUri(session.did)
     setActiveCollectionAtUri(atUri)
   }, [session?.did, emit])
+
+  const quickSavePost = useCallback(
+    async (postUri: string) => {
+      if (!session?.did) {
+        openLoginModal()
+        return
+      }
+      if (opLockRef.current) return
+      opLockRef.current = true
+      setSavingUri(postUri)
+      try {
+        const summaries = await listMyCollectionSummaries()
+        const savedSummary = summaries.find((c) => c.title.trim().toLowerCase() === 'saved')
+        let targetCollection = savedSummary?.uri ?? null
+        if (!targetCollection) {
+          const { uri } = await createCollection('Saved')
+          targetCollection = uri
+        }
+        /* Keep "Saved" as the default quick-save target. */
+        rememberActiveCollectionAtUri(session.did, targetCollection)
+        setActiveCollectionAtUri(targetCollection)
+        await addPostToCollection(targetCollection, postUri)
+        savedRef.current.add(postUri)
+        emit()
+      } catch (e) {
+        toast?.showToast(e instanceof Error ? e.message : 'Could not save')
+        await refreshUnionFromPds()
+      } finally {
+        setSavingUri(null)
+        opLockRef.current = false
+      }
+    },
+    [session?.did, openLoginModal, emit, toast, refreshUnionFromPds]
+  )
 
   useEffect(() => {
     if (!session?.did) {
@@ -186,6 +222,7 @@ export function CollectionSaveProvider({ children }: { children: ReactNode }) {
       savingUri,
       activeCollectionAtUri,
       refreshUnionFromPds,
+      quickSavePost,
       savePostToCollection,
       removePostFromCollectionUi,
       createCollectionAndAddPost,
@@ -196,6 +233,7 @@ export function CollectionSaveProvider({ children }: { children: ReactNode }) {
       savingUri,
       activeCollectionAtUri,
       refreshUnionFromPds,
+      quickSavePost,
       savePostToCollection,
       removePostFromCollectionUi,
       createCollectionAndAddPost,
@@ -227,6 +265,7 @@ export function useCollectionSaveActions() {
       savingUri: null as string | null,
       activeCollectionAtUri: null as string | null,
       refreshUnionFromPds: async () => {},
+      quickSavePost: async () => {},
       savePostToCollection: async () => {},
       removePostFromCollectionUi: async () => {},
       createCollectionAndAddPost: async () => {},
@@ -236,6 +275,7 @@ export function useCollectionSaveActions() {
     savingUri: ctx.savingUri,
     activeCollectionAtUri: ctx.activeCollectionAtUri,
     refreshUnionFromPds: ctx.refreshUnionFromPds,
+    quickSavePost: ctx.quickSavePost,
     savePostToCollection: ctx.savePostToCollection,
     removePostFromCollectionUi: ctx.removePostFromCollectionUi,
     createCollectionAndAddPost: ctx.createCollectionAndAddPost,

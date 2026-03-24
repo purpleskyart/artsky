@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
-import { useParams, useNavigate, useLocation } from 'react-router-dom'
+import { useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import type { AppBskyFeedDefs } from '@atproto/api'
 import type { AtpSessionData } from '@atproto/api'
 import { agent, publicAgent, postReply, getPostAllMedia, getQuotedPostView, getPostExternalLink, getSession, createQuotePost, createDownvote, deleteDownvote, listMyDownvotes, getPostThreadCached, getProfilesBatch, getProfileCached, getPostsBatch, likePostWithLifecycle, unlikePostWithLifecycle, repostPostWithLifecycle, deleteRepostWithLifecycle, followAccountWithLifecycle, unfollowAccountWithLifecycle, POST_MEDIA_FULL, POST_MEDIA_FEED_PREVIEW, type PostView } from '../lib/bsky'
@@ -16,6 +16,7 @@ import PostActionsMenu from '../components/PostActionsMenu'
 import ComposerSuggestions from '../components/ComposerSuggestions'
 import CharacterCountWithCircle from '../components/CharacterCountWithCircle'
 import { useProfileModal } from '../context/ProfileModalContext'
+import { getPostAppPath } from '../lib/appUrl'
 import { useLoginModal } from '../context/LoginModalContext'
 import { useToast } from '../context/ToastContext'
 import styles from './PostDetailPage.module.css'
@@ -718,6 +719,7 @@ function PostBlock({
               postUri={post.uri}
               postCid={post.cid}
               authorDid={post.author.did}
+              shareAuthorHandle={post.author.handle}
               rootUri={rootPostUri ?? post.uri}
               isOwnPost={currentDid === post.author.did}
               compact
@@ -1071,7 +1073,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
   const [replyingTo, setReplyingTo] = useState<{ uri: string; cid: string; handle: string } | null>(null)
   const [commentLikeOverrides, setCommentLikeOverrides] = useState<Record<string, string | null>>({})
   const [myDownvotes, setMyDownvotes] = useState<Record<string, string>>({})
-  /** Downvote counts from Microcosm Constellation (app.artsky.feed.downvote backlinks). */
+  /** Downvote counts from Microcosm Constellation (app.purplesky.feed.downvote backlinks). */
   const [downvoteCounts, setDownvoteCounts] = useState<Record<string, number>>({})
   /** Optimistic delta when user adds/removes a downvote before Constellation has indexed it. */
   const [downvoteCountOptimisticDelta, setDownvoteCountOptimisticDelta] = useState<Record<string, number>>({})
@@ -1958,9 +1960,9 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                         className={styles.quotedPostCard}
                         onClick={() => {
                           if (onClose) {
-                            openPostModal(parentPost.uri)
+                            openPostModal(parentPost.uri, undefined, undefined, parentPost.author?.handle)
                           } else {
-                            navigate(`/feed?post=${encodeURIComponent(parentPost.uri)}`)
+                            navigate(getPostAppPath(parentPost.uri, parentPost.author?.handle))
                           }
                         }}
                       >
@@ -2117,9 +2119,9 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                         className={styles.quotedPostCard}
                         onClick={() => {
                           if (onClose) {
-                            openPostModal(quoted.uri)
+                            openPostModal(quoted.uri, undefined, undefined, quoted.author?.handle)
                           } else {
-                            navigate(`/feed?post=${encodeURIComponent(quoted.uri)}`)
+                            navigate(getPostAppPath(quoted.uri, quoted.author?.handle))
                           }
                         }}
                       >
@@ -2228,6 +2230,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                     postUri={thread.post.uri}
                     postCid={thread.post.cid}
                     authorDid={thread.post.author.did}
+                    shareAuthorHandle={thread.post.author.handle}
                     rootUri={thread.post.uri}
                     isOwnPost={session?.did === thread.post.author.did}
                     compact
@@ -2664,19 +2667,67 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
 }
 
 export default function PostDetailPage() {
-  const { uri } = useParams<{ uri: string }>()
+  const { uri, handle, rkey } = useParams<{ uri?: string; handle?: string; rkey?: string }>()
   const navigate = useNavigate()
   const location = useLocation()
-  const decodedUri = uri ? decodeURIComponent(uri) : ''
-  if (!decodedUri) {
+  const [searchParams] = useSearchParams()
+  const [resolvedUri, setResolvedUri] = useState<string | null>(() =>
+    uri ? decodeURIComponent(uri) : null
+  )
+  const [resolving, setResolving] = useState(() => !uri && !!(handle && rkey))
+
+  useEffect(() => {
+    if (uri) {
+      setResolvedUri(decodeURIComponent(uri))
+      setResolving(false)
+      return
+    }
+    if (!handle || !rkey) {
+      setResolvedUri(null)
+      setResolving(false)
+      return
+    }
+    let cancelled = false
+    setResolving(true)
+    getProfileCached(handle)
+      .then((p) => {
+        if (cancelled) return
+        if (!p?.did) {
+          navigate('/feed', { replace: true })
+          return
+        }
+        setResolvedUri(`at://${p.did}/app.bsky.feed.post/${rkey}`)
+        setResolving(false)
+      })
+      .catch(() => {
+        if (!cancelled) navigate('/feed', { replace: true })
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [uri, handle, rkey, navigate])
+
+  if (resolving || (resolvedUri == null && (handle || rkey))) {
+    return (
+      <Layout title="Post" showNav>
+        <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--muted)' }}>Loading…</div>
+      </Layout>
+    )
+  }
+  if (!resolvedUri) {
     navigate('/feed', { replace: true })
     return null
   }
+  const fromState = (location.state as { openReply?: boolean })?.openReply
+  const initialOpenReply = searchParams.get('reply') === '1' || fromState
+  const initialFocusedCommentUri = searchParams.get('focus') ?? undefined
+
   return (
     <Layout title="Post" showNav>
       <PostDetailContent
-        uri={decodedUri}
-        initialOpenReply={(location.state as { openReply?: boolean })?.openReply}
+        uri={resolvedUri}
+        initialOpenReply={initialOpenReply}
+        initialFocusedCommentUri={initialFocusedCommentUri}
       />
     </Layout>
   )

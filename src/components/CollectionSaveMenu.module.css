@@ -108,6 +108,12 @@
   background: var(--glass-highlight);
 }
 
+.row:focus-visible:not(:disabled) {
+  background: var(--glass-highlight);
+  outline: none;
+  transform: none;
+}
+
 .row:disabled {
   opacity: 0.6;
   cursor: default;
@@ -133,6 +139,29 @@
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
+}
+
+.inputProxy {
+  width: 100%;
+  padding: 0.4rem 0.5rem;
+  border: none;
+  border-radius: 0.35rem;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.85rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.inputProxy:hover {
+  background: var(--glass-highlight);
+}
+
+.inputProxy:focus-visible {
+  background: var(--glass-highlight);
+  outline: none;
+  transform: none;
 }
 
 .input {

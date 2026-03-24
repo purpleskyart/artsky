@@ -2,21 +2,38 @@ import React, { useState, useRef, useEffect, useMemo, useCallback, useSyncExtern
 import { createPortal, flushSync } from 'react-dom'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useSession } from '../context/SessionContext'
-import { useTheme } from '../context/ThemeContext'
+import { useTheme, type ThemeMode } from '../context/ThemeContext'
 import { useViewMode, VIEW_LABELS } from '../context/ViewModeContext'
 import { useArtOnly, CARD_VIEW_LABELS } from '../context/ArtOnlyContext'
 import { useProfileModal } from '../context/ProfileModalContext'
 import { useLoginModal } from '../context/LoginModalContext'
 import { useEditProfile } from '../context/EditProfileContext'
 import { useModeration, NSFW_LABELS } from '../context/ModerationContext'
-import { useMediaOnly, MEDIA_MODE_LABELS } from '../context/MediaOnlyContext'
+import { useMediaOnly, MEDIA_MODE_LABELS, type MediaMode } from '../context/MediaOnlyContext'
 import { useScrollLock } from '../context/ScrollLockContext'
 import { useSeenPosts } from '../context/SeenPostsContext'
 import { useToast } from '../context/ToastContext'
-import { createPost, postReply, getNotifications, getUnreadNotificationCount, updateSeenNotifications, getSavedFeedsFromPreferences, getFeedDisplayName, getFeedDisplayNamesBatch, resolveFeedUri, addSavedFeed, removeSavedFeedByUri, getFeedShareUrl, getProfilesBatch } from '../lib/bsky'
+import {
+  createPost,
+  postReply,
+  getNotifications,
+  getUnreadNotificationCount,
+  updateSeenNotifications,
+  getSavedFeedsFromPreferences,
+  getFeedDisplayName,
+  getFeedDisplayNamesBatch,
+  resolveFeedUri,
+  addSavedFeed,
+  removeSavedFeedByUri,
+  getFeedShareUrl,
+  getProfilesBatch,
+  getPersistedActiveDid,
+} from '../lib/bsky'
 import { requestDeduplicator } from '../lib/RequestDeduplicator'
 import type { FeedSource } from '../types'
 import { GUEST_FEED_SOURCES, GUEST_MIX_ENTRIES } from '../config/feedSources'
+import { isHandleBoardPath } from '../lib/routes'
+import { getPostAppPath, parseBskyFeedPostUri } from '../lib/appUrl'
 import { useFeedMix } from '../context/FeedMixContext'
 import { FeedSwipeProvider } from '../context/FeedSwipeContext'
 import SearchBar from './SearchBar'
@@ -302,6 +319,18 @@ function ThemeAutoIcon() {
   )
 }
 
+function cycleThemeMode(theme: ThemeMode): ThemeMode {
+  if (theme === 'light') return 'system'
+  if (theme === 'system') return 'dark'
+  return 'light'
+}
+
+function ThemeGearGlyph({ theme }: { theme: ThemeMode }) {
+  if (theme === 'light') return <ThemeSunIcon />
+  if (theme === 'dark') return <ThemeMoonIcon />
+  return <ThemeAutoIcon />
+}
+
 function GearIcon() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -320,10 +349,10 @@ function AboutIcon() {
   )
 }
 
-/** Settings / storage icon (database cylinder) */
+/** Settings / cache icon (database cylinder) — sized to match theme icons in gear menu */
 function SettingsStorageIcon() {
   return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <ellipse cx="12" cy="5" rx="9" ry="3" />
       <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
       <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
@@ -332,16 +361,42 @@ function SettingsStorageIcon() {
   )
 }
 
-/** Media mode: T (text) with small photo under it. Thin stroke to align with other gear icons. */
-function MediaModeIcon() {
+/** All posts: same image frame as Media Posts, with the Text Posts lines stacked underneath */
+function MediaModeAllPostsIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="3" y="2" width="18" height="10" rx="2" />
+      <circle cx="8.5" cy="6.5" r="1.5" />
+      <path d="M21 11.5l-4.5-4.5-3 3-2.5-2.5L3 11.5" />
+      <path d="M4 14h16M4 17h16M4 19.5h13M4 22h16" />
+    </svg>
+  )
+}
+
+/** Media posts: image / gallery only */
+function MediaModeMediaPostsIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <circle cx="8.5" cy="10" r="1.5" />
+      <path d="M21 17l-4.5-4.5-3 3-2.5-2.5L3 17" />
+    </svg>
+  )
+}
+
+/** Text posts: lines only, no media frame */
+function MediaModeTextPostsIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M4 6h16M4 10h16M4 14h13M4 18h16" />
+    </svg>
+  )
+}
+
+function MediaModeGlyph({ mode }: { mode: MediaMode }) {
   return (
     <span className={styles.mediaModeIconWrap}>
-      <svg viewBox="0 0 20 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-        <path d="M10 2v6M5.5 2h9" />
-        <rect x="4" y="12" width="12" height="10" rx="1" />
-        <circle cx="7.5" cy="15" r="1" />
-        <path d="M14.5 21l-2.5-2-4 3" />
-      </svg>
+      {mode === 'mediaText' ? <MediaModeAllPostsIcon /> : mode === 'media' ? <MediaModeMediaPostsIcon /> : <MediaModeTextPostsIcon />}
     </span>
   )
 }
@@ -360,15 +415,22 @@ function subscribeDesktop(cb: () => void) {
 export default function Layout({ title, children, showNav }: Props) {
   const loc = useLocation()
   const navigate = useNavigate()
-  const { openProfileModal, openPostModal, isModalOpen, modalScrollHidden, openForumModal, closeAllModals, openCollectionsModal } =
-    useProfileModal()
+  const {
+    openProfileModal,
+    openPostModal,
+    isModalOpen,
+    modalScrollHidden,
+    closeAllModals,
+    closeModal,
+    canGoBack,
+    openCollectionsModal,
+  } = useProfileModal()
   const { openLoginModal } = useLoginModal()
   const editProfile = useEditProfile()
-  const { session, sessionsList, logout, switchAccount } = useSession()
+  const { session, sessionsList, logout, switchAccount, authResolved } = useSession()
   const [accountProfiles, setAccountProfiles] = useState<Record<string, { avatar?: string; handle?: string }>>({})
   const [accountProfilesVersion, setAccountProfilesVersion] = useState(0)
   const sessionsDidKey = useMemo(() => sessionsList.map((s) => s.did).sort().join(','), [sessionsList])
-  const currentAccountAvatar = session ? accountProfiles[session.did]?.avatar : null
 
   useEffect(() => {
     editProfile?.registerOnSaved(() => setAccountProfilesVersion((v) => v + 1))
@@ -395,14 +457,20 @@ export default function Layout({ title, children, showNav }: Props) {
     return () => { cancelled = true }
   }, [sessionsDidKey, sessionsList, accountProfilesVersion])
   const { theme, setTheme } = useTheme()
+  const themeGearLabel =
+    theme === 'light'
+      ? 'Light Theme'
+      : theme === 'dark'
+        ? 'Dark Theme'
+        : 'Auto Theme'
   const { viewMode, setViewMode, cycleViewMode } = useViewMode()
   const { cardViewMode, cycleCardView } = useArtOnly()
   const { nsfwPreference, cycleNsfwPreference } = useModeration()
   const { mediaMode, cycleMediaMode } = useMediaOnly()
   const path = loc.pathname
-  const feedModalSearch = useMemo(() => new URLSearchParams(loc.search), [loc.search])
   /** Mobile gear FAB: same view/theme/column controls as the home feed */
-  const showFeedStyleSettingsFloat = path === '/feed' || path === '/collections' || path.startsWith('/collection/')
+  const showFeedStyleSettingsFloat =
+    path === '/feed' || path === '/collections' || isHandleBoardPath(path)
   const isDesktop = useSyncExternalStore(subscribeDesktop, getDesktopSnapshot, () => false)
   const scrollLock = useScrollLock()
   const [, setAccountSheetOpen] = useState(false)
@@ -417,7 +485,18 @@ export default function Layout({ title, children, showNav }: Props) {
   const [feedsChevronNoTransition, setFeedsChevronNoTransition] = useState(false)
   const prevFeedsOpenRef = useRef(false)
   const [savedFeedSources, setSavedFeedSources] = useState<FeedSource[]>([])
-  const did = session?.did ?? 'guest'
+  const did = useMemo(() => {
+    if (session?.did) return session.did
+    if (!authResolved) {
+      const p = getPersistedActiveDid()
+      if (p) return p
+    }
+    return 'guest'
+  }, [session?.did, authResolved])
+  /** True when we have a session or OAuth/credential restore may still be in flight (avoid guest chrome / feed flash). */
+  const showAccountFeedUi = Boolean(session) || !authResolved
+  const currentAccountDid = session?.did ?? (did !== 'guest' ? did : undefined)
+  const currentAccountAvatar = currentAccountDid ? accountProfiles[currentAccountDid]?.avatar : null
   const prevFeedDidRef = useRef(did)
   const [hiddenPresetUris, setHiddenPresetUris] = useState<Set<string>>(() => loadHiddenPresetUris(did))
   const [feedOrder, setFeedOrder] = useState<string[]>(() => loadFeedOrder(did))
@@ -582,23 +661,20 @@ export default function Layout({ title, children, showNav }: Props) {
       return
     }
     e.preventDefault()
-    if (isModalOpen) {
-      closeAllModals()
-      if (path !== '/feed') navigate('/feed')
-    } else {
-      if (path === '/feed') {
-        seenPosts?.onHomeClick()
-      } else {
-        navigate('/feed')
-      }
+    const onFeed = path === '/feed' || path === '/'
+    /* Always route logo clicks to home instead of stepping back in modal/history stacks. */
+    if (!onFeed || isModalOpen) {
+      navigate('/feed', { replace: true })
+      return
     }
-  }, [path, seenPosts, navigate, isModalOpen, closeAllModals])
+    seenPosts?.onHomeClick()
+  }, [path, seenPosts, navigate, isModalOpen])
 
   useEffect(() => {
     document.title = title ? `${title} · PurpleSky` : 'PurpleSky'
   }, [title])
 
-  /* Global keyboard: Q = back; 1/2/3 = column view. Do not handle when a popup is open so the popup gets shortcuts and scroll. */
+  /* Global keyboard: Q = back. Do not handle when a popup is open so the popup gets shortcuts and scroll. */
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (isModalOpen) return
@@ -612,16 +688,6 @@ export default function Layout({ title, children, showNav }: Props) {
       }
       if (e.ctrlKey || e.metaKey) return
       const key = e.key.toLowerCase()
-      if (key === '1' || key === '2' || key === '3') {
-        e.preventDefault()
-        setViewMode(key as '1' | '2' | '3')
-        return
-      }
-      if (key === 't') {
-        e.preventDefault()
-        cycleMediaMode()
-        return
-      }
       if (key !== 'q' && e.key !== 'Backspace') return
       /* On feed, Q is reserved for closing the ... actions menu; don't treat it as back */
       if (key === 'q' && (loc.pathname === '/' || loc.pathname.startsWith('/feed'))) return
@@ -630,7 +696,7 @@ export default function Layout({ title, children, showNav }: Props) {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [navigate, isModalOpen, setViewMode, cycleMediaMode, loc.pathname])
+  }, [navigate, isModalOpen, setViewMode, loc.pathname])
 
   useEffect(() => {
     if (!accountMenuOpen) return
@@ -1199,14 +1265,13 @@ export default function Layout({ title, children, showNav }: Props) {
     return () => composePreviewUrls.forEach((u) => URL.revokeObjectURL(u))
   }, [composePreviewUrls])
 
-  /* Mobile nav: Home, [Collections], New, Search, Profile. Desktop tray: Home, New, Search, [Collections]. Forums: account menu. */
+  /* Mobile nav: Home, [Collections], New, Search, Profile. Desktop tray: Home, New, Search, [Collections]. */
   const searchActive = mobileSearchOpen && !isDesktop
   const homeActive = path === '/feed' && !isModalOpen && !searchActive
   const collectionsActive =
-    !!session &&
-    path === '/feed' &&
-    (feedModalSearch.get('collections') === '1' || !!feedModalSearch.get('collection')) &&
-    !searchActive
+    !!showAccountFeedUi &&
+    !searchActive &&
+    (path === '/collections' || isHandleBoardPath(path))
   const navTrayItems = (
     <>
       <button
@@ -1236,7 +1301,7 @@ export default function Layout({ title, children, showNav }: Props) {
         <span className={styles.navIcon}><SearchIcon active={searchActive} /></span>
         <span className={styles.navLabel}>Search</span>
       </button>
-      {session && (
+      {showAccountFeedUi && (
         <button
           type="button"
           className={collectionsActive ? styles.navActive : styles.navBtn}
@@ -1275,7 +1340,7 @@ export default function Layout({ title, children, showNav }: Props) {
               <span className={styles.navIcon}><HomeIcon active={homeActive} /></span>
             </button>
           </div>
-          {session && (
+          {showAccountFeedUi && (
             <button
               type="button"
               className={collectionsActive ? styles.navActive : styles.navBtn}
@@ -1308,7 +1373,7 @@ export default function Layout({ title, children, showNav }: Props) {
               title="Account menu"
             >
               <span className={styles.navIcon}>
-                {session && currentAccountAvatar ? (
+                {currentAccountAvatar ? (
                   <img
                     src={currentAccountAvatar}
                     alt=""
@@ -1350,7 +1415,17 @@ export default function Layout({ title, children, showNav }: Props) {
               const handle = n.author.handle ?? n.author.did
               const isFollow = n.reason === 'follow'
               const isReplyOrLike = n.reason === 'reply' || n.reason === 'like'
-              const href = isFollow ? `/profile/${encodeURIComponent(handle)}` : `/post/${encodeURIComponent(n.reasonSubject ?? n.uri)}`
+              const postUriForLink = n.reasonSubject ?? n.uri
+              const parsedPost = parseBskyFeedPostUri(postUriForLink)
+              let postAuthorHandle: string | undefined
+              if (parsedPost && currentAccountDid && parsedPost.did === currentAccountDid) {
+                postAuthorHandle = accountProfiles[currentAccountDid]?.handle
+              } else if (parsedPost && n.author.did === parsedPost.did) {
+                postAuthorHandle = n.author.handle
+              }
+              const href = isFollow
+                ? `/profile/${encodeURIComponent(handle)}`
+                : getPostAppPath(postUriForLink, postAuthorHandle)
               const reasonLabel =
                 n.reason === 'like' ? 'liked your post' :
                 n.reason === 'repost' ? 'reposted your post' :
@@ -1372,9 +1447,9 @@ export default function Layout({ title, children, showNav }: Props) {
                         if (isFollow) {
                           openProfileModal(handle)
                         } else if (isReplyOrLike) {
-                          openPostModal(n.uri, undefined, n.uri)
+                          openPostModal(n.uri, undefined, n.uri, n.author?.handle)
                         } else {
-                          openPostModal(n.reasonSubject ?? n.uri)
+                          openPostModal(n.reasonSubject ?? n.uri, undefined, undefined, postAuthorHandle)
                         }
                       } else if (isFollow) {
                         e.preventDefault()
@@ -1407,7 +1482,7 @@ export default function Layout({ title, children, showNav }: Props) {
 
   const accountPanelContent = (
     <>
-      {session && (
+      {showAccountFeedUi && (
         <>
           <section className={styles.menuSection}>
             <div className={styles.menuProfileAndAccounts}>
@@ -1415,7 +1490,7 @@ export default function Layout({ title, children, showNav }: Props) {
                 {sessionsList.map((s) => {
             const profile = accountProfiles[s.did]
             const handle = profile?.handle ?? (s as { handle?: string }).handle ?? s.did
-            const isCurrent = s.did === session?.did
+            const isCurrent = currentAccountDid != null && s.did === currentAccountDid
             return (
               <button
                 key={s.did}
@@ -1452,17 +1527,6 @@ export default function Layout({ title, children, showNav }: Props) {
               </div>
             </div>
             <div className={styles.menuActions}>
-              <button
-                type="button"
-                className={styles.menuActionBtn}
-                onClick={() => {
-                  setAccountMenuOpen(false)
-                  setAccountSheetOpen(false)
-                  openForumModal()
-                }}
-              >
-                Forums
-              </button>
               <button type="button" className={styles.menuActionBtn} onClick={handleAddAccount}>
                 Add account
               </button>
@@ -1473,7 +1537,7 @@ export default function Layout({ title, children, showNav }: Props) {
           </section>
         </>
       )}
-      {!session && (
+      {!showAccountFeedUi && (
         <section className={styles.menuSection}>
           <div className={styles.menuProfileAndAccounts}>
             <a
@@ -1527,15 +1591,28 @@ export default function Layout({ title, children, showNav }: Props) {
   return (
     <div className={`${styles.wrap} ${showNav && isDesktop ? styles.wrapWithHeader : ''} ${showNav && !isDesktop ? styles.wrapMobileTop : ''}`}>
       <FeedPullRefreshContext.Provider value={feedPullRefreshContextValue}>
-      <FeedSwipeProvider feedSources={session ? allFeedSources : GUEST_FEED_SOURCES} setSingleFeed={setSingleFeed}>
+      <FeedSwipeProvider feedSources={showAccountFeedUi ? allFeedSources : GUEST_FEED_SOURCES} setSingleFeed={setSingleFeed}>
       <a href="#main-content" className={styles.skipLink}>
         Skip to main content
       </a>
       {showNav && isDesktop && (
-      <header className={`${styles.header} ${!session ? styles.headerLoggedOut : ''} ${isModalOpen ? styles.headerAboveModal : ''}`} role="banner">
+      <header className={`${styles.header} ${!showAccountFeedUi ? styles.headerLoggedOut : ''} ${isModalOpen ? styles.headerAboveModal : ''}`} role="banner">
         {(
           <>
-            <div className={styles.headerLeft}>
+            <div className={`${styles.headerLeft} ${isDesktop && isModalOpen ? styles.headerLeftModalBackGear : ''}`}>
+              {isDesktop && isModalOpen && (
+                <button
+                  type="button"
+                  className={`${styles.headerGearBtn} float-btn modal-back-btn`}
+                  onClick={() => (canGoBack ? closeModal() : closeAllModals())}
+                  aria-label={canGoBack ? 'Back' : 'Close'}
+                  title={canGoBack ? 'Back' : 'Close'}
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <path d="M19 12H5M12 19l-7-7 7-7" />
+                  </svg>
+                </button>
+              )}
               {isDesktop && (
                 <div ref={headerGearWrapRef} className={styles.headerGearWrap}>
                   <button
@@ -1565,14 +1642,14 @@ export default function Layout({ title, children, showNav }: Props) {
                     <button
                       type="button"
                       className={`${styles.feedFloatBtn} ${styles.gearExpandableBtn} float-btn`}
-                      onClick={() => setTheme(theme === 'light' ? 'system' : theme === 'system' ? 'dark' : 'light')}
-                      title={`Theme: ${theme}. Click to cycle.`}
-                      aria-label={`Theme: ${theme}. Click to cycle.`}
+                      onClick={() => setTheme(cycleThemeMode(theme))}
+                      title={`${themeGearLabel}. Click to cycle.`}
+                      aria-label={`${themeGearLabel}. Click to cycle.`}
                     >
                       <span className={styles.feedFloatThemeIcon}>
-                        {theme === 'light' ? <ThemeSunIcon /> : theme === 'dark' ? <ThemeMoonIcon /> : <ThemeAutoIcon />}
+                        <ThemeGearGlyph theme={theme} />
                       </span>
-                      <span className={styles.gearExpandableLabel}>{theme === 'light' ? 'Light' : theme === 'dark' ? 'Dark' : 'Auto'}</span>
+                      <span className={styles.gearExpandableLabel}>{themeGearLabel}</span>
                     </button>
                     <button
                       type="button"
@@ -1588,10 +1665,10 @@ export default function Layout({ title, children, showNav }: Props) {
                       type="button"
                       className={`${styles.feedFloatBtn} ${styles.gearExpandableBtn} float-btn`}
                       onClick={() => cycleMediaMode({ showToast: false })}
-                      title={`${MEDIA_MODE_LABELS[mediaMode]}. Click to cycle: All Posts → Media only → Text only.`}
+                      title={`${MEDIA_MODE_LABELS[mediaMode]}. Click to cycle: All Posts → Media Posts → Text Posts.`}
                       aria-label={MEDIA_MODE_LABELS[mediaMode]}
                     >
-                      <MediaModeIcon />
+                      <MediaModeGlyph mode={mediaMode} />
                       <span className={styles.gearExpandableLabel}>{MEDIA_MODE_LABELS[mediaMode]}</span>
                     </button>
                     <button
@@ -1610,11 +1687,13 @@ export default function Layout({ title, children, showNav }: Props) {
                       type="button"
                       className={`${styles.feedFloatBtn} ${styles.gearExpandableBtn} float-btn`}
                       onClick={() => { setFeedFloatButtonsExpanded(false); setSettingsOpen(true) }}
-                      title="Storage and cache management"
-                      aria-label="Storage & Cache"
+                      title="Manage cache and storage"
+                      aria-label="Cache"
                     >
-                      <SettingsStorageIcon />
-                      <span className={styles.gearExpandableLabel}>Storage & Cache</span>
+                      <span className={styles.gearExpandableIconSlot}>
+                        <SettingsStorageIcon />
+                      </span>
+                      <span className={styles.gearExpandableLabel}>Cache</span>
                     </button>
                     <button
                       type="button"
@@ -1671,9 +1750,9 @@ export default function Layout({ title, children, showNav }: Props) {
                           )}
                           <FeedSelector
                             variant="dropdown"
-                            sources={session ? allFeedSources : GUEST_FEED_SOURCES}
-                            fallbackSource={session ? fallbackFeedSource : GUEST_FEED_SOURCES[0]}
-                            mixEntries={session ? mixEntries : GUEST_MIX_ENTRIES}
+                            sources={showAccountFeedUi ? allFeedSources : GUEST_FEED_SOURCES}
+                            fallbackSource={showAccountFeedUi ? fallbackFeedSource : GUEST_FEED_SOURCES[0]}
+                            mixEntries={showAccountFeedUi ? mixEntries : GUEST_MIX_ENTRIES}
                             onToggle={handleFeedsToggleSource}
                             setEntryPercent={setEntryPercent}
                             onAddCustom={async (input) => {
@@ -1691,7 +1770,7 @@ export default function Layout({ title, children, showNav }: Props) {
                                 setFeedAddError(err instanceof Error ? err.message : 'Could not add feed. Try again.')
                               }
                             }}
-                            onToggleWhenGuest={session ? undefined : openLoginModal}
+                            onToggleWhenGuest={showAccountFeedUi ? undefined : openLoginModal}
                             removableSourceUris={session ? removableSourceUris : undefined}
                             onRemoveFeed={session ? handleRemoveFeed : undefined}
                             onShareFeed={session ? handleShareFeed : undefined}
@@ -1705,7 +1784,7 @@ export default function Layout({ title, children, showNav }: Props) {
                     <SearchBar inputRef={searchInputRef} compact={isDesktop} onSelectFeed={handleSelectFeedFromSearch} />
                   </div>
                   <div className={styles.headerSearchSide}>
-                    {session && (
+                    {showAccountFeedUi && (
                       <button
                         type="button"
                         className={styles.headerForumLink}
@@ -1740,9 +1819,9 @@ export default function Layout({ title, children, showNav }: Props) {
                         )}
                         <FeedSelector
                           variant="dropdown"
-                          sources={session ? allFeedSources : GUEST_FEED_SOURCES}
-                          fallbackSource={session ? fallbackFeedSource : GUEST_FEED_SOURCES[0]}
-                          mixEntries={session ? mixEntries : GUEST_MIX_ENTRIES}
+                          sources={showAccountFeedUi ? allFeedSources : GUEST_FEED_SOURCES}
+                          fallbackSource={showAccountFeedUi ? fallbackFeedSource : GUEST_FEED_SOURCES[0]}
+                          mixEntries={showAccountFeedUi ? mixEntries : GUEST_MIX_ENTRIES}
                           onToggle={handleFeedsToggleSource}
                           setEntryPercent={setEntryPercent}
                           onAddCustom={async (input) => {
@@ -1760,7 +1839,7 @@ export default function Layout({ title, children, showNav }: Props) {
                               setFeedAddError(err instanceof Error ? err.message : 'Could not add feed. Try again.')
                             }
                           }}
-                          onToggleWhenGuest={session ? undefined : openLoginModal}
+                          onToggleWhenGuest={showAccountFeedUi ? undefined : openLoginModal}
                           removableSourceUris={session ? removableSourceUris : undefined}
                           onRemoveFeed={session ? handleRemoveFeed : undefined}
                           onShareFeed={session ? handleShareFeed : undefined}
@@ -1773,7 +1852,7 @@ export default function Layout({ title, children, showNav }: Props) {
               )}
             </div>
             <div className={styles.headerRight}>
-              {session && isDesktop && (
+              {showAccountFeedUi && isDesktop && (
                 <button
                   type="button"
                   className={styles.headerBtnWithLabel}
@@ -1785,7 +1864,7 @@ export default function Layout({ title, children, showNav }: Props) {
                   <span className={styles.headerBtnLabel}>New</span>
                 </button>
               )}
-              {session && (
+              {showAccountFeedUi && (
                 <div className={styles.headerBtnWrap}>
                   <button
                     ref={notificationsBtnRef}
@@ -1810,7 +1889,7 @@ export default function Layout({ title, children, showNav }: Props) {
               )}
               {isDesktop && (
                 <>
-                  {!session && (
+                  {!showAccountFeedUi && (
                     <button
                       type="button"
                       className={styles.headerAuthLink}
@@ -1852,7 +1931,7 @@ export default function Layout({ title, children, showNav }: Props) {
               {/* Mobile: Log in (when logged out) + account button – same positions as desktop */}
               {!isDesktop && (
                 <>
-                  {!session && (
+                  {!showAccountFeedUi && (
                     <button
                       type="button"
                       className={styles.headerAuthLink}
@@ -1933,9 +2012,9 @@ export default function Layout({ title, children, showNav }: Props) {
               <FeedSelector
                 variant="dropdown"
                 touchFriendly
-                sources={session ? allFeedSources : GUEST_FEED_SOURCES}
-                fallbackSource={session ? fallbackFeedSource : GUEST_FEED_SOURCES[0]}
-                mixEntries={session ? mixEntries : GUEST_MIX_ENTRIES}
+                sources={showAccountFeedUi ? allFeedSources : GUEST_FEED_SOURCES}
+                fallbackSource={showAccountFeedUi ? fallbackFeedSource : GUEST_FEED_SOURCES[0]}
+                mixEntries={showAccountFeedUi ? mixEntries : GUEST_MIX_ENTRIES}
                 onToggle={handleFeedsToggleSource}
                 setEntryPercent={setEntryPercent}
                 onAddCustom={async (input) => {
@@ -1953,7 +2032,7 @@ export default function Layout({ title, children, showNav }: Props) {
                     setFeedAddError(err instanceof Error ? err.message : 'Could not add feed. Try again.')
                   }
                 }}
-                onToggleWhenGuest={session ? undefined : openLoginModal}
+                onToggleWhenGuest={showAccountFeedUi ? undefined : openLoginModal}
                 removableSourceUris={session ? removableSourceUris : undefined}
                 onRemoveFeed={session ? handleRemoveFeed : undefined}
                 onShareFeed={session ? handleShareFeed : undefined}
@@ -1992,14 +2071,14 @@ export default function Layout({ title, children, showNav }: Props) {
             <button
               type="button"
               className={`${styles.feedFloatBtn} ${styles.gearExpandableBtn} float-btn`}
-              onClick={() => setTheme(theme === 'light' ? 'system' : theme === 'system' ? 'dark' : 'light')}
-              title={`Theme: ${theme}. Click to cycle.`}
-              aria-label={`Theme: ${theme}. Click to cycle.`}
+              onClick={() => setTheme(cycleThemeMode(theme))}
+              title={`${themeGearLabel}. Click to cycle.`}
+              aria-label={`${themeGearLabel}. Click to cycle.`}
             >
               <span className={styles.feedFloatThemeIcon}>
-                {theme === 'light' ? <ThemeSunIcon /> : theme === 'dark' ? <ThemeMoonIcon /> : <ThemeAutoIcon />}
+                <ThemeGearGlyph theme={theme} />
               </span>
-              <span className={styles.gearExpandableLabel}>{theme === 'light' ? 'Light' : theme === 'dark' ? 'Dark' : 'Auto'}</span>
+              <span className={styles.gearExpandableLabel}>{themeGearLabel}</span>
             </button>
             <button
               type="button"
@@ -2015,10 +2094,10 @@ export default function Layout({ title, children, showNav }: Props) {
               type="button"
               className={`${styles.feedFloatBtn} ${styles.gearExpandableBtn} float-btn`}
               onClick={() => cycleMediaMode({ showToast: false })}
-              title={`${MEDIA_MODE_LABELS[mediaMode]}. Click to cycle: All Posts → Media only → Text only.`}
+              title={`${MEDIA_MODE_LABELS[mediaMode]}. Click to cycle: All Posts → Media Posts → Text Posts.`}
               aria-label={MEDIA_MODE_LABELS[mediaMode]}
             >
-              <MediaModeIcon />
+              <MediaModeGlyph mode={mediaMode} />
               <span className={styles.gearExpandableLabel}>{MEDIA_MODE_LABELS[mediaMode]}</span>
             </button>
             <button
@@ -2037,11 +2116,13 @@ export default function Layout({ title, children, showNav }: Props) {
               type="button"
               className={`${styles.feedFloatBtn} ${styles.gearExpandableBtn} float-btn`}
               onClick={() => { setFeedFloatButtonsExpanded(false); setSettingsOpen(true) }}
-              title="Storage and cache management"
-              aria-label="Storage & Cache"
+              title="Manage cache and storage"
+              aria-label="Cache"
             >
-              <SettingsStorageIcon />
-              <span className={styles.gearExpandableLabel}>Storage & Cache</span>
+              <span className={styles.gearExpandableIconSlot}>
+                <SettingsStorageIcon />
+              </span>
+              <span className={styles.gearExpandableLabel}>Cache</span>
             </button>
             <button
               type="button"
@@ -2056,7 +2137,7 @@ export default function Layout({ title, children, showNav }: Props) {
           </div>
         </div>
       )}
-      {showNav && !isDesktop && !session && (
+      {showNav && !isDesktop && !showAccountFeedUi && (
         <div className={`${styles.loginFloatWrap} login-float-wrap ${isModalOpen ? styles.loginFloatWrapAboveModal : ''} ${mobileNavScrollHidden || (isModalOpen && modalScrollHidden) ? styles.loginFloatWrapScrollHidden : ''}`}>
           <button
             type="button"
@@ -2069,7 +2150,7 @@ export default function Layout({ title, children, showNav }: Props) {
           </button>
         </div>
       )}
-      {showNav && !isDesktop && session && (
+      {showNav && !isDesktop && showAccountFeedUi && (
         <div className={`${styles.notificationFloatWrap} notification-float-wrap ${isModalOpen ? styles.notificationFloatWrapAboveModal : ''} ${mobileNavScrollHidden || (isModalOpen && modalScrollHidden) ? styles.notificationFloatWrapScrollHidden : ''}`}>
           <button
             ref={notificationsBtnRef}
@@ -2115,9 +2196,9 @@ export default function Layout({ title, children, showNav }: Props) {
             <div className={styles.feedSelectorStickyWrap}>
               <FeedSelector
                 variant="page"
-                sources={session ? allFeedSources : GUEST_FEED_SOURCES}
-                fallbackSource={session ? fallbackFeedSource : GUEST_FEED_SOURCES[0]}
-                mixEntries={session ? mixEntries : GUEST_MIX_ENTRIES}
+                sources={showAccountFeedUi ? allFeedSources : GUEST_FEED_SOURCES}
+                fallbackSource={showAccountFeedUi ? fallbackFeedSource : GUEST_FEED_SOURCES[0]}
+                mixEntries={showAccountFeedUi ? mixEntries : GUEST_MIX_ENTRIES}
                 onToggle={handleFeedsToggleSource}
                 setEntryPercent={setEntryPercent}
                 onAddCustom={async (input) => {
@@ -2135,7 +2216,7 @@ export default function Layout({ title, children, showNav }: Props) {
                     setFeedAddError(err instanceof Error ? err.message : 'Could not add feed. Try again.')
                   }
                 }}
-                onToggleWhenGuest={session ? undefined : openLoginModal}
+                onToggleWhenGuest={showAccountFeedUi ? undefined : openLoginModal}
                 removableSourceUris={session ? removableSourceUris : undefined}
                 onRemoveFeed={session ? handleRemoveFeed : undefined}
                 onShareFeed={session ? handleShareFeed : undefined}
@@ -2279,7 +2360,7 @@ export default function Layout({ title, children, showNav }: Props) {
                         value={currentSegment.text}
                         onChange={setCurrentSegmentText}
                         onKeyDown={(e) => handleComposeKeyDown(e, composeFormRef.current)}
-                        placeholder="What's on your mind? Type @ for users, # for hashtags, % for forum posts"
+                        placeholder="What's on your mind? Type @ for users or # for hashtags"
                         rows={4}
                         maxLength={POST_MAX_LENGTH}
                         disabled={composePosting}
@@ -2418,15 +2499,13 @@ export default function Layout({ title, children, showNav }: Props) {
                     <dt>A / ←</dt><dd>Move left</dd>
                     <dt>S / ↓</dt><dd>Move down</dd>
                     <dt>D / →</dt><dd>Move right</dd>
-                    <dt>Q</dt><dd>Quit / close window</dd>
                     <dt>E</dt><dd>Enter post</dd>
+                    <dt>Q</dt><dd>Quit post</dd>
                     <dt>R</dt><dd>Reply to post</dd>
-                    <dt>T</dt><dd>Toggle text view</dd>
-                    <dt>F</dt><dd>Like / unlike</dd>
-                    <dt>B</dt><dd>Block author (feed)</dd>
-                    <dt>4</dt><dd>Follow author</dd>
+                    <dt>C</dt><dd>Collect post</dd>
+                    <dt>F</dt><dd>Follow author</dd>
+                    <dt>Spacebar</dt><dd>Like post</dd>
                     <dt>Escape</dt><dd>Escape all windows</dd>
-                    <dt>1 / 2 / 3</dt><dd>1, 2, or 3 column view</dd>
                   </dl>
                   <button
                     type="button"

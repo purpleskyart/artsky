@@ -350,7 +350,7 @@ export default function FeedPage() {
   const isDesktop = useSyncExternalStore(subscribeDesktop, getDesktopSnapshot, () => false)
   const isStandalonePwa = useStandalonePwa()
   const { openLoginModal } = useLoginModal()
-  const { session } = useSession()
+  const { session, authResolved } = useSession()
   const { viewMode } = useViewMode()
   const [source, setSource] = useState<FeedSource>(PRESET_SOURCES[0])
 
@@ -387,10 +387,17 @@ export default function FeedPage() {
   const scrollIntoViewFromKeyboardRef = useRef(false)
   /** Only update focus on mouse enter when the user has actually moved the mouse (not when scroll moved content under cursor) */
   const mouseMovedRef = useRef(false)
+  const lastMouseClientPosRef = useRef<{ x: number; y: number } | null>(null)
+  const mouseRearmStartPosRef = useRef<{ x: number; y: number } | null>(null)
   /** True after W/S/A/D nav so we suppress hover outline on non-selected cards (focus is not moved to the card) */
   const [keyboardNavActive, setKeyboardNavActive] = useState(false)
+  /** While false, hovering cards does not affect visual focus until the mouse physically moves again. */
+  const [hoverFocusEnabled, setHoverFocusEnabled] = useState(true)
+  const hoverFocusEnabledRef = useRef(true)
   /** When true, focus was set by mouse hover – don’t lift one image in multi-image cards; only keyboard A/D should */
   const [focusSetByMouse, setFocusSetByMouse] = useState(false)
+  const [collectionMenuOpenForIndex, setCollectionMenuOpenForIndex] = useState<number | null>(null)
+  const [collectionMenuOpenSignal, setCollectionMenuOpenSignal] = useState(0)
   const [blockConfirm, setBlockConfirm] = useState<{ did: string; handle: string; avatar?: string } | null>(null)
   const blockCancelRef = useRef<HTMLButtonElement>(null)
   const blockConfirmRef = useRef<HTMLButtonElement>(null)
@@ -570,6 +577,11 @@ export default function FeedPage() {
         return
       }
 
+      if (!authResolved) {
+        if (!nextCursor) dispatch({ type: 'SET_LOADING', loading: true })
+        return
+      }
+
       if (nextCursor) dispatch({ type: 'SET_LOADING_MORE', loadingMore: true })
       else dispatch({ type: 'SET_LOADING', loading: true })
       dispatch({ type: 'SET_ERROR', error: null })
@@ -594,8 +606,8 @@ export default function FeedPage() {
           const merged = dedupeFeedByPostUri(nextCursor ? [...feedItemsRef.current, ...feed] : feed)
           dispatch({ type: 'SET_ITEMS', items: merged, cursor: next })
         }
-        if (nextCursor) startTransition(apply)
-        else apply()
+        // Load-more must run apply() before finally clears loadingMore; deferred startTransition left the sentinel re-firing in a tight loop.
+        apply()
       } else if (activeMixEntries.length >= 2 && activeMixTotalPercent >= 99) {
         const isLoadMore = !!nextCursor
         let cursorsToUse: Record<string, string> | undefined
@@ -631,8 +643,7 @@ export default function FeedPage() {
           const cursor = Object.keys(nextCursors).length > 0 ? JSON.stringify(nextCursors) : undefined
           dispatch({ type: 'SET_ITEMS', items: merged, cursor })
         }
-        if (isLoadMore) startTransition(apply)
-        else apply()
+        apply()
       } else if (activeMixEntries.length === 1) {
         const single = activeMixEntries[0].source
         if (single.kind === 'timeline') {
@@ -641,16 +652,14 @@ export default function FeedPage() {
             const merged = dedupeFeedByPostUri(nextCursor ? [...feedItemsRef.current, ...res.data.feed] : res.data.feed)
             dispatch({ type: 'SET_ITEMS', items: merged, cursor: res.data.cursor })
           }
-          if (nextCursor) startTransition(apply)
-          else apply()
+          apply()
         } else if (single.uri) {
           const res = await withTimeout(getFeedWithLifecycle(single.uri, limit, nextCursor), FEED_LOAD_TIMEOUT_MS)
           const apply = () => {
             const merged = dedupeFeedByPostUri(nextCursor ? [...feedItemsRef.current, ...res.data.feed] : res.data.feed)
             dispatch({ type: 'SET_ITEMS', items: merged, cursor: res.data.cursor })
           }
-          if (nextCursor) startTransition(apply)
-          else apply()
+          apply()
         }
       } else if (source.kind === 'timeline') {
         const res = await withTimeout(getTimelineWithLifecycle(limit, nextCursor), FEED_LOAD_TIMEOUT_MS)
@@ -658,16 +667,14 @@ export default function FeedPage() {
           const merged = dedupeFeedByPostUri(nextCursor ? [...feedItemsRef.current, ...res.data.feed] : res.data.feed)
           dispatch({ type: 'SET_ITEMS', items: merged, cursor: res.data.cursor })
         }
-        if (nextCursor) startTransition(apply)
-        else apply()
+        apply()
       } else if (source.uri) {
         const res = await withTimeout(getFeedWithLifecycle(source.uri, limit, nextCursor), FEED_LOAD_TIMEOUT_MS)
         const apply = () => {
           const merged = dedupeFeedByPostUri(nextCursor ? [...feedItemsRef.current, ...res.data.feed] : res.data.feed)
           dispatch({ type: 'SET_ITEMS', items: merged, cursor: res.data.cursor })
         }
-        if (nextCursor) startTransition(apply)
-        else apply()
+        apply()
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to load feed'
@@ -675,12 +682,13 @@ export default function FeedPage() {
     } finally {
       dispatch({ type: 'SET_LOADING', loading: false })
       dispatch({ type: 'SET_LOADING_MORE', loadingMore: false })
+      loadingMoreRef.current = false
       /* Only clear for the latest non-aborted initial load; stale aborted requests must not reset this flag. */
       if (!nextCursor && !signal?.aborted && feedMixChangedVersionRef.current === changeVersionAtStart) {
         feedMixChangedRef.current = false
       }
     }
-  }, [source, session, mixEntries, mixTotalPercent])
+  }, [source, session, authResolved, mixEntries, mixTotalPercent])
 
   useEffect(() => {
     feedMixChangedRef.current = true
@@ -714,7 +722,6 @@ export default function FeedPage() {
   const LOAD_MORE_ROOT_MARGIN_PX = 600
   /** Consider a column "short" when its sentinel is above this line (trigger load before blank space visible). */
   const LOAD_MORE_SHORT_MARGIN_PX = 300
-  loadingMoreRef.current = feedState.loadingMore
   useEffect(() => {
     if (!feedState.cursor) return
     const refs = loadMoreSentinelRefs.current
@@ -773,8 +780,8 @@ export default function FeedPage() {
     }
 
     // After each cursor change (new posts loaded), schedule a fallback check for short columns
-    // whose sentinels may have scrolled beyond rootMargin or been blocked by cooldown.
-    if (cols > 1) scheduleRetry()
+    // whose sentinels may have scrolled beyond rootMargin or been blocked by cooldown (incl. 1-col).
+    scheduleRetry()
 
     return () => {
       observer.disconnect()
@@ -893,12 +900,17 @@ export default function FeedPage() {
 
   const handleMouseEnter = useCallback((originalIndex: number) => {
     if (isDesktop && mouseMovedRef.current) {
+      const focusedCardIndex = focusTargets[keyboardFocusIndexRef.current]?.cardIndex ?? -1
+      /* Re-arm hover only when pointer enters a different card than current keyboard-focused card. */
+      if (focusedCardIndex === originalIndex) return
       mouseMovedRef.current = false
+      hoverFocusEnabledRef.current = true
+      setHoverFocusEnabled(true)
       setKeyboardNavActive(false)
       setFocusSetByMouse(true)
       dispatch({ type: 'SET_KEYBOARD_FOCUS', index: firstFocusIndexForCard[originalIndex] ?? 0 })
     }
-  }, [isDesktop, firstFocusIndexForCard])
+  }, [isDesktop, firstFocusIndexForCard, focusTargets])
 
   useEffect(() => {
     const currentIndex = feedState.keyboardFocusIndex
@@ -1015,7 +1027,23 @@ export default function FeedPage() {
   }, [displayEntries.length])
 
   useEffect(() => {
-    const onMouseMove = () => { mouseMovedRef.current = true }
+    const onMouseMove = (e: MouseEvent) => {
+      const prev = lastMouseClientPosRef.current
+      const next = { x: e.clientX, y: e.clientY }
+      lastMouseClientPosRef.current = next
+      /* Ignore synthetic/scroll-induced mousemove where pointer coordinates did not change. */
+      if (prev && prev.x === next.x && prev.y === next.y) return
+      if (!mouseMovedRef.current) {
+        const start = mouseRearmStartPosRef.current
+        /* Require a deliberate move after keyboard nav (ignore tiny jitter). */
+        if (start) {
+          const dx = next.x - start.x
+          const dy = next.y - start.y
+          if ((dx * dx + dy * dy) < (12 * 12)) return
+        }
+        mouseMovedRef.current = true
+      }
+    }
     window.addEventListener('mousemove', onMouseMove)
     return () => window.removeEventListener('mousemove', onMouseMove)
   }, [])
@@ -1042,7 +1070,7 @@ export default function FeedPage() {
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       /* Never affect feed when a popup is open: check both context and URL (URL covers first render after open). */
-      const hasContentModalInUrl = /[?&](post|profile|tag|forumPost)=/.test(locationSearchRef.current)
+      const hasContentModalInUrl = /[?&](post|profile|tag)=/.test(locationSearchRef.current)
       if (isModalOpen || hasContentModalInUrl) return
       const eventTarget = e.target as HTMLElement
       if (eventTarget.tagName === 'INPUT' || eventTarget.tagName === 'TEXTAREA' || eventTarget.tagName === 'SELECT' || eventTarget.isContentEditable) {
@@ -1065,8 +1093,10 @@ export default function FeedPage() {
 
       const key = e.key.toLowerCase()
       const focusInActionsMenu = (document.activeElement as HTMLElement)?.closest?.('[role="menu"]')
+      const focusInCollectionMenu = (document.activeElement as HTMLElement)?.closest?.('[data-collection-menu="true"]')
+      const collectionMenuOpen = document.querySelector('[data-collection-menu="true"]') != null
       const menuOpenForFocusedCard = feedState.actionsMenuOpenForIndex === currentCardIndex
-      if ((focusInActionsMenu || menuOpenForFocusedCard) && (key === 'w' || key === 's' || key === 'e' || key === 'enter' || key === 'q' || key === 'escape')) {
+      if ((focusInActionsMenu || focusInCollectionMenu || collectionMenuOpen || menuOpenForFocusedCard) && (key === 'w' || key === 's' || key === 'e' || key === 'enter' || key === 'q' || key === 'escape' || e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
         return
       }
       /* Ignore key repeat for left/right only (so A/D don’t skip); allow repeat for W/S so holding moves up/down */
@@ -1079,26 +1109,19 @@ export default function FeedPage() {
         }
         return // let Tab/Enter reach the dialog buttons
       }
-      if (key === 'w' || key === 's' || key === 'a' || key === 'd' || key === 'e' || key === 'enter' || key === 'r' || key === 'f' || key === 'h' || key === 'b' || key === 'm' || key === '`' || key === '4' || e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') e.preventDefault()
-
-      if (key === 'b') {
-        if (focusedItem?.post?.author && session?.did !== focusedItem.post.author.did) {
-          setBlockConfirm({
-            did: focusedItem.post.author.did,
-            handle: focusedItem.post.author.handle ?? focusedItem.post.author.did,
-            avatar: focusedItem.post.author.avatar,
-          })
-          requestAnimationFrame(() => blockCancelRef.current?.focus())
-        }
-        return
-      }
+      if (key === 'w' || key === 's' || key === 'a' || key === 'd' || key === 'e' || key === 'enter' || key === 'r' || key === 'c' || e.code === 'Space' || key === 'h' || key === 'm' || key === '`' || key === 'f' || e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') e.preventDefault()
 
       /* Use ref + concrete value (not functional updater) so Strict Mode double-invoke doesn't move two steps */
       const fromNone = i < 0
       const columns = cols >= 2 ? distributedColumns : null
       const getRect = (idx: number) => cardRefsRef.current[idx]?.getBoundingClientRect()
       if (key === 'w' || e.key === 'ArrowUp') {
+        if (hoverFocusEnabledRef.current) {
+          hoverFocusEnabledRef.current = false
+          setHoverFocusEnabled(false)
+        }
         mouseMovedRef.current = false
+        mouseRearmStartPosRef.current = lastMouseClientPosRef.current
         setKeyboardNavActive(true)
         scrollIntoViewFromKeyboardRef.current = true
         const onFirstImageOfCard = i === firstFocusIndexForCard[currentCardIndex]
@@ -1114,7 +1137,12 @@ export default function FeedPage() {
         return
       }
       if (key === 's' || e.key === 'ArrowDown') {
+        if (hoverFocusEnabledRef.current) {
+          hoverFocusEnabledRef.current = false
+          setHoverFocusEnabled(false)
+        }
         mouseMovedRef.current = false
+        mouseRearmStartPosRef.current = lastMouseClientPosRef.current
         setKeyboardNavActive(true)
         scrollIntoViewFromKeyboardRef.current = true
         const onLastImageOfCard = i === lastFocusIndexForCard[currentCardIndex]
@@ -1130,7 +1158,12 @@ export default function FeedPage() {
         return
       }
       if (key === 'a' || e.key === 'ArrowLeft') {
+        if (hoverFocusEnabledRef.current) {
+          hoverFocusEnabledRef.current = false
+          setHoverFocusEnabled(false)
+        }
         mouseMovedRef.current = false
+        mouseRearmStartPosRef.current = lastMouseClientPosRef.current
         setKeyboardNavActive(true)
         scrollIntoViewFromKeyboardRef.current = true
         const nextCard = fromNone ? 0 : cols >= 2 && columns ? indexLeftClosest(columns, currentCardIndex, getRect) : currentCardIndex
@@ -1140,7 +1173,12 @@ export default function FeedPage() {
         return
       }
       if (key === 'd' || e.key === 'ArrowRight') {
+        if (hoverFocusEnabledRef.current) {
+          hoverFocusEnabledRef.current = false
+          setHoverFocusEnabled(false)
+        }
         mouseMovedRef.current = false
+        mouseRearmStartPosRef.current = lastMouseClientPosRef.current
         setKeyboardNavActive(true)
         scrollIntoViewFromKeyboardRef.current = true
         const nextCard = fromNone ? 0 : cols >= 2 && columns ? indexRightClosest(columns, currentCardIndex, getRect) : currentCardIndex
@@ -1158,14 +1196,20 @@ export default function FeedPage() {
         return
       }
       if (key === 'e' || key === 'enter') {
-        if (focusedItem) openPostModal(focusedItem.post.uri)
+        if (focusedItem) openPostModal(focusedItem.post.uri, undefined, undefined, focusedItem.post.author?.handle)
         return
       }
       if (key === 'r') {
-        if (focusedItem) openPostModal(focusedItem.post.uri, true)
+        if (focusedItem) openPostModal(focusedItem.post.uri, true, undefined, focusedItem.post.author?.handle)
         return
       }
-      if (key === 'f') {
+      if (key === 'c') {
+        if (!focusedItem?.post?.uri) return
+        setCollectionMenuOpenForIndex(currentCardIndex)
+        setCollectionMenuOpenSignal((n) => n + 1)
+        return
+      }
+      if (e.code === 'Space') {
         const item = focusedItem
         if (!item?.post?.uri || !item?.post?.cid) return
         const uri = item.post.uri
@@ -1185,7 +1229,7 @@ export default function FeedPage() {
         }
         return
       }
-      if (key === '4') {
+      if (key === 'f') {
         const author = focusedItem?.post?.author as { did: string; viewer?: { following?: string } } | undefined
         const postUri = focusedItem?.post?.uri
         if (author && session?.did && session.did !== author.did && postUri) {
@@ -1244,7 +1288,7 @@ export default function FeedPage() {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [cols, isModalOpen, openPostModal, blockConfirm, session, likeOverrides, feedState.actionsMenuOpenForIndex, focusTargets, firstFocusIndexForCard, lastFocusIndexForCard])
+  }, [cols, isModalOpen, openPostModal, blockConfirm, session, likeOverrides, feedState.actionsMenuOpenForIndex, focusTargets, firstFocusIndexForCard, lastFocusIndexForCard, openLoginModal])
 
   useEffect(() => {
     if (blockConfirm) blockCancelRef.current?.focus()
@@ -1429,6 +1473,7 @@ export default function FeedPage() {
               data-feed-cards
               data-view-mode={viewMode}
               data-keyboard-nav={keyboardNavActive || undefined}
+              data-hover-focus-enabled={hoverFocusEnabled ? undefined : 'false'}
             >
               {distributedColumns.map((column, colIndex) => (
                 <FeedColumn
@@ -1453,24 +1498,24 @@ export default function FeedPage() {
                   onMediaRef={handleMediaRef}
                   onActionsMenuOpenChange={handleActionsMenuOpenChange}
                   onMouseEnter={handleMouseEnter}
+                  collectionMenuOpenForIndex={collectionMenuOpenForIndex}
+                  collectionMenuOpenSignal={collectionMenuOpenSignal}
                 />
               ))}
             </div>
-            {session && (
-              <div className={styles.loadMoreRow}>
-                {feedState.loadingMore && (
-                  <p className={styles.loadingMore} role="status">Loading more…</p>
-                )}
-                <button
-                  type="button"
-                  className={styles.loadMoreBtn}
-                  onClick={() => feedState.cursor && !feedState.loadingMore && load(feedState.cursor)}
-                  disabled={feedState.loadingMore || !feedState.cursor}
-                >
-                  {feedState.cursor ? 'Load more' : 'No more posts'}
-                </button>
-              </div>
-            )}
+            <div className={styles.loadMoreRow}>
+              {feedState.loadingMore && (
+                <p className={styles.loadingMore} role="status">Loading more…</p>
+              )}
+              <button
+                type="button"
+                className={styles.loadMoreBtn}
+                onClick={() => feedState.cursor && !feedState.loadingMore && load(feedState.cursor)}
+                disabled={feedState.loadingMore || !feedState.cursor}
+              >
+                {feedState.cursor ? 'Load more' : 'No more posts'}
+              </button>
+            </div>
           </>
         )}
         </div>

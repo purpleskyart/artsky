@@ -27,6 +27,7 @@ const FeedCard = memo(function FeedCard({
   openPostModal,
   cardRef,
   constrainMediaHeight = false,
+  openCollectionMenuSignal,
 }: {
   entry: FeedDisplayEntry
   originalIndex: number
@@ -42,9 +43,10 @@ const FeedCard = memo(function FeedCard({
   onMouseEnter: (index: number) => void
   setUnblurred: (uri: string, revealed: boolean) => void
   setLikeOverrides: (postUri: string, likeUri: string | null) => void
-  openPostModal: (uri: string, openReply?: boolean, focusUri?: string) => void
+  openPostModal: (uri: string, openReply?: boolean, focusUri?: string, authorHandle?: string) => void
   cardRef: (index: number) => (el: HTMLDivElement | null) => void
   constrainMediaHeight?: boolean
+  openCollectionMenuSignal?: number
 }) {
   const key = entry.type === 'post' ? entry.item.post.uri : entry.items[0].post.uri
   
@@ -69,7 +71,7 @@ const FeedCard = memo(function FeedCard({
           actionsMenuOpenForIndex={actionsMenuOpenForIndex}
           onPostClick={(uri, opts) => {
             if (opts?.initialItem) setInitialPostForUri(uri, opts.initialItem)
-            openPostModal(uri, opts?.openReply)
+            openPostModal(uri, opts?.openReply, undefined, entry.item.post.author?.handle)
           }}
           fillCell={false}
           nsfwBlurred={
@@ -86,13 +88,14 @@ const FeedCard = memo(function FeedCard({
           }
           seen={seenUris.has(entry.item.post.uri)}
           constrainMediaHeight={constrainMediaHeight}
+          openCollectionMenuSignal={openCollectionMenuSignal}
         />
       ) : (
         <RepostCarouselCard
           items={entry.items}
           onPostClick={(uri, opts) => {
             if (opts?.initialItem) setInitialPostForUri(uri, opts.initialItem)
-            openPostModal(uri)
+            openPostModal(uri, undefined, undefined, entry.items[0].post.author?.handle)
           }}
           cardRef={() => {}} // No-op since we're using the wrapper div ref above
           seen={seenUris.has(entry.items[0].post.uri)}
@@ -125,6 +128,7 @@ const FeedCard = memo(function FeedCard({
   if (prevProps.unblurredUris.has(prevUri) !== nextProps.unblurredUris.has(nextUri)) return false
   
   if ((prevProps.constrainMediaHeight ?? false) !== (nextProps.constrainMediaHeight ?? false)) return false
+  if ((prevProps.openCollectionMenuSignal ?? 0) !== (nextProps.openCollectionMenuSignal ?? 0)) return false
 
   // All relevant props are the same, skip re-render
   return true
@@ -148,12 +152,14 @@ export interface FeedColumnProps {
   likeOverrides: Record<string, string | null | undefined>
   setLikeOverrides: (postUri: string, likeUri: string | null) => void
   seenUris: Set<string>
-  openPostModal: (uri: string, openReply?: boolean, focusUri?: string) => void
+  openPostModal: (uri: string, openReply?: boolean, focusUri?: string, authorHandle?: string) => void
   cardRef: (index: number) => (el: HTMLDivElement | null) => void
   onMediaRef: (index: number, mediaIndex: number, el: HTMLElement | null) => void
   onActionsMenuOpenChange: (index: number, open: boolean) => void
   onMouseEnter: (index: number) => void
   constrainMediaHeight?: boolean
+  collectionMenuOpenForIndex?: number | null
+  collectionMenuOpenSignal?: number
 }
 
 const FeedColumn = memo(function FeedColumn({
@@ -176,6 +182,8 @@ const FeedColumn = memo(function FeedColumn({
   onActionsMenuOpenChange,
   onMouseEnter,
   constrainMediaHeight = false,
+  collectionMenuOpenForIndex,
+  collectionMenuOpenSignal,
 }: FeedColumnProps) {
   if (column.length === 0) {
     return (
@@ -221,6 +229,11 @@ const FeedColumn = memo(function FeedColumn({
             openPostModal={openPostModal}
             cardRef={cardRef}
             constrainMediaHeight={constrainMediaHeight}
+            openCollectionMenuSignal={
+              entry.type === 'post' && collectionMenuOpenForIndex === originalIndex
+                ? collectionMenuOpenSignal
+                : undefined
+            }
           />
         )
       })}

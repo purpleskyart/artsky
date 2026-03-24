@@ -99,6 +99,23 @@ export function getOAuthAccountsSnapshot(): OAuthAccountsStore {
   return getOAuthAccounts()
 }
 
+/** True if local persistence suggests a session may exist (OAuth or app password). Used to avoid guest UI flash before async restore. */
+export function hasPersistedLoginHint(): boolean {
+  const oauth = getOAuthAccounts()
+  if (oauth.dids.length > 0) return true
+  return Boolean(getStoredSession()?.did)
+}
+
+/** Active DID from persistence only (before the live agent is ready). */
+export function getPersistedActiveDid(): string | null {
+  const oauth = getOAuthAccounts()
+  if (oauth.activeDid) return oauth.activeDid
+  if (oauth.dids.length > 0) return oauth.dids[0]!
+  const accounts = getAccounts()
+  if (accounts.activeDid) return accounts.activeDid
+  return getStoredSession()?.did ?? null
+}
+
 let sessionRetryTimer: ReturnType<typeof setTimeout> | null = null
 
 function persistSession(_evt: AtpSessionEvent, session: AtpSessionData | undefined) {
@@ -310,7 +327,8 @@ export async function getGuestFeed(
     return tb - ta
   })
   const feed = deduped.slice(offset, offset + limit)
-  const nextCursor = deduped.length >= offset + limit ? String(offset + limit) : undefined
+  /* Full page ⇒ allow another request with a larger perHandle (we only ever fetch the head of each author feed). Using deduped.length >= offset + limit was wrong: it suppressed pagination whenever the merged pool was short of offset+limit even though the next fetch could grow the pool. */
+  const nextCursor = feed.length === limit ? String(offset + limit) : undefined
   return { feed, cursor: nextCursor }
 }
 
@@ -1250,62 +1268,6 @@ export async function searchPostsByPhraseAndTags(phrase: string, cursor?: string
   return { posts: merged, cursor: phraseResult.cursor }
 }
 
-/** standard.site lexicon: for blog posts only (postcards on home from blogs you follow, profile Blog tab). Not used for Forums; see app.artsky.forum lexicon. */
-export const STANDARD_SITE_DOMAIN = 'standard.site'
-
-/** Standard.site lexicon collection NSIDs (long-form blogs on AT Protocol). */
-export const STANDARD_SITE_DOCUMENT_COLLECTION = 'site.standard.document'
-export const STANDARD_SITE_PUBLICATION_COLLECTION = 'site.standard.publication'
-/** Standard.site comment lexicon (comments on blog documents; interoperable with leaflet.pub etc.). */
-export const STANDARD_SITE_COMMENT_COLLECTION = 'site.standard.comment'
-
-/** Blob ref as returned from uploadBlob (CID reference). */
-export type StandardSiteDocumentBlobRef = { $link: string }
-
-/** A document record from the standard.site lexicon (metadata about a blog post). */
-export type StandardSiteDocumentRecord = {
-  path?: string
-  title?: string
-  body?: string
-  createdAt?: string
-  /** Optional media: array of { image: BlobRef, mimeType: string } for compatibility with uploadBlob shape. */
-  media?: Array<{ image: StandardSiteDocumentBlobRef; mimeType?: string }>
-  [k: string]: unknown
-}
-
-/** Document list item with author and optional base URL for building canonical link. */
-export type StandardSiteDocumentView = {
-  uri: string
-  cid: string
-  did: string
-  rkey: string
-  path: string
-  title?: string
-  body?: string
-  createdAt?: string
-  baseUrl?: string
-  authorHandle?: string
-  authorAvatar?: string
-  /** Resolved media URLs for display (built from blob refs). */
-  media?: Array<{ url: string; mimeType?: string }>
-  /** Raw media refs from the record (for editing: preserve when saving). */
-  mediaRefs?: Array<{ image: StandardSiteDocumentBlobRef; mimeType?: string }>
-}
-
-/** List site.standard.document records from a repo. Stubbed: no API requests (standard site documents removed from app). */
-export async function listStandardSiteDocuments(
-  _client: AtpAgent,
-  _repo: string,
-  _opts?: { limit?: number; cursor?: string; reverse?: boolean }
-): Promise<{ records: { uri: string; cid: string; value: StandardSiteDocumentRecord }[]; cursor?: string }> {
-  return { records: [], cursor: undefined }
-}
-
-/** Get the base URL of a publication from a repo. Stubbed: no API requests (standard site documents removed from app). */
-export async function getStandardSitePublicationBaseUrl(_client: AtpAgent, _repo: string): Promise<string | null> {
-  return null
-}
-
 /** Parse an at:// URI into repo (DID), collection, and rkey. */
 export function parseAtUri(uri: string): { did: string; collection: string; rkey: string } | null {
   const trimmed = uri.trim()
@@ -1316,11 +1278,6 @@ export function parseAtUri(uri: string): { did: string; collection: string; rkey
   const [did, collection, ...rkeyParts] = parts
   const rkey = rkeyParts.join('/')
   return did && collection && rkey ? { did, collection, rkey } : null
-}
-
-/** Fetch a single standard.site document by URI. Stubbed: no API requests (standard site documents removed from app). */
-export async function getStandardSiteDocument(_uri: string): Promise<StandardSiteDocumentView | null> {
-  return null
 }
 
 /** Delete a feed post. Requires session; only the author can delete. */
@@ -1337,13 +1294,8 @@ export async function deletePost(uri: string): Promise<void> {
   })
 }
 
-/** Delete a standard.site document. Stubbed: no API requests (standard site documents removed from app). */
-export async function deleteStandardSiteDocument(_uri: string): Promise<void> {
-  throw new Error('Standard site documents are not available')
-}
-
 /** Custom downvote collection: stored in user repo so it syncs across the AT Protocol. */
-const DOWNVOTE_COLLECTION = 'app.artsky.feed.downvote'
+const DOWNVOTE_COLLECTION = 'app.purplesky.feed.downvote'
 
 /** Create a downvote record for a post. Returns the new record URI. Requires session. */
 export async function createDownvote(subjectUri: string, subjectCid: string): Promise<string> {
@@ -1534,69 +1486,6 @@ export async function putMutedWords(
   await agent.app.bsky.actor.putPreferences({ preferences: prefs as AppBskyActorDefs.Preferences })
 }
 
-/** Upload a blob for use in a standard.site document. Stubbed: no API requests (standard site documents removed from app). */
-export async function uploadStandardSiteDocumentBlob(_file: File): Promise<{ image: StandardSiteDocumentBlobRef; mimeType: string }> {
-  throw new Error('Standard site documents are not available')
-}
-
-/** Update a standard.site document. Stubbed: no API requests (standard site documents removed from app). */
-export async function updateStandardSiteDocument(
-  _uri: string,
-  _updates: { title?: string; body?: string; media?: Array<{ image: StandardSiteDocumentBlobRef; mimeType?: string }> }
-): Promise<StandardSiteDocumentView> {
-  throw new Error('Standard site documents are not available')
-}
-
-/** Standard.site comment record (comments on documents; interoperable with leaflet.pub etc.). */
-export type StandardSiteCommentRecord = {
-  subject: string // AT-URI of the document
-  /** Optional AT-URI of the parent comment when this is a reply to a reply. */
-  replyTo?: string
-  text: string
-  createdAt: string
-  [k: string]: unknown
-}
-
-/** Create a standard.site comment. Stubbed: no API requests (standard site documents removed from app). */
-export async function createStandardSiteComment(
-  _documentUri: string,
-  _text: string,
-  _replyToUri?: string
-): Promise<{ uri: string; cid: string }> {
-  throw new Error('Standard site documents are not available')
-}
-
-/** List standard.site comment records. Stubbed: no API requests (standard site documents removed from app). */
-export async function listStandardSiteComments(
-  _client: AtpAgent,
-  _repo: string,
-  _opts?: { limit?: number; cursor?: string }
-): Promise<{ records: { uri: string; cid: string; value: StandardSiteCommentRecord }[]; cursor?: string }> {
-  return { records: [], cursor: undefined }
-}
-
-/** Unified reply view for forum post detail (standard.site comment or Bluesky post that links to the doc). */
-export type ForumReplyView = {
-  uri: string
-  cid: string
-  /** When set, this reply is a direct reply to another comment (for threading). */
-  replyTo?: string
-  author: { did: string; handle?: string; avatar?: string; displayName?: string }
-  record: { text?: string; createdAt?: string; facets?: unknown[] }
-  likeCount?: number
-  viewer?: { like?: string }
-  isComment?: boolean
-}
-
-/** List replies for a standard.site document. Returns empty to avoid N+1 / heavy API usage. */
-export async function listStandardSiteRepliesForDocument(
-  _documentUri: string,
-  _domain: string,
-  _documentUrl?: string | null
-): Promise<ForumReplyView[]> {
-  return []
-}
-
 /** Get DIDs (and handles) of accounts that the actor follows. */
 export async function getFollows(
   client: AtpAgent,
@@ -1676,68 +1565,6 @@ export type SuggestedFollowDetail = {
   count: number
   followedBy: Array<{ did: string; handle: string; displayName?: string; avatar?: string }>
   fromMutuals?: boolean
-}
-
-/** Resolve DID from a publication base URL via .well-known/site.standard.publication. Returns null on CORS/network error. */
-export async function resolvePublicationDidFromWellKnown(baseUrl: string): Promise<string | null> {
-  try {
-    const url = `${baseUrl.replace(/\/$/, '')}/.well-known/site.standard.publication`
-    const res = await fetch(url, { method: 'GET', credentials: 'omit' })
-    if (!res.ok) return null
-    const text = await res.text()
-    const atUri = text.trim()
-    if (!atUri.startsWith('at://')) return null
-    const parts = atUri.slice('at://'.length).split('/')
-    if (parts.length < 1) return null
-    return parts[0] ?? null
-  } catch {
-    return null
-  }
-}
-
-/** Search forum (standard.site) documents by title/body/path/author. For % typeahead in composer. Returns empty to avoid heavy API usage. */
-export async function searchForumDocuments(_q: string, _limit = 10): Promise<StandardSiteDocumentView[]> {
-  return []
-}
-
-/** Build human-readable URL for a standard.site document (for pasting into post). */
-export function getStandardSiteDocumentUrl(doc: StandardSiteDocumentView): string {
-  if (!doc.baseUrl) return doc.uri
-  const base = doc.baseUrl.replace(/\/$/, '')
-  const path = (doc.path ?? '').replace(/^\//, '')
-  return path ? `${base}/${path}` : base
-}
-
-/** List standard.site blog documents for a single author. Stubbed: no API requests (standard site documents removed from app). */
-export async function listStandardSiteDocumentsForAuthor(
-  _client: AtpAgent,
-  _did: string,
-  _authorHandle?: string,
-  _opts?: { limit?: number; cursor?: string }
-): Promise<{ documents: StandardSiteDocumentView[]; cursor?: string }> {
-  return { documents: [], cursor: undefined }
-}
-
-/** Search posts that link to a domain (e.g. standard.site). Works with publicAgent when logged out. */
-export async function searchPostsByDomain(
-  domain: string,
-  cursor?: string,
-  author?: string
-): Promise<{ posts: PostView[]; cursor: string | undefined }> {
-  const client = getSession() ? agent : publicAgent
-  try {
-    const res = await client.app.bsky.feed.searchPosts({
-      q: domain,
-      domain,
-      limit: 30,
-      cursor,
-      sort: 'latest',
-      ...(author ? { author } : {}),
-    })
-    return { posts: res.data.posts ?? [], cursor: res.data.cursor }
-  } catch {
-    return { posts: [], cursor: undefined }
-  }
 }
 
 const SAVED_FEEDS_CACHE_TTL = 5 * 60 * 1000 // 5 minutes

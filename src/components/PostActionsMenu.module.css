@@ -153,6 +153,12 @@
   background: var(--glass-highlight);
 }
 
+.item:focus-visible:not(:disabled) {
+  background: var(--glass-highlight);
+  outline: none;
+  transform: none;
+}
+
 .item:disabled {
   opacity: 0.8;
   cursor: default;

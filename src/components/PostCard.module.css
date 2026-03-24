@@ -129,6 +129,17 @@ html[data-theme="dark"] [data-view-mode="1"] .card:hover {
 [data-feed-cards][data-keyboard-nav] .card.cardLiked:hover:not(.cardSelected)::after {
   box-shadow: inset 0 0 0 2px #ec4899;
 }
+/* While keyboard nav is active, keep hover visuals disabled until the user moves the mouse again. */
+[data-feed-cards][data-keyboard-nav][data-hover-focus-enabled="false"] .card:hover {
+  outline: none;
+  box-shadow: none;
+}
+[data-feed-cards][data-keyboard-nav][data-hover-focus-enabled="false"] .card:hover::after {
+  box-shadow: none;
+}
+[data-feed-cards][data-keyboard-nav][data-hover-focus-enabled="false"] .card.cardLiked:hover::after {
+  box-shadow: inset 0 0 0 2px #ec4899;
+}
 
 /* Liked + hover: keep pink ring + purple outline on desktop */
 .card.cardLiked:hover::after {

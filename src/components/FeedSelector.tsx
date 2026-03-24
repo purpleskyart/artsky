@@ -337,24 +337,20 @@ export default function FeedSelector({
                     <dd>Move down</dd>
                     <dt>D / →</dt>
                     <dd>Move right</dd>
-                    <dt>Q</dt>
-                    <dd>Quit / close window</dd>
                     <dt>E</dt>
                     <dd>Enter post</dd>
+                    <dt>Q</dt>
+                    <dd>Quit post</dd>
                     <dt>R</dt>
                     <dd>Reply to post</dd>
-                    <dt>T</dt>
-                    <dd>Toggle text view</dd>
+                    <dt>C</dt>
+                    <dd>Collect post</dd>
                     <dt>F</dt>
-                    <dd>Like / unlike</dd>
-                    <dt>B</dt>
-                    <dd>Block author (feed)</dd>
-                    <dt>4</dt>
                     <dd>Follow author</dd>
+                    <dt>Spacebar</dt>
+                    <dd>Like post</dd>
                     <dt>Escape</dt>
                     <dd>Escape all windows</dd>
-                    <dt>1 / 2 / 3</dt>
-                    <dd>1, 2, or 3 column view</dd>
                   </dl>
                 </>
               )}
@@ -521,7 +517,7 @@ export default function FeedSelector({
       <div className={styles.customInputWrap}>
         <input
           type="text"
-          placeholder="Search feeds, type @handle for their feeds, or paste feed URL…"
+          placeholder="Search feeds, type @handle for their feeds, or paste feed URL (press Enter to add)…"
           value={customInput}
           onChange={(e) => setCustomInput(e.target.value)}
           className={styles.input}
@@ -575,14 +571,6 @@ export default function FeedSelector({
           )}
           </div>
         )}
-      </div>
-      <div className={styles.customActions}>
-        <button type="submit" className={styles.btn} disabled={adding}>
-          {adding ? 'Adding…' : 'Add'}
-        </button>
-        <button type="button" className={styles.btnSecondary} onClick={() => setShowCustom(false)} disabled={adding}>
-          Cancel
-        </button>
       </div>
     </form>
     </div>

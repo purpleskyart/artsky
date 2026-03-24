@@ -12,7 +12,10 @@
         else if (t === 'dark') resolved = 'dark';
         document.documentElement.setAttribute('data-theme', resolved);
         var meta = document.querySelector('meta[name="theme-color"]');
-        if (meta) meta.setAttribute('content', resolved === 'light' ? '#ebeae6' : '#0f0f1a');
+        if (meta) {
+          var c = resolved === 'light' ? '#fdf6f9' : '#0f0f1a';
+          meta.setAttribute('content', c);
+        }
       })();
     </script>
     <style>
@@ -21,7 +24,7 @@
       /* Theme background and color-scheme so Safari top/status bar and bottom safe area match theme */
       html[data-theme="light"] { color-scheme: light; }
       html[data-theme="dark"] { color-scheme: dark; }
-      html[data-theme="light"] body { background: #ebeae6; color: #141414; }
+      html[data-theme="light"] body { background: #fdf6f9; color: #141414; }
       html[data-theme="dark"] body, body { background: #0f0f1a; color: #e8e8f0; }
     </style>
     <link rel="icon" type="image/svg+xml" href="./icon.svg" />

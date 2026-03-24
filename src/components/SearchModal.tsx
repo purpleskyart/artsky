@@ -269,7 +269,7 @@ function SearchContent({ query, onRegisterRefresh }: { query: string; onRegister
       }
       if (key === 'e' || key === 'enter') {
         const item = items[i]
-        if (item) openPostModal(item.post.uri)
+        if (item) openPostModal(item.post.uri, undefined, undefined, item.post.author?.handle)
         return
       }
       if (key === 'f' && session) {
@@ -322,7 +322,9 @@ function SearchContent({ query, onRegisterRefresh }: { query: string; onRegister
               setUnblurred={setUnblurred}
               likeOverrides={likeOverrides}
               setLikeOverrides={setLikeOverrides}
-              openPostModal={(uri) => openPostModal(uri)}
+              openPostModal={(uri, openReply, focusUri, authorHandle) =>
+                openPostModal(uri, openReply, focusUri, authorHandle)
+              }
               cardRef={(index) => (el) => { cardRefsRef.current[index] = el }}
               onActionsMenuOpenChange={() => {}}
               onMouseEnter={(originalIndex) => setKeyboardFocusIndex(originalIndex)}

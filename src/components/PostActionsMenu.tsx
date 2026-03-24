@@ -107,6 +107,8 @@ interface PostActionsMenuProps {
   postCid: string
   /** Author DID (for block) */
   authorDid: string
+  /** Post author handle when known — Bluesky-style share URLs (`/profile/handle/post/rkey`). */
+  shareAuthorHandle?: string
   /** Root post URI of the thread (for "Mute thread"). If same as postUri, this is the root post. */
   rootUri: string
   /** When true, hide "Block user" (own content) */
@@ -145,6 +147,7 @@ function PostActionsMenu({
   postUri,
   postCid,
   authorDid,
+  shareAuthorHandle,
   rootUri,
   isOwnPost,
   onHidden,
@@ -290,6 +293,7 @@ function PostActionsMenu({
         const idx = current && items.includes(current) ? items.indexOf(current) : -1
         if (key === 'e' || key === 'enter') {
           e.preventDefault()
+          e.stopPropagation()
           if (idx >= 0 && !items[idx].disabled) items[idx].click()
           return
         }
@@ -391,23 +395,25 @@ function PostActionsMenu({
     }
   }, [session?.did, rootUri, showSuccess, showError])
 
+  const handleForShare = shareAuthorHandle ?? authorHandle ?? undefined
+
   const handleCopyLink = useCallback(() => {
-    const url = getShareablePostUrl(postUri)
+    const url = getShareablePostUrl(postUri, handleForShare)
     navigator.clipboard.writeText(url).then(
       () => showSuccess('Link copied'),
       () => showError('Could not copy link')
     )
-  }, [postUri, showSuccess, showError])
+  }, [postUri, handleForShare, showSuccess, showError])
 
   const canShare = typeof navigator !== 'undefined' && !!navigator.share
 
   const handleShare = useCallback(() => {
-    const url = getShareablePostUrl(postUri)
+    const url = getShareablePostUrl(postUri, handleForShare)
     navigator.share({ url }).then(
       () => setOpen(false),
       () => {}
     )
-  }, [postUri])
+  }, [postUri, handleForShare])
 
   const handleDelete = useCallback(async () => {
     if (!session?.did || !isOwnPost) return

@@ -128,7 +128,7 @@ describe('Code Splitting', () => {
           content.includes('PostDetailPage') ||
           content.includes('ProfilePage') ||
           content.includes('TagPage') ||
-          content.includes('ConsensusPage')
+          content.includes('CollectionPage')
         )
       })
 

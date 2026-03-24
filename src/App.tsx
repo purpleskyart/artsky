@@ -1,9 +1,10 @@
 // PurpleSky – Bluesky client focused on art (deploy bump)
 import { Component, lazy, Suspense, useEffect } from 'react'
 import type { ErrorInfo, ReactNode } from 'react'
-import { HashRouter, Navigate, Route, Routes, useParams } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes, useLocation, type Location } from 'react-router-dom'
 import { REPO_URL } from './config/repo'
 import { initPerformanceMetrics } from './lib/performanceMetrics'
+import { appAbsoluteUrl } from './lib/appUrl'
 import { CoreProvidersGroup } from './context/CoreProvidersGroup'
 import { FeedProvidersGroup } from './context/FeedProvidersGroup'
 import { ModalProvidersGroup } from './context/ModalProvidersGroup'
@@ -17,9 +18,14 @@ const FeedPage = lazy(() => import('./pages/FeedPage'))
 const PostDetailPage = lazy(() => import('./pages/PostDetailPage'))
 const ProfilePage = lazy(() => import('./pages/ProfilePage'))
 const TagPage = lazy(() => import('./pages/TagPage'))
-const ConsensusPage = lazy(() => import('./pages/ConsensusPage'))
 const CollectionPage = lazy(() => import('./pages/CollectionPage'))
 const CollectionsIndexPage = lazy(() => import('./pages/CollectionsIndexPage'))
+const PostModalOverlay = lazy(() => import('./components/PostModalOverlay'))
+const ProfileModalOverlay = lazy(() => import('./components/ProfileModalOverlay'))
+const CollectionsIndexModalOverlay = lazy(() => import('./components/CollectionsIndexModalOverlay'))
+const CollectionBoardModalOverlay = lazy(() => import('./components/CollectionBoardModalOverlay'))
+
+const routerBasename = (import.meta.env.BASE_URL || '/').replace(/\/$/, '') || undefined
 
 /** Official Git SCM logo (https://git-scm.com/images/logos/downloads/Git-Icon-1788C.svg) */
 function GitLogo() {
@@ -97,7 +103,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
                   type="button"
                   onClick={() => {
                     this.setState({ error: null })
-                    window.location.hash = '#/feed'
+                    window.location.assign(appAbsoluteUrl('/feed'))
                   }}
                   style={{
                     padding: '0.5rem 1rem',
@@ -159,52 +165,46 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
   }
 }
 
-/** Redirect to feed with forum post modal open (for direct /forum/post/:uri links). */
-function ForumPostRedirect() {
-  const { '*': splat } = useParams<{ '*': string }>()
-  const trimmed = (splat ?? '').replace(/^\/+/, '').trim()
-  if (!trimmed) return <Navigate to="/feed?forum=1" replace />
-  try {
-    const uri = decodeURIComponent(trimmed)
-    const param = uri.includes('app.artsky.forum.post') ? 'forumPost' : 'post'
-    return <Navigate to={`/feed?forum=1&${param}=${encodeURIComponent(uri)}`} replace />
-  } catch {
-    const param = trimmed.includes('app.artsky.forum.post') ? 'forumPost' : 'post'
-    return <Navigate to={`/feed?forum=1&${param}=${encodeURIComponent(trimmed)}`} replace />
-  }
-}
-
 function AppRoutes() {
+  const location = useLocation()
+  const backgroundLocation = (location.state as { backgroundLocation?: Location } | null)?.backgroundLocation
+
   return (
     <ChunkLoadError>
       <Suspense fallback={<LoadingSpinner />}>
-        <Routes>
+        <Routes location={backgroundLocation ?? location}>
           <Route path="/feed" element={<FeedPage />} />
-          <Route path="/forum" element={<Navigate to="/feed?forum=1" replace />} />
-          <Route path="/consensus" element={<ConsensusPage />} />
           <Route path="/collections" element={<ModalErrorBoundary><CollectionsIndexPage /></ModalErrorBoundary>} />
-          <Route path="/collection/:uri" element={<ModalErrorBoundary><CollectionPage /></ModalErrorBoundary>} />
+          <Route path="/profile/:handle/post/:rkey" element={<ModalErrorBoundary><PostDetailPage /></ModalErrorBoundary>} />
           <Route path="/post/:uri" element={<ModalErrorBoundary><PostDetailPage /></ModalErrorBoundary>} />
           <Route path="/profile/:handle" element={<ModalErrorBoundary><ProfilePage /></ModalErrorBoundary>} />
           <Route path="/tag/:tag" element={<ModalErrorBoundary><TagPage /></ModalErrorBoundary>} />
-          <Route path="/forum/post/*" element={<ForumPostRedirect />} />
+          <Route path="/:handle/:boardSlug" element={<ModalErrorBoundary><CollectionPage /></ModalErrorBoundary>} />
           <Route path="/" element={<Navigate to="/feed" replace />} />
           <Route path="*" element={<Navigate to="/feed" replace />} />
         </Routes>
+        {backgroundLocation && (
+          <Routes>
+            <Route path="/profile/:handle/post/:rkey" element={<ModalErrorBoundary><PostModalOverlay /></ModalErrorBoundary>} />
+            <Route path="/profile/:handle" element={<ModalErrorBoundary><ProfileModalOverlay /></ModalErrorBoundary>} />
+            <Route path="/post/:uri" element={<ModalErrorBoundary><PostModalOverlay /></ModalErrorBoundary>} />
+            <Route path="/collections" element={<ModalErrorBoundary><CollectionsIndexModalOverlay /></ModalErrorBoundary>} />
+            <Route path="/:handle/:boardSlug" element={<ModalErrorBoundary><CollectionBoardModalOverlay /></ModalErrorBoundary>} />
+          </Routes>
+        )}
       </Suspense>
     </ChunkLoadError>
   )
 }
 
 export default function App() {
-  // Initialize performance metrics tracking
   useEffect(() => {
     initPerformanceMetrics()
   }, [])
 
   return (
     <ErrorBoundary>
-      <HashRouter>
+      <BrowserRouter basename={routerBasename}>
         <OfflineIndicator />
         <CoreProvidersGroup>
           <FeedProvidersGroup>
@@ -215,7 +215,7 @@ export default function App() {
             </ModerationProvider>
           </FeedProvidersGroup>
         </CoreProvidersGroup>
-      </HashRouter>
+      </BrowserRouter>
     </ErrorBoundary>
   )
 }

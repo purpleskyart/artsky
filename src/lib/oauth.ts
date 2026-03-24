@@ -46,7 +46,7 @@ export async function getOAuthClient(): Promise<BrowserOAuthClient> {
   }
   if (clientPromise) return clientPromise
   const clientId = isLoopback() ? getLoopbackClientId() : `${getAppBaseUrl()}/client-metadata.json`
-  // Use query so callback lands in ?code=...&state=... and doesn't conflict with HashRouter's hash.
+  // Use query so callback lands in ?code=...&state=... (standard OAuth redirect).
   const { BrowserOAuthClient } = await import('@atproto/oauth-client-browser')
   clientPromise = BrowserOAuthClient.load({
     clientId,

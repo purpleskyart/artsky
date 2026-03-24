@@ -119,7 +119,7 @@ export default function AppModal({
     return () => window.removeEventListener('wheel', onWheel, { capture: true })
   }, [isTopModal])
 
-  /* Modal scroll: hide back/nav/gear when scrolling down (same behavior as homepage) */
+  /* Mobile only: hide back/nav/gear when scrolling down in modal; desktop keeps header controls visible */
   useEffect(() => {
     const el = scrollRef.current
     if (!el || !isMobile) return
@@ -235,7 +235,7 @@ export default function AppModal({
             )}
             <button
               type="button"
-              className={`${styles.modalFloatingBack}${modalScrollHidden ? ` ${styles.modalFloatingBackScrollHidden}` : ''}`}
+              className={`float-btn modal-back-btn ${styles.modalFloatingBack}${modalScrollHidden ? ` ${styles.modalFloatingBackScrollHidden}` : ''}`}
               onClick={canGoBack ? onBack : onClose}
               aria-label={canGoBack ? 'Back' : 'Close'}
               title={canGoBack ? 'Back' : 'Close'}

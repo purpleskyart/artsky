@@ -22,6 +22,7 @@ interface OptimizedPostCardProps {
   onLikedChange: (uri: string, likeRecordUri: string | null) => void
   seen: boolean
   constrainMediaHeight?: boolean
+  openCollectionMenuSignal?: number
 }
 
 /**
