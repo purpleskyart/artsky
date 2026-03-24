@@ -20,6 +20,9 @@ export function ScrollLockProvider({ children }: { children: ReactNode }) {
       // touch-action: none on body — it blocks touch scrolling inside modals (e.g. post from profile).
       document.body.style.overflow = 'hidden'
       document.documentElement.style.overflow = 'hidden'
+      // Stop overscroll / scroll chaining to the page behind overlays (feed stays mounted under modal routes).
+      document.documentElement.style.overscrollBehavior = 'none'
+      document.body.style.overscrollBehavior = 'none'
     }
   }, [])
 
@@ -28,6 +31,8 @@ export function ScrollLockProvider({ children }: { children: ReactNode }) {
     if (countRef.current === 0) {
       document.body.style.overflow = ''
       document.documentElement.style.overflow = ''
+      document.documentElement.style.overscrollBehavior = ''
+      document.body.style.overscrollBehavior = ''
       window.scrollTo({ top: scrollPositionRef.current, left: 0, behavior: 'instant' })
     }
   }, [])

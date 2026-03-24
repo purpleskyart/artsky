@@ -10,6 +10,8 @@ describe('ScrollLockContext', () => {
     document.body.style.overflow = ''
     document.body.style.touchAction = ''
     document.documentElement.style.overflow = ''
+    document.documentElement.style.overscrollBehavior = ''
+    document.body.style.overscrollBehavior = ''
 
     Object.defineProperty(window, 'scrollY', {
       writable: true,
@@ -27,6 +29,8 @@ describe('ScrollLockContext', () => {
 
     expect(document.body.style.overflow).toBe('hidden')
     expect(document.documentElement.style.overflow).toBe('hidden')
+    expect(document.body.style.overscrollBehavior).toBe('none')
+    expect(document.documentElement.style.overscrollBehavior).toBe('none')
   })
 
   it('unlocks scroll when unlockScroll is called', () => {
@@ -39,6 +43,8 @@ describe('ScrollLockContext', () => {
 
     expect(document.body.style.overflow).toBe('')
     expect(document.documentElement.style.overflow).toBe('')
+    expect(document.body.style.overscrollBehavior).toBe('')
+    expect(document.documentElement.style.overscrollBehavior).toBe('')
   })
 
   it('handles nested lock/unlock calls correctly', () => {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import { ModalTopBarSlotContext } from '../context/ModalTopBarSlotContext'
 import { ModalScrollProvider } from '../context/ModalScrollContext'
@@ -100,17 +100,20 @@ export default function AppModal({
   }, [scrollLock])
 
   /* When modal is open, route wheel events to the modal scroll area so scrolling never moves the page behind. Only the topmost modal does this so stacking (e.g. post on profile) scrolls the visible modal. */
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!isTopModal) return
     const overlay = overlayRef.current
     const scrollEl = scrollRef.current
-    if (!overlay || !scrollEl) return
+    const root = typeof document !== 'undefined' ? document.getElementById('root') : null
+    if (!overlay || !scrollEl || !root) return
     const onWheel = (e: WheelEvent) => {
       const target = e.target as Node
       if (!overlay.contains(target)) {
-        /* Mouse outside modal: prevent page scroll and scroll the popup instead */
-        e.preventDefault()
-        scrollEl.scrollTop += e.deltaY
+        /* Wheel on #root (feed underlay): route into the modal; ignore body portals (dropdowns, etc.). */
+        if (root.contains(target)) {
+          e.preventDefault()
+          scrollEl.scrollTop += e.deltaY
+        }
         return
       }
       if (scrollEl.contains(target)) return
@@ -120,6 +123,26 @@ export default function AppModal({
     }
     window.addEventListener('wheel', onWheel, { passive: false, capture: true })
     return () => window.removeEventListener('wheel', onWheel, { capture: true })
+  }, [isTopModal])
+
+  /* Touch: block scrolling the main app (#root) under the overlay. Portals on document.body (e.g. menus) stay scrollable — they are not under #root. */
+  useLayoutEffect(() => {
+    if (!isTopModal) return
+    const overlay = overlayRef.current
+    const scrollEl = scrollRef.current
+    const root = typeof document !== 'undefined' ? document.getElementById('root') : null
+    if (!overlay || !scrollEl || !root) return
+    const onTouchMove = (e: TouchEvent) => {
+      const target = e.target as Node
+      if (overlay.contains(target)) {
+        if (scrollEl.contains(target)) return
+        e.preventDefault()
+        return
+      }
+      if (root.contains(target)) e.preventDefault()
+    }
+    document.addEventListener('touchmove', onTouchMove, { passive: false, capture: true })
+    return () => document.removeEventListener('touchmove', onTouchMove, { capture: true })
   }, [isTopModal])
 
   /* Mobile only: hide back/nav/gear when scrolling down in modal; desktop keeps header controls visible */
