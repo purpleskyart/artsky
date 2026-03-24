@@ -51,6 +51,7 @@ export default function CollectionSaveMenu({ postUri, openSignal }: Props) {
   const [rows, setRows] = useState<CollectionPickerRow[]>([])
   const [loadingRows, setLoadingRows] = useState(false)
   const [newTitle, setNewTitle] = useState('')
+  const [newCollectionIsPrivate, setNewCollectionIsPrivate] = useState(false)
   const [editingNewTitle, setEditingNewTitle] = useState(false)
   const [optimisticSaved, setOptimisticSaved] = useState(false)
   const [forceSavedRowCheck, setForceSavedRowCheck] = useState(false)
@@ -86,10 +87,34 @@ export default function CollectionSaveMenu({ postUri, openSignal }: Props) {
 
   useEffect(() => {
     if (!open) return
-    const onScroll = () => setDropdownPosition((prev) => (prev ? updateDropdownPosition() ?? prev : prev))
+    const isInsideMenu = (target: EventTarget | null) => {
+      const node = target as Node | null
+      if (!node) return false
+      if (wrapRef.current?.contains(node)) return true
+      if (dropdownRef.current?.contains(node)) return true
+      return false
+    }
+    const onPointerDown = (e: PointerEvent) => {
+      if (isInsideMenu(e.target)) return
+      setOpen(false)
+    }
+    const onTouchStart = (e: TouchEvent) => {
+      if (isInsideMenu(e.target)) return
+      setOpen(false)
+    }
+    const onScroll = (e: Event) => {
+      if (isInsideMenu(e.target)) return
+      setOpen(false)
+    }
     window.addEventListener('scroll', onScroll, true)
-    return () => window.removeEventListener('scroll', onScroll, true)
-  }, [open, updateDropdownPosition])
+    document.addEventListener('pointerdown', onPointerDown)
+    document.addEventListener('touchstart', onTouchStart)
+    return () => {
+      window.removeEventListener('scroll', onScroll, true)
+      document.removeEventListener('pointerdown', onPointerDown)
+      document.removeEventListener('touchstart', onTouchStart)
+    }
+  }, [open])
 
   useEffect(() => {
     if (!open || !session?.did) return
@@ -109,18 +134,6 @@ export default function CollectionSaveMenu({ postUri, openSignal }: Props) {
       cancelled = true
     }
   }, [open, postUri, session?.did])
-
-  useEffect(() => {
-    if (!open) return
-    const onDoc = (e: MouseEvent) => {
-      const t = e.target as Node
-      if (wrapRef.current?.contains(t)) return
-      if (dropdownRef.current?.contains(t)) return
-      setOpen(false)
-    }
-    document.addEventListener('mousedown', onDoc)
-    return () => document.removeEventListener('mousedown', onDoc)
-  }, [open])
 
   const markSavedRowChecked = useCallback(() => {
     setRows((prev) =>
@@ -307,14 +320,15 @@ export default function CollectionSaveMenu({ postUri, openSignal }: Props) {
     }
     if (saving) return
     try {
-      await createCollectionAndAddPost(postUri, title)
+      await createCollectionAndAddPost(postUri, title, { isPrivate: newCollectionIsPrivate })
       setNewTitle('')
+      setNewCollectionIsPrivate(false)
       setOpen(false)
       toast?.showToast('Saved to new collection')
     } catch {
       /* context */
     }
-  }, [newTitle, postUri, saving, createCollectionAndAddPost, toast])
+  }, [newTitle, postUri, saving, createCollectionAndAddPost, toast, newCollectionIsPrivate])
 
   return (
     <div
@@ -369,7 +383,10 @@ export default function CollectionSaveMenu({ postUri, openSignal }: Props) {
                     disabled={saving}
                     onClick={() => toggleRow(row)}
                   >
-                    <span className={styles.rowTitle}>{row.title}</span>
+                    <span className={styles.rowTitle}>
+                      {row.title}
+                      {row.isPrivate ? ' (Private)' : ''}
+                    </span>
                     {row.hasPost || ((optimisticSaved || forceSavedRowCheck) && row.title.trim().toLowerCase() === 'saved') ? (
                       <span className={styles.check} aria-hidden>
                         ✓
@@ -421,6 +438,15 @@ export default function CollectionSaveMenu({ postUri, openSignal }: Props) {
               <button type="button" className={styles.createBtn} data-collect-nav="item" disabled={saving} onClick={() => void onCreate()}>
                 Create and save here
               </button>
+              <label className={styles.metaRow}>
+                <input
+                  type="checkbox"
+                  checked={newCollectionIsPrivate}
+                  onChange={(e) => setNewCollectionIsPrivate(e.target.checked)}
+                  disabled={saving}
+                />
+                Private collection
+              </label>
             </div>
           </div>,
           document.body

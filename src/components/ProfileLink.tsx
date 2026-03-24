@@ -1,6 +1,7 @@
 import { memo, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { useProfileModal } from '../context/ProfileModalContext'
+import { preloadProfileOpen } from '../lib/modalPreload'
 
 interface ProfileLinkProps {
   handle: string
@@ -18,6 +19,7 @@ function ProfileLink({ handle, className, title, 'aria-label': ariaLabel, onClic
   const handleClick = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
+    preloadProfileOpen(handle)
     openProfileModal(handle)
     onClick?.(e)
   }, [openProfileModal, handle, onClick])

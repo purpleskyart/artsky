@@ -16,6 +16,7 @@ import {
   deleteCollection,
   listMyCollectionSummaries,
   renameCollection,
+  setCollectionPrivacy,
   type CollectionSummary,
 } from '../lib/collections'
 import styles from './CollectionsIndexPage.module.css'
@@ -73,6 +74,7 @@ export function CollectionsIndexContent() {
   const [editingTitle, setEditingTitle] = useState('')
   const [savingEdit, setSavingEdit] = useState(false)
   const [deletingUri, setDeletingUri] = useState<string | null>(null)
+  const [privacyUpdatingUri, setPrivacyUpdatingUri] = useState<string | null>(null)
   /** Handle (or DID) for `handle/slug` links in the list. */
   const [pathActor, setPathActor] = useState<string | null>(null)
 
@@ -117,6 +119,7 @@ export function CollectionsIndexContent() {
       setEditingTitle('')
       setSavingEdit(false)
       setDeletingUri(null)
+      setPrivacyUpdatingUri(null)
     }
   }, [editMode])
 
@@ -170,6 +173,24 @@ export function CollectionsIndexContent() {
     [deletingUri, editingUri, toast]
   )
 
+  const onTogglePrivacy = useCallback(
+    async (collection: CollectionSummary) => {
+      if (privacyUpdatingUri) return
+      const nextPrivate = !collection.isPrivate
+      setPrivacyUpdatingUri(collection.uri)
+      try {
+        await setCollectionPrivacy(collection.uri, nextPrivate)
+        setItems((prev) => prev.map((c) => (c.uri === collection.uri ? { ...c, isPrivate: nextPrivate } : c)))
+        toast?.showToast(nextPrivate ? 'Collection is now private' : 'Collection is now public')
+      } catch (e) {
+        toast?.showToast(e instanceof Error ? e.message : 'Could not update privacy')
+      } finally {
+        setPrivacyUpdatingUri(null)
+      }
+    },
+    [privacyUpdatingUri, toast]
+  )
+
   if (!session?.did) {
     return (
       <div className={styles.wrap}>
@@ -221,6 +242,7 @@ export function CollectionsIndexContent() {
                   <div className={styles.cardFooter}>
                     <span className={styles.cardTitle}>{c.title}</span>
                     <span className={styles.meta}>
+                      {c.isPrivate ? 'Private · ' : ''}
                       {c.itemCount} {c.itemCount === 1 ? 'post' : 'posts'}
                     </span>
                   </div>
@@ -276,15 +298,23 @@ export function CollectionsIndexContent() {
                           type="button"
                           className={styles.smallBtn}
                           onClick={() => startEdit(c)}
-                          disabled={!!deletingUri}
+                          disabled={!!deletingUri || !!privacyUpdatingUri}
                         >
                           Rename
                         </button>
                         <button
                           type="button"
+                          className={styles.smallBtn}
+                          onClick={() => void onTogglePrivacy(c)}
+                          disabled={privacyUpdatingUri === c.uri || !!deletingUri}
+                        >
+                          {privacyUpdatingUri === c.uri ? 'Updating…' : c.isPrivate ? 'Make public' : 'Make private'}
+                        </button>
+                        <button
+                          type="button"
                           className={styles.smallBtnDanger}
                           onClick={() => void onDelete(c)}
-                          disabled={deletingUri === c.uri}
+                          disabled={deletingUri === c.uri || !!privacyUpdatingUri}
                         >
                           {deletingUri === c.uri ? 'Deleting…' : 'Delete'}
                         </button>

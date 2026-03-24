@@ -712,13 +712,33 @@ export default function Layout({ title, children, showNav }: Props) {
 
   useEffect(() => {
     if (!accountMenuOpen) return
-    const onDocClick = (e: MouseEvent) => {
-      const t = e.target as Node
-      if (accountMenuRef.current?.contains(t) || accountBtnRef.current?.contains(t)) return
+    const isInsideAccountMenu = (target: EventTarget | null) => {
+      const node = target as Node | null
+      if (!node) return false
+      if (accountMenuRef.current?.contains(node)) return true
+      if (accountBtnRef.current?.contains(node)) return true
+      return false
+    }
+    const onPointerDown = (e: PointerEvent) => {
+      if (isInsideAccountMenu(e.target)) return
       setAccountMenuOpen(false)
     }
-    document.addEventListener('mousedown', onDocClick)
-    return () => document.removeEventListener('mousedown', onDocClick)
+    const onTouchStart = (e: TouchEvent) => {
+      if (isInsideAccountMenu(e.target)) return
+      setAccountMenuOpen(false)
+    }
+    const onScroll = (e: Event) => {
+      if (isInsideAccountMenu(e.target)) return
+      setAccountMenuOpen(false)
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    document.addEventListener('touchstart', onTouchStart)
+    window.addEventListener('scroll', onScroll, true)
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown)
+      document.removeEventListener('touchstart', onTouchStart)
+      window.removeEventListener('scroll', onScroll, true)
+    }
   }, [accountMenuOpen])
 
   useEffect(() => {
@@ -758,13 +778,33 @@ export default function Layout({ title, children, showNav }: Props) {
 
   useEffect(() => {
     if (!notificationsOpen) return
-    const onDocClick = (e: MouseEvent) => {
-      const t = e.target as Node
-      if (notificationsMenuRef.current?.contains(t) || notificationsBtnRef.current?.contains(t)) return
+    const isInsideNotificationsMenu = (target: EventTarget | null) => {
+      const node = target as Node | null
+      if (!node) return false
+      if (notificationsMenuRef.current?.contains(node)) return true
+      if (notificationsBtnRef.current?.contains(node)) return true
+      return false
+    }
+    const onPointerDown = (e: PointerEvent) => {
+      if (isInsideNotificationsMenu(e.target)) return
       setNotificationsOpen(false)
     }
-    document.addEventListener('mousedown', onDocClick)
-    return () => document.removeEventListener('mousedown', onDocClick)
+    const onTouchStart = (e: TouchEvent) => {
+      if (isInsideNotificationsMenu(e.target)) return
+      setNotificationsOpen(false)
+    }
+    const onScroll = (e: Event) => {
+      if (isInsideNotificationsMenu(e.target)) return
+      setNotificationsOpen(false)
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    document.addEventListener('touchstart', onTouchStart)
+    window.addEventListener('scroll', onScroll, true)
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown)
+      document.removeEventListener('touchstart', onTouchStart)
+      window.removeEventListener('scroll', onScroll, true)
+    }
   }, [notificationsOpen])
 
 

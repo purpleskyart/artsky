@@ -38,6 +38,11 @@ export function getPostAppPath(atUri: string, authorHandle?: string | null): str
   return `/post/${encodeURIComponent(atUri)}`
 }
 
+/** In-app modal/navigation path that always resolves immediately (no handle->did lookup). */
+export function getPostOverlayPath(atUri: string): string {
+  return `/post/${encodeURIComponent(atUri)}`
+}
+
 /**
  * Public URL to open a post (same shape as bsky.app, with this deployment’s origin and base).
  * Pass `authorHandle` when known so the link is `/profile/handle/post/rkey` instead of a long encoded at-uri.
