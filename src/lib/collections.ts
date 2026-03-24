@@ -28,6 +28,11 @@ export const MAX_COLLECTION_ITEMS = 2000
 /** Max length for `slug` on `app.purplesky.collection` records (URL segment). */
 export const MAX_COLLECTION_SLUG_LENGTH = 64
 
+/** In-memory memoization to avoid repeating expensive owner/slug resolution. */
+const ownerDidCache = new Map<string, string | null>()
+const boardSegmentRkeyCache = new Map<string, string | null>()
+const plcPdsBaseCache = new Map<string, string | null>()
+
 export type CollectionRecordValue = {
   $type: typeof COLLECTION_LEXICON
   title: string
@@ -86,10 +91,15 @@ function parseSlashSeparatedCollectionRef(ref: string): { owner: string; segment
 
 async function resolveCollectionOwnerToDid(owner: string): Promise<string | null> {
   if (owner.startsWith('did:')) return owner
+  const key = owner.trim().toLowerCase()
+  if (ownerDidCache.has(key)) return ownerDidCache.get(key) ?? null
   try {
     const res = await publicAgent.getProfile({ actor: owner })
-    return res.data.did ?? null
+    const did = res.data.did ?? null
+    ownerDidCache.set(key, did)
+    return did
   } catch {
+    ownerDidCache.set(key, null)
     return null
   }
 }
@@ -202,11 +212,17 @@ async function mintUniqueCollectionSlug(did: string, title: string): Promise<str
 }
 
 async function findRkeyBySlug(did: string, slugLower: string): Promise<string | null> {
+  const cacheKey = `${did}::${slugLower}`
+  if (boardSegmentRkeyCache.has(cacheKey)) return boardSegmentRkeyCache.get(cacheKey) ?? null
   const rows = await listCollectionRecordsLoose(did)
   for (const row of rows) {
     const sl = normalizeStoredSlug((row.value as { slug?: string }).slug)
-    if (sl === slugLower) return row.rkey
+    if (sl === slugLower) {
+      boardSegmentRkeyCache.set(cacheKey, row.rkey)
+      return row.rkey
+    }
   }
+  boardSegmentRkeyCache.set(cacheKey, null)
   return null
 }
 
@@ -214,12 +230,18 @@ async function findRkeyBySlug(did: string, slugLower: string): Promise<string | 
 async function resolveBoardSegmentToRkey(did: string, segment: string): Promise<string | null> {
   const seg = segment.trim()
   if (!seg) return null
+  const cacheKey = `${did}::${seg.toLowerCase()}`
+  if (boardSegmentRkeyCache.has(cacheKey)) return boardSegmentRkeyCache.get(cacheKey) ?? null
   const direct = await fetchCollectionRecordLoose(did, seg)
   if (direct?.cid && typeof direct.uri === 'string') {
     const p = parseAtUri(direct.uri)
-    return p?.rkey ?? seg
+    const resolved = p?.rkey ?? seg
+    boardSegmentRkeyCache.set(cacheKey, resolved)
+    return resolved
   }
-  return findRkeyBySlug(did, seg.toLowerCase())
+  const resolved = await findRkeyBySlug(did, seg.toLowerCase())
+  boardSegmentRkeyCache.set(cacheKey, resolved)
+  return resolved
 }
 
 /** True if the value looks like a collection AT-URI or compact `owner/rkey`. */
@@ -264,6 +286,7 @@ type RepoGetRecordData = {
 /** PDS URL for did:plc from PLC directory (unauthenticated read). */
 async function resolvePlcPdsBase(did: string): Promise<string | null> {
   if (!did.startsWith('did:plc:')) return null
+  if (plcPdsBaseCache.has(did)) return plcPdsBaseCache.get(did) ?? null
   try {
     const r = await fetch(`https://plc.directory/${encodeURIComponent(did)}`)
     if (!r.ok) return null
@@ -275,11 +298,15 @@ async function resolvePlcPdsBase(did: string): Promise<string | null> {
       const ep = s.serviceEndpoint
       const url = Array.isArray(ep) ? ep[0] : ep
       if (typeof url === 'string' && /^https?:\/\//i.test(url)) {
-        return url.replace(/\/$/, '')
+        const normalized = url.replace(/\/$/, '')
+        plcPdsBaseCache.set(did, normalized)
+        return normalized
       }
     }
+    plcPdsBaseCache.set(did, null)
     return null
   } catch {
+    plcPdsBaseCache.set(did, null)
     return null
   }
 }

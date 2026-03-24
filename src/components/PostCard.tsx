@@ -910,7 +910,13 @@ function PostCardInner({
             </>
           ) : (
             <>
-              <ProgressiveImage src={currentImageUrl} alt="" className={styles.media} loading="eager" onLoad={handleImageLoad} />
+              <ProgressiveImage
+                src={currentImageUrl}
+                alt=""
+                className={styles.media}
+                loading={isSelected ? 'eager' : 'lazy'}
+                onLoad={handleImageLoad}
+              />
             </>
           )}
           </div>
