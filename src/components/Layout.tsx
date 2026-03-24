@@ -2301,31 +2301,35 @@ export default function Layout({ title, children, showNav }: Props) {
       </main>
       {showNav && (
         <>
-          <div
-            className={`${styles.navOuter} nav-outer ${navVisible ? '' : styles.navHidden} ${!isDesktop && (mobileNavScrollHidden || (isModalOpen && modalScrollHidden)) ? styles.navOuterScrollHidden : ''}`}
-          >
-            {!isModalOpen && (
-              <button
-                type="button"
-                className={`${styles.seenPostsFloatBtn} hide-seen-fab float-btn`}
-                onPointerDown={(e) => startSeenHold(e)}
-                onPointerUp={endSeenHold}
-                onPointerLeave={endSeenHold}
-                onPointerCancel={endSeenHold}
-                onClick={(e) => seenBtnClick(e)}
-                title="Tap to hide read posts, hold to show them again"
-                aria-label="Read posts: tap to hide, hold to show again"
+          {typeof document !== 'undefined' &&
+            createPortal(
+              <div
+                className={`${styles.navOuter} nav-outer ${navVisible ? '' : styles.navHidden} ${!isDesktop && (mobileNavScrollHidden || (isModalOpen && modalScrollHidden)) ? styles.navOuterScrollHidden : ''}`}
               >
-                <SeenPostsIcon />
-              </button>
+                {!isModalOpen && (
+                  <button
+                    type="button"
+                    className={`${styles.seenPostsFloatBtn} hide-seen-fab float-btn`}
+                    onPointerDown={(e) => startSeenHold(e)}
+                    onPointerUp={endSeenHold}
+                    onPointerLeave={endSeenHold}
+                    onPointerCancel={endSeenHold}
+                    onClick={(e) => seenBtnClick(e)}
+                    title="Tap to hide read posts, hold to show them again"
+                    aria-label="Read posts: tap to hide, hold to show again"
+                  >
+                    <SeenPostsIcon />
+                  </button>
+                )}
+                <nav
+                  className={`${styles.nav} nav`}
+                  aria-label="Main navigation"
+                >
+                  {navItems}
+                </nav>
+              </div>,
+              document.body
             )}
-            <nav
-              className={`${styles.nav} nav`}
-              aria-label="Main navigation"
-            >
-              {navItems}
-            </nav>
-          </div>
           {mobileSearchOpen && !isDesktop && (
             <>
               <div
