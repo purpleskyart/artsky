@@ -27,6 +27,7 @@ import PostText from './PostText'
 import CharacterCountWithCircle from './CharacterCountWithCircle'
 import { CardDefaultIcon, CardMinimalistIcon, CardArtOnlyIcon, EyeOpenIcon, EyeHalfIcon, EyeClosedIcon } from './Icons'
 import SWUpdateToast from './SWUpdateToast'
+import PurpleSkyLogo from './PurpleSkyLogo'
 import styles from './Layout.module.css'
 
 const PRESET_FEED_SOURCES: FeedSource[] = [
@@ -1639,7 +1640,7 @@ export default function Layout({ title, children, showNav }: Props) {
                 onPointerCancel={endHomeHold}
                 onClick={homeBtnClick}
               >
-                <img src={`${import.meta.env.BASE_URL || '/'}icon.svg`} alt="" className={styles.logoIcon} />
+                <PurpleSkyLogo className={styles.logoIcon} />
                 <span className={styles.logoText}>PurpleSky</span>
                 {import.meta.env.VITE_APP_ENV === 'dev' && (
                   <span className={styles.logoDev}> dev</span>
