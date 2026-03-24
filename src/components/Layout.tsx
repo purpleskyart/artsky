@@ -1272,6 +1272,13 @@ export default function Layout({ title, children, showNav }: Props) {
     !!showAccountFeedUi &&
     !searchActive &&
     (path === '/collections' || isHandleBoardPath(path))
+  const handleCollectionsNavClick = () => {
+    if (!showAccountFeedUi) {
+      openLoginModal()
+      return
+    }
+    openCollectionsModal()
+  }
   const navTrayItems = (
     <>
       <button
@@ -1301,19 +1308,17 @@ export default function Layout({ title, children, showNav }: Props) {
         <span className={styles.navIcon}><SearchIcon active={searchActive} /></span>
         <span className={styles.navLabel}>Search</span>
       </button>
-      {showAccountFeedUi && (
-        <button
-          type="button"
-          className={collectionsActive ? styles.navActive : styles.navBtn}
-          onClick={() => openCollectionsModal()}
-          aria-current={collectionsActive ? 'page' : undefined}
-          aria-label="Collections"
-          title="Collections"
-        >
-          <span className={styles.navIcon}><CollectionsBookmarkNavIcon active={collectionsActive} /></span>
-          <span className={styles.navLabel}>Collections</span>
-        </button>
-      )}
+      <button
+        type="button"
+        className={collectionsActive ? styles.navActive : styles.navBtn}
+        onClick={handleCollectionsNavClick}
+        aria-current={collectionsActive ? 'page' : undefined}
+        aria-label="Collections"
+        title="Collections"
+      >
+        <span className={styles.navIcon}><CollectionsBookmarkNavIcon active={collectionsActive} /></span>
+        <span className={styles.navLabel}>Collections</span>
+      </button>
     </>
   )
 
@@ -1340,18 +1345,16 @@ export default function Layout({ title, children, showNav }: Props) {
               <span className={styles.navIcon}><HomeIcon active={homeActive} /></span>
             </button>
           </div>
-          {showAccountFeedUi && (
-            <button
-              type="button"
-              className={collectionsActive ? styles.navActive : styles.navBtn}
-              onClick={() => openCollectionsModal()}
-              aria-current={collectionsActive ? 'page' : undefined}
-              aria-label="Collections"
-              title="Collections"
-            >
-              <span className={styles.navIcon}><CollectionsBookmarkNavIcon active={collectionsActive} /></span>
-            </button>
-          )}
+          <button
+            type="button"
+            className={collectionsActive ? styles.navActive : styles.navBtn}
+            onClick={handleCollectionsNavClick}
+            aria-current={collectionsActive ? 'page' : undefined}
+            aria-label="Collections"
+            title="Collections"
+          >
+            <span className={styles.navIcon}><CollectionsBookmarkNavIcon active={collectionsActive} /></span>
+          </button>
           <button type="button" className={styles.navBtn} onClick={openCompose} aria-label="New post">
             <span className={styles.navIcon}><PlusIcon /></span>
           </button>
