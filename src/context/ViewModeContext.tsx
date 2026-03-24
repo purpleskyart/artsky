@@ -7,21 +7,22 @@ import { asyncStorage } from '../lib/AsyncStorage'
 const STORAGE_KEY = 'artsky-view-mode'
 const DESKTOP_BREAKPOINT = 768
 
-export type ViewMode = '1' | '2' | '3'
+export type ViewMode = '1' | '2' | '3' | 'a'
 
-const VIEW_OPTIONS: ViewMode[] = ['1', '2', '3']
+const VIEW_OPTIONS: ViewMode[] = ['1', '2', '3', 'a']
 
 /** Human-readable labels: view N = N Columns */
 export const VIEW_LABELS: Record<ViewMode, string> = {
   '1': '1 Column',
   '2': '2 Columns',
   '3': '3 Columns',
+  a: 'All Columns',
 }
 
 type ViewModeContextValue = {
   viewMode: ViewMode
   setViewMode: (mode: ViewMode) => void
-  /** Cycle 1 → 2 → 3 → 1 (uses current state, safe for header toggle). Shows toast unless options.showToast is false. */
+  /** Cycle 1 → 2 → 3 → All → 1 (uses current state, safe for header toggle). Shows toast unless options.showToast is false. */
   cycleViewMode: (anchor?: HTMLElement, options?: { showToast?: boolean }) => void
   viewOptions: ViewMode[]
 }
@@ -30,7 +31,7 @@ const ViewModeContext = createContext<ViewModeContextValue | null>(null)
 
 function getStored(): ViewMode | null {
   const v = asyncStorage.get<string>(STORAGE_KEY)
-  if (v === '1' || v === '2' || v === '3') return v
+  if (v === '1' || v === '2' || v === '3' || v === 'a') return v
   if (v === '4' || v === '5') return '3' /* migrate old 4/5 column preference to 3 */
   return null
 }
@@ -53,7 +54,7 @@ export function ViewModeProvider({ children }: { children: React.ReactNode }) {
   const defaultMode: ViewMode = !session && isDesktop ? '3' : '2'
   const [viewMode, setViewModeState] = useState<ViewMode>(() => {
     const v = stored ?? defaultMode
-    return v === '1' || v === '2' || v === '3' ? v : defaultMode
+    return v === '1' || v === '2' || v === '3' || v === 'a' ? v : defaultMode
   })
 
   useEffect(() => {
@@ -63,7 +64,7 @@ export function ViewModeProvider({ children }: { children: React.ReactNode }) {
   }, [session, isDesktop])
 
   const setViewMode = useCallback((mode: ViewMode) => {
-    const safe: ViewMode = mode === '1' || mode === '2' || mode === '3' ? mode : '2'
+    const safe: ViewMode = mode === '1' || mode === '2' || mode === '3' || mode === 'a' ? mode : '2'
     setViewModeState(safe)
     // Use immediate write (0ms debounce) for user-initiated changes
     asyncStorage.set(STORAGE_KEY, safe, 0)

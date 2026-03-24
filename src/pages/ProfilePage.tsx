@@ -19,12 +19,13 @@ import { useViewMode, type ViewMode } from '../context/ViewModeContext'
 import { useModeration, type NsfwPreference } from '../context/ModerationContext'
 import { useHideReposts } from '../context/HideRepostsContext'
 import { EyeOpenIcon, EyeHalfIcon, EyeClosedIcon } from '../components/Icons'
+import { useColumnCount } from '../hooks/useViewportWidth'
 import styles from './ProfilePage.module.css'
 
 const REASON_REPOST = 'app.bsky.feed.defs#reasonRepost'
 const REASON_PIN = 'app.bsky.feed.defs#reasonPin'
 
-const VIEW_MODE_CYCLE: ViewMode[] = ['1', '2', '3']
+const VIEW_MODE_CYCLE: ViewMode[] = ['1', '2', '3', 'a']
 
 /** Nominal column width for height estimation (px). */
 const ESTIMATE_COL_WIDTH = 280
@@ -122,21 +123,22 @@ function indexRightByRow(
   return currentIndex
 }
 
-function ColumnIcon({ cols }: { cols: 1 | 2 | 3 }) {
+function ColumnIcon({ cols }: { cols: number }) {
+  const safeCols = Math.max(1, Math.min(3, Math.floor(cols)))
   const w = 14
   const h = 12
   const gap = 2
-  const barW = cols === 1 ? 4 : (w - (cols - 1) * gap) / cols
+  const barW = safeCols === 1 ? 4 : (w - (safeCols - 1) * gap) / safeCols
   return (
     <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} fill="currentColor" aria-hidden>
-      {cols === 1 && <rect x={(w - barW) / 2} y={0} width={barW} height={h} rx={1} />}
-      {cols === 2 && (
+      {safeCols === 1 && <rect x={(w - barW) / 2} y={0} width={barW} height={h} rx={1} />}
+      {safeCols === 2 && (
         <>
           <rect x={0} y={0} width={barW} height={h} rx={1} />
           <rect x={barW + gap} y={0} width={barW} height={h} rx={1} />
         </>
       )}
-      {cols === 3 && (
+      {safeCols === 3 && (
         <>
           <rect x={0} y={0} width={barW} height={h} rx={1} />
           <rect x={barW + gap} y={0} width={barW} height={h} rx={1} />
@@ -376,7 +378,7 @@ export function ProfileContent({
   // rootMargin to load before user sees empty space. Fallback timer handles the case where a very
   // tall post pushes short-column sentinels beyond rootMargin and the observer never sees them.
   loadingMoreRef.current = loadingMore
-  const colsForObserver = viewMode === '1' ? 1 : viewMode === '2' ? 2 : 3
+  const colsForObserver = useColumnCount(viewMode, 150)
   const loadMoreCursor = tab === 'posts' && profilePostsFilter === 'liked' ? likedCursor : cursor
   const loadMore = tab === 'posts' && profilePostsFilter === 'liked' ? (c: string) => loadLiked(c) : load
   useEffect(() => {
@@ -498,7 +500,7 @@ export function ProfileContent({
     if (loading || visibleTabs.length === 0) return
     if (!visibleTabs.includes(tab)) setTab(visibleTabs[0])
   }, [loading, visibleTabs, tab])
-  const cols = viewMode === '1' ? 1 : viewMode === '2' ? 2 : 3
+  const cols = colsForObserver
   profileGridItemsRef.current = profileGridItems
   keyboardFocusIndexRef.current = keyboardFocusIndex
 
@@ -892,7 +894,7 @@ export function ProfileContent({
                   title={`${viewMode} column(s). Click to cycle.`}
                   aria-label={`${viewMode} columns`}
                 >
-                  <ColumnIcon cols={viewMode === '1' ? 1 : viewMode === '2' ? 2 : 3} />
+                  <ColumnIcon cols={cols} />
                 </button>
                 <button
                   type="button"
@@ -1011,7 +1013,7 @@ export function ProfileContent({
           <>
             <div
               ref={gridRef}
-              className={`${styles.gridColumns} ${styles[`gridView${viewMode}`]}`}
+              className={`${styles.gridColumns} ${viewMode === 'a' ? styles.gridView3 : styles[`gridView${viewMode}`]}`}
               data-view-mode={viewMode}
             >
               {distributeByHeight(mediaItems, cols).map((column, colIndex) => (

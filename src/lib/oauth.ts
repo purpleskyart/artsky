@@ -4,9 +4,11 @@ let clientPromise: Promise<BrowserOAuthClient> | null = null
 
 /** Base URL for the app (origin + pathname to app root). Used as client_id base for HTTPS. */
 function getAppBaseUrl(): string {
-  const u = new URL(window.location.href)
-  const path = u.pathname.replace(/\/index\.html$/, '').replace(/\/?$/, '') || '/'
-  return `${u.origin}${path}`
+  const origin = window.location.origin
+  // Vite's BASE_URL points to the app root (e.g. "/" or "/artsky/"), unlike location.pathname which may be a routed page.
+  const basePath = (import.meta.env.BASE_URL || '/').replace(/\/?$/, '/')
+  const appRoot = new URL(basePath, origin)
+  return `${appRoot.origin}${appRoot.pathname.replace(/\/$/, '') || '/'}`
 }
 
 /** True when running on localhost / 127.0.0.1 / [::1]. */

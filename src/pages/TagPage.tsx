@@ -10,6 +10,7 @@ import { useProfileModal } from '../context/ProfileModalContext'
 import { useViewMode } from '../context/ViewModeContext'
 import { useModeration } from '../context/ModerationContext'
 import { useModalScroll } from '../context/ModalScrollContext'
+import { useColumnCount } from '../hooks/useViewportWidth'
 import styles from './TagPage.module.css'
 import profileGridStyles from './ProfilePage.module.css'
 import { getPostAppPath } from '../lib/appUrl'
@@ -118,7 +119,7 @@ export function TagContent({ tag, inModal = false, onRegisterRefresh }: { tag: s
   const mediaItems = items
     .filter((item) => getPostMediaInfo(item.post))
     .filter((item) => nsfwPreference !== 'sfw' || !isPostNsfw(item.post))
-  const cols = viewMode === '1' ? 1 : viewMode === '2' ? 2 : 3
+  const cols = useColumnCount(viewMode, 150)
   mediaItemsRef.current = mediaItems
   keyboardFocusIndexRef.current = keyboardFocusIndex
 
@@ -251,7 +252,7 @@ export function TagContent({ tag, inModal = false, onRegisterRefresh }: { tag: s
         <>
           <div
             ref={gridRef}
-            className={`${profileGridStyles.gridColumns} ${profileGridStyles[`gridView${viewMode}`]}`}
+            className={`${profileGridStyles.gridColumns} ${viewMode === 'a' ? profileGridStyles.gridView3 : profileGridStyles[`gridView${viewMode}`]}`}
             data-view-mode={viewMode}
           >
             {distributeByHeight(mediaItems, cols).map((column, colIndex) => (

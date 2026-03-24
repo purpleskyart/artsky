@@ -7,6 +7,7 @@ import AppModal from './AppModal'
 import MediaModalTopBar from './MediaModalTopBar'
 import { useSession } from '../context/SessionContext'
 import { useProfileModal } from '../context/ProfileModalContext'
+import { useColumnCount } from '../hooks/useViewportWidth'
 import { useViewMode } from '../context/ViewModeContext'
 import { useModeration } from '../context/ModerationContext'
 import { useModalScroll } from '../context/ModalScrollContext'
@@ -158,11 +159,12 @@ function SearchContent({ query, onRegisterRefresh }: { query: string; onRegister
     })
   }, [onRegisterRefresh, load])
 
+  const cols = useColumnCount(viewMode, 150)
   loadingMoreRef.current = loadingMore
   useEffect(() => {
     if (!cursor) return
     const refs = loadMoreSentinelRefs.current
-    const numCols = viewMode === '1' ? 1 : viewMode === '2' ? 2 : 3
+    const numCols = cols
     const root = refs[0]?.closest('[data-modal-scroll]') ?? undefined
     let retryId = 0
     const observer = new IntersectionObserver(
@@ -201,13 +203,12 @@ function SearchContent({ query, onRegisterRefresh }: { query: string; onRegister
       observer.disconnect()
       clearTimeout(retryId)
     }
-  }, [cursor, load, viewMode])
+  }, [cursor, load, cols])
 
   const { nsfwPreference, unblurredUris, setUnblurred } = useModeration()
   const mediaItems = items
     .filter((item) => getPostMediaInfo(item.post))
     .filter((item) => nsfwPreference !== 'sfw' || !isPostNsfw(item.post))
-  const cols = viewMode === '1' ? 1 : viewMode === '2' ? 2 : 3
   mediaItemsRef.current = mediaItems
   keyboardFocusIndexRef.current = keyboardFocusIndex
 
@@ -304,7 +305,7 @@ function SearchContent({ query, onRegisterRefresh }: { query: string; onRegister
         <div className={styles.empty}>No posts found for this search.</div>
       ) : (
         <div
-          className={`${feedStyles.gridColumns} ${feedStyles[`gridView${viewMode}`]}`}
+          className={`${feedStyles.gridColumns} ${viewMode === 'a' ? feedStyles.gridView3 : feedStyles[`gridView${viewMode}`]}`}
           data-view-mode={viewMode}
         >
           {distributeByHeight(mediaItems, cols).map((column, colIndex) => (
