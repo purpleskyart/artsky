@@ -115,7 +115,6 @@ function SearchContent({ query, onRegisterRefresh }: { query: string; onRegister
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [keyboardFocusIndex, setKeyboardFocusIndex] = useState(0)
-  const [keyboardAddOpen, setKeyboardAddOpen] = useState(false)
   const [likeOverrides, setLikeOverrides] = useState<Record<string, string | null>>({})
   const cardRefsRef = useRef<(HTMLDivElement | null)[]>([])
   const loadMoreSentinelRefs = useRef<(HTMLDivElement | null)[]>([])
@@ -246,7 +245,7 @@ function SearchContent({ query, onRegisterRefresh }: { query: string; onRegister
       const i = keyboardFocusIndexRef.current
       const columns = distributeByHeight(items, cols)
       const key = e.key.toLowerCase()
-      if (key === 'w' || key === 's' || key === 'a' || key === 'd' || key === 'e' || key === 'enter' || key === 'f' || key === 'c' || e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') e.preventDefault()
+      if (key === 'w' || key === 's' || key === 'a' || key === 'd' || key === 'e' || key === 'enter' || key === 'f' || e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') e.preventDefault()
 
       if (key === 'w' || e.key === 'ArrowUp') {
         scrollIntoViewFromKeyboardRef.current = true
@@ -289,9 +288,6 @@ function SearchContent({ query, onRegisterRefresh }: { query: string; onRegister
         }
         return
       }
-      if (key === 'c') {
-        setKeyboardAddOpen(true)
-      }
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
@@ -320,7 +316,6 @@ function SearchContent({ query, onRegisterRefresh }: { query: string; onRegister
               loadMoreSentinelRef={cursor ? (el) => { loadMoreSentinelRefs.current[colIndex] = el } : undefined}
               hasCursor={!!cursor}
               keyboardFocusIndex={keyboardFocusIndex}
-              keyboardAddOpen={keyboardAddOpen}
               actionsMenuOpenForIndex={null}
               nsfwPreference={nsfwPreference}
               unblurredUris={unblurredUris}
@@ -331,7 +326,6 @@ function SearchContent({ query, onRegisterRefresh }: { query: string; onRegister
               cardRef={(index) => (el) => { cardRefsRef.current[index] = el }}
               onActionsMenuOpenChange={() => {}}
               onMouseEnter={(originalIndex) => setKeyboardFocusIndex(originalIndex)}
-              onAddClose={() => setKeyboardAddOpen(false)}
               suppressHoverNsfwUnblur
               isSelected={(index) => index === keyboardFocusIndex}
             />

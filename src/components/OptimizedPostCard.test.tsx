@@ -33,8 +33,6 @@ describe('OptimizedPostCard', () => {
     isSelected: false,
     onMediaRef: vi.fn(),
     cardRef: vi.fn(),
-    openAddDropdown: false,
-    onAddClose: vi.fn(),
     onActionsMenuOpenChange: vi.fn(),
     cardIndex: 0,
     actionsMenuOpenForIndex: null,

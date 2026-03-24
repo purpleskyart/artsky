@@ -69,7 +69,6 @@ export function TagContent({ tag, inModal = false, onRegisterRefresh }: { tag: s
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [keyboardFocusIndex, setKeyboardFocusIndex] = useState(0)
-  const [keyboardAddOpen, setKeyboardAddOpen] = useState(false)
   const [likeOverrides, setLikeOverrides] = useState<Record<string, string | null>>({})
   const cardRefsRef = useRef<(HTMLDivElement | null)[]>([])
   const loadMoreSentinelRef = useRef<HTMLDivElement>(null)
@@ -179,7 +178,7 @@ export function TagContent({ tag, inModal = false, onRegisterRefresh }: { tag: s
       const items = mediaItemsRef.current
       const i = keyboardFocusIndexRef.current
       const key = e.key.toLowerCase()
-      if (key === 'w' || key === 's' || key === 'a' || key === 'd' || key === 'e' || key === 'enter' || key === 'f' || key === 'c' || e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') e.preventDefault()
+      if (key === 'w' || key === 's' || key === 'a' || key === 'd' || key === 'e' || key === 'enter' || key === 'f' || e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') e.preventDefault()
 
       if (key === 'w' || e.key === 'ArrowUp') {
         scrollIntoViewFromKeyboardRef.current = true
@@ -225,9 +224,6 @@ export function TagContent({ tag, inModal = false, onRegisterRefresh }: { tag: s
         }
         return
       }
-      if (key === 'c') {
-        setKeyboardAddOpen(true)
-      }
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
@@ -268,7 +264,6 @@ export function TagContent({ tag, inModal = false, onRegisterRefresh }: { tag: s
                 }
                 hasCursor={!!cursor}
                 keyboardFocusIndex={keyboardFocusIndex}
-                keyboardAddOpen={keyboardAddOpen}
                 actionsMenuOpenForIndex={null}
                 nsfwPreference={nsfwPreference}
                 unblurredUris={unblurredUris}
@@ -283,7 +278,6 @@ export function TagContent({ tag, inModal = false, onRegisterRefresh }: { tag: s
                 cardRef={(index) => (el) => { cardRefsRef.current[index] = el }}
                 onActionsMenuOpenChange={() => {}}
                 onMouseEnter={(originalIndex) => setKeyboardFocusIndex(originalIndex)}
-                onAddClose={() => setKeyboardAddOpen(false)}
                 suppressHoverNsfwUnblur={inModal}
                 isSelected={(index) => index === keyboardFocusIndex}
               />

@@ -1,5 +1,6 @@
 import { memo, useMemo, type ReactNode } from 'react'
 import { LoginModalProvider } from './LoginModalContext'
+import { CollectionSaveProvider } from './CollectionSaveContext'
 import { ModalExpandProvider } from './ModalExpandContext'
 import { ProfileModalProvider } from './ProfileModalContext'
 import { EditProfileProvider } from './EditProfileContext'
@@ -22,13 +23,15 @@ function ModalProvidersGroupComponent({ children }: ModalProvidersGroupProps) {
 
   return (
     <LoginModalProvider>
-      <ModalExpandProvider>
-        <ProfileModalProvider>
-          <EditProfileProvider>
-            {memoizedChildren}
-          </EditProfileProvider>
-        </ProfileModalProvider>
-      </ModalExpandProvider>
+      <CollectionSaveProvider>
+        <ModalExpandProvider>
+          <ProfileModalProvider>
+            <EditProfileProvider>
+              {memoizedChildren}
+            </EditProfileProvider>
+          </ProfileModalProvider>
+        </ModalExpandProvider>
+      </CollectionSaveProvider>
     </LoginModalProvider>
   )
 }

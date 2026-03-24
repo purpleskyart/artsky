@@ -2,13 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import type { AppBskyFeedDefs } from '@atproto/api'
 import type { AtpSessionData } from '@atproto/api'
-import { agent, publicAgent, postReply, getPostAllMedia, getPostMediaUrl, getQuotedPostView, getPostExternalLink, getSession, createQuotePost, createDownvote, deleteDownvote, listMyDownvotes, getPostThreadCached, getProfilesBatch, getProfileCached, getPostsBatch, likePostWithLifecycle, unlikePostWithLifecycle, repostPostWithLifecycle, deleteRepostWithLifecycle, followAccountWithLifecycle, unfollowAccountWithLifecycle, POST_MEDIA_FULL, POST_MEDIA_FEED_PREVIEW, type PostView } from '../lib/bsky'
+import { agent, publicAgent, postReply, getPostAllMedia, getQuotedPostView, getPostExternalLink, getSession, createQuotePost, createDownvote, deleteDownvote, listMyDownvotes, getPostThreadCached, getProfilesBatch, getProfileCached, getPostsBatch, likePostWithLifecycle, unlikePostWithLifecycle, repostPostWithLifecycle, deleteRepostWithLifecycle, followAccountWithLifecycle, unfollowAccountWithLifecycle, POST_MEDIA_FULL, POST_MEDIA_FEED_PREVIEW, type PostView } from '../lib/bsky'
 import { getApiErrorMessage } from '../lib/apiErrors'
 import { takeInitialPostForUri, getCachedThread, invalidateThreadCache } from '../lib/postCache'
 import { getDownvoteCounts } from '../lib/constellation'
 import { useSession } from '../context/SessionContext'
-import { subscribeArtboards, getArtboardsSnapshot, getArtboard, createArtboard, addPostToArtboard, isPostInArtboard } from '../lib/artboards'
-import { putArtboardOnPds } from '../lib/artboardsPds'
 import { formatRelativeTime, formatExactDateTime } from '../lib/date'
 import Layout from '../components/Layout'
 import ProfileLink from '../components/ProfileLink'
@@ -27,13 +25,6 @@ function RepostIcon() {
   return (
     <svg width={ACTION_ICON_SIZE} height={ACTION_ICON_SIZE} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
       <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z" />
-    </svg>
-  )
-}
-function CollectIcon() {
-  return (
-    <svg width={ACTION_ICON_SIZE} height={ACTION_ICON_SIZE} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
     </svg>
   )
 }
@@ -1069,8 +1060,6 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
   const [error, setError] = useState<string | null>(null)
   const [comment, setComment] = useState('')
   const [posting, setPosting] = useState(false)
-  const [addToBoardIds, setAddToBoardIds] = useState<Set<string>>(new Set())
-  const [addedToBoard, setAddedToBoard] = useState<string | null>(null)
   const [collapsedThreads, setCollapsedThreads] = useState<Set<string>>(() => new Set())
   const [followLoading, setFollowLoading] = useState(false)
   const [authorFollowed, setAuthorFollowed] = useState(false)
@@ -1089,8 +1078,6 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
   const [commentLikeLoadingUri, setCommentLikeLoadingUri] = useState<string | null>(null)
   const [commentDownvoteLoadingUri, setCommentDownvoteLoadingUri] = useState<string | null>(null)
   const [openActionsMenuUri, setOpenActionsMenuUri] = useState<string | null>(null)
-  const [newBoardName, setNewBoardName] = useState('')
-  const [showBoardDropdown, setShowBoardDropdown] = useState(false)
   const [showRepostDropdown, setShowRepostDropdown] = useState(false)
   const [showQuoteComposer, setShowQuoteComposer] = useState(false)
   const [quoteText, setQuoteText] = useState('')
@@ -1107,6 +1094,8 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
   const descriptionSectionRef = useRef<HTMLDivElement>(null)
   const commentsSectionRef = useRef<HTMLDivElement>(null)
   const downvoteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  /** Invalidates in-flight load() when URI changes or the effect cleans up — avoids wrong thread after rapid post switches. */
+  const loadGenRef = useRef(0)
   const [focusedCommentIndex, setFocusedCommentIndex] = useState(0)
   const [commentFormFocused, setCommentFormFocused] = useState(false)
   const commentFormTopRef = useRef<HTMLFormElement>(null)
@@ -1117,7 +1106,6 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
   const scrollIntoViewFromKeyboardRef = useRef(false)
   const appliedInitialFocusUriRef = useRef<string | null>(null)
   const prevSectionIndexRef = useRef(0)
-  const boards = useSyncExternalStore(subscribeArtboards, getArtboardsSnapshot, getArtboardsSnapshot)
   const session = getSession()
   const { session: sessionFromContext, sessionsList, switchAccount } = useSession()
   const toast = useToast()
@@ -1278,6 +1266,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
 
   const load = useCallback(async () => {
     if (!decodedUri) return
+    const gen = ++loadGenRef.current
     if (downvoteTimerRef.current != null) {
       clearTimeout(downvoteTimerRef.current)
       downvoteTimerRef.current = null
@@ -1309,11 +1298,13 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
     if (!hadInstantData) setLoading(true)
     try {
       const threadRes = await getPostThreadCached(decodedUri, api)
+      if (gen !== loadGenRef.current) return
       const threadData = threadRes.data.thread as AppBskyFeedDefs.ThreadViewPost | AppBskyFeedDefs.NotFoundPost | AppBskyFeedDefs.BlockedPost | { $type: string }
       setThread(threadData)
       /* Canonical post view: only fetch when snapshot embed lacks image fullsize URLs. */
       if (isThreadViewPost(threadData) && rootPostNeedsCanonicalHydration(threadData.post)) {
         void getPostsBatch([decodedUri]).then((map) => {
+          if (gen !== loadGenRef.current) return
           const fresh = map.get(decodedUri)
           if (!fresh) return
           setThread((prev) => {
@@ -1322,12 +1313,17 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
           })
         })
       }
-      setLoading(false)
       setDownvoteCountOptimisticDelta({})
       const uris = isThreadViewPost(threadData) ? collectThreadPostUris(threadData) : []
       if (uris.length > 0) {
         const downvoteTimer = window.setTimeout(() => {
-          getDownvoteCounts(uris).then(setDownvoteCounts).catch(() => {})
+          if (gen !== loadGenRef.current) return
+          getDownvoteCounts(uris)
+            .then((counts) => {
+              if (gen !== loadGenRef.current) return
+              setDownvoteCounts(counts)
+            })
+            .catch(() => {})
         }, 2000)
         downvoteTimerRef.current = downvoteTimer
       } else {
@@ -1335,21 +1331,29 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
       }
       if (getSession()) {
         listMyDownvotes()
-          .then(setMyDownvotes)
+          .then((votes) => {
+            if (gen !== loadGenRef.current) return
+            setMyDownvotes(votes)
+          })
           .catch(() => {})
       } else {
         setMyDownvotes({})
       }
     } catch (err: unknown) {
-      setError(getApiErrorMessage(err, 'load post'))
+      if (gen === loadGenRef.current) {
+        setError(getApiErrorMessage(err, 'load post'))
+      }
     } finally {
-      setLoading(false)
+      if (gen === loadGenRef.current) {
+        setLoading(false)
+      }
     }
   }, [decodedUri, sessionFromContext?.did])
 
   useEffect(() => {
     load()
     return () => {
+      loadGenRef.current += 1
       if (downvoteTimerRef.current != null) {
         clearTimeout(downvoteTimerRef.current)
         downvoteTimerRef.current = null
@@ -1484,59 +1488,6 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
     } finally {
       setCommentDownvoteLoadingUri(null)
     }
-  }
-
-  async function handleAddToArtboard() {
-    if (!thread || !isThreadViewPost(thread)) return
-    const hasSelection = addToBoardIds.size > 0 || newBoardName.trim().length > 0
-    if (!hasSelection) return
-    const post = thread.post
-    const media = getPostMediaUrl(post, POST_MEDIA_FEED_PREVIEW)
-    const allMedia = getPostAllMedia(post, POST_MEDIA_FEED_PREVIEW)
-    const thumbs = allMedia.length > 0 ? allMedia.map((m) => m.url) : undefined
-    const payload = {
-      uri: post.uri,
-      cid: post.cid,
-      authorHandle: post.author.handle,
-      text: (post.record as { text?: string })?.text?.slice(0, 200),
-      thumb: media?.url ?? thumbs?.[0],
-      thumbs,
-    }
-    const modifiedIds: string[] = []
-    if (newBoardName.trim()) {
-      const board = createArtboard(newBoardName.trim())
-      addPostToArtboard(board.id, payload)
-      modifiedIds.push(board.id)
-      setNewBoardName('')
-    }
-    addToBoardIds.forEach((id) => {
-      addPostToArtboard(id, payload)
-      modifiedIds.push(id)
-    })
-    setAddedToBoard(modifiedIds[0] ?? null)
-    setAddToBoardIds(new Set())
-    setShowBoardDropdown(false)
-    if (session?.did && modifiedIds.length > 0) {
-      for (const boardId of [...new Set(modifiedIds)]) {
-        const board = getArtboard(boardId)
-        if (board) {
-          try {
-            await putArtboardOnPds(agent, session.did, board)
-          } catch {
-            // leave local as is
-          }
-        }
-      }
-    }
-  }
-
-  function toggleBoardSelection(boardId: string) {
-    setAddToBoardIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(boardId)) next.delete(boardId)
-      else next.add(boardId)
-      return next
-    })
   }
 
   const quotePreviewUrls = useMemo(
@@ -2212,70 +2163,6 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
               </div>
             <section className={styles.actions} aria-label="Post actions">
               <div className={styles.actionRow}>
-                <div className={styles.addToBoardWrap}>
-                  <button
-                    type="button"
-                    className={styles.addToBoardTrigger}
-                    onClick={() => setShowBoardDropdown((v) => !v)}
-                    aria-expanded={showBoardDropdown}
-                    aria-haspopup="true"
-                  >
-                    <span className={styles.likeRepostBtnIcon} aria-hidden><CollectIcon /></span>
-                    Collect {showBoardDropdown ? '▾' : '▸'}
-                  </button>
-                  {showBoardDropdown && (
-                    <div className={styles.boardDropdown}>
-                      {boards.length === 0 ? null : (
-                        <>
-                          {boards.map((b) => {
-                            const alreadyIn = isPostInArtboard(b.id, thread.post.uri)
-                            const selected = addToBoardIds.has(b.id)
-                            return (
-                              <label key={b.id} className={styles.boardCheckLabel}>
-                                <input
-                                  type="checkbox"
-                                  checked={selected}
-                                  onChange={() => !alreadyIn && toggleBoardSelection(b.id)}
-                                  disabled={alreadyIn}
-                                  className={styles.boardCheckbox}
-                                />
-                                <span className={styles.boardCheckText}>
-                                  {alreadyIn ? (
-                                    <>
-                                      <span className={styles.boardCheckIcon} aria-hidden>✓</span> {b.name}
-                                    </>
-                                  ) : (
-                                    b.name
-                                  )}
-                                </span>
-                              </label>
-                            )
-                          })}
-                        </>
-                      )}
-                      <div className={styles.boardDropdownNew}>
-                        <input
-                          type="text"
-                          placeholder="New collection name"
-                          value={newBoardName}
-                          onChange={(e) => setNewBoardName(e.target.value)}
-                          className={styles.newBoardInput}
-                          onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddToArtboard())}
-                        />
-                      </div>
-                      <div className={styles.boardDropdownActions}>
-                        <button
-                          type="button"
-                          className={styles.addBtn}
-                          onClick={handleAddToArtboard}
-                          disabled={addToBoardIds.size === 0 && !newBoardName.trim()}
-                        >
-                          Add to selected
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
                 <button
                   type="button"
                   className={`${styles.likeRepostBtn} ${isLiked ? styles.likeRepostBtnActive : ''}`}
@@ -2353,11 +2240,6 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                   />
                 )}
               </div>
-              {addedToBoard && (
-                <p className={styles.added}>
-                  Added to {boards.find((b) => b.id === addedToBoard)?.name}
-                </p>
-              )}
             </section>
             </article>
             {thread && isThreadViewPost(thread) && (

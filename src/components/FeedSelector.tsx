@@ -347,8 +347,6 @@ export default function FeedSelector({
                     <dd>Toggle text view</dd>
                     <dt>F</dt>
                     <dd>Like / unlike</dd>
-                    <dt>C</dt>
-                    <dd>Collect post</dd>
                     <dt>B</dt>
                     <dd>Block author (feed)</dd>
                     <dt>4</dt>

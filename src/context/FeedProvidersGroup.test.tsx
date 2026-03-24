@@ -89,8 +89,8 @@ describe('FeedProvidersGroup', () => {
         </CoreProvidersGroup>
       )
       
-      expect(screen.getByTestId('card-view-mode')).toBeInTheDocument()
-      expect(screen.getByTestId('art-only')).toBeInTheDocument()
+      expect(screen.getByTestId('card-view-mode')).toHaveTextContent('default')
+      expect(screen.getByTestId('art-only')).toHaveTextContent('false')
     })
     
     it('should provide MediaOnlyContext to children', () => {

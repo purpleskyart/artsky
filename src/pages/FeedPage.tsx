@@ -29,7 +29,8 @@ import { useModeration } from '../context/ModerationContext'
 import { useHideReposts } from '../context/HideRepostsContext'
 import { useSeenPosts } from '../context/SeenPostsContext'
 import { useLikeOverrides } from '../context/LikeOverridesContext'
-import { usePullToRefresh } from '../hooks/usePullToRefresh'
+import { usePullToRefresh, PULL_THRESHOLD_PX } from '../hooks/usePullToRefresh'
+import { useStandalonePwa } from '../hooks/useStandalonePwa'
 import { useColumnCount } from '../hooks/useViewportWidth'
 import FeedColumn from '../components/FeedColumn'
 import { feedReducer, type FeedState } from './feedReducer'
@@ -347,6 +348,7 @@ export default function FeedPage() {
   const navigate = useNavigate()
   const navigationType = useNavigationType()
   const isDesktop = useSyncExternalStore(subscribeDesktop, getDesktopSnapshot, () => false)
+  const isStandalonePwa = useStandalonePwa()
   const { openLoginModal } = useLoginModal()
   const { session } = useSession()
   const { viewMode } = useViewMode()
@@ -373,7 +375,6 @@ export default function FeedPage() {
   const loadingMoreRef = useRef(false)
   /** Cooldown after triggering load more so we don't fire again while sentinel stays in view (stops infinite load loop). */
   const lastLoadMoreAtRef = useRef(0)
-  const [keyboardAddOpen, setKeyboardAddOpen] = useState(false)
   const { openPostModal, isModalOpen } = useProfileModal()
   const cardRefsRef = useRef<(HTMLDivElement | null)[]>([])
   /** Refs for focused media elements: [cardIndex][mediaIndex] for scroll-into-view on multi-image posts */
@@ -510,7 +511,7 @@ export default function FeedPage() {
     const stateSource = (location.state as { feedSource?: FeedSource })?.feedSource
     if (stateSource) {
       setSource(stateSource)
-      /* Must keep search/hash — navigate(pathname) alone drops the query (breaks modals e.g. ?artboard=). */
+      /* Must keep search/hash — navigate(pathname) alone drops the query (breaks modals). */
       navigate(
         { pathname: location.pathname, search: location.search, hash: location.hash },
         { replace: true },
@@ -899,10 +900,6 @@ export default function FeedPage() {
     }
   }, [isDesktop, firstFocusIndexForCard])
 
-  const handleAddClose = useCallback(() => {
-    setKeyboardAddOpen(false)
-  }, [])
-
   useEffect(() => {
     const currentIndex = feedState.keyboardFocusIndex
     if (currentIndex < 0) return
@@ -1045,7 +1042,7 @@ export default function FeedPage() {
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       /* Never affect feed when a popup is open: check both context and URL (URL covers first render after open). */
-      const hasContentModalInUrl = /[?&](post|profile|tag|forumPost|artboard)=/.test(locationSearchRef.current)
+      const hasContentModalInUrl = /[?&](post|profile|tag|forumPost)=/.test(locationSearchRef.current)
       if (isModalOpen || hasContentModalInUrl) return
       const eventTarget = e.target as HTMLElement
       if (eventTarget.tagName === 'INPUT' || eventTarget.tagName === 'TEXTAREA' || eventTarget.tagName === 'SELECT' || eventTarget.isContentEditable) {
@@ -1082,7 +1079,7 @@ export default function FeedPage() {
         }
         return // let Tab/Enter reach the dialog buttons
       }
-      if (key === 'w' || key === 's' || key === 'a' || key === 'd' || key === 'e' || key === 'enter' || key === 'r' || key === 'f' || key === 'c' || key === 'h' || key === 'b' || key === 'm' || key === '`' || key === '4' || e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') e.preventDefault()
+      if (key === 'w' || key === 's' || key === 'a' || key === 'd' || key === 'e' || key === 'enter' || key === 'r' || key === 'f' || key === 'h' || key === 'b' || key === 'm' || key === '`' || key === '4' || e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') e.preventDefault()
 
       if (key === 'b') {
         if (focusedItem?.post?.author && session?.did !== focusedItem.post.author.did) {
@@ -1188,10 +1185,6 @@ export default function FeedPage() {
         }
         return
       }
-      if (key === 'c') {
-        setKeyboardAddOpen(true)
-        return
-      }
       if (key === '4') {
         const author = focusedItem?.post?.author as { did: string; viewer?: { following?: string } } | undefined
         const postUri = focusedItem?.post?.uri
@@ -1269,8 +1262,8 @@ export default function FeedPage() {
         window.scrollTo(0, 0)
       })
     },
-    /* Touch pull-to-refresh: intended for phones and installed PWAs (no browser chrome refresh). */
-    enabled: !isDesktop,
+    /* Custom pull only when installed as PWA; in mobile Safari/Chrome tab, use native pull-to-refresh. */
+    enabled: !isDesktop && isStandalonePwa,
     maxTouchStartY: 130,
   })
 
@@ -1336,20 +1329,25 @@ export default function FeedPage() {
 
   useEffect(() => {
     const setHandlers = feedPullRefresh?.setHandlers
-    if (setHandlers) {
-      setHandlers({ onTouchStart: handleTouchStart, onTouchMove: handleTouchMove, onTouchEnd: handleTouchEnd })
-      return () => {
-        setHandlers(null)
-      }
+    if (!setHandlers) return
+    if (!isStandalonePwa) {
+      setHandlers(null)
+      return () => setHandlers(null)
     }
-  }, [feedPullRefresh?.setHandlers, handleTouchStart, handleTouchMove, handleTouchEnd])
+    setHandlers({ onTouchStart: handleTouchStart, onTouchMove: handleTouchMove, onTouchEnd: handleTouchEnd })
+    return () => setHandlers(null)
+  }, [feedPullRefresh?.setHandlers, handleTouchStart, handleTouchMove, handleTouchEnd, isStandalonePwa])
 
   useEffect(() => {
     const setPull = feedPullRefresh?.setPullOffsetPx
     if (!setPull) return
+    if (!isStandalonePwa) {
+      setPull(0)
+      return () => setPull(0)
+    }
     setPull(pullRefresh.pullDistance)
     return () => setPull(0)
-  }, [feedPullRefresh?.setPullOffsetPx, pullRefresh.pullDistance])
+  }, [feedPullRefresh?.setPullOffsetPx, pullRefresh.pullDistance, isStandalonePwa])
 
   const useWrapperForPull = !!feedPullRefresh?.wrapperRef
 
@@ -1364,6 +1362,7 @@ export default function FeedPage() {
         onTouchEnd={useWrapperForPull ? undefined : handleTouchEnd}
       >
         {!isDesktop &&
+          isStandalonePwa &&
           typeof document !== 'undefined' &&
           createPortal(
             <div
@@ -1373,7 +1372,17 @@ export default function FeedPage() {
               aria-label={pullRefresh.isRefreshing ? 'Refreshing' : undefined}
             >
               {(pullRefresh.pullDistance > 0 || pullRefresh.isRefreshing) && (
-                <div className={styles.pullRefreshSpinner} />
+                <div
+                  className={styles.pullRefreshSpinner}
+                  style={
+                    pullRefresh.isRefreshing
+                      ? undefined
+                      : {
+                          animation: 'none',
+                          transform: `rotate(${Math.min(1, pullRefresh.pullDistance / PULL_THRESHOLD_PX) * 360}deg)`,
+                        }
+                  }
+                />
               )}
             </div>,
             document.body
@@ -1432,7 +1441,6 @@ export default function FeedPage() {
                   focusTargets={focusTargets}
                   firstFocusIndexForCard={firstFocusIndexForCard}
                   focusSetByMouse={focusSetByMouse}
-                  keyboardAddOpen={keyboardAddOpen}
                   actionsMenuOpenForIndex={feedState.actionsMenuOpenForIndex}
                   nsfwPreference={nsfwPreference}
                   unblurredUris={unblurredUris}
@@ -1445,7 +1453,6 @@ export default function FeedPage() {
                   onMediaRef={handleMediaRef}
                   onActionsMenuOpenChange={handleActionsMenuOpenChange}
                   onMouseEnter={handleMouseEnter}
-                  onAddClose={handleAddClose}
                 />
               ))}
             </div>

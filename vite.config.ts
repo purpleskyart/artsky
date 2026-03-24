@@ -19,7 +19,7 @@ export default defineConfig({
       manifest: {
         name: 'PurpleSky',
         short_name: 'PurpleSky',
-        description: 'Bluesky feed & artboards',
+        description: 'Bluesky feed for art',
         theme_color: '#1a1a2e',
         background_color: '#0f0f1a',
         display: 'standalone',

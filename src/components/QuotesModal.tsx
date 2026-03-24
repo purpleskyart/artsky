@@ -103,7 +103,6 @@ export default function QuotesModal({ postUri, onClose, onBack, canGoBack, isTop
                 loadMoreSentinelRef={cursor ? (el) => { (loadMoreSentinelRef as unknown as { current: HTMLDivElement | null }).current = el } : undefined}
                 hasCursor={!!cursor}
                 keyboardFocusIndex={0}
-                keyboardAddOpen={false}
                 actionsMenuOpenForIndex={null}
                 nsfwPreference={nsfwPreference}
                 unblurredUris={unblurredUris}
@@ -114,7 +113,6 @@ export default function QuotesModal({ postUri, onClose, onBack, canGoBack, isTop
                 cardRef={() => () => {}}
                 onActionsMenuOpenChange={() => {}}
                 onMouseEnter={() => {}}
-                onAddClose={() => {}}
                 suppressHoverNsfwUnblur
                 isSelected={() => false}
               />

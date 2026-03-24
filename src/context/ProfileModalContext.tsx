@@ -1,16 +1,16 @@
 import { createContext, lazy, Suspense, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { ChunkLoadError } from '../components/ChunkLoadError'
-import ArtboardModal from '../components/ArtboardModal'
 
 const PostDetailModal = lazy(() => import('../components/PostDetailModal'))
 const ProfileModal = lazy(() => import('../components/ProfileModal'))
 const TagModal = lazy(() => import('../components/TagModal'))
 const ForumModal = lazy(() => import('../components/ForumModal'))
 const ForumPostModal = lazy(() => import('../components/ForumPostModal'))
-const ArtboardsModal = lazy(() => import('../components/ArtboardsModal'))
 const SearchModal = lazy(() => import('../components/SearchModal'))
 const QuotesModal = lazy(() => import('../components/QuotesModal'))
+const CollectionsIndexModal = lazy(() => import('../components/CollectionsIndexModal'))
+const CollectionDetailModal = lazy(() => import('../components/CollectionDetailModal'))
 
 export type ModalItem =
   | { type: 'post'; uri: string; openReply?: boolean; focusUri?: string }
@@ -20,8 +20,8 @@ export type ModalItem =
   | { type: 'quotes'; uri: string }
   | { type: 'forum' }
   | { type: 'forumPost'; documentUri: string }
-  | { type: 'artboards' }
-  | { type: 'artboard'; id: string; ownerDid?: string }
+  | { type: 'collections' }
+  | { type: 'collection'; uri: string }
 
 type ProfileModalContextValue = {
   openProfileModal: (handle: string) => void
@@ -32,14 +32,13 @@ type ProfileModalContextValue = {
   openSearchModal: (query: string) => void
   openForumModal: () => void
   openForumPostModal: (documentUri: string) => void
-  openArtboardsModal: () => void
-  openArtboardModal: (id: string, ownerDid?: string) => void
   openQuotesModal: (postUri: string) => void
+  openCollectionsModal: () => void
   /** Go back to previous modal (Q or back button). */
   closeModal: () => void
   /** Close all modals (ESC, backdrop click, or X). */
   closeAllModals: () => void
-  /** True if any modal (post or profile or tag or forum or artboards) is open. */
+  /** True if any modal (post or profile or tag or forum) is open. */
   isModalOpen: boolean
   /** True if more than one modal is open (show back button). */
   canGoBack: boolean
@@ -53,10 +52,9 @@ const ProfileModalContext = createContext<ProfileModalContextValue | null>(null)
 /**
  * URL ↔ modal stack: single source of truth for all popups.
  * To add a new modal type: add the variant to ModalItem, then in parseSearchToModalStack (read param)
- * and modalItemToSearch (write param), and in modalItemsMatch. openXxx() just navigates; effect syncs URL → stack.
+ * and modalItemToSearch (write param). openXxx() just navigates; stack is derived from location.search each render (no lag vs URL).
  * When both profile= and post= are in the URL, stack is [profile, post] so back from post returns to profile.
  * When forum=1 and post= are both set, stack is [forum, post] so back returns to the forums list.
- * When artboards=1, artboard=, and post= are set, stack is [artboards, artboard, post] so back returns through the collection.
  */
 function parseSearchToModalStack(search: string): ModalItem[] {
   const params = new URLSearchParams(search)
@@ -72,15 +70,10 @@ function parseSearchToModalStack(search: string): ModalItem[] {
   const profileHandle = params.get('profile')
   if (profileHandle) stack.push({ type: 'profile', handle: profileHandle })
   if (params.get('forum') === '1' || bskyThreadFromLegacy) stack.push({ type: 'forum' })
-
-  /* Collections must be parsed before post= — otherwise ?artboards=1&artboard=id&post=… only became [post] and broke the stack. */
-  const artboardId = params.get('artboard')
-  const artboardOwner = params.get('artboardOwner') ?? undefined
-  if (params.get('artboards') === '1') {
-    stack.push({ type: 'artboards' })
-    if (artboardId) stack.push({ type: 'artboard', id: artboardId, ownerDid: artboardOwner })
-  } else if (artboardId) {
-    stack.push({ type: 'artboard', id: artboardId, ownerDid: artboardOwner })
+  if (params.get('collections') === '1') stack.push({ type: 'collections' })
+  const collectionParam = params.get('collection')
+  if (collectionParam) {
+    stack.push({ type: 'collection', uri: collectionParam })
   }
 
   if (resolvedPostUri) {
@@ -106,11 +99,6 @@ function parseSearchToModalStack(search: string): ModalItem[] {
   if (quotesUri) return [{ type: 'quotes', uri: quotesUri }]
   if (forumPostLegacy) return [{ type: 'forumPost', documentUri: forumPostLegacy }]
   return []
-}
-
-/** For openPostModal: base stack under the post layer (drops post items only). */
-function stripPostItemsFromStack(stack: ModalItem[]): ModalItem[] {
-  return stack.filter((i) => i.type !== 'post')
 }
 
 /** Serialize one modal layer into URLSearchParams (single source of truth for encoding). */
@@ -145,13 +133,13 @@ function appendModalItemToSearchParams(p: URLSearchParams, item: ModalItem): voi
     p.set('forumPost', item.documentUri)
     return
   }
-  if (item.type === 'artboards') {
-    p.set('artboards', '1')
+  if (item.type === 'collections') {
+    p.set('collections', '1')
     return
   }
-  if (item.type === 'artboard') {
-    p.set('artboard', item.id)
-    if (item.ownerDid) p.set('artboardOwner', item.ownerDid)
+  if (item.type === 'collection') {
+    p.set('collection', item.uri)
+    return
   }
 }
 
@@ -167,50 +155,28 @@ function modalItemToSearch(item: ModalItem): string {
   return modalStackToSearch([item])
 }
 
-function modalStackEqual(a: ModalItem[], b: ModalItem[]): boolean {
-  if (a.length !== b.length) return false
-  for (let i = 0; i < a.length; i++) {
-    if (!modalItemsMatch(a[i]!, b[i]!)) return false
-  }
-  return true
-}
-
 /**
  * Full-page post URLs use `/post/:uri` in the path. Modal stacks encode the post in `?post=`; keeping
  * both would show the path post while query pointed elsewhere — so modal navigation must use `/feed`.
  */
 function pathForModalNavigation(pathname: string): string {
-  return pathname.startsWith('/post/') ? '/feed' : pathname
-}
-
-function modalItemsMatch(a: ModalItem, b: ModalItem): boolean {
-  if (a.type !== b.type) return false
-  if (a.type === 'post' && b.type === 'post') return a.uri === b.uri && (a.openReply ?? false) === (b.openReply ?? false) && (a.focusUri ?? '') === (b.focusUri ?? '')
-  if (a.type === 'profile' && b.type === 'profile') return a.handle === b.handle
-  if (a.type === 'tag' && b.type === 'tag') return a.tag === b.tag
-  if (a.type === 'search' && b.type === 'search') return a.query === b.query
-  if (a.type === 'quotes' && b.type === 'quotes') return a.uri === b.uri
-  if (a.type === 'forum' && b.type === 'forum') return true
-  if (a.type === 'forumPost' && b.type === 'forumPost') return a.documentUri === b.documentUri
-  if (a.type === 'artboards' && b.type === 'artboards') return true
-  if (a.type === 'artboard' && b.type === 'artboard') return a.id === b.id && (a.ownerDid ?? '') === (b.ownerDid ?? '')
-  return false
+  if (pathname.startsWith('/post/')) return '/feed'
+  if (pathname === '/collections' || pathname.startsWith('/collection/')) return '/feed'
+  return pathname
 }
 
 export function ProfileModalProvider({ children }: { children: ReactNode }) {
-  const [modalStack, setModalStack] = useState<ModalItem[]>([])
   const [modalScrollHidden, setModalScrollHidden] = useState(false)
   const location = useLocation()
   const navigate = useNavigate()
+  /** Same render as router URL — avoids one-frame (or stuck) stale stack when useEffect lagged behind navigate(). */
+  const modalStack = useMemo(() => parseSearchToModalStack(location.search), [location.search])
 
+  /* Modal URL changed → show floating back again (defer avoids react-hooks/set-state-in-effect on sync setState). */
   useEffect(() => {
-    if (modalStack.length === 0) setModalScrollHidden(false)
-  }, [modalStack.length])
-
-  /* Reset scroll hidden state when modal changes to ensure back button is visible */
-  useEffect(() => {
-    if (modalStack.length > 0) setModalScrollHidden(false)
-  }, [modalStack.length, modalStack[modalStack.length - 1]])
+    const t = requestAnimationFrame(() => setModalScrollHidden(false))
+    return () => cancelAnimationFrame(t)
+  }, [location.search])
 
   /** Open modal: when on a profile (page or modal), push [profile, post] so back returns to profile. Only use profile from URL if it's already the top of the stack (avoids reopening profile after user closed it). */
   const openPostModal = useCallback((uri: string, openReply?: boolean, focusUri?: string) => {
@@ -218,27 +184,25 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
     const params = new URLSearchParams(location.search)
     const profileFromSearch = params.get('profile')
     const profileFromPath = location.pathname.match(/^\/profile\/([^/]+)/)?.[1]
-    const topItem = modalStack[modalStack.length - 1]
+    const stackFromUrl = parseSearchToModalStack(location.search)
+    const topItem = stackFromUrl[stackFromUrl.length - 1]
     const profileAlreadyOpen = topItem?.type === 'profile' && profileFromSearch && topItem.handle === profileFromSearch
     const forumAlreadyOpen = topItem?.type === 'forum'
-    const artboardFlowOpen =
-      topItem?.type === 'artboards' ||
-      topItem?.type === 'artboard' ||
-      params.get('artboards') === '1' ||
-      !!params.get('artboard')
+    const inCollectionsFlow = stackFromUrl.some(
+      (i) => i.type === 'collections' || i.type === 'collection',
+    )
     const stack: ModalItem[] = profileAlreadyOpen
-      ? [...modalStack, postItem]
+      ? [...stackFromUrl, postItem]
       : forumAlreadyOpen
-        ? [...modalStack, postItem]
-        : artboardFlowOpen
-          ? /* URL is source of truth — modalStack can lag after openArtboardModal (stale [artboards] drops artboard=id from the query). */
-            [...stripPostItemsFromStack(parseSearchToModalStack(location.search)), postItem]
+        ? [...stackFromUrl, postItem]
+        : inCollectionsFlow && stackFromUrl.length > 0
+          ? [...stackFromUrl, postItem]
           : profileFromPath
             ? [{ type: 'profile', handle: decodeURIComponent(profileFromPath) }, postItem]
             : [postItem]
     const search = stack.length > 0 ? `?${modalStackToSearch(stack)}` : ''
     navigate({ pathname: pathForModalNavigation(location.pathname), search }, { replace: false })
-  }, [location.pathname, location.search, navigate, modalStack])
+  }, [location.pathname, location.search, navigate])
 
   const openProfileModal = useCallback((handle: string) => {
     const item: ModalItem = { type: 'profile', handle }
@@ -269,52 +233,28 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
     navigate({ pathname: pathForModalNavigation(location.pathname), search }, { replace: false })
   }, [location.pathname, navigate])
 
-  const openArtboardsModal = useCallback(() => {
-    const item: ModalItem = { type: 'artboards' }
-    const search = `?${modalItemToSearch(item)}`
-    navigate({ pathname: pathForModalNavigation(location.pathname), search }, { replace: false })
-  }, [location.pathname, navigate])
-
-  const openArtboardModal = useCallback((id: string, ownerDid?: string) => {
-    const params = new URLSearchParams(location.search)
-    const stack: ModalItem[] = []
-    if (params.get('artboards') === '1') stack.push({ type: 'artboards' })
-    stack.push({ type: 'artboard', id, ownerDid })
-    const search = `?${modalStackToSearch(stack)}`
-    navigate({ pathname: pathForModalNavigation(location.pathname), search }, { replace: false })
-  }, [location.pathname, location.search, navigate])
-
   const openQuotesModal = useCallback((postUri: string) => {
     const item: ModalItem = { type: 'quotes', uri: postUri }
     const search = `?${modalItemToSearch(item)}`
     navigate({ pathname: pathForModalNavigation(location.pathname), search }, { replace: false })
   }, [location.pathname, navigate])
 
-  const closeModal = useCallback(() => {
-    const next = modalStack.length > 1 ? modalStack.slice(0, -1) : []
-    const search = next.length > 0 ? `?${modalStackToSearch(next)}` : ''
-    setModalStack(next)
-    navigate({ pathname: pathForModalNavigation(location.pathname), search }, { replace: true })
-  }, [location.pathname, navigate, modalStack])
-
-  const closeAllModals = useCallback(() => {
-    setModalStack([])
-    navigate({ pathname: pathForModalNavigation(location.pathname), search: '' }, { replace: true })
+  const openCollectionsModal = useCallback(() => {
+    const item: ModalItem = { type: 'collections' }
+    const search = `?${modalItemToSearch(item)}`
+    navigate({ pathname: pathForModalNavigation(location.pathname), search }, { replace: false })
   }, [location.pathname, navigate])
 
-  /** Single source of truth: URL drives which modal(s) are open. One effect syncs URL → stack for all modal types. */
-  useEffect(() => {
-    const urlStack = parseSearchToModalStack(location.search)
-    if (urlStack.length === 0) {
-      setModalStack((prev) => (prev.length === 0 ? prev : []))
-      return
-    }
-    setModalStack((prev) => {
-      /* Compare full stack — top-only equality missed middle layers (e.g. artboard id) and could leave state out of sync with the URL. */
-      if (modalStackEqual(prev, urlStack)) return prev
-      return urlStack
-    })
-  }, [location.search])
+  const closeModal = useCallback(() => {
+    const current = parseSearchToModalStack(location.search)
+    const next = current.length > 1 ? current.slice(0, -1) : []
+    const search = next.length > 0 ? `?${modalStackToSearch(next)}` : ''
+    navigate({ pathname: pathForModalNavigation(location.pathname), search }, { replace: true })
+  }, [location.pathname, location.search, navigate])
+
+  const closeAllModals = useCallback(() => {
+    navigate({ pathname: pathForModalNavigation(location.pathname), search: '' }, { replace: true })
+  }, [location.pathname, navigate])
 
   const isModalOpen = modalStack.length > 0
   const canGoBack = modalStack.length > 1
@@ -328,9 +268,8 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
     openSearchModal,
     openForumModal,
     openForumPostModal,
-    openArtboardsModal,
-    openArtboardModal,
     openQuotesModal,
+    openCollectionsModal,
     closeModal,
     closeAllModals,
     isModalOpen,
@@ -345,9 +284,8 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
     openSearchModal,
     openForumModal,
     openForumPostModal,
-    openArtboardsModal,
-    openArtboardModal,
     openQuotesModal,
+    openCollectionsModal,
     closeAllModals,
     isModalOpen,
     canGoBack,
@@ -355,12 +293,29 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
   ])
 
   /* Render the full modal stack so underlying modals (e.g. profile) stay mounted and preserve scroll when a post modal opens on top.
-   * Each lazy modal has its own Suspense — one outer Suspense would replace the whole stack with fallback (null) while a chunk loads.
-   * ArtboardModal is imported eagerly so opening a collection on top of the list is never blank while its chunk loads. */
+   * Each lazy modal has its own Suspense — one outer Suspense would replace the whole stack with fallback (null) while a chunk loads. */
   const modalStackElements = modalStack.map((item, index) => {
     const isTop = index === modalStack.length - 1
     const canGoBackFromThis = isTop && modalStack.length > 1
-    const key = `${index}-${item.type}-${item.type === 'profile' ? item.handle : item.type === 'post' ? item.uri : item.type === 'tag' ? item.tag : item.type === 'search' ? item.query : item.type === 'quotes' ? item.uri : item.type === 'forumPost' ? item.documentUri : item.type === 'artboard' ? `${item.id}:${item.ownerDid ?? ''}` : index}`
+    const key = `${index}-${item.type}-${
+      item.type === 'profile'
+        ? item.handle
+        : item.type === 'post'
+          ? item.uri
+          : item.type === 'tag'
+            ? item.tag
+            : item.type === 'search'
+              ? item.query
+              : item.type === 'quotes'
+                ? item.uri
+                : item.type === 'forumPost'
+                  ? item.documentUri
+                  : item.type === 'collection'
+                    ? item.uri
+                    : item.type === 'collections'
+                      ? 'list'
+                      : index
+    }`
     const wrap = (node: ReactNode) => (
       <Suspense key={key} fallback={null}>
         {node}
@@ -443,14 +398,21 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
         />,
       )
     }
-    if (item.type === 'artboards') {
-      return wrap(<ArtboardsModal onClose={closeAllModals} onBack={closeModal} canGoBack={canGoBackFromThis} isTopModal={isTop} stackIndex={index} />)
-    }
-    if (item.type === 'artboard') {
+    if (item.type === 'collections') {
       return wrap(
-        <ArtboardModal
-          id={item.id}
-          ownerDid={item.ownerDid}
+        <CollectionsIndexModal
+          onClose={closeAllModals}
+          onBack={closeModal}
+          canGoBack={canGoBackFromThis}
+          isTopModal={isTop}
+          stackIndex={index}
+        />,
+      )
+    }
+    if (item.type === 'collection') {
+      return wrap(
+        <CollectionDetailModal
+          uri={item.uri}
           onClose={closeAllModals}
           onBack={closeModal}
           canGoBack={canGoBackFromThis}
@@ -482,9 +444,8 @@ export function useProfileModal() {
       openSearchModal: () => {},
       openForumModal: () => {},
       openForumPostModal: () => {},
-      openArtboardsModal: () => {},
-      openArtboardModal: () => {},
       openQuotesModal: () => {},
+      openCollectionsModal: () => {},
       closeModal: () => {},
       closeAllModals: () => {},
       isModalOpen: false,

@@ -26,17 +26,11 @@ export function getShareableProfileUrl(handle: string): string {
     : `${window.location.origin}/#${path}`
 }
 
-/**
- * Opens the feed with this collection (recipient loads posts from the owner's repo).
- * Requires `ownerDid` so viewers can resolve the PDS record.
- */
-export function getShareableCollectionUrl(rkey: string, ownerDid: string): string {
+/** Public URL to open a saved collection (feed + modal query; HashRouter + optional base). */
+export function getShareableCollectionUrl(collectionAtUri: string): string {
   if (typeof window === 'undefined') return ''
   const seg = basePathSegment()
-  const qs = new URLSearchParams()
-  qs.set('artboard', rkey)
-  qs.set('artboardOwner', ownerDid)
-  const path = `/feed?${qs.toString()}`
+  const path = `/feed?collection=${encodeURIComponent(collectionAtUri)}`
   return seg
     ? `${window.location.origin}/${seg}/#${path}`
     : `${window.location.origin}/#${path}`
