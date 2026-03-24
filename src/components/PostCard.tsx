@@ -124,6 +124,10 @@ function PostCardInner({
   feedPreviewActionRow = false,
   openCollectionMenuSignal,
 }: InnerProps) {
+  const TOUCH_OPEN_DELAY_MS = 180
+  const TOUCH_DOUBLE_TAP_WINDOW_MS = 320
+  const MEDIA_CLICK_DOUBLE_TAP_WINDOW_MS = 320
+
   const navigate = useNavigate()
   const { session } = useSession()
   const { openLoginModal } = useLoginModal()
@@ -654,8 +658,13 @@ function PostCardInner({
       return
     }
     if (mediaClickFromTouchRef.current) return
+    // Mouse users expect immediate open. Keep double-tap-like behavior touch-only.
+    if (e.nativeEvent.detail <= 1) {
+      openPost()
+      return
+    }
     const now = Date.now()
-    if (now - lastMediaClickRef.current < 400) {
+    if (now - lastMediaClickRef.current < MEDIA_CLICK_DOUBLE_TAP_WINDOW_MS) {
       lastMediaClickRef.current = 0
       if (mediaOpenDelayTimerRef.current) {
         clearTimeout(mediaOpenDelayTimerRef.current)
@@ -668,7 +677,7 @@ function PostCardInner({
       mediaOpenDelayTimerRef.current = setTimeout(() => {
         mediaOpenDelayTimerRef.current = null
         openPost()
-      }, 400)
+      }, TOUCH_OPEN_DELAY_MS)
     }
   }, [mediaClickFromTouchRef, lastMediaClickRef, handleMediaDoubleTapLike, openPost, nsfwBlurred, onNsfwUnblur])
 
@@ -693,6 +702,7 @@ function PostCardInner({
         role="button"
         tabIndex={0}
         className={styles.cardLink}
+        onMouseDown={() => preloadPostOpen(post.uri)}
         onClick={(e) => {
           e.preventDefault()
           e.stopPropagation()
@@ -710,6 +720,7 @@ function PostCardInner({
         onTouchStart={(e) => {
           touchSessionRef.current = true
           mediaClickFromTouchRef.current = true
+          preloadPostOpen(post.uri)
           const t = e.touches[0]
           touchStartRef.current = t ? { x: t.clientX, y: t.clientY } : null
         }}
@@ -732,7 +743,7 @@ function PostCardInner({
             return
           }
           const now = Date.now()
-          if (now - lastTapRef.current < 400) {
+          if (now - lastTapRef.current < TOUCH_DOUBLE_TAP_WINDOW_MS) {
             lastTapRef.current = 0
             didDoubleTapRef.current = true
             if (openDelayTimerRef.current) {
@@ -781,7 +792,7 @@ function PostCardInner({
                 touchSessionRef.current = false
                 mediaClickFromTouchRef.current = false
                 nsfwTouchUnblurOnlyRef.current = false
-              }, 400)
+              }, TOUCH_OPEN_DELAY_MS)
             } else {
               if (openDelayTimerRef.current) clearTimeout(openDelayTimerRef.current)
               openDelayTimerRef.current = setTimeout(() => {
@@ -789,7 +800,7 @@ function PostCardInner({
                 touchSessionRef.current = false
                 mediaClickFromTouchRef.current = false
                 openPost()
-              }, 400)
+              }, TOUCH_OPEN_DELAY_MS)
             }
           }
         }}

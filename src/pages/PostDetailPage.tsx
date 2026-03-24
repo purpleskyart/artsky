@@ -1305,39 +1305,61 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
       setThread(threadData)
       /* Canonical post view: only fetch when snapshot embed lacks image fullsize URLs. */
       if (isThreadViewPost(threadData) && rootPostNeedsCanonicalHydration(threadData.post)) {
-        void getPostsBatch([decodedUri]).then((map) => {
-          if (gen !== loadGenRef.current) return
-          const fresh = map.get(decodedUri)
-          if (!fresh) return
-          setThread((prev) => {
-            if (!prev || !isThreadViewPost(prev) || prev.post.uri !== decodedUri) return prev
-            return { ...prev, post: fresh }
+        const hydrateCanonicalPost = () => {
+          void getPostsBatch([decodedUri]).then((map) => {
+            if (gen !== loadGenRef.current) return
+            const fresh = map.get(decodedUri)
+            if (!fresh) return
+            setThread((prev) => {
+              if (!prev || !isThreadViewPost(prev) || prev.post.uri !== decodedUri) return prev
+              return { ...prev, post: fresh }
+            })
           })
-        })
+        }
+        const browser = typeof window !== 'undefined' ? (window as Window & { requestIdleCallback?: (cb: () => void, options?: { timeout: number }) => number }) : null
+        if (browser?.requestIdleCallback) {
+          browser.requestIdleCallback(hydrateCanonicalPost, { timeout: 900 })
+        } else {
+          globalThis.setTimeout(hydrateCanonicalPost, 50)
+        }
       }
       setDownvoteCountOptimisticDelta({})
       const uris = isThreadViewPost(threadData) ? collectThreadPostUris(threadData) : []
+      const scheduleBackground = (task: () => void, timeout = 1200) => {
+        const browser = typeof window !== 'undefined' ? (window as Window & { requestIdleCallback?: (cb: () => void, options?: { timeout: number }) => number }) : null
+        if (browser?.requestIdleCallback) {
+          browser.requestIdleCallback(task, { timeout })
+          return
+        }
+        globalThis.setTimeout(task, 0)
+      }
       if (uris.length > 0) {
         const downvoteTimer = window.setTimeout(() => {
           if (gen !== loadGenRef.current) return
-          getDownvoteCounts(uris)
-            .then((counts) => {
-              if (gen !== loadGenRef.current) return
-              setDownvoteCounts(counts)
-            })
-            .catch(() => {})
+          scheduleBackground(() => {
+            if (gen !== loadGenRef.current) return
+            getDownvoteCounts(uris)
+              .then((counts) => {
+                if (gen !== loadGenRef.current) return
+                setDownvoteCounts(counts)
+              })
+              .catch(() => {})
+          })
         }, 2000)
         downvoteTimerRef.current = downvoteTimer
       } else {
         setDownvoteCounts({})
       }
       if (getSession()) {
-        listMyDownvotes()
-          .then((votes) => {
-            if (gen !== loadGenRef.current) return
-            setMyDownvotes(votes)
-          })
-          .catch(() => {})
+        scheduleBackground(() => {
+          if (gen !== loadGenRef.current) return
+          listMyDownvotes()
+            .then((votes) => {
+              if (gen !== loadGenRef.current) return
+              setMyDownvotes(votes)
+            })
+            .catch(() => {})
+        }, 2000)
       } else {
         setMyDownvotes({})
       }

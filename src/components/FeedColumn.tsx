@@ -4,7 +4,7 @@ import OptimizedPostCard from './OptimizedPostCard'
 import RepostCarouselCard from './RepostCarouselCard'
 import { setInitialPostForUri } from '../lib/postCache'
 import styles from '../pages/FeedPage.module.css'
-import { memo } from 'react'
+import { memo, useCallback } from 'react'
 
 type ColumnItem = { entry: FeedDisplayEntry; originalIndex: number }
 
@@ -49,7 +49,18 @@ const FeedCard = memo(function FeedCard({
   openCollectionMenuSignal?: number
 }) {
   const key = entry.type === 'post' ? entry.item.post.uri : entry.items[0].post.uri
-  
+  const handleMouseEnter = useCallback(() => onMouseEnter(originalIndex), [onMouseEnter, originalIndex])
+  const handleMediaRef = useCallback((mediaIndex: number, el: HTMLElement | null) => {
+    onMediaRef(originalIndex, mediaIndex, el)
+  }, [onMediaRef, originalIndex])
+  const handleActionsMenuOpenChange = useCallback((open: boolean) => {
+    onActionsMenuOpenChange(originalIndex, open)
+  }, [onActionsMenuOpenChange, originalIndex])
+  const handlePostClick = useCallback((uri: string, opts?: { initialItem?: unknown; openReply?: boolean }) => {
+    if (opts?.initialItem) setInitialPostForUri(uri, opts.initialItem as never)
+    openPostModal(uri, opts?.openReply, undefined, entry.type === 'post' ? entry.item.post.author?.handle : entry.items[0].post.author?.handle)
+  }, [openPostModal, entry])
+
   return (
     <div
       key={key}
@@ -57,22 +68,19 @@ const FeedCard = memo(function FeedCard({
       className={styles.gridItem}
       data-selected={isSelected || undefined}
       data-post-uri={key}
-      onMouseEnter={() => onMouseEnter(originalIndex)}
+      onMouseEnter={handleMouseEnter}
     >
       {entry.type === 'post' ? (
         <OptimizedPostCard
           item={entry.item}
           isSelected={isSelected}
           focusedMediaIndex={focusedMediaIndex}
-          onMediaRef={(mediaIndex, el) => onMediaRef(originalIndex, mediaIndex, el)}
+          onMediaRef={handleMediaRef}
           cardRef={() => {}} // No-op since we're using the wrapper div ref above
-          onActionsMenuOpenChange={(open) => onActionsMenuOpenChange(originalIndex, open)}
+          onActionsMenuOpenChange={handleActionsMenuOpenChange}
           cardIndex={originalIndex}
           actionsMenuOpenForIndex={actionsMenuOpenForIndex}
-          onPostClick={(uri, opts) => {
-            if (opts?.initialItem) setInitialPostForUri(uri, opts.initialItem)
-            openPostModal(uri, opts?.openReply, undefined, entry.item.post.author?.handle)
-          }}
+          onPostClick={handlePostClick}
           fillCell={false}
           nsfwBlurred={
             nsfwPreference === 'blurred' &&
@@ -93,10 +101,7 @@ const FeedCard = memo(function FeedCard({
       ) : (
         <RepostCarouselCard
           items={entry.items}
-          onPostClick={(uri, opts) => {
-            if (opts?.initialItem) setInitialPostForUri(uri, opts.initialItem)
-            openPostModal(uri, undefined, undefined, entry.items[0].post.author?.handle)
-          }}
+          onPostClick={handlePostClick}
           cardRef={() => {}} // No-op since we're using the wrapper div ref above
           seen={seenUris.has(entry.items[0].post.uri)}
           data-post-uri={entry.items[0].post.uri}

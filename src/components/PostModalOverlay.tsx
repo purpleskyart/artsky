@@ -3,6 +3,7 @@ import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { getProfileCached } from '../lib/bsky'
 
 const PostDetailModal = lazy(() => import('./PostDetailModal'))
+const handleDidCache = new Map<string, string>()
 
 /**
  * Renders when the current location has `state.backgroundLocation` (feed stays mounted underneath).
@@ -12,7 +13,12 @@ export default function PostModalOverlay() {
   const { uri, handle, rkey } = useParams<{ uri?: string; handle?: string; rkey?: string }>()
   const navigate = useNavigate()
   const location = useLocation()
-  const [resolvedUri, setResolvedUri] = useState<string | null>(() => (uri ? decodeURIComponent(uri) : null))
+  const [resolvedUri, setResolvedUri] = useState<string | null>(() => {
+    if (uri) return decodeURIComponent(uri)
+    if (!handle || !rkey) return null
+    const cachedDid = handleDidCache.get(handle.trim().toLowerCase())
+    return cachedDid ? `at://${cachedDid}/app.bsky.feed.post/${rkey}` : null
+  })
   const [resolving, setResolving] = useState(() => !uri && !!(handle && rkey))
 
   useEffect(() => {
@@ -28,6 +34,13 @@ export default function PostModalOverlay() {
     }
     let cancelled = false
     setResolving(true)
+    const normalized = handle.trim().toLowerCase()
+    const cachedDid = handleDidCache.get(normalized)
+    if (cachedDid) {
+      setResolvedUri(`at://${cachedDid}/app.bsky.feed.post/${rkey}`)
+      setResolving(false)
+      return
+    }
     getProfileCached(handle)
       .then((p) => {
         if (cancelled) return
@@ -35,6 +48,7 @@ export default function PostModalOverlay() {
           navigate('/feed', { replace: true })
           return
         }
+        handleDidCache.set(normalized, p.did)
         setResolvedUri(`at://${p.did}/app.bsky.feed.post/${rkey}`)
         setResolving(false)
       })
@@ -55,7 +69,7 @@ export default function PostModalOverlay() {
   }, [navigate])
 
   if (resolving || (resolvedUri == null && (handle || rkey))) {
-    return null
+    return <div aria-hidden style={{ minHeight: 1 }} />
   }
   if (!resolvedUri) {
     return null

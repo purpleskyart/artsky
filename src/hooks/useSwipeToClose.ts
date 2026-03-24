@@ -39,6 +39,7 @@ export function useSwipeToClose({
   const touchStartXRef = useRef(0)
   const touchStartYRef = useRef(0)
   const horizontalSwipeRef = useRef(false)
+  const swipeDirectionRef = useRef<'left' | 'right' | null>(null)
   const [translateX, setTranslateX] = useState(0)
   const [isReturning, setIsReturning] = useState(false)
 
@@ -48,6 +49,7 @@ export function useSwipeToClose({
       touchStartXRef.current = e.touches[0].clientX
       touchStartYRef.current = e.touches[0].clientY
       horizontalSwipeRef.current = false
+      swipeDirectionRef.current = null
     },
     [enabled]
   )
@@ -58,23 +60,31 @@ export function useSwipeToClose({
       const dx = e.touches[0].clientX - touchStartXRef.current
       const dy = e.touches[0].clientY - touchStartYRef.current
       if (!horizontalSwipeRef.current) {
-        if (
+        const canCommitHorizontal =
           Math.abs(dx) > SWIPE_COMMIT_PX &&
           Math.abs(dx) > Math.abs(dy) * SWIPE_HORIZONTAL_RATIO
-        ) {
-          horizontalSwipeRef.current = true
-        } else {
+        if (!canCommitHorizontal) {
           return
         }
+        const direction: 'left' | 'right' = dx < 0 ? 'left' : 'right'
+        const canSwipeDirection =
+          (direction === 'right' && !!onSwipeRight) ||
+          (direction === 'left' && !!onSwipeLeft)
+        if (!canSwipeDirection) return
+        horizontalSwipeRef.current = true
+        swipeDirectionRef.current = direction
       }
       e.preventDefault()
-      const capped = Math.max(
-        -SWIPE_DRAG_CAP_PX,
-        Math.min(SWIPE_DRAG_CAP_PX, dx)
-      )
+      const dragDx =
+        swipeDirectionRef.current === 'left'
+          ? Math.min(0, dx)
+          : swipeDirectionRef.current === 'right'
+            ? Math.max(0, dx)
+            : dx
+      const capped = Math.max(-SWIPE_DRAG_CAP_PX, Math.min(SWIPE_DRAG_CAP_PX, dragDx))
       setTranslateX(capped)
     },
-    [enabled]
+    [enabled, onSwipeRight, onSwipeLeft]
   )
 
   const onTouchEnd = useCallback(
@@ -97,6 +107,7 @@ export function useSwipeToClose({
         setTimeout(() => setIsReturning(false), 220)
       }
       horizontalSwipeRef.current = false
+      swipeDirectionRef.current = null
       setTranslateX(0)
     },
     [enabled, onSwipeRight, onSwipeLeft]
