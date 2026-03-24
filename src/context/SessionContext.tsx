@@ -19,9 +19,7 @@ const SessionContext = createContext<SessionContextValue | null>(null)
 
 function getInitialSession(): AtpSessionData | null {
   try {
-    const fromAgent = bsky.getSession()
-    if (fromAgent?.accessJwt) return fromAgent
-    return bsky.getStoredSession()
+    return bsky.getSessionStateForReact()
   } catch {
     return null
   }
@@ -38,17 +36,13 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let cancelled = false
-    const maxWaitMs = 6000
-    const oauthTimeoutMs = 5000
+    const oauthTimeoutMs = 20_000
+    const oauthCallbackTimeoutMs = 30_000
 
-    const finish = (ok: boolean) => {
+    const finish = () => {
       if (cancelled) return
       try {
-        if (ok) {
-          setSession(bsky.getSession())
-        } else if (!bsky.getStoredSession()) {
-          setSession(null)
-        }
+        setSession(bsky.getSessionStateForReact())
       } catch {
         setSession(null)
       }
@@ -60,7 +54,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         const search = typeof window !== 'undefined' ? window.location.search : ''
         const params = new URLSearchParams(search)
         const hasCallback = params.has('state') && (params.has('code') || params.has('error'))
-        const waitMs = hasCallback ? 12_000 : oauthTimeoutMs
+        const waitMs = hasCallback ? oauthCallbackTimeoutMs : oauthTimeoutMs
         const oauthResult = await Promise.race([
           oauth.initOAuth({
             hasCallback,
@@ -73,19 +67,21 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           bsky.addOAuthDid(oauthResult.session.did)
           const agent = new Agent(oauthResult.session)
           bsky.setOAuthAgent(agent, oauthResult.session)
-          finish(true)
+          finish()
           return
         }
       } catch (err) {
         // Don't auto-logout on token refresh errors - keep session data so user can retry
       }
-      const ok = await Promise.race([
-        bsky.resumeSession(),
-        new Promise<boolean>((resolve) => setTimeout(() => resolve(false), maxWaitMs)),
-      ])
-      finish(ok)
+      // Await credential resume fully — a short timeout left the UI "logged in" from storage while the agent had no JWT.
+      try {
+        await bsky.resumeSession()
+      } catch {
+        // resumeSession handles errors internally
+      }
+      if (!cancelled) finish()
     }
-    init().catch(() => finish(false))
+    init().catch(() => finish())
 
     return () => {
       cancelled = true
@@ -94,22 +90,22 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
   const login = useCallback(async (identifier: string, password: string) => {
     await bsky.login(identifier, password)
-    setSession(bsky.getSession())
+    setSession(bsky.getSessionStateForReact())
   }, [])
 
   const logout = useCallback(async () => {
     const stillLoggedIn = await bsky.logoutCurrentAccount()
-    setSession(stillLoggedIn ? bsky.getSession() : null)
+    setSession(stillLoggedIn ? bsky.getSessionStateForReact() : null)
   }, [])
 
   const switchAccount = useCallback(async (did: string) => {
     const ok = await bsky.switchAccount(did)
-    if (ok) setSession(bsky.getSession())
+    if (ok) setSession(bsky.getSessionStateForReact())
     return ok
   }, [])
 
   const refreshSession = useCallback(() => {
-    setSession(bsky.getSession())
+    setSession(bsky.getSessionStateForReact())
   }, [])
 
   let sessionsList: AtpSessionData[] = []

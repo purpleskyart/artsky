@@ -410,6 +410,36 @@ export function getSession(): AtpSessionData | null {
   return null
 }
 
+/**
+ * True when the live agent can call authenticated XRPC (credential JWT or OAuth agent with DID).
+ * Do not infer this from localStorage — after a deploy or refresh, storage can be ahead of the agent.
+ */
+export function isAgentAuthenticated(): boolean {
+  if (oauthAgentInstance) {
+    try {
+      return Boolean(getAgent().did)
+    } catch {
+      return false
+    }
+  }
+  return Boolean(credentialAgent.session?.accessJwt)
+}
+
+/**
+ * Session object for React context: only non-null when the agent is actually authenticated.
+ * Merges stored fields (e.g. handle) with the live agent when DIDs match.
+ */
+export function getSessionStateForReact(): AtpSessionData | null {
+  if (!isAgentAuthenticated()) return null
+  const live = getSession()
+  if (!live?.did) return null
+  const stored = getStoredSession()
+  if (stored?.did === live.did) {
+    return { ...stored, ...live } as AtpSessionData
+  }
+  return live as AtpSessionData
+}
+
 /** DID segment for feed/timeline caches so account switches never reuse another user's cached responses. */
 function feedCacheAccountKey(): string {
   return getSession()?.did ?? 'guest'
