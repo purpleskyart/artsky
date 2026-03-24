@@ -5,7 +5,7 @@ import { useSession } from '../context/SessionContext'
 import { useProfileModal } from '../context/ProfileModalContext'
 import { useEditProfile } from '../context/EditProfileContext'
 import { useModalTopBarSlot } from '../context/ModalTopBarSlotContext'
-import { agent, publicAgent, getSession as getBskyApiSession, getPostMediaInfo, getPostMediaInfoForDisplay, getActorFeeds, listActivitySubscriptions, putActivitySubscription, isPostNsfw, getProfileCached, likePostWithLifecycle, unlikePostWithLifecycle, followAccountWithLifecycle, unfollowAccountWithLifecycle, type TimelineItem, type ProfileViewBasic } from '../lib/bsky'
+import { agent, publicAgent, isAgentAuthenticated, getPostMediaInfo, getPostMediaInfoForDisplay, getActorFeeds, listActivitySubscriptions, putActivitySubscription, isPostNsfw, getProfileCached, likePostWithLifecycle, unlikePostWithLifecycle, followAccountWithLifecycle, unfollowAccountWithLifecycle, type TimelineItem, type ProfileViewBasic } from '../lib/bsky'
 import { setInitialPostForUri } from '../lib/postCache'
 import PostCard from '../components/PostCard'
 import ProfileColumn from '../components/ProfileColumn'
@@ -199,8 +199,8 @@ export function ProfileContent({
   const [notificationLoading, setNotificationLoading] = useState(false)
   const { session } = useSession()
   const { viewMode, setViewMode } = useViewMode()
-  /** Use the live API agent only when it actually has a JWT. React session can come from storage before OAuth/credential resume attaches the agent (refresh → “Authentication Required” on getAuthorFeed). */
-  const hasLiveBskyAuth = !!getBskyApiSession()?.accessJwt
+  /** Use the live API agent only when it is actually authenticated (JWT or OAuth), not when storage is ahead of the agent after refresh/deploy. */
+  const hasLiveBskyAuth = isAgentAuthenticated()
   const readAgent = hasLiveBskyAuth ? agent : publicAgent
   const loadMoreSentinelRef = useRef<HTMLDivElement>(null)
   /** One sentinel per column so we load more when the user nears the bottom of any column (avoids blank space in short columns). */
