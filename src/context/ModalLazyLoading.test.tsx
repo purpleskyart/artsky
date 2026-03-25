@@ -62,7 +62,7 @@ describe('Modal Lazy Loading', () => {
       function TestComponent() {
         const { openLoginModal } = useLoginModal()
         return (
-          <button onClick={() => openLoginModal('signin')}>
+          <button onClick={() => openLoginModal()}>
             Open Login
           </button>
         )
@@ -150,7 +150,7 @@ describe('Modal Lazy Loading', () => {
         
         return (
           <div>
-            <button onClick={() => openLoginModal('signin')}>Login</button>
+            <button onClick={() => openLoginModal()}>Login</button>
             <button onClick={() => editProfile?.openEditProfile()}>Edit</button>
           </div>
         )

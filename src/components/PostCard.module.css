@@ -626,10 +626,13 @@ html[data-theme="dark"] [data-view-mode="1"] .card:focus-within:not(:has(.mediaG
   border-radius: var(--glass-radius) var(--glass-radius) 0 0;
 }
 
-/* Paired with useOffscreenOptimization on the card: skip layout/paint for far-off media */
+/*
+ * Paired with useOffscreenOptimization: defer paint for far-off media.
+ * Do not set contain-intrinsic-size here — a fixed size (e.g. 320×240) fights each card’s
+ * aspect-ratio and causes column height jumps when cards enter/leave the observer margin.
+ */
 .mediaOffscreen {
   content-visibility: auto;
-  contain-intrinsic-size: 320px 240px;
 }
 
 /* Art only: no meta row, so round the bottom so corners don't stick through the focus ring */

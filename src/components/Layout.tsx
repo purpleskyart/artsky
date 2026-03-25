@@ -504,7 +504,7 @@ export default function Layout({ title, children, showNav }: Props) {
     }
     return 'guest'
   }, [session?.did, authResolved])
-  /** True when we have a session or OAuth/credential restore may still be in flight (avoid guest chrome / feed flash). */
+  /** True when we have a session or OAuth restore may still be in flight (avoid guest chrome / feed flash). */
   const showAccountFeedUi = Boolean(session) || !authResolved
   const currentAccountDid = session?.did ?? (did !== 'guest' ? did : undefined)
   const currentAccountAvatar = currentAccountDid ? accountProfiles[currentAccountDid]?.avatar : null
@@ -552,18 +552,11 @@ export default function Layout({ title, children, showNav }: Props) {
   const homeHoldTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const seenLongPressTriggeredRef = useRef(false)
   const seenHoldTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const accountLongPressTriggeredRef = useRef(false)
-  const accountHoldTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const seenPosts = useSeenPosts()
   const toast = useToast()
   const previousSessionDidRef = useRef<string | null>(session?.did ?? null)
-  const lastActiveDidForQuickSwitchRef = useRef<string | null>(session?.did ?? null)
-  const previousAccountForDoubleTapRef = useRef<string | null>(null)
-  const accountLastTapTimeRef = useRef<number>(0)
-  const accountSingleTapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const userInitiatedLogoutRef = useRef(false)
   const HOME_HOLD_MS = 500
-  const ACCOUNT_DOUBLE_TAP_MS = 300
   const { entries: mixEntries, setEntryPercent, toggleSource, addEntry, setSingleFeed } = useFeedMix()
   const presetUris = new Set((PRESET_FEED_SOURCES.map((s) => s.uri).filter((uri): uri is string => !!uri)))
   const visiblePresets = PRESET_FEED_SOURCES.filter((s) => !s.uri || !hiddenPresetUris.has(s.uri))
@@ -647,26 +640,6 @@ export default function Layout({ title, children, showNav }: Props) {
     seenPosts?.onHideSeenOnly(e?.currentTarget ?? undefined)
     if (path !== '/feed') navigate('/feed')
   }, [seenPosts, path, navigate])
-
-  const startAccountHold = useCallback(() => {
-    if (accountSingleTapTimerRef.current) {
-      clearTimeout(accountSingleTapTimerRef.current)
-      accountSingleTapTimerRef.current = null
-    }
-    accountLastTapTimeRef.current = 0
-    accountHoldTimerRef.current = setTimeout(() => {
-      accountLongPressTriggeredRef.current = true
-      setAccountMenuOpen(true)
-      accountHoldTimerRef.current = null
-    }, HOME_HOLD_MS)
-  }, [])
-
-  const endAccountHold = useCallback(() => {
-    if (accountHoldTimerRef.current) {
-      clearTimeout(accountHoldTimerRef.current)
-      accountHoldTimerRef.current = null
-    }
-  }, [])
 
   const homeBtnClick = useCallback((e: React.MouseEvent) => {
     if (homeLongPressTriggeredRef.current) {
@@ -1188,27 +1161,6 @@ export default function Layout({ title, children, showNav }: Props) {
     previousSessionDidRef.current = currentDid
   }, [session?.did, authResolved, toast])
 
-  useEffect(() => {
-    const current = session?.did ?? null
-    const before = lastActiveDidForQuickSwitchRef.current
-    if (before !== null && current !== null && before !== current) {
-      previousAccountForDoubleTapRef.current = before
-    }
-    if (current === null) {
-      previousAccountForDoubleTapRef.current = null
-    }
-    lastActiveDidForQuickSwitchRef.current = current
-  }, [session?.did])
-
-  useEffect(() => {
-    return () => {
-      if (accountSingleTapTimerRef.current) {
-        clearTimeout(accountSingleTapTimerRef.current)
-        accountSingleTapTimerRef.current = null
-      }
-    }
-  }, [])
-
   async function handleSelectAccount(did: string) {
     const ok = await switchAccount(did)
     if (ok) {
@@ -1220,48 +1172,8 @@ export default function Layout({ title, children, showNav }: Props) {
   }
 
   const accountBtnClick = useCallback(() => {
-    if (accountLongPressTriggeredRef.current) {
-      accountLongPressTriggeredRef.current = false
-      return
-    }
-    const now = Date.now()
-    if (now - accountLastTapTimeRef.current < ACCOUNT_DOUBLE_TAP_MS && accountLastTapTimeRef.current > 0) {
-      if (accountSingleTapTimerRef.current) {
-        clearTimeout(accountSingleTapTimerRef.current)
-        accountSingleTapTimerRef.current = null
-      }
-      accountLastTapTimeRef.current = 0
-      const targetDid = previousAccountForDoubleTapRef.current
-      const currentDid = session?.did ?? null
-      if (
-        targetDid &&
-        currentDid &&
-        targetDid !== currentDid &&
-        sessionsList.some((s) => s.did === targetDid)
-      ) {
-        setAccountMenuOpen(false)
-        void (async () => {
-          const ok = await switchAccount(targetDid)
-          if (ok) {
-            setAccountSheetOpen(false)
-            setAccountMenuOpen(false)
-          } else {
-            toast?.showToast('Could not switch account. Try again or sign in again.')
-          }
-        })()
-      }
-      return
-    }
-    accountLastTapTimeRef.current = now
-    if (accountSingleTapTimerRef.current) {
-      clearTimeout(accountSingleTapTimerRef.current)
-    }
-    accountSingleTapTimerRef.current = setTimeout(() => {
-      accountSingleTapTimerRef.current = null
-      accountLastTapTimeRef.current = 0
-      setAccountMenuOpen((o) => !o)
-    }, ACCOUNT_DOUBLE_TAP_MS)
-  }, [session?.did, sessionsList, switchAccount, toast])
+    setAccountMenuOpen((o) => !o)
+  }, [])
 
   function handleAddAccount() {
     setAccountSheetOpen(false)
@@ -1498,14 +1410,10 @@ export default function Layout({ title, children, showNav }: Props) {
               ref={accountBtnRef}
               type="button"
               className={styles.navProfileBtn}
-              onPointerDown={startAccountHold}
-              onPointerUp={endAccountHold}
-              onPointerLeave={endAccountHold}
-              onPointerCancel={endAccountHold}
               onClick={accountBtnClick}
               aria-label="Account menu"
               aria-expanded={accountMenuOpen}
-              title="Account menu (double-tap to use previous account)"
+              title="Account menu"
             >
               <span className={styles.navIcon}>
                 {currentAccountAvatar ? (
@@ -2039,14 +1947,10 @@ export default function Layout({ title, children, showNav }: Props) {
                       ref={accountBtnRef}
                       type="button"
                       className={styles.headerBtn}
-                      onPointerDown={startAccountHold}
-                      onPointerUp={endAccountHold}
-                      onPointerLeave={endAccountHold}
-                      onPointerCancel={endAccountHold}
                       onClick={accountBtnClick}
                       aria-label="Account menu"
                       aria-expanded={accountMenuOpen}
-                      title="Account menu (double-tap to use previous account)"
+                      title="Account menu"
                     >
                       <span className={styles.navIcon}>
                         {currentAccountAvatar ? (
@@ -2081,14 +1985,10 @@ export default function Layout({ title, children, showNav }: Props) {
                       ref={accountBtnRef}
                       type="button"
                       className={styles.headerAccountNavBtn}
-                      onPointerDown={startAccountHold}
-                      onPointerUp={endAccountHold}
-                      onPointerLeave={endAccountHold}
-                      onPointerCancel={endAccountHold}
                       onClick={accountBtnClick}
                       aria-label="Account menu"
                       aria-expanded={accountMenuOpen}
-                      title="Account menu (double-tap to use previous account)"
+                      title="Account menu"
                     >
                       <span className={styles.navIcon}>
                         {currentAccountAvatar ? (

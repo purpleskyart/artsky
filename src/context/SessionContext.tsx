@@ -9,9 +9,8 @@ interface SessionContextValue {
   session: AtpSessionData | null
   sessionsList: AtpSessionData[]
   loading: boolean
-  /** False only on first paint when persisted login may exist but OAuth/credential restore has not finished yet. */
+  /** False only on first paint when persisted login may exist but OAuth restore has not finished yet. */
   authResolved: boolean
-  login: (identifier: string, password: string) => Promise<void>
   logout: () => Promise<void>
   switchAccount: (did: string) => Promise<boolean>
   refreshSession: () => void
@@ -61,10 +60,21 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
     async function init() {
       const oauthAccounts = bsky.getOAuthAccountsSnapshot()
+      const search = typeof window !== 'undefined' ? window.location.search : ''
+      const params = new URLSearchParams(search)
+      const hasCallback = params.has('state') && (params.has('code') || params.has('error'))
+
+      const noOAuthAccounts =
+        oauthAccounts.dids.length === 0 && !oauthAccounts.activeDid
+
+      // Cold start: skip loading @atproto/oauth-client-browser when there is nothing to restore
+      // from the OAuth client (guests). Saves IndexedDB + chunk parse before the feed can load.
+      if (!hasCallback && noOAuthAccounts) {
+        if (!cancelled) finish()
+        return
+      }
+
       try {
-        const search = typeof window !== 'undefined' ? window.location.search : ''
-        const params = new URLSearchParams(search)
-        const hasCallback = params.has('state') && (params.has('code') || params.has('error'))
         const preferredRestoreDid =
           !hasCallback
             ? oauthAccounts.activeDid ?? oauthAccounts.dids[0] ?? undefined
@@ -88,14 +98,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           finish()
           return
         }
-      } catch (err) {
-        // Don't auto-logout on token refresh errors - keep session data so user can retry
-      }
-      // Await credential resume fully — a short timeout left the UI "logged in" from storage while the agent had no JWT.
-      try {
-        await bsky.resumeSession()
       } catch {
-        // resumeSession handles errors internally
+        // Don't auto-logout on token refresh errors - keep session data so user can retry
       }
       if (!cancelled) finish()
     }
@@ -110,11 +114,6 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true
     }
-  }, [])
-
-  const login = useCallback(async (identifier: string, password: string) => {
-    await bsky.login(identifier, password)
-    setSession(bsky.getSessionStateForReact())
   }, [])
 
   const logout = useCallback(async () => {
@@ -147,12 +146,11 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       sessionsList,
       loading,
       authResolved,
-      login,
       logout,
       switchAccount,
       refreshSession,
     }),
-    [session, sessionsList, loading, authResolved, login, logout, switchAccount, refreshSession]
+    [session, sessionsList, loading, authResolved, logout, switchAccount, refreshSession]
   )
 
   return (

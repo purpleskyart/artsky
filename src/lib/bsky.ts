@@ -1,4 +1,4 @@
-import { Agent, AtpAgent, RichText, type AtpSessionData, type AtpSessionEvent } from '@atproto/api'
+import { Agent, AtpAgent, RichText, type AtpSessionData } from '@atproto/api'
 import type { AppBskyActorDefs, AppBskyFeedDefs } from '@atproto/api'
 import { GUEST_FEED_ACCOUNTS } from '../config/guestFeed'
 import * as oauth from './oauth'
@@ -109,33 +109,9 @@ export function getPersistedActiveDid(): string | null {
   return getStoredSession()?.did ?? null
 }
 
-/** True if local persistence suggests a session may exist (OAuth or app password). Used to avoid guest UI flash before async restore. Must match every path in {@link getPersistedActiveDid} (incl. oauth.activeDid and accounts.activeDid). */
+/** True if local persistence suggests a session may exist (OAuth or mirrored session data). Used to avoid guest UI flash before async restore. Must match every path in {@link getPersistedActiveDid} (incl. oauth.activeDid and accounts.activeDid). */
 export function hasPersistedLoginHint(): boolean {
   return getPersistedActiveDid() != null
-}
-
-let sessionRetryTimer: ReturnType<typeof setTimeout> | null = null
-
-function persistSession(_evt: AtpSessionEvent, session: AtpSessionData | undefined) {
-  const accounts = getAccounts()
-  if (session) {
-    if (sessionRetryTimer) { clearTimeout(sessionRetryTimer); sessionRetryTimer = null }
-    accounts.sessions[session.did] = session
-    accounts.activeDid = session.did
-    saveAccounts(accounts)
-    try {
-      localStorage.setItem(SESSION_KEY, JSON.stringify(session))
-    } catch {
-      // ignore
-    }
-  } else {
-    if (!sessionRetryTimer) {
-      sessionRetryTimer = setTimeout(async () => {
-        sessionRetryTimer = null
-        try { await credentialAgent.resumeSession(getStoredSession()!) } catch { /* will retry via next API call */ }
-      }, 30_000)
-    }
-  }
 }
 
 export function getStoredSession(): AtpSessionData | null {
@@ -160,7 +136,7 @@ export function getStoredSession(): AtpSessionData | null {
   return accounts.sessions[accounts.activeDid] ?? null
 }
 
-/** All stored sessions (for account switcher). Merges OAuth DIDs with app-password sessions — they were mutually exclusive before, which hid one side when both existed. */
+/** All stored sessions (for account switcher). Merges OAuth DIDs with mirrored session rows in localStorage (`artsky-accounts`). */
 export function getSessionsList(): AtpSessionData[] {
   const oauth = getOAuthAccounts()
   const accounts = getAccounts()
@@ -182,31 +158,16 @@ export function getSessionsList(): AtpSessionData[] {
   return [...byDid.values()]
 }
 
-/** Switch active account to the given did. OAuth: restore that DID's session (caller may need to use restoreOAuthSession). Credential: resume on agent. Returns false if did is OAuth (caller should restore OAuth session). */
+/** Switch active account to the given did via OAuth restore. */
 export async function switchAccount(did: string): Promise<boolean> {
   const oauthAccounts = getOAuthAccounts()
-  if (oauthAccounts.dids.includes(did)) {
-    const session = await oauth.restoreOAuthSession(did)
-    if (!session) return false
-    try {
-      const agent = new Agent(session)
-      setOAuthAgent(agent, session)
-      setActiveOAuthDid(did)
-      invalidateSavedFeedsCache()
-      return true
-    } catch {
-      return false
-    }
-  }
-  const accounts = getAccounts()
-  const session = accounts.sessions[did]
-  if (!session?.accessJwt) return false
+  if (!oauthAccounts.dids.includes(did)) return false
+  const session = await oauth.restoreOAuthSession(did)
+  if (!session) return false
   try {
-    setOAuthAgent(null, null)
-    accounts.activeDid = did
-    saveAccounts(accounts)
-    localStorage.setItem(SESSION_KEY, JSON.stringify(session))
-    await credentialAgent.resumeSession(session)
+    const agent = new Agent(session)
+    setOAuthAgent(agent, session)
+    setActiveOAuthDid(did)
     invalidateSavedFeedsCache()
     return true
   } catch {
@@ -248,16 +209,16 @@ export function getCredentialRateLimitedFetch(): typeof credentialAgentFetch {
   return credentialAgentFetch
 }
 
+/** Base AtpAgent for the `agent` proxy when no OAuth session is active (guest reads). */
 const credentialAgent = new AtpAgent({
   service: BSKY_SERVICE,
-  persistSession,
   fetch: credentialAgentFetch,
 })
 
 let oauthAgentInstance: Agent | null = null
 let oauthSessionRef: { signOut(): Promise<void> } | null = null
 
-/** Set the current OAuth session agent (from initOAuth). Pass null to use credential agent only. */
+/** Set the current OAuth session agent (from initOAuth). Pass null to fall back to the base agent (guest). */
 export function setOAuthAgent(agent: Agent | null, session?: { signOut(): Promise<void> } | null): void {
   oauthAgentInstance = agent
   oauthSessionRef = session ?? null
@@ -278,12 +239,12 @@ export function setOAuthAgent(agent: Agent | null, session?: { signOut(): Promis
   }
 }
 
-/** Current agent for API calls: OAuth session if set, otherwise credential (app password) session. */
+/** Current agent for API calls: OAuth session if set, otherwise the base unauthenticated AtpAgent. */
 export function getAgent(): AtpAgent | Agent {
   return oauthAgentInstance ?? credentialAgent
 }
 
-/** Single agent reference that always delegates to getAgent() for OAuth/credential switching. */
+/** Single agent reference that always delegates to getAgent() (OAuth vs guest base). */
 export const agent = new Proxy(credentialAgent, {
   get(_, prop) {
     return (getAgent() as unknown as Record<string, unknown>)[prop as string]
@@ -296,30 +257,8 @@ export const publicAgent = new AtpAgent({ service: PUBLIC_BSKY, fetch: publicAge
 /** Handles for the guest feed (from config). Re-exported for convenience. */
 export const GUEST_FEED_HANDLES = GUEST_FEED_ACCOUNTS.map((a) => a.handle)
 
-/** Fetch and merge author feeds for guest (no login). Uses public API so it works when logged out. cursor = offset as string. */
-export async function getGuestFeed(
-  limit: number,
-  cursor?: string,
-): Promise<{ feed: TimelineItem[]; cursor: string | undefined }> {
-  const offset = cursor ? parseInt(cursor, 10) || 0 : 0
-  const need = offset + limit
-  // Only fetch as many posts as needed, not extra buffer
-  const perHandle = Math.ceil(need / GUEST_FEED_HANDLES.length)
-  const results = await Promise.all(
-    GUEST_FEED_HANDLES.map((actor) => {
-      const cacheKey = `guest:${actor}:${perHandle}`
-      const cached = responseCache.get<{ data: { feed: TimelineItem[] } }>(cacheKey)
-      if (cached) return cached
-      return publicAgent.getAuthorFeed({ actor, limit: perHandle })
-        .then((res) => { 
-          // Guest feed: 5 min TTL + 5 min stale-while-revalidate
-          responseCache.set(cacheKey, res, 300_000, 300_000); 
-          return res 
-        })
-        .catch(() => ({ data: { feed: [] } }))
-    }),
-  )
-  const all = results.flatMap((r) => (r.data.feed || []) as TimelineItem[])
+function mergeDedupeSortGuestItems(feedArrays: TimelineItem[][]): TimelineItem[] {
+  const all = feedArrays.flat()
   const seen = new Set<string>()
   const deduped = all.filter((item) => {
     if (seen.has(item.post.uri)) return false
@@ -331,52 +270,78 @@ export async function getGuestFeed(
     const tb = new Date((b.post.record as { createdAt?: string })?.createdAt ?? 0).getTime()
     return tb - ta
   })
+  return deduped
+}
+
+async function fetchGuestAuthorBatch(
+  actors: string[],
+  perHandle: number,
+): Promise<{ data: { feed: TimelineItem[] } }[]> {
+  return Promise.all(
+    actors.map((actor) => {
+      const cacheKey = `guest:${actor}:${perHandle}`
+      const cached = responseCache.get<{ data: { feed: TimelineItem[] } }>(cacheKey)
+      if (cached) return cached
+      return publicAgent
+        .getAuthorFeed({ actor, limit: perHandle })
+        .then((res) => {
+          responseCache.set(cacheKey, res, 300_000, 300_000)
+          return res
+        })
+        .catch(() => ({ data: { feed: [] } }))
+    }),
+  )
+}
+
+/**
+ * Fetch and merge author feeds for guest (no login). Uses public API so it works when logged out.
+ * cursor = offset as string.
+ * First page (offset 0): fetch half the handles first; if the merged pool is enough, skip the rest so
+ * we are not blocked by the slowest of many parallel requests. Deeper pages use one parallel batch.
+ */
+export async function getGuestFeed(
+  limit: number,
+  cursor?: string,
+): Promise<{ feed: TimelineItem[]; cursor: string | undefined }> {
+  const offset = cursor ? parseInt(cursor, 10) || 0 : 0
+  const need = offset + limit
+  const handles = GUEST_FEED_HANDLES
+
+  let deduped: TimelineItem[]
+
+  if (offset === 0 && handles.length >= 4) {
+    const mid = Math.ceil(handles.length / 2)
+    const wave1Handles = handles.slice(0, mid)
+    const wave2Handles = handles.slice(mid)
+
+    const per1 = Math.ceil(need / wave1Handles.length)
+    const r1 = await fetchGuestAuthorBatch(wave1Handles, per1)
+    const pool1 = mergeDedupeSortGuestItems(
+      r1.map((res) => (res.data.feed || []) as TimelineItem[]),
+    )
+
+    if (pool1.length >= need || wave2Handles.length === 0) {
+      deduped = pool1
+    } else {
+      const per2 = Math.ceil(need / wave2Handles.length)
+      const r2 = await fetchGuestAuthorBatch(wave2Handles, per2)
+      deduped = mergeDedupeSortGuestItems([
+        ...r1.map((res) => (res.data.feed || []) as TimelineItem[]),
+        ...r2.map((res) => (res.data.feed || []) as TimelineItem[]),
+      ])
+    }
+  } else {
+    const perHandle = Math.ceil(need / handles.length)
+    const results = await fetchGuestAuthorBatch(handles, perHandle)
+    deduped = mergeDedupeSortGuestItems(
+      results.map((res) => (res.data.feed || []) as TimelineItem[]),
+    )
+  }
+
   const feed = deduped.slice(offset, offset + limit)
   /* Full page ⇒ allow another request with a larger perHandle (we only ever fetch the head of each author feed). Using deduped.length >= offset + limit was wrong: it suppressed pagination whenever the merged pool was short of offset+limit even though the next fetch could grow the pool. */
   const nextCursor = feed.length === limit ? String(offset + limit) : undefined
   return { feed, cursor: nextCursor }
-}
-
-export async function resumeSession(): Promise<boolean> {
-  const session = getStoredSession()
-  if (!session?.accessJwt) return false
-  const maxAttempts = 3
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    try {
-      await credentialAgent.resumeSession(session)
-      return true
-    } catch (err) {
-      const status = (err as { status?: number; statusCode?: number })?.status
-        ?? (err as { status?: number; statusCode?: number })?.statusCode
-      // Invalid/expired token is not recoverable by retrying in this boot cycle.
-      if (status === 401 || status === 400) return false
-      // Brief retry for transient failures (network, temporary upstream errors).
-      if (attempt < maxAttempts) {
-        await new Promise((resolve) => setTimeout(resolve, attempt * 300))
-      }
-    }
-  }
-  return false
-}
-
-export async function login(identifier: string, password: string) {
-  setOAuthAgent(null, null)
-  const res = await credentialAgent.login({ identifier, password })
-  invalidateSavedFeedsCache()
-  return res
-}
-
-export async function createAccount(opts: {
-  email: string
-  password: string
-  handle: string
-}) {
-  const res = await credentialAgent.createAccount({
-    email: opts.email.trim(),
-    password: opts.password,
-    handle: opts.handle.trim().toLowerCase().replace(/^@/, ''),
-  })
-  return res
 }
 
 /** Remove current account from the list. If another account exists, switch to it. Returns true if still logged in (switched to another). */
@@ -402,25 +367,9 @@ export async function logoutCurrentAccount(): Promise<boolean> {
     }
     return false
   }
-  const accounts = getAccounts()
-  if (accounts.activeDid) {
-    delete accounts.sessions[accounts.activeDid]
-    const remaining = Object.keys(accounts.sessions)
-    accounts.activeDid = remaining[0] ?? null
-    saveAccounts(accounts)
-    if (accounts.activeDid) {
-      const next = accounts.sessions[accounts.activeDid]
-      try {
-        localStorage.setItem(SESSION_KEY, JSON.stringify(next))
-        credentialAgent.resumeSession(next)
-        return true
-      } catch {
-        return false
-      }
-    }
-  }
   try {
     localStorage.removeItem(SESSION_KEY)
+    saveAccounts({ activeDid: null, sessions: {} })
   } catch {
     // ignore
   }
@@ -440,18 +389,16 @@ export function getSession(): AtpSessionData | null {
 }
 
 /**
- * True when the live agent can call authenticated XRPC (credential JWT or OAuth agent with DID).
+ * True when the live OAuth agent can call authenticated XRPC.
  * Do not infer this from localStorage — after a deploy or refresh, storage can be ahead of the agent.
  */
 export function isAgentAuthenticated(): boolean {
-  if (oauthAgentInstance) {
-    try {
-      return Boolean(getAgent().did)
-    } catch {
-      return false
-    }
+  if (!oauthAgentInstance) return false
+  try {
+    return Boolean(getAgent().did)
+  } catch {
+    return false
   }
-  return Boolean(credentialAgent.session?.accessJwt)
 }
 
 /**

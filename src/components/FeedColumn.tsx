@@ -1,4 +1,5 @@
 import type { FeedDisplayEntry } from '../pages/FeedPage'
+import { stableCardKey } from '../pages/FeedPage'
 import { getPostAllMediaForDisplay, isPostNsfw } from '../lib/bsky'
 import OptimizedPostCard from './OptimizedPostCard'
 import RepostCarouselCard from './RepostCarouselCard'
@@ -63,7 +64,6 @@ const FeedCard = memo(function FeedCard({
 
   return (
     <div
-      key={key}
       ref={cardRef(originalIndex)}
       className={styles.gridItem}
       data-selected={isSelected || undefined}
@@ -213,10 +213,9 @@ const FeedColumn = memo(function FeedColumn({
             ? focusTargets[keyboardFocusIndex]?.mediaIndex
             : undefined
         
-        const postUri = entry.type === 'post' ? entry.item.post.uri : entry.items[0].post.uri
         return (
           <FeedCard
-            key={`${postUri}-${originalIndex}`}
+            key={stableCardKey(entry)}
             entry={entry}
             originalIndex={originalIndex}
             isSelected={isSelected}

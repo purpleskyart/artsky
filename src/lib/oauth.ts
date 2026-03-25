@@ -27,11 +27,12 @@ const OAUTH_SCOPE =
  * Include scope so the token has AppView timeline/feed access (same as production client-metadata).
  */
 function getLoopbackClientId(): string {
-  const u = new URL(window.location.href)
-  const host = u.hostname === 'localhost' ? '127.0.0.1' : u.hostname
-  const port = u.port || (u.protocol === 'https:' ? '443' : '80')
-  const path = u.pathname || '/'
-  const redirectUri = `http://${host}:${port}${path}`
+  const loc = window.location
+  const host = loc.hostname === 'localhost' ? '127.0.0.1' : loc.hostname
+  // Match @atproto/oauth-client-browser: omit default ports so findRedirectUrl() sees the same origin as the browser.
+  const portSeg = loc.port && !loc.port.startsWith(':') ? `:${loc.port}` : loc.port || ''
+  const path = loc.pathname || '/'
+  const redirectUri = `http://${host}${portSeg}${path}`
   const params = new URLSearchParams()
   params.set('redirect_uri', redirectUri)
   params.set('scope', OAUTH_SCOPE)

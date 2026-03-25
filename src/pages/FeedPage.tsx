@@ -31,7 +31,7 @@ import { useSeenPosts } from '../context/SeenPostsContext'
 import { useLikeOverrides } from '../context/LikeOverridesContext'
 import { usePullToRefresh, PULL_THRESHOLD_PX } from '../hooks/usePullToRefresh'
 import { useStandalonePwa } from '../hooks/useStandalonePwa'
-import { getColumnCountForViewMode, useColumnCount } from '../hooks/useViewportWidth'
+import { useColumnCount } from '../hooks/useViewportWidth'
 import FeedColumn from '../components/FeedColumn'
 import { feedReducer, type FeedState } from './feedReducer'
 import { debounce } from '../lib/utils'
@@ -163,8 +163,8 @@ function estimateEntryHeight(entry: FeedDisplayEntry): number {
   return CARD_CHROME + 220
 }
 
-/** Stable id for column placement across display-entry rebuilds (append, trim, repost carousel regroup). */
-function stableCardKey(entry: FeedDisplayEntry): string {
+/** Stable id for column placement and list keys (append, trim, repost carousel regroup). */
+export function stableCardKey(entry: FeedDisplayEntry): string {
   if (entry.type === 'post') return `p:${entry.item.post.uri}`
   const uris = entry.items.map((i) => i.post.uri).filter(Boolean).join('|')
   return `c:${uris || 'empty'}`
@@ -352,6 +352,8 @@ export default function FeedPage() {
   const { openLoginModal } = useLoginModal()
   const { session, authResolved } = useSession()
   const { viewMode } = useViewMode()
+  /** Debounced + hysteresis-stable column count (must match grid and load-more sentinels). */
+  const cols = useColumnCount(viewMode, 150)
   const [source, setSource] = useState<FeedSource>(PRESET_SOURCES[0])
 
   // Use the normalized like overrides cache from context
@@ -548,7 +550,6 @@ export default function FeedPage() {
   const FEED_LOAD_TIMEOUT_MS = 15_000
 
   const load = useCallback(async (nextCursor?: string, signal?: AbortSignal) => {
-    const cols = getColumnCountForViewMode(viewMode, window.innerWidth)
     const limit = Math.min(60, cols >= 2 ? cols * 10 : 20)
     const changeVersionAtStart = feedMixChangedVersionRef.current
     const activeMixEntries = mixEntries.filter((e) => e.percent > 0)
@@ -688,7 +689,7 @@ export default function FeedPage() {
         feedMixChangedRef.current = false
       }
     }
-  }, [source, session, authResolved, mixEntries, mixTotalPercent])
+  }, [source, session, authResolved, mixEntries, mixTotalPercent, cols])
 
   useEffect(() => {
     feedMixChangedRef.current = true
@@ -727,8 +728,6 @@ export default function FeedPage() {
     const refs = loadMoreSentinelRefs.current
     let rafId = 0
     let retryId = 0
-    const cols = getColumnCountForViewMode(viewMode, window.innerWidth)
-
     /** True when any column's sentinel is above (viewport bottom + margin) so we load before user reaches end. */
     const anyColumnShort = () => {
       const threshold = window.innerHeight + LOAD_MORE_SHORT_MARGIN_PX
@@ -788,7 +787,7 @@ export default function FeedPage() {
       if (rafId) cancelAnimationFrame(rafId)
       clearTimeout(retryId)
     }
-  }, [feedState.cursor, load, viewMode])
+  }, [feedState.cursor, load, cols])
 
   const { mediaMode } = useMediaOnly()
   const { nsfwPreference, unblurredUris, setUnblurred } = useModeration()
@@ -825,10 +824,7 @@ export default function FeedPage() {
   /** Only "seen all" when there's nothing more to load (no cursor). With mixed feeds, one feed can be exhausted while others still have posts. */
   const emptyBecauseAllSeen = displayEntries.length === 0 && itemsAfterOtherFilters.length > 0 && !feedState.cursor
   const canLoadMoreWhenEmpty = displayEntries.length === 0 && feedState.cursor != null
-  
-  // Use debounced column count to minimize re-renders on viewport resize
-  const cols = useColumnCount(viewMode, 150)
-  
+
   // Track previous distribution to avoid re-shuffling existing posts when new ones load
   const previousDistributionRef = useRef<Array<Array<{ entry: FeedDisplayEntry; originalIndex: number }>>>([])
   const previousColsRef = useRef<number>(0)
@@ -1565,7 +1561,7 @@ export default function FeedPage() {
             </div>
             <p className={styles.feedLoginHintText}>
               Or{' '}
-              <button type="button" className={styles.feedLoginHintLink} onClick={() => openLoginModal('create')}>
+              <button type="button" className={styles.feedLoginHintLink} onClick={() => openLoginModal()}>
                 create an account
               </button>
               {' to see your own feeds.'}

@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { useSession } from '../context/SessionContext'
 import * as bsky from '../lib/bsky'
 import * as oauth from '../lib/oauth'
 import type { AppBskyActorDefs } from '@atproto/api'
@@ -10,62 +9,46 @@ const BLUESKY_SIGNUP_URL = 'https://bsky.app'
 const DEBOUNCE_MS = 250
 
 /** Turn technical login/OAuth errors into messages users can understand. */
-function toFriendlyLoginError(err: unknown, context: 'app-password' | 'oauth'): string {
+function toFriendlyLoginError(err: unknown): string {
   const raw =
     err && typeof err === 'object' && 'message' in err
       ? String((err as { message: string }).message)
       : ''
   const lower = raw.toLowerCase()
   const isOAuthConfigFetchFailure =
-    context === 'oauth' &&
-    (lower.includes('client-metadata') ||
-      lower.includes('.well-known') ||
-      lower.includes('oauth') ||
-      lower.includes('authorization server')) &&
-    (lower.includes('fetch') || lower.includes('network') || lower.includes('failed to fetch'))
+    lower.includes('client-metadata') ||
+    lower.includes('.well-known') ||
+    lower.includes('oauth') ||
+    lower.includes('authorization server')
+      ? lower.includes('fetch') || lower.includes('network') || lower.includes('failed to fetch')
+      : false
   if (isOAuthConfigFetchFailure) {
     return "Can't open Bluesky sign-in from this page. Open PurpleSky from the normal website and try again."
   }
   if (lower.includes('loopback') || lower.includes('path component') || lower.includes('client id')) {
-    return context === 'oauth'
-      ? "Sign-in with Bluesky isn't available from this page address. Try opening the app from its main URL, or use an App Password to log in instead."
-      : "We couldn't complete sign-in from this address. Try opening the app from its main URL."
+    return "Sign-in with Bluesky isn't available from this page address. Try opening the app from its main URL (for local dev use http://localhost or http://127.0.0.1, not a LAN IP)."
   }
   if (lower.includes('network') || lower.includes('fetch') || lower.includes('failed to fetch')) {
     return 'Connection problem. Check your internet and try again.'
   }
   if (lower.includes('invalid') && (lower.includes('password') || lower.includes('credentials'))) {
-    return 'Wrong handle or password. Check your Bluesky handle (or email) and App Password.'
+    return "We couldn't verify your account. Check your Bluesky handle or email and try again."
   }
   if (lower.includes('invalid') || lower.includes('unauthorized')) {
-    return context === 'app-password'
-      ? 'Wrong handle or App Password. Get an App Password from Bluesky: Settings → App passwords.'
-      : "We couldn't verify your account. Check your handle and try again, or use an App Password to log in."
+    return "We couldn't verify your account. Check your handle and try again."
   }
   if (raw) return raw
-  return context === 'app-password'
-    ? 'Log in failed. Use your Bluesky handle (or email) and an App Password from Settings → App passwords.'
-    : "Could not start sign-in. Check your handle and try again, or use an App Password to log in."
+  return 'Could not start sign-in. Check your handle and try again.'
 }
 
-export type LoginMode = 'signin' | 'create'
-
 export interface LoginCardProps {
-  /** Initial tab (signin vs create). Updates when prop changes. */
-  initialMode?: LoginMode
-  /** Called after successful login or account creation. */
+  /** Called after successful login. */
   onSuccess?: () => void
   /** When provided, shows a close button in the top-left of the card (e.g. in modal). */
   onClose?: () => void
 }
 
-export default function LoginCard({ initialMode = 'signin', onSuccess, onClose }: LoginCardProps) {
-  const { refreshSession } = useSession()
-  const [mode, setMode] = useState<LoginMode>(initialMode)
-  useEffect(() => {
-    setMode(initialMode)
-  }, [initialMode])
-
+export default function LoginCard({ onSuccess, onClose }: LoginCardProps) {
   const [identifier, setIdentifier] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -76,10 +59,6 @@ export default function LoginCard({ initialMode = 'signin', onSuccess, onClose }
   const [activeIndex, setActiveIndex] = useState(0)
   const wrapperRef = useRef<HTMLDivElement>(null)
   const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number; width: number } | null>(null)
-
-  const [email, setEmail] = useState('')
-  const [handle, setHandle] = useState('')
-  const [createPassword, setCreatePassword] = useState('')
 
   const fetchSuggestions = useCallback(async (q: string) => {
     const term = q.trim().replace(/^@/, '')
@@ -145,37 +124,7 @@ export default function LoginCard({ initialMode = 'signin', onSuccess, onClose }
       await oauth.signInWithOAuthRedirect(id)
       onSuccess?.()
     } catch (err: unknown) {
-      setError(toFriendlyLoginError(err, 'oauth'))
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  async function handleCreateAccount(e: React.FormEvent) {
-    e.preventDefault()
-    setError('')
-    setLoading(true)
-    try {
-      await bsky.createAccount({
-        email: email.trim(),
-        password: createPassword,
-        handle: handle.trim().toLowerCase().replace(/^@/, ''),
-      })
-      refreshSession()
-      onSuccess?.()
-    } catch (err: unknown) {
-      const message =
-        err && typeof err === 'object' && 'message' in err
-          ? String((err as { message: string }).message)
-          : 'Could not create account. Check that the handle is available.'
-      const isVerificationRequired =
-        typeof message === 'string' &&
-        (message.toLowerCase().includes('verification') || message.toLowerCase().includes('latest version'))
-      setError(
-        isVerificationRequired
-          ? 'Account creation now requires verification on Bluesky. Please create your account on the Bluesky website or app, then log in here with an App Password.'
-          : message
-      )
+      setError(toFriendlyLoginError(err))
     } finally {
       setLoading(false)
     }
@@ -196,27 +145,7 @@ export default function LoginCard({ initialMode = 'signin', onSuccess, onClose }
       <div className={onClose ? styles.cardContentWithClose : undefined}>
       <h1 className={styles.title}>PurpleSky</h1>
 
-      {mode === 'create' && (
-        <div className={styles.tabs} role="tablist" aria-label="Create account or log in">
-          <button
-            type="button"
-            role="tab"
-            className={styles.tab}
-            onClick={() => {
-              setMode('signin')
-              setError('')
-            }}
-          >
-            Log in
-          </button>
-          <span className={`${styles.tab} ${styles.tabActive}`} role="tab" aria-selected id="tab-create">
-            Create Account
-          </span>
-        </div>
-      )}
-
-      {mode === 'signin' ? (
-        <form id="signin-panel" onSubmit={handleSignIn} className={styles.form} aria-label="Log in">
+      <form id="signin-panel" onSubmit={handleSignIn} className={styles.form} aria-label="Log in">
           <div ref={wrapperRef} className={styles.inputWrap}>
             <label htmlFor="login-identifier" className={styles.srOnly}>
               username.bsky.social or email
@@ -313,61 +242,6 @@ export default function LoginCard({ initialMode = 'signin', onSuccess, onClose }
             Create account
           </a>
         </form>
-      ) : (
-        <form id="create-panel" onSubmit={handleCreateAccount} className={styles.form} aria-label="Create account" role="tabpanel" aria-labelledby="tab-create">
-          <label htmlFor="create-email" className={styles.srOnly}>Email</label>
-          <input
-            id="create-email"
-            type="email"
-            placeholder="Email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className={styles.input}
-            autoComplete="email"
-            required
-          />
-          <label htmlFor="create-handle" className={styles.srOnly}>Handle (e.g. you.bsky.social)</label>
-          <input
-            id="create-handle"
-            type="text"
-            placeholder="Handle (e.g. you.bsky.social)"
-            value={handle}
-            onChange={(e) => setHandle(e.target.value)}
-            className={styles.input}
-            autoComplete="username"
-            required
-          />
-          <label htmlFor="create-password" className={styles.srOnly}>Password</label>
-          <input
-            id="create-password"
-            type="password"
-            placeholder="Password"
-            value={createPassword}
-            onChange={(e) => setCreatePassword(e.target.value)}
-            className={styles.input}
-            autoComplete="new-password"
-            required
-            minLength={8}
-            aria-describedby={error ? 'create-error' : undefined}
-          />
-          {error && <p id="create-error" className={styles.error} role="alert">{error}</p>}
-          <button type="submit" className={styles.button} disabled={loading}>
-            {loading ? 'Creating account…' : 'Create account'}
-          </button>
-          <p className={styles.hint}>
-            Bluesky now requires verification to create accounts. Create your account on the Bluesky website or app,
-            then return here to log in with an App Password.
-          </p>
-          <a
-            href={BLUESKY_SIGNUP_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={styles.signupLink}
-          >
-            Create account on Bluesky →
-          </a>
-        </form>
-      )}
       </div>
     </div>
   )
