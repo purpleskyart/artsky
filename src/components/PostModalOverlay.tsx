@@ -1,8 +1,8 @@
-import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { getProfileCached } from '../lib/bsky'
+import PostDetailModal from './PostDetailModal'
 
-const PostDetailModal = lazy(() => import('./PostDetailModal'))
 const handleDidCache = new Map<string, string>()
 
 /**
@@ -76,17 +76,15 @@ export default function PostModalOverlay() {
   }
 
   return (
-    <Suspense fallback={null}>
-      <PostDetailModal
-        uri={resolvedUri}
-        openReply={openReply}
-        focusUri={focusUri}
-        onClose={onClose}
-        onBack={onClose}
-        canGoBack={false}
-        isTopModal
-        stackIndex={0}
-      />
-    </Suspense>
+    <PostDetailModal
+      uri={resolvedUri}
+      openReply={openReply}
+      focusUri={focusUri}
+      onClose={onClose}
+      onBack={onClose}
+      canGoBack={false}
+      isTopModal
+      stackIndex={0}
+    />
   )
 }
