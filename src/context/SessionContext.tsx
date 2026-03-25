@@ -61,8 +61,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     async function init() {
       const oauthAccounts = bsky.getOAuthAccountsSnapshot()
       const search = typeof window !== 'undefined' ? window.location.search : ''
-      const params = new URLSearchParams(search)
-      const hasCallback = params.has('state') && (params.has('code') || params.has('error'))
+      const hasCallback = oauth.hasOAuthCallbackSearch(search)
 
       const noOAuthAccounts =
         oauthAccounts.dids.length === 0 && !oauthAccounts.activeDid

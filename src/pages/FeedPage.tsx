@@ -170,6 +170,25 @@ export function stableCardKey(entry: FeedDisplayEntry): string {
   return `c:${uris || 'empty'}`
 }
 
+/** Column from last layout: composite key, or any member post URI for carousels. */
+function previousColumnForEntry(
+  entry: FeedDisplayEntry,
+  keyToColumn: Map<string, number>,
+  numCols: number
+): number | undefined {
+  const fromKey = keyToColumn.get(stableCardKey(entry))
+  if (fromKey !== undefined && fromKey < numCols) return fromKey
+  if (entry.type === 'carousel') {
+    for (const item of entry.items) {
+      const uri = item.post.uri
+      if (!uri) continue
+      const c = keyToColumn.get(`p:${uri}`)
+      if (c !== undefined && c < numCols) return c
+    }
+  }
+  return undefined
+}
+
 function pickShortestColumnIndex(
   columns: Array<Array<{ entry: FeedDisplayEntry; originalIndex: number }>>,
   columnHeights: number[]
@@ -201,6 +220,14 @@ function distributeEntriesByHeight(
     previousDistribution.forEach((col, colIndex) => {
       col.forEach(({ entry }) => {
         keyToColumn.set(stableCardKey(entry), colIndex)
+        // So when repost rows collapse into a carousel (or the reverse), placement can follow the
+        // same column as before instead of re-balancing to the shortest column.
+        if (entry.type === 'carousel') {
+          for (const item of entry.items) {
+            const uri = item.post.uri
+            if (uri) keyToColumn.set(`p:${uri}`, colIndex)
+          }
+        }
       })
     })
 
@@ -213,10 +240,8 @@ function distributeEntriesByHeight(
     for (let i = 0; i < entries.length; i++) {
       const entry = entries[i]
       const h = estimateEntryHeight(entry)
-      const key = stableCardKey(entry)
-      const prevCol = keyToColumn.get(key)
-      const col =
-        prevCol !== undefined && prevCol < cols ? prevCol : pickShortestColumnIndex(columns, columnHeights)
+      const prevCol = previousColumnForEntry(entry, keyToColumn, cols)
+      const col = prevCol !== undefined ? prevCol : pickShortestColumnIndex(columns, columnHeights)
       columns[col].push({ entry, originalIndex: i })
       columnHeights[col] += h
     }

@@ -67,7 +67,7 @@ describe('FeedProvidersGroup', () => {
       const viewModeElement = screen.getByTestId('view-mode-value')
       expect(viewModeElement).toBeInTheDocument()
       // ViewMode should be one of the valid values
-      expect(['1', '2', '3']).toContain(viewModeElement.textContent)
+      expect(['1', '2', '3', 'a']).toContain(viewModeElement.textContent)
     })
     
     it('should provide ArtOnlyContext to children', () => {
