@@ -23,7 +23,8 @@ import {
 } from '../lib/collections'
 
 type Ctx = {
-  subscribe: (onStoreChange: () => void) => () => void
+  /** Subscribe to saved-state changes for a single post URI (avoids notifying every mounted menu on unrelated saves). */
+  subscribe: (postUri: string, onStoreChange: () => void) => () => void
   getSnapshot: (postUri: string) => boolean
   savingUri: string | null
   activeCollectionAtUri: string | null
@@ -42,19 +43,41 @@ export function CollectionSaveProvider({ children }: { children: ReactNode }) {
   const { openLoginModal } = useLoginModal()
   const toast = useToast()
   const savedRef = useRef<Set<string>>(new Set())
-  const listenersRef = useRef<Set<() => void>>(new Set())
+  const listenersByPostUriRef = useRef<Map<string, Set<() => void>>>(new Map())
   const [savingUri, setSavingUri] = useState<string | null>(null)
   const [activeCollectionAtUri, setActiveCollectionAtUri] = useState<string | null>(null)
   const opLockRef = useRef(false)
 
-  const emit = useCallback(() => {
-    for (const l of listenersRef.current) l()
+  const emitAll = useCallback(() => {
+    for (const set of listenersByPostUriRef.current.values()) {
+      for (const l of set) {
+        l()
+      }
+    }
   }, [])
 
-  const subscribe = useCallback((onChange: () => void) => {
-    listenersRef.current.add(onChange)
+  const emitPost = useCallback((postUri: string) => {
+    const set = listenersByPostUriRef.current.get(postUri)
+    if (!set) return
+    for (const l of set) {
+      l()
+    }
+  }, [])
+
+  const subscribe = useCallback((postUri: string, onChange: () => void) => {
+    let set = listenersByPostUriRef.current.get(postUri)
+    if (!set) {
+      set = new Set()
+      listenersByPostUriRef.current.set(postUri, set)
+    }
+    set.add(onChange)
     return () => {
-      listenersRef.current.delete(onChange)
+      const s = listenersByPostUriRef.current.get(postUri)
+      if (!s) return
+      s.delete(onChange)
+      if (s.size === 0) {
+        listenersByPostUriRef.current.delete(postUri)
+      }
     }
   }, [])
 
@@ -64,15 +87,15 @@ export function CollectionSaveProvider({ children }: { children: ReactNode }) {
     if (!session?.did) {
       savedRef.current = new Set()
       setActiveCollectionAtUri(null)
-      emit()
+      emitAll()
       return
     }
     const union = await loadUnionSavedPostUris()
     savedRef.current = union
-    emit()
+    emitAll()
     const atUri = await resolveActiveCollectionAtUri(session.did)
     setActiveCollectionAtUri(atUri)
-  }, [session?.did, emit])
+  }, [session?.did, emitAll])
 
   const quickSavePost = useCallback(
     async (postUri: string) => {
@@ -96,7 +119,7 @@ export function CollectionSaveProvider({ children }: { children: ReactNode }) {
         setActiveCollectionAtUri(targetCollection)
         await addPostToCollection(targetCollection, postUri)
         savedRef.current.add(postUri)
-        emit()
+        emitPost(postUri)
       } catch (e) {
         toast?.showToast(e instanceof Error ? e.message : 'Could not save')
         await refreshUnionFromPds()
@@ -105,14 +128,14 @@ export function CollectionSaveProvider({ children }: { children: ReactNode }) {
         opLockRef.current = false
       }
     },
-    [session?.did, openLoginModal, emit, toast, refreshUnionFromPds]
+    [session?.did, openLoginModal, emitPost, toast, refreshUnionFromPds]
   )
 
   useEffect(() => {
     if (!session?.did) {
       savedRef.current = new Set()
       setActiveCollectionAtUri(null)
-      emit()
+      emitAll()
       return
     }
     let cancelled = false
@@ -121,21 +144,21 @@ export function CollectionSaveProvider({ children }: { children: ReactNode }) {
         const union = await loadUnionSavedPostUris()
         if (cancelled) return
         savedRef.current = union
-        emit()
+        emitAll()
         const atUri = await resolveActiveCollectionAtUri(session.did)
         if (cancelled) return
         setActiveCollectionAtUri(atUri)
       } catch {
         if (!cancelled) {
           savedRef.current = new Set()
-          emit()
+          emitAll()
         }
       }
     })()
     return () => {
       cancelled = true
     }
-  }, [session?.did, emit])
+  }, [session?.did, emitAll])
 
   const savePostToCollection = useCallback(
     async (postUri: string, collectionAtUri: string) => {
@@ -151,7 +174,7 @@ export function CollectionSaveProvider({ children }: { children: ReactNode }) {
         rememberActiveCollectionAtUri(session.did, collectionAtUri)
         setActiveCollectionAtUri(collectionAtUri)
         savedRef.current.add(postUri)
-        emit()
+        emitPost(postUri)
       } catch (e) {
         toast?.showToast(e instanceof Error ? e.message : 'Could not save')
         await refreshUnionFromPds()
@@ -160,7 +183,7 @@ export function CollectionSaveProvider({ children }: { children: ReactNode }) {
         opLockRef.current = false
       }
     },
-    [session?.did, openLoginModal, toast, emit, refreshUnionFromPds]
+    [session?.did, openLoginModal, toast, emitPost, refreshUnionFromPds]
   )
 
   const removePostFromCollectionUi = useCallback(
@@ -176,7 +199,7 @@ export function CollectionSaveProvider({ children }: { children: ReactNode }) {
         await removePostFromCollection(collectionAtUri, postUri)
         const union = await loadUnionSavedPostUris()
         savedRef.current = union
-        emit()
+        emitAll()
       } catch (e) {
         toast?.showToast(e instanceof Error ? e.message : 'Could not remove')
         await refreshUnionFromPds()
@@ -185,7 +208,7 @@ export function CollectionSaveProvider({ children }: { children: ReactNode }) {
         opLockRef.current = false
       }
     },
-    [session?.did, openLoginModal, toast, emit, refreshUnionFromPds]
+    [session?.did, openLoginModal, toast, emitAll, refreshUnionFromPds]
   )
 
   const createCollectionAndAddPost = useCallback(
@@ -203,7 +226,7 @@ export function CollectionSaveProvider({ children }: { children: ReactNode }) {
         rememberActiveCollectionAtUri(session.did, uri)
         setActiveCollectionAtUri(uri)
         savedRef.current.add(postUri)
-        emit()
+        emitPost(postUri)
       } catch (e) {
         toast?.showToast(e instanceof Error ? e.message : 'Could not create collection')
         await refreshUnionFromPds()
@@ -212,7 +235,7 @@ export function CollectionSaveProvider({ children }: { children: ReactNode }) {
         opLockRef.current = false
       }
     },
-    [session?.did, openLoginModal, toast, emit, refreshUnionFromPds]
+    [session?.did, openLoginModal, toast, emitPost, refreshUnionFromPds]
   )
 
   const value = useMemo(
@@ -247,7 +270,7 @@ export function CollectionSaveProvider({ children }: { children: ReactNode }) {
 export function useIsPostSavedToAnyCollection(postUri: string): boolean {
   const ctx = useContext(CollectionSaveContext)
   return useSyncExternalStore(
-    ctx?.subscribe ?? (() => () => {}),
+    (onStoreChange) => (ctx ? ctx.subscribe(postUri, onStoreChange) : () => {}),
     () => ctx?.getSnapshot(postUri) ?? false,
     () => false
   )
@@ -258,26 +281,30 @@ export function useIsPostSavedToActiveCollection(postUri: string): boolean {
   return useIsPostSavedToAnyCollection(postUri)
 }
 
+const COLLECTION_SAVE_ACTIONS_FALLBACK = {
+  savingUri: null as string | null,
+  activeCollectionAtUri: null as string | null,
+  refreshUnionFromPds: async () => {},
+  quickSavePost: async () => {},
+  savePostToCollection: async () => {},
+  removePostFromCollectionUi: async () => {},
+  createCollectionAndAddPost: async () => {},
+}
+
 export function useCollectionSaveActions() {
   const ctx = useContext(CollectionSaveContext)
-  if (!ctx) {
-    return {
-      savingUri: null as string | null,
-      activeCollectionAtUri: null as string | null,
-      refreshUnionFromPds: async () => {},
-      quickSavePost: async () => {},
-      savePostToCollection: async () => {},
-      removePostFromCollectionUi: async () => {},
-      createCollectionAndAddPost: async () => {},
+  return useMemo(() => {
+    if (!ctx) {
+      return COLLECTION_SAVE_ACTIONS_FALLBACK
     }
-  }
-  return {
-    savingUri: ctx.savingUri,
-    activeCollectionAtUri: ctx.activeCollectionAtUri,
-    refreshUnionFromPds: ctx.refreshUnionFromPds,
-    quickSavePost: ctx.quickSavePost,
-    savePostToCollection: ctx.savePostToCollection,
-    removePostFromCollectionUi: ctx.removePostFromCollectionUi,
-    createCollectionAndAddPost: ctx.createCollectionAndAddPost,
-  }
+    return {
+      savingUri: ctx.savingUri,
+      activeCollectionAtUri: ctx.activeCollectionAtUri,
+      refreshUnionFromPds: ctx.refreshUnionFromPds,
+      quickSavePost: ctx.quickSavePost,
+      savePostToCollection: ctx.savePostToCollection,
+      removePostFromCollectionUi: ctx.removePostFromCollectionUi,
+      createCollectionAndAddPost: ctx.createCollectionAndAddPost,
+    }
+  }, [ctx])
 }

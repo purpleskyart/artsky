@@ -1,4 +1,4 @@
-import { memo, useMemo, type ReactNode } from 'react'
+import { memo, type ReactNode } from 'react'
 import { ThemeProvider } from './ThemeContext'
 import { SessionProvider } from './SessionContext'
 import { ScrollLockProvider } from './ScrollLockContext'
@@ -16,16 +16,11 @@ interface CoreProvidersGroupProps {
  * is memoized to prevent unnecessary re-renders of the provider tree itself.
  */
 function CoreProvidersGroupComponent({ children }: CoreProvidersGroupProps) {
-  // Memoize the children to prevent unnecessary re-renders
-  const memoizedChildren = useMemo(() => children, [children])
-
   return (
     <ThemeProvider>
       <SessionProvider>
         <ScrollLockProvider>
-          <ToastProvider>
-            {memoizedChildren}
-          </ToastProvider>
+          <ToastProvider>{children}</ToastProvider>
         </ScrollLockProvider>
       </SessionProvider>
     </ThemeProvider>

@@ -124,9 +124,11 @@ function PostCardInner({
   feedPreviewActionRow = false,
   openCollectionMenuSignal,
 }: InnerProps) {
-  const TOUCH_OPEN_DELAY_MS = 180
-  const TOUCH_DOUBLE_TAP_WINDOW_MS = 320
-  const MEDIA_CLICK_DOUBLE_TAP_WINDOW_MS = 320
+  /** Must stay > `TOUCH_DOUBLE_TAP_WINDOW_MS` so a second tap can cancel before we open. */
+  const TOUCH_OPEN_DELAY_MS = 155
+  /** Max ms between two taps to count as double-tap-like (like). Tighter than legacy 320ms so single-tap open can be faster. */
+  const TOUCH_DOUBLE_TAP_WINDOW_MS = 140
+  const MEDIA_CLICK_DOUBLE_TAP_WINDOW_MS = TOUCH_DOUBLE_TAP_WINDOW_MS
 
   const navigate = useNavigate()
   const { session } = useSession()
@@ -583,6 +585,7 @@ function PostCardInner({
       setInitialPostForUri(post.uri, item)
       openPostModal(post.uri, undefined, undefined, post.author.handle)
     } else {
+      setInitialPostForUri(post.uri, item)
       const path = getPostOverlayPath(post.uri)
       navigate(path, { state: { backgroundLocation: getOverlayBackgroundLocation(location) } })
     }
@@ -607,7 +610,7 @@ function PostCardInner({
       e.stopPropagation()
       return
     }
-    /* On touch devices the synthetic click fires ~300ms after touchEnd; we delay open by 400ms so double-tap can register. Ignore this click and let the timer open. */
+    /* On touch devices the synthetic click fires after touchEnd; we delay open so double-tap can cancel the timer. Ignore this click and let the timer open. */
     if (touchSessionRef.current) {
       e.preventDefault()
       e.stopPropagation()
