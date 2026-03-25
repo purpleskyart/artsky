@@ -13,6 +13,10 @@ import styles from './PostDetailModal.module.css'
 /** Must match `.overlay` in PostDetailModal.module.css; incremented per stack layer so paint order stays correct when lazy chunks mount after eager siblings. */
 const MODAL_OVERLAY_Z_BASE = 1000
 
+function profileModalScrollStorageKey(handle: string): string {
+  return `artsky-profile-modal-scroll-v1:${encodeURIComponent(handle)}`
+}
+
 const MOBILE_BREAKPOINT = 768
 function subscribeMobile(cb: () => void) {
   if (typeof window === 'undefined') return () => {}
@@ -43,6 +47,8 @@ interface AppModalProps {
   onPullToRefresh?: () => void | Promise<void>
   /** Optional: when provided, scroll resets when this value changes */
   scrollKey?: string
+  /** Profile handle: persist modal scroll in sessionStorage across remounts (path overlay ↔ ?profile= stack). */
+  profileScrollPersistenceHandle?: string
   /** When false, this modal is under another; only the top modal should capture wheel to avoid scrolling the wrong pane */
   isTopModal?: boolean
   /** Index in the modal stack (0 = bottom). Sets z-index so layers paint correctly when portals mount out of order (e.g. lazy list loads after eager detail). */
@@ -63,6 +69,7 @@ export default function AppModal({
   onSwipeLeft,
   onPullToRefresh,
   scrollKey,
+  profileScrollPersistenceHandle,
   isTopModal = true,
   stackIndex,
   feedBackground = false,
@@ -178,13 +185,54 @@ export default function AppModal({
     if (isMobile) setExpanded(true)
   }, [isMobile, setExpanded])
 
-  /* Reset scroll position when scrollKey changes (e.g., when opening a new post) */
+  /* Reset scroll when scrollKey changes, or restore profile modal scroll after remount (overlay ↔ query stack). */
   useEffect(() => {
     const scrollEl = scrollRef.current
-    if (scrollEl) {
-      scrollEl.scrollTop = 0
+    if (!scrollEl) return
+    if (profileScrollPersistenceHandle) {
+      let target = 0
+      try {
+        const raw = sessionStorage.getItem(profileModalScrollStorageKey(profileScrollPersistenceHandle))
+        if (raw != null) {
+          const n = Number(raw)
+          if (Number.isFinite(n) && n >= 0) target = n
+        }
+      } catch {
+        /* private mode / quota */
+      }
+      const maxAttempts = 12
+      let attempts = 0
+      const apply = () => {
+        attempts += 1
+        scrollEl.scrollTop = target
+        const closeEnough = Math.abs(scrollEl.scrollTop - target) <= 2
+        if (closeEnough || attempts >= maxAttempts) return
+        window.setTimeout(() => requestAnimationFrame(apply), 50)
+      }
+      requestAnimationFrame(() => requestAnimationFrame(apply))
+      return
     }
-  }, [scrollKey])
+    scrollEl.scrollTop = 0
+  }, [scrollKey, profileScrollPersistenceHandle])
+
+  useEffect(() => {
+    if (!profileScrollPersistenceHandle) return
+    const scrollEl = scrollRef.current
+    if (!scrollEl) return
+    const key = profileModalScrollStorageKey(profileScrollPersistenceHandle)
+    const save = () => {
+      try {
+        sessionStorage.setItem(key, String(scrollEl.scrollTop))
+      } catch {
+        /* ignore */
+      }
+    }
+    scrollEl.addEventListener('scroll', save, { passive: true })
+    return () => {
+      save()
+      scrollEl.removeEventListener('scroll', save)
+    }
+  }, [profileScrollPersistenceHandle])
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {

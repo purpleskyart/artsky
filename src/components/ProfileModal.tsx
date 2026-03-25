@@ -26,6 +26,7 @@ export default function ProfileModal({ handle, onClose, onBack, canGoBack, isTop
       hideTopBar
       onPullToRefresh={refreshFn ? () => refreshFn() : undefined}
       scrollKey={handle}
+      profileScrollPersistenceHandle={handle}
       isTopModal={isTopModal}
       stackIndex={stackIndex}
     >

@@ -48,6 +48,8 @@ const ProfileModalContext = createContext<ProfileModalContextValue | null>(null)
  * To add a new modal type: add the variant to ModalItem, then in parseSearchToModalStack (read param)
  * and modalItemToSearch (write param). openXxx() just navigates; stack is derived from location.search each render (no lag vs URL).
  * When both profile= and post= are in the URL, stack is [profile, post] so back from post returns to profile.
+ * Opening a profile from the app uses `?profile=` on the frozen pathname (e.g. `/feed?profile=`) so history stacks
+ * like the feed post overlay: push post → POP restores the previous entry with the same mounted modal and scroll.
  */
 function parseSearchToModalStack(search: string): ModalItem[] {
   const params = new URLSearchParams(search)
@@ -132,28 +134,18 @@ function pathForModalNavigation(pathname: string): string {
   return pathname
 }
 
+/** Preserve frozen underlay (feed scroll) on replace navigations that only change modal query params. */
+function overlayBackgroundNavigateState(loc: Location): { backgroundLocation: Location } | undefined {
+  const bg = (loc.state as { backgroundLocation?: Location } | null)?.backgroundLocation
+  return bg != null ? { backgroundLocation: bg } : undefined
+}
+
 export function ProfileModalProvider({ children }: { children: ReactNode }) {
   const [modalScrollHidden, setModalScrollHidden] = useState(false)
   const location = useLocation()
   const navigate = useNavigate()
   /** Same render as router URL — avoids one-frame (or stuck) stale stack when useEffect lagged behind navigate(). */
   const modalStack = useMemo(() => parseSearchToModalStack(location.search), [location.search])
-
-  /** Legacy `/feed?profile=handle` → canonical `/profile/handle` with overlay (keep `?profile=&post=` stacks). */
-  useEffect(() => {
-    if (location.pathname !== '/feed') return
-    const stack = parseSearchToModalStack(location.search)
-    if (stack.length !== 1 || stack[0].type !== 'profile') return
-    const h = stack[0].handle
-    const params = new URLSearchParams(location.search)
-    params.delete('profile')
-    const feedSearch = params.toString()
-    const feedBg: Location = { ...location, pathname: '/feed', search: feedSearch ? `?${feedSearch}` : '', hash: '' }
-    navigate(
-      { pathname: `/profile/${encodeURIComponent(h)}`, search: '' },
-      { replace: true, state: { backgroundLocation: feedBg } }
-    )
-  }, [location, navigate])
 
   useEffect(() => {
     const t = requestAnimationFrame(() => setModalScrollHidden(false))
@@ -162,12 +154,62 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
 
   /** Opens post via URI path with optional `reply` / `focus` query for instant modal resolution. */
   const openPostModal = useCallback((uri: string, openReply?: boolean, focusUri?: string, _authorHandle?: string) => {
+    const bg = getOverlayBackgroundLocation(location)
+    /**
+     * Path-based profile popup (`/profile/h` + backgroundLocation): encode as `?profile=&post=` on the
+     * frozen pathname so the profile modal stays mounted (same idea as feed + post overlay).
+     */
+    const profilePathMatch = /^\/profile\/([^/]+)\/?$/.exec(location.pathname)
+    if (hasPathOverlayStack(location) && profilePathMatch) {
+      const handle = decodeURIComponent(profilePathMatch[1])
+      const rawSearch = bg.search?.replace(/^\?/, '') ?? ''
+      const p = new URLSearchParams(rawSearch)
+      p.set('profile', handle)
+      p.set('post', uri)
+      p.delete('forumPost')
+      if (openReply) p.set('reply', '1')
+      else p.delete('reply')
+      if (focusUri) p.set('focus', focusUri)
+      else p.delete('focus')
+      const qs = p.toString()
+      navigate(
+        { pathname: bg.pathname, search: qs ? `?${qs}` : '', hash: bg.hash ?? '' },
+        { replace: false, state: { backgroundLocation: bg } },
+      )
+      return
+    }
+
+    /**
+     * Query-based profile (`/feed?profile=…`, `/tag/x?profile=…`, …): push post onto the same pathname +
+     * search so browser back pops the post entry and leaves the profile modal mounted (feed-style history).
+     */
+    const profileInSearch = new URLSearchParams(location.search).get('profile')
+    if (
+      profileInSearch &&
+      hasPathOverlayStack(location) &&
+      !location.pathname.startsWith('/post/') &&
+      !/^\/profile\/[^/]+\/post\//.test(location.pathname)
+    ) {
+      const p = new URLSearchParams(location.search.replace(/^\?/, ''))
+      p.set('post', uri)
+      p.delete('forumPost')
+      if (openReply) p.set('reply', '1')
+      else p.delete('reply')
+      if (focusUri) p.set('focus', focusUri)
+      else p.delete('focus')
+      const qs = p.toString()
+      navigate(
+        { pathname: location.pathname, search: qs ? `?${qs}` : '', hash: location.hash },
+        { replace: false, state: location.state ?? undefined },
+      )
+      return
+    }
+
     const path = getPostOverlayPath(uri)
     const q = new URLSearchParams()
     if (openReply) q.set('reply', '1')
     if (focusUri) q.set('focus', focusUri)
     const qs = q.toString()
-    const bg = getOverlayBackgroundLocation(location)
     navigate(
       { pathname: path, search: qs ? `?${qs}` : '' },
       { replace: false, state: { backgroundLocation: bg } }
@@ -176,9 +218,22 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
 
   const openProfileModal = useCallback((handle: string) => {
     preloadProfileOpen(handle)
-    const path = `/profile/${encodeURIComponent(handle)}`
     const bg = getOverlayBackgroundLocation(location)
-    navigate({ pathname: path, search: '' }, { replace: false, state: { backgroundLocation: bg } })
+    const rawSearch = bg.search?.replace(/^\?/, '') ?? ''
+    const p = new URLSearchParams(rawSearch)
+    p.set('profile', handle)
+    p.delete('post')
+    p.delete('forumPost')
+    p.delete('reply')
+    p.delete('focus')
+    p.delete('tag')
+    p.delete('search')
+    p.delete('quotes')
+    const qs = p.toString()
+    navigate(
+      { pathname: bg.pathname, search: qs ? `?${qs}` : '', hash: bg.hash ?? '' },
+      { replace: false, state: { backgroundLocation: bg } },
+    )
   }, [navigate, location])
 
   const openTagModal = useCallback((tag: string) => {
@@ -205,14 +260,32 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
   }, [navigate, location])
 
   const closeModal = useCallback(() => {
+    const stack = parseSearchToModalStack(location.search)
+    const preserve = overlayBackgroundNavigateState(location)
+    if (stack.length > 1) {
+      const bg = getOverlayBackgroundLocation(location)
+      /* Same history entry the feed uses for post overlays: POP so in-modal back matches browser back. */
+      if (location.pathname === bg.pathname) {
+        navigate(-1)
+        return
+      }
+      const next = stack.slice(0, -1)
+      const search = next.length > 0 ? `?${modalStackToSearch(next)}` : ''
+      navigate(
+        { pathname: pathForModalNavigation(location.pathname), search },
+        { replace: true, state: preserve },
+      )
+      return
+    }
     if (hasPathOverlayStack(location)) {
       navigate(-1)
       return
     }
-    const current = parseSearchToModalStack(location.search)
-    const next = current.length > 1 ? current.slice(0, -1) : []
-    const search = next.length > 0 ? `?${modalStackToSearch(next)}` : ''
-    navigate({ pathname: pathForModalNavigation(location.pathname), search }, { replace: true })
+    /* stack length 0 or 1 */
+    navigate(
+      { pathname: pathForModalNavigation(location.pathname), search: '' },
+      { replace: true, state: preserve },
+    )
   }, [location, navigate])
 
   const closeAllModals = useCallback(() => {
@@ -220,7 +293,11 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
       navigate(-1)
       return
     }
-    navigate({ pathname: pathForModalNavigation(location.pathname), search: '' }, { replace: true })
+    const preserve = overlayBackgroundNavigateState(location)
+    navigate(
+      { pathname: pathForModalNavigation(location.pathname), search: '' },
+      { replace: true, state: preserve },
+    )
   }, [location, navigate])
 
   const isModalOpen = modalStack.length > 0 || hasPathOverlayStack(location)
