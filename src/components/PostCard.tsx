@@ -14,6 +14,7 @@ import { setInitialPostForUri } from '../lib/postCache'
 import { getPostOverlayPath } from '../lib/appUrl'
 import { getOverlayBackgroundLocation } from '../lib/overlayNavigation'
 import { useModalScroll } from '../context/ModalScrollContext'
+import { useOffscreenOptimization } from '../hooks/useOffscreenOptimization'
 import { preloadPostOpen } from '../lib/modalPreload'
 import PostText from './PostText'
 import ProfileLink from './ProfileLink'
@@ -190,6 +191,8 @@ function PostCardInner({
   const [actionsMenuOpen, setActionsMenuOpen] = useState(false)
   const actionsMenuDropdownRef = useRef<HTMLDivElement>(null)
   const cardRef = useRef<HTMLDivElement>(null)
+  const [cardRootEl, setCardRootEl] = useState<HTMLDivElement | null>(null)
+  const isCardNearViewport = useOffscreenOptimization(cardRootEl, { rootMargin: '400px 0px 400px 0px' })
   const prevSelectedRef = useRef(isSelected)
   const lastTapRef = useRef(0)
   const lastMediaClickRef = useRef(0)
@@ -338,6 +341,7 @@ function PostCardInner({
   }, [isModalOpen])
 
   const isVideo = hasMedia && media!.type === 'video' && media!.videoPlaylist
+  const effectiveVideoInRange = isCardNearViewport && videoInLoadRange
   const isMultipleImages = hasMedia && media!.type === 'image' && (media!.imageCount ?? 0) > 1
   const imageItems = useMemo(() => allMedia.filter((m) => m.type === 'image'), [allMedia])
   /** Indices in allMedia for each image (for onMediaRef / focusedMediaIndex when multi-image) */
@@ -403,7 +407,7 @@ function PostCardInner({
   }, [isVideo, post.uri])
 
   useEffect(() => {
-    if (!isVideo || !media?.videoPlaylist || !videoInLoadRange) {
+    if (!isVideo || !media?.videoPlaylist || !effectiveVideoInRange) {
       if (hlsRef.current) {
         hlsRef.current.destroy()
         hlsRef.current = null
@@ -457,7 +461,7 @@ function PostCardInner({
         v.removeAttribute('src')
       }
     }
-  }, [isVideo, media?.videoPlaylist, videoInLoadRange])
+  }, [isVideo, media?.videoPlaylist, effectiveVideoInRange])
 
   /* Autoplay video when in view, pause when out of view or when modal opens */
   const isModalOpenRef = useRef(isModalOpen)
@@ -486,6 +490,11 @@ function PostCardInner({
     observer.observe(el)
     return () => observer.disconnect()
   }, [isVideo, isModalOpen])
+
+  useEffect(() => {
+    if (!isVideo || !videoRef.current) return
+    if (!isCardNearViewport) videoRef.current.pause()
+  }, [isVideo, isCardNearViewport])
 
   /* Unblur NSFW when this card gains focus; reblur when it loses selection. Reused across feed, profile, tag, popups. useLayoutEffect so unblur runs before paint (fixes profile modal). */
   useLayoutEffect(() => {
@@ -686,7 +695,8 @@ function PostCardInner({
 
   const setCardRef = useCallback(
     (el: HTMLDivElement | null) => {
-      (cardRef as React.MutableRefObject<HTMLDivElement | null>).current = el
+      setCardRootEl(el)
+      ;(cardRef as React.MutableRefObject<HTMLDivElement | null>).current = el
       if (cardRefProp) {
         if (typeof cardRefProp === 'function') cardRefProp(el)
         else (cardRefProp as React.MutableRefObject<HTMLDivElement | null>).current = el
@@ -705,7 +715,7 @@ function PostCardInner({
         role="button"
         tabIndex={0}
         className={styles.cardLink}
-        onMouseDown={() => preloadPostOpen(post.uri)}
+        onPointerDown={() => preloadPostOpen(post.uri)}
         onClick={(e) => {
           e.preventDefault()
           e.stopPropagation()
@@ -813,7 +823,7 @@ function PostCardInner({
             ;(mediaWrapRef as React.MutableRefObject<HTMLDivElement | null>).current = el
             if (onMediaRef && (mediaMode === 'text' || (hasMedia && !(isMultipleImages && imageItems.length > 1)))) onMediaRef(0, el)
           }}
-          className={`${styles.mediaWrap} ${fillCell ? styles.mediaWrapFillCell : ''} ${constrainMediaHeight ? styles.mediaWrapConstrained : ''} ${isMultipleImages && imageItems.length > 1 ? styles.mediaWrapMultiStack : ''}`}
+          className={`${styles.mediaWrap} ${fillCell ? styles.mediaWrapFillCell : ''} ${constrainMediaHeight ? styles.mediaWrapConstrained : ''} ${isMultipleImages && imageItems.length > 1 ? styles.mediaWrapMultiStack : ''} ${!isCardNearViewport && hasMedia ? styles.mediaOffscreen : ''}`}
           style={
             fillCell || constrainMediaHeight ||
             (isMultipleImages && imageItems.length > 1)
@@ -879,7 +889,7 @@ function PostCardInner({
                 muted
                 playsInline
                 loop
-                preload={videoInLoadRange ? 'metadata' : 'none'}
+                preload={effectiveVideoInRange ? 'metadata' : 'none'}
                 style={{ aspectRatio: mediaAspect != null ? `${mediaAspect}` : undefined }}
                 onLoadedMetadata={(e) => {
                   const v = e.currentTarget

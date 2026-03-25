@@ -626,6 +626,12 @@ html[data-theme="dark"] [data-view-mode="1"] .card:focus-within:not(:has(.mediaG
   border-radius: var(--glass-radius) var(--glass-radius) 0 0;
 }
 
+/* Paired with useOffscreenOptimization on the card: skip layout/paint for far-off media */
+.mediaOffscreen {
+  content-visibility: auto;
+  contain-intrinsic-size: 320px 240px;
+}
+
 /* Art only: no meta row, so round the bottom so corners don't stick through the focus ring */
 .cardArtOnly .mediaWrap {
   border-radius: var(--glass-radius);

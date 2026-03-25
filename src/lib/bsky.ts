@@ -99,13 +99,6 @@ export function getOAuthAccountsSnapshot(): OAuthAccountsStore {
   return getOAuthAccounts()
 }
 
-/** True if local persistence suggests a session may exist (OAuth or app password). Used to avoid guest UI flash before async restore. */
-export function hasPersistedLoginHint(): boolean {
-  const oauth = getOAuthAccounts()
-  if (oauth.dids.length > 0) return true
-  return Boolean(getStoredSession()?.did)
-}
-
 /** Active DID from persistence only (before the live agent is ready). */
 export function getPersistedActiveDid(): string | null {
   const oauth = getOAuthAccounts()
@@ -114,6 +107,11 @@ export function getPersistedActiveDid(): string | null {
   const accounts = getAccounts()
   if (accounts.activeDid) return accounts.activeDid
   return getStoredSession()?.did ?? null
+}
+
+/** True if local persistence suggests a session may exist (OAuth or app password). Used to avoid guest UI flash before async restore. Must match every path in {@link getPersistedActiveDid} (incl. oauth.activeDid and accounts.activeDid). */
+export function hasPersistedLoginHint(): boolean {
+  return getPersistedActiveDid() != null
 }
 
 let sessionRetryTimer: ReturnType<typeof setTimeout> | null = null

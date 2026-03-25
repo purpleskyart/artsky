@@ -6,7 +6,13 @@ import { useModalExpand } from '../context/ModalExpandContext'
 import { useProfileModal } from '../context/ProfileModalContext'
 import { useScrollLock } from '../context/ScrollLockContext'
 import { useSwipeToClose } from '../hooks/useSwipeToClose'
-import { usePullToRefresh, PULL_REFRESH_HOLD_PX } from '../hooks/usePullToRefresh'
+import {
+  usePullToRefresh,
+  PULL_REFRESH_HOLD_PX,
+  MODAL_PULL_COMMIT_PX,
+  MODAL_PULL_THRESHOLD_PX,
+  MODAL_RUBBER_BAND_SCALE,
+} from '../hooks/usePullToRefresh'
 import { useStandalonePwa } from '../hooks/useStandalonePwa'
 import styles from './PostDetailModal.module.css'
 
@@ -86,6 +92,9 @@ export default function AppModal({
     touchTargetRef: scrollRef,
     onRefresh: onPullToRefresh ?? (() => {}),
     enabled: !!onPullToRefresh && isMobile && isStandalonePwa,
+    pullCommitPx: MODAL_PULL_COMMIT_PX,
+    pullThresholdPx: MODAL_PULL_THRESHOLD_PX,
+    rubberBandScale: MODAL_RUBBER_BAND_SCALE,
   })
   const [topBarSlotEl, setTopBarSlotEl] = useState<HTMLDivElement | null>(null)
   const [topBarRightSlotEl, setTopBarRightSlotEl] = useState<HTMLDivElement | null>(null)
