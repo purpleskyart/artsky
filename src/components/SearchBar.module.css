@@ -26,6 +26,10 @@
   height: 32px;
 }
 
+.searchRowNoFilter .input {
+  border-radius: var(--glass-radius-sm) 0 0 var(--glass-radius-sm);
+}
+
 .searchRow {
   display: flex;
   align-items: center;

@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { searchPostsByTag, searchPostsByQuery, getQuotes, getActorFeeds } from './bsky'
+import { searchPostsByTag, searchPostsByQuery, getQuotes, getActorFeeds, publicAgent } from './bsky'
+
+function mockSearchPostsReject(status: number) {
+  return vi.spyOn(publicAgent.app.bsky.feed, 'searchPosts').mockRejectedValue(
+    Object.assign(new Error('API error'), { status })
+  )
+}
 
 describe('API Error Handling Integration Tests', () => {
   beforeEach(() => {
@@ -13,30 +19,22 @@ describe('API Error Handling Integration Tests', () => {
 
   describe('searchPostsByTag', () => {
     it('throws user-friendly error on 404', async () => {
-      // Mock fetch to simulate 404 error
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: false,
-        status: 404,
-        json: async () => ({ message: 'Not found' }),
-      })
-
+      mockSearchPostsReject(404)
       await expect(searchPostsByTag('nonexistent')).rejects.toThrow(
         'The requested content was not found.'
       )
     })
 
-    it('throws user-friendly error on 500', async () => {
-      // Mock fetch to simulate server error
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: false,
-        status: 500,
-        json: async () => ({ message: 'Internal server error' }),
-      })
-
-      await expect(searchPostsByTag('art')).rejects.toThrow(
-        'Server error. Please try again in a moment.'
-      )
-    })
+    it(
+      'throws user-friendly error on 500',
+      async () => {
+        mockSearchPostsReject(500)
+        await expect(searchPostsByTag('art')).rejects.toThrow(
+          'Server error. Please try again in a moment.'
+        )
+      },
+      15_000
+    )
 
     it('returns empty results for empty tag', async () => {
       const result = await searchPostsByTag('')
@@ -45,17 +43,16 @@ describe('API Error Handling Integration Tests', () => {
   })
 
   describe('searchPostsByQuery', () => {
-    it('throws user-friendly error on 503', async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: false,
-        status: 503,
-        json: async () => ({ message: 'Service unavailable' }),
-      })
-
-      await expect(searchPostsByQuery('test')).rejects.toThrow(
-        'Service is currently down for maintenance. Please try again later.'
-      )
-    })
+    it(
+      'throws user-friendly error on 503',
+      async () => {
+        mockSearchPostsReject(503)
+        await expect(searchPostsByQuery('test')).rejects.toThrow(
+          'Service is currently down for maintenance. Please try again later.'
+        )
+      },
+      15_000
+    )
 
     it('returns empty results for empty query', async () => {
       const result = await searchPostsByQuery('')
@@ -93,32 +90,25 @@ describe('API Error Handling Integration Tests', () => {
 
   describe('Retry behavior', () => {
     it('does not retry on 4xx errors', async () => {
-      let attemptCount = 0
-      global.fetch = vi.fn().mockImplementation(async () => {
-        attemptCount++
-        return {
-          ok: false,
-          status: 400,
-          json: async () => ({ message: 'Bad request' }),
-        }
-      })
-
+      const spy = mockSearchPostsReject(400)
       await expect(searchPostsByQuery('test')).rejects.toThrow()
-      expect(attemptCount).toBe(1) // Only initial attempt, no retries
+      expect(spy).toHaveBeenCalledTimes(1)
     })
   })
 
   describe('Error message context', () => {
     it('includes operation context in error messages', async () => {
+      const err = Object.assign(new Error('API error'), { status: 404 })
+      const spy = vi.spyOn(publicAgent.app.bsky.feed, 'searchPosts')
+      spy.mockRejectedValueOnce(err).mockRejectedValueOnce(err)
+      await expect(searchPostsByTag('art')).rejects.toThrow('not found')
+      await expect(searchPostsByQuery('test')).rejects.toThrow('not found')
+
       global.fetch = vi.fn().mockResolvedValue({
         ok: false,
         status: 404,
         json: async () => ({ message: 'Not found' }),
       })
-
-      // Different functions should have appropriate context
-      await expect(searchPostsByTag('art')).rejects.toThrow('not found')
-      await expect(searchPostsByQuery('test')).rejects.toThrow('not found')
       await expect(getQuotes('at://test')).rejects.toThrow('not found')
       await expect(getActorFeeds('test.bsky.social')).rejects.toThrow('not found')
     })

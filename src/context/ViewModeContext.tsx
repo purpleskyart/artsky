@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useState } from 'react'
+import { createContext, useCallback, useContext, useState } from 'react'
 import { useSyncExternalStore } from 'react'
 import { useSession } from './SessionContext'
 import { useToast } from './ToastContext'
@@ -48,20 +48,31 @@ function subscribeDesktop(cb: () => void) {
 
 export function ViewModeProvider({ children }: { children: React.ReactNode }) {
   const { session } = useSession()
-  const toast = useToast()
   const isDesktop = useSyncExternalStore(subscribeDesktop, getDesktopSnapshot, () => false)
+  const innerKey = `${session?.did ?? '__guest__'}-${isDesktop ? 'd' : 'm'}`
+  return (
+    <ViewModeProviderInner key={innerKey} isGuest={!session} isDesktop={isDesktop}>
+      {children}
+    </ViewModeProviderInner>
+  )
+}
+
+function ViewModeProviderInner({
+  children,
+  isGuest,
+  isDesktop,
+}: {
+  children: React.ReactNode
+  isGuest: boolean
+  isDesktop: boolean
+}) {
+  const toast = useToast()
   const stored = getStored()
-  const defaultMode: ViewMode = !session && isDesktop ? 'a' : '2'
+  const defaultMode: ViewMode = !isGuest ? '2' : isDesktop ? 'a' : '2'
   const [viewMode, setViewModeState] = useState<ViewMode>(() => {
     const v = stored ?? defaultMode
     return v === '1' || v === '2' || v === '3' || v === 'a' ? v : defaultMode
   })
-
-  useEffect(() => {
-    if (getStored() !== null) return
-    const nextDefault: ViewMode = !session && isDesktop ? 'a' : '2'
-    setViewModeState((prev) => (prev === nextDefault ? prev : nextDefault))
-  }, [session, isDesktop])
 
   const setViewMode = useCallback((mode: ViewMode) => {
     const safe: ViewMode = mode === '1' || mode === '2' || mode === '3' || mode === 'a' ? mode : '2'
@@ -99,4 +110,9 @@ export function useViewMode() {
   const ctx = useContext(ViewModeContext)
   if (!ctx) throw new Error('useViewMode must be used within ViewModeProvider')
   return ctx
+}
+
+/** Matches feed/profile keyboard shortcuts (768px) — use for pointer vs touch behavior. */
+export function useIsDesktop() {
+  return useSyncExternalStore(subscribeDesktop, getDesktopSnapshot, () => false)
 }

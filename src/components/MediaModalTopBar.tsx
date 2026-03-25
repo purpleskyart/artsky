@@ -56,13 +56,57 @@ function ColumnAutoIcon() {
   )
 }
 
-
-/** Renders optional center content + SFW, eye, and column toggles into modal top bar slots. Use inside AppModal. */
-export default function MediaModalTopBar({ centerContent }: { centerContent?: ReactNode }) {
-  const slots = useModalTopBarSlot()
+function MediaModalTopBarRight() {
   const { viewMode, cycleViewMode } = useViewMode()
   const { cardViewMode, cycleCardView } = useArtOnly()
   const { nsfwPreference, cycleNsfwPreference } = useModeration()
+
+  return (
+    <>
+      <button
+        type="button"
+        className={`${styles.headerBtn} ${nsfwPreference !== 'sfw' ? styles.headerBtnActive : ''}`}
+        onClick={(e) => cycleNsfwPreference(e.currentTarget)}
+        title={`${nsfwPreference}. Click to cycle: SFW → Blurred → NSFW`}
+        aria-label={`NSFW filter: ${nsfwPreference}`}
+      >
+        <NsfwEyeIcon mode={nsfwPreference === 'sfw' ? 'closed' : nsfwPreference === 'blurred' ? 'half' : 'open'} />
+      </button>
+      <button
+        type="button"
+        className={styles.headerBtn}
+        onClick={(e) => cycleViewMode(e.currentTarget)}
+        title={`${VIEW_LABELS[viewMode]}. Click to cycle.`}
+        aria-label={`${VIEW_LABELS[viewMode]}. Click to cycle.`}
+      >
+        {viewMode === '1' && <Column1Icon />}
+        {viewMode === '2' && <Column2Icon />}
+        {viewMode === '3' && <Column3Icon />}
+        {viewMode === 'a' && <ColumnAutoIcon />}
+      </button>
+      <button
+        type="button"
+        className={`${styles.headerBtn} ${cardViewMode !== 'default' ? styles.headerBtnActive : ''}`}
+        onClick={(e) => cycleCardView(e.currentTarget)}
+        aria-label={cardViewMode === 'default' ? 'Show all' : cardViewMode === 'minimalist' ? 'Minimalist' : 'Art only'}
+        title={cardViewMode === 'default' ? 'Show all' : cardViewMode === 'minimalist' ? 'Minimalist' : 'Art only'}
+      >
+        <CardModeIcon mode={cardViewMode === 'default' ? 'default' : cardViewMode === 'minimalist' ? 'minimalist' : 'artOnly'} />
+      </button>
+    </>
+  )
+}
+
+/** Renders optional center content + NSFW, columns, and card toggles into modal top bar slots. Use inside AppModal. */
+export default function MediaModalTopBar({
+  centerContent,
+  showRightControls = true,
+}: {
+  centerContent?: ReactNode
+  /** When false, only the center slot is filled (e.g. search modal title). */
+  showRightControls?: boolean
+}) {
+  const slots = useModalTopBarSlot()
 
   const centerSlot = slots?.centerSlot ?? null
   const rightSlot = slots?.rightSlot ?? null
@@ -72,43 +116,7 @@ export default function MediaModalTopBar({ centerContent }: { centerContent?: Re
       {centerSlot && centerContent != null
         ? createPortal(centerContent, centerSlot)
         : null}
-      {rightSlot
-        ? createPortal(
-            <>
-              <button
-                type="button"
-                className={`${styles.headerBtn} ${nsfwPreference !== 'sfw' ? styles.headerBtnActive : ''}`}
-                onClick={(e) => cycleNsfwPreference(e.currentTarget)}
-                title={`${nsfwPreference}. Click to cycle: SFW → Blurred → NSFW`}
-                aria-label={`NSFW filter: ${nsfwPreference}`}
-              >
-                <NsfwEyeIcon mode={nsfwPreference === 'sfw' ? 'closed' : nsfwPreference === 'blurred' ? 'half' : 'open'} />
-              </button>
-              <button
-                type="button"
-                className={styles.headerBtn}
-                onClick={(e) => cycleViewMode(e.currentTarget)}
-                title={`${VIEW_LABELS[viewMode]}. Click to cycle.`}
-                aria-label={`${VIEW_LABELS[viewMode]}. Click to cycle.`}
-              >
-                {viewMode === '1' && <Column1Icon />}
-                {viewMode === '2' && <Column2Icon />}
-                {viewMode === '3' && <Column3Icon />}
-                {viewMode === 'a' && <ColumnAutoIcon />}
-              </button>
-              <button
-                type="button"
-                className={`${styles.headerBtn} ${cardViewMode !== 'default' ? styles.headerBtnActive : ''}`}
-                onClick={(e) => cycleCardView(e.currentTarget)}
-                aria-label={cardViewMode === 'default' ? 'Show all' : cardViewMode === 'minimalist' ? 'Minimalist' : 'Art only'}
-                title={cardViewMode === 'default' ? 'Show all' : cardViewMode === 'minimalist' ? 'Minimalist' : 'Art only'}
-              >
-                <CardModeIcon mode={cardViewMode === 'default' ? 'default' : cardViewMode === 'minimalist' ? 'minimalist' : 'artOnly'} />
-              </button>
-            </>,
-            rightSlot
-          )
-        : null}
+      {showRightControls && rightSlot ? createPortal(<MediaModalTopBarRight />, rightSlot) : null}
     </>
   )
 }

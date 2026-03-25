@@ -25,8 +25,11 @@ import {
 } from './cacheInvalidation'
 
 const BSKY_SERVICE = 'https://bsky.social'
-/** Public AppView for unauthenticated reads (profiles, feeds). */
-const PUBLIC_BSKY = 'https://public.api.bsky.app'
+/**
+ * App View for unauthenticated reads (guest author feeds, profiles, search).
+ * `public.api.bsky.app` often returns 403 on `app.bsky.feed.searchPosts`; `api.bsky.app` matches the main client and allows anonymous search/tag queries.
+ */
+const PUBLIC_BSKY = 'https://api.bsky.app'
 const SESSION_KEY = 'artsky-bsky-session'
 const ACCOUNTS_KEY = 'artsky-accounts'
 const OAUTH_ACCOUNTS_KEY = 'artsky-oauth-accounts'
@@ -1119,30 +1122,24 @@ export async function searchPostsByTag(tag: string, cursor?: string, limit: numb
       responseCache.set(cacheKey, result, TAG_SEARCH_CACHE_TTL_MS, TAG_SEARCH_CACHE_STALE_MS)
       return result
     } catch (error) {
-      // Log error but fall through to public API
+      // Log error but fall through to public App View (same as guests — works logged out)
       console.warn(getApiErrorMessage(error, 'search posts'))
     }
   }
 
   try {
-    const params = new URLSearchParams()
-    params.set('q', normalized)
-    params.set('tag', normalized)
-    params.set('limit', String(limit))
-    params.set('sort', 'latest')
-    if (cursor) params.set('cursor', cursor)
-    
     const res = await retryWithBackoff(
-      () => fetch(`${PUBLIC_BSKY}/xrpc/app.bsky.feed.searchPosts?${params.toString()}`),
+      () =>
+        publicAgent.app.bsky.feed.searchPosts({
+          q: normalized,
+          tag: [normalized],
+          limit,
+          sort: 'latest',
+          cursor,
+        }),
       { shouldRetry: shouldRetryError }
     )
-    
-    if (!res.ok) {
-      throw Object.assign(new Error('Failed to load tag'), { status: res.status })
-    }
-    
-    const data = (await res.json()) as { posts?: AppBskyFeedDefs.PostView[]; cursor?: string; message?: string }
-    const result = { posts: data.posts ?? [], cursor: data.cursor }
+    const result = { posts: res.data.posts ?? [], cursor: res.data.cursor }
     responseCache.set(cacheKey, result, TAG_SEARCH_CACHE_TTL_MS, TAG_SEARCH_CACHE_STALE_MS)
     return result
   } catch (error) {
@@ -1168,29 +1165,22 @@ export async function searchPostsByQuery(q: string, cursor?: string) {
       )
       return { posts: res.data.posts ?? [], cursor: res.data.cursor }
     } catch (error) {
-      // Log error but fall through to public API
       console.warn(getApiErrorMessage(error, 'search posts'))
     }
   }
 
   try {
-    const params = new URLSearchParams()
-    params.set('q', term)
-    params.set('limit', '30')
-    params.set('sort', 'latest')
-    if (cursor) params.set('cursor', cursor)
-    
     const res = await retryWithBackoff(
-      () => fetch(`${PUBLIC_BSKY}/xrpc/app.bsky.feed.searchPosts?${params.toString()}`),
+      () =>
+        publicAgent.app.bsky.feed.searchPosts({
+          q: term,
+          limit: 30,
+          sort: 'latest',
+          cursor,
+        }),
       { shouldRetry: shouldRetryError }
     )
-    
-    if (!res.ok) {
-      throw Object.assign(new Error('Failed to search'), { status: res.status })
-    }
-    
-    const data = (await res.json()) as { posts?: AppBskyFeedDefs.PostView[]; cursor?: string; message?: string }
-    return { posts: data.posts ?? [], cursor: data.cursor }
+    return { posts: res.data.posts ?? [], cursor: res.data.cursor }
   } catch (error) {
     throw new Error(getApiErrorMessage(error, 'search posts'))
   }

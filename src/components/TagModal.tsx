@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { TagContent } from '../pages/TagPage'
 import AppModal from './AppModal'
 
@@ -7,12 +7,18 @@ interface TagModalProps {
   onClose: () => void
   onBack: () => void
   canGoBack: boolean
+  onDesktopBackdrop?: () => void
   isTopModal?: boolean
   stackIndex?: number
 }
 
-export default function TagModal({ tag, onClose, onBack, canGoBack, isTopModal, stackIndex }: TagModalProps) {
-  const [refreshFn, setRefreshFn] = useState<(() => void | Promise<void>) | null>(null)
+export default function TagModal({ tag, onClose, onBack, canGoBack, onDesktopBackdrop, isTopModal, stackIndex }: TagModalProps) {
+  const refreshRef = useRef<(() => void | Promise<void>) | null>(null)
+  const [pullReady, setPullReady] = useState(false)
+  const handleRegisterRefresh = useCallback((fn: () => void | Promise<void>) => {
+    refreshRef.current = fn
+    setPullReady(true)
+  }, [])
 
   return (
     <AppModal
@@ -20,12 +26,13 @@ export default function TagModal({ tag, onClose, onBack, canGoBack, isTopModal, 
       onClose={onClose}
       onBack={onBack}
       canGoBack={canGoBack}
-      onPullToRefresh={refreshFn ? () => refreshFn() : undefined}
+      onDesktopBackdrop={onDesktopBackdrop}
+      onPullToRefresh={pullReady ? () => refreshRef.current?.() : undefined}
       scrollKey={tag}
       isTopModal={isTopModal}
       stackIndex={stackIndex}
     >
-      <TagContent tag={tag} inModal onRegisterRefresh={(fn) => setRefreshFn(() => fn)} />
+      <TagContent tag={tag} inModal onRegisterRefresh={handleRegisterRefresh} />
     </AppModal>
   )
 }

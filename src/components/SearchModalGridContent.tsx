@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useParams, useNavigate, useLocation } from 'react-router-dom'
-import { searchPostsByTag, getPostMediaInfo, isPostNsfw, likePostWithLifecycle, unlikePostWithLifecycle } from '../lib/bsky'
+import { useLocation, useNavigate } from 'react-router-dom'
+import { searchPostsByPhraseAndTags, getPostMediaInfo, isPostNsfw, likePostWithLifecycle, unlikePostWithLifecycle } from '../lib/bsky'
 import type { TimelineItem } from '../lib/bsky'
 import type { AppBskyFeedDefs } from '@atproto/api'
-import ProfileColumn from '../components/ProfileColumn'
-import Layout from '../components/Layout'
+import ProfileColumn from './ProfileColumn'
 import { useSession } from '../context/SessionContext'
 import { useProfileModal } from '../context/ProfileModalContext'
 import { useViewMode } from '../context/ViewModeContext'
@@ -12,15 +11,14 @@ import { useModeration } from '../context/ModerationContext'
 import { useModalScroll } from '../context/ModalScrollContext'
 import { useColumnCount } from '../hooks/useViewportWidth'
 import { usePostCardGridPointerGate } from '../hooks/usePostCardGridPointerGate'
-import styles from './TagPage.module.css'
-import profileGridStyles from './ProfilePage.module.css'
+import styles from '../pages/TagPage.module.css'
+import profileGridStyles from '../pages/ProfilePage.module.css'
 import { getPostAppPath } from '../lib/appUrl'
 import { getOverlayBackgroundLocation } from '../lib/overlayNavigation'
 
 const ESTIMATE_COL_WIDTH = 280
 const CARD_CHROME = 100
 
-/** Wrap PostView into TimelineItem shape for PostCard */
 function toTimelineItem(post: AppBskyFeedDefs.PostView): TimelineItem {
   return { post }
 }
@@ -62,7 +60,24 @@ function distributeByHeight(
   return columns
 }
 
-export function TagContent({ tag, inModal = false, onRegisterRefresh }: { tag: string; inModal?: boolean; onRegisterRefresh?: (refresh: () => void | Promise<void>) => void }) {
+export interface SearchModalGridContentProps {
+  searchQuery: string
+  /** Same contract as TagContent: modal uses context openPostModal + modal scroll; page would use navigate. */
+  inModal?: boolean
+  onRegisterRefresh?: (refresh: () => void | Promise<void>) => void
+  /** Extra class on the outer wrap (e.g. modal chrome offset). */
+  contentClassName?: string
+}
+
+/**
+ * Search results grid — mirrors TagContent so stacked post/profile modals behave like tag modal.
+ */
+export function SearchModalGridContent({
+  searchQuery,
+  inModal = false,
+  onRegisterRefresh,
+  contentClassName,
+}: SearchModalGridContentProps) {
   const navigate = useNavigate()
   const location = useLocation()
   const { session } = useSession()
@@ -76,7 +91,7 @@ export function TagContent({ tag, inModal = false, onRegisterRefresh }: { tag: s
   const [keyboardFocusIndex, setKeyboardFocusIndex] = useState(0)
   const [likeOverrides, setLikeOverrides] = useState<Record<string, string | null>>({})
   const cardRefsRef = useRef<(HTMLDivElement | null)[]>([])
-  const loadMoreSentinelRef = useRef<HTMLDivElement>(null)
+  const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null)
   const loadMoreSentinelRefs = useRef<(HTMLDivElement | null)[]>([])
   const loadingMoreRef = useRef(false)
   const keyboardFocusIndexRef = useRef(0)
@@ -87,31 +102,45 @@ export function TagContent({ tag, inModal = false, onRegisterRefresh }: { tag: s
   const gridRef = useRef<HTMLDivElement | null>(null)
   const { beginKeyboardNavigation, tryHoverSelectCard, gridPointerGateProps } = usePostCardGridPointerGate()
 
-  const load = useCallback(async (nextCursor?: string) => {
-    if (!tag) return
-    try {
-      if (nextCursor) setLoadingMore(true)
-      else setLoading(true)
-      setError(null)
-      const { posts, cursor: next } = await searchPostsByTag(tag, nextCursor)
-      const timelineItems = posts.map(toTimelineItem)
-      setItems((prev) => (nextCursor ? [...prev, ...timelineItems] : timelineItems))
-      setCursor(next)
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to load tag')
-    } finally {
-      setLoading(false)
-      setLoadingMore(false)
-    }
-  }, [tag])
+  const trimmedQuery = searchQuery.trim()
+
+  const load = useCallback(
+    async (nextCursor?: string) => {
+      if (!trimmedQuery) {
+        setLoading(false)
+        setLoadingMore(false)
+        return
+      }
+      try {
+        if (nextCursor) setLoadingMore(true)
+        else setLoading(true)
+        setError(null)
+        const { posts, cursor: next } = await searchPostsByPhraseAndTags(trimmedQuery, nextCursor)
+        const timelineItems = posts.map(toTimelineItem)
+        setItems((prev) => (nextCursor ? [...prev, ...timelineItems] : timelineItems))
+        setCursor(next)
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : 'Search failed'
+        setError(msg === 'Failed to fetch' ? 'Search couldn’t be completed. Check your connection or try again.' : msg)
+      } finally {
+        setLoading(false)
+        setLoadingMore(false)
+      }
+    },
+    [trimmedQuery]
+  )
 
   useEffect(() => {
-    if (tag) {
+    if (!trimmedQuery) {
       setItems([])
       setCursor(undefined)
-      load()
+      setLoading(false)
+      return
     }
-  }, [tag, load])
+    setItems([])
+    setCursor(undefined)
+    load()
+  }, [trimmedQuery, load])
 
   useEffect(() => {
     onRegisterRefresh?.(() => load())
@@ -131,13 +160,15 @@ export function TagContent({ tag, inModal = false, onRegisterRefresh }: { tag: s
     const colsForObserver = cols
     const firstSentinel = colsForObserver >= 2 ? loadMoreSentinelRefs.current[0] : loadMoreSentinelRef.current
     if (!firstSentinel) return
+    const root =
+      inModal ? (firstSentinel.closest('[data-modal-scroll]') as Element | null) ?? undefined : undefined
     const observer = new IntersectionObserver(
       (entries) => {
         if (!entries[0]?.isIntersecting || loadingMoreRef.current) return
         loadingMoreRef.current = true
         load(cursor)
       },
-      { rootMargin: '600px', threshold: 0 }
+      { root, rootMargin: '600px', threshold: 0 }
     )
     observer.observe(firstSentinel)
     if (colsForObserver >= 2) {
@@ -148,7 +179,7 @@ export function TagContent({ tag, inModal = false, onRegisterRefresh }: { tag: s
       }
     }
     return () => observer.disconnect()
-  }, [cursor, load, cols])
+  }, [cursor, load, cols, inModal])
 
   useEffect(() => {
     setKeyboardFocusIndex((i) => (mediaItems.length ? Math.min(i, mediaItems.length - 1) : 0))
@@ -242,18 +273,15 @@ export function TagContent({ tag, inModal = false, onRegisterRefresh }: { tag: s
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [beginKeyboardNavigation, mediaItems.length, cols, navigate, location, isModalOpen, inModal, openPostModal, likeOverrides, session])
 
-  if (!tag) return null
+  if (!trimmedQuery) return null
 
   return (
-    <div className={styles.wrap}>
-      <header className={styles.header}>
-        <h2 className={styles.title}>#{tag}</h2>
-      </header>
+    <div className={[styles.wrap, contentClassName].filter(Boolean).join(' ')}>
       {error && <p className={styles.error}>{error}</p>}
       {loading ? (
         <div className={styles.loading}>Loading…</div>
       ) : mediaItems.length === 0 ? (
-        <div className={styles.empty}>No posts with images or videos for this tag.</div>
+        <div className={styles.empty}>No posts found for this search.</div>
       ) : (
         <>
           <div
@@ -299,14 +327,16 @@ export function TagContent({ tag, inModal = false, onRegisterRefresh }: { tag: s
                         )
                       }
                 }
-                cardRef={(index) => (el) => { cardRefsRef.current[index] = el }}
+                cardRef={(index) => (el) => {
+                  cardRefsRef.current[index] = el
+                }}
                 onActionsMenuOpenChange={() => {}}
                 onMouseEnter={(originalIndex) =>
                   tryHoverSelectCard(
                     originalIndex,
                     () => keyboardFocusIndexRef.current,
                     (idx) => setKeyboardFocusIndex(idx),
-                    { disabled: inModal },
+                    { disabled: inModal }
                   )
                 }
                 suppressHoverNsfwUnblur={inModal}
@@ -318,26 +348,5 @@ export function TagContent({ tag, inModal = false, onRegisterRefresh }: { tag: s
         </>
       )}
     </div>
-  )
-}
-
-export default function TagPage() {
-  const { tag: tagParam } = useParams<{ tag: string }>()
-  const tag = tagParam ? decodeURIComponent(tagParam) : ''
-
-  if (!tag) {
-    return (
-      <Layout title="Tag" showNav>
-        <div className={styles.wrap}>
-          <p className={styles.empty}>No tag specified.</p>
-        </div>
-      </Layout>
-    )
-  }
-
-  return (
-    <Layout title={`#${tag}`} showNav>
-      <TagContent tag={tag} />
-    </Layout>
   )
 }

@@ -430,10 +430,8 @@ export default function Layout({ title, children, showNav }: Props) {
     openPostModal,
     isModalOpen,
     modalScrollHidden,
-    closeAllModals,
-    closeModal,
-    canGoBack,
     openCollectionsModal,
+    searchModalTopQuery,
   } = useProfileModal()
   const { openLoginModal } = useLoginModal()
   const editProfile = useEditProfile()
@@ -932,6 +930,10 @@ export default function Layout({ title, children, showNav }: Props) {
     if (prevFeedsOpenRef.current && !feedsDropdownOpen) setFeedsClosingAngle(360)
     prevFeedsOpenRef.current = feedsDropdownOpen
   }, [feedsDropdownOpen])
+
+  useEffect(() => {
+    if (searchModalTopQuery != null) setFeedsDropdownOpen(false)
+  }, [searchModalTopQuery])
 
   /* Clear no-transition class only after we've painted 0deg, so 360→0 doesn't animate */
   useEffect(() => {
@@ -1655,20 +1657,7 @@ export default function Layout({ title, children, showNav }: Props) {
       <header className={`${styles.header} ${!showAccountFeedUi ? styles.headerLoggedOut : ''} ${isModalOpen ? styles.headerAboveModal : ''}`} role="banner">
         {(
           <>
-            <div className={`${styles.headerLeft} ${isDesktop && isModalOpen ? styles.headerLeftModalBackGear : ''}`}>
-              {isDesktop && isModalOpen && (
-                <button
-                  type="button"
-                  className={`${styles.headerGearBtn} float-btn modal-back-btn`}
-                  onClick={() => (canGoBack ? closeModal() : closeAllModals())}
-                  aria-label={canGoBack ? 'Back' : 'Close'}
-                  title={canGoBack ? 'Back' : 'Close'}
-                >
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                    <path d="M19 12H5M12 19l-7-7 7-7" />
-                  </svg>
-                </button>
-              )}
+            <div className={styles.headerLeft}>
               {isDesktop && (
                 <div ref={headerGearWrapRef} className={styles.headerGearWrap}>
                   <button
@@ -2025,69 +2014,84 @@ export default function Layout({ title, children, showNav }: Props) {
       </header>
       )}
       {showNav && !isDesktop && (
-        <div className={`${styles.feedsFloatWrap} feeds-float-wrap ${isModalOpen ? styles.feedsFloatWrapAboveModal : ''} ${mobileNavScrollHidden || (isModalOpen && modalScrollHidden) ? styles.feedsFloatWrapScrollHidden : ''}`} ref={feedsDropdownRef}>
-          <button
-            ref={feedsBtnRef}
-            type="button"
-            className={`${styles.feedsFloatBtn} float-btn ${feedsDropdownOpen ? styles.feedsFloatBtnActive : ''}`}
-            onClick={() => setFeedsDropdownOpen((o) => !o)}
-            aria-label="Feeds"
-            aria-expanded={feedsDropdownOpen}
-          >
-            <span className={styles.feedsFloatLabel}>Feeds</span>
-            <span
-              ref={feedsChevronRef}
-              className={`${styles.feedsFloatChevronWrap} ${feedsChevronNoTransition ? styles.feedsFloatChevronWrapNoTransition : ''}`}
-              style={{
-                transform: `rotate(${feedsDropdownOpen ? 180 : (feedsClosingAngle ?? 0)}deg)`,
-              }}
-              onTransitionEnd={() => {
-                if (feedsClosingAngle === 360) {
-                  flushSync(() => setFeedsChevronNoTransition(true))
-                  setFeedsClosingAngle(null)
-                }
-              }}
-            >
-              <ChevronDownIcon />
-            </span>
-          </button>
-          {feedsDropdownOpen && (
-            <div className={styles.feedsDropdown} role="dialog" aria-label="Remix feeds">
-              {feedAddError && (
-                <p className={styles.feedAddError} role="alert">
-                  {feedAddError}
-                </p>
+        <div
+          className={`${styles.feedsFloatWrap} feeds-float-wrap ${isModalOpen ? styles.feedsFloatWrapAboveModal : ''} ${mobileNavScrollHidden || (isModalOpen && modalScrollHidden) ? styles.feedsFloatWrapScrollHidden : ''} ${searchModalTopQuery != null ? styles.feedsFloatWrapSearchSlot : ''}`}
+          ref={feedsDropdownRef}
+        >
+          {searchModalTopQuery != null ? (
+            <SearchBar
+              compact
+              seedQuery={searchModalTopQuery}
+              hideFilter
+              placeholderOverride="Search posts, users, #tags…"
+              onSelectFeed={handleSelectFeedFromSearch}
+            />
+          ) : (
+            <>
+              <button
+                ref={feedsBtnRef}
+                type="button"
+                className={`${styles.feedsFloatBtn} float-btn ${feedsDropdownOpen ? styles.feedsFloatBtnActive : ''}`}
+                onClick={() => setFeedsDropdownOpen((o) => !o)}
+                aria-label="Feeds"
+                aria-expanded={feedsDropdownOpen}
+              >
+                <span className={styles.feedsFloatLabel}>Feeds</span>
+                <span
+                  ref={feedsChevronRef}
+                  className={`${styles.feedsFloatChevronWrap} ${feedsChevronNoTransition ? styles.feedsFloatChevronWrapNoTransition : ''}`}
+                  style={{
+                    transform: `rotate(${feedsDropdownOpen ? 180 : (feedsClosingAngle ?? 0)}deg)`,
+                  }}
+                  onTransitionEnd={() => {
+                    if (feedsClosingAngle === 360) {
+                      flushSync(() => setFeedsChevronNoTransition(true))
+                      setFeedsClosingAngle(null)
+                    }
+                  }}
+                >
+                  <ChevronDownIcon />
+                </span>
+              </button>
+              {feedsDropdownOpen && (
+                <div className={styles.feedsDropdown} role="dialog" aria-label="Remix feeds">
+                  {feedAddError && (
+                    <p className={styles.feedAddError} role="alert">
+                      {feedAddError}
+                    </p>
+                  )}
+                  <FeedSelector
+                    variant="dropdown"
+                    touchFriendly
+                    sources={showAccountFeedUi ? allFeedSources : GUEST_FEED_SOURCES}
+                    fallbackSource={showAccountFeedUi ? fallbackFeedSource : GUEST_FEED_SOURCES[0]}
+                    mixEntries={showAccountFeedUi ? mixEntries : GUEST_MIX_ENTRIES}
+                    onToggle={handleFeedsToggleSource}
+                    setEntryPercent={setEntryPercent}
+                    onAddCustom={async (input) => {
+                      if (!session) return
+                      setFeedAddError(null)
+                      try {
+                        const isFeedSource = typeof input === 'object' && input !== null && 'uri' in input
+                        const uri = isFeedSource ? await resolveFeedUri((input as FeedSource).uri!) : await resolveFeedUri(input as string)
+                        await addSavedFeed(uri)
+                        const label = isFeedSource ? (input as FeedSource).label ?? await requestDeduplicator.dedupe(`feed-name:${uri}`, () => getFeedDisplayName(uri)) : await requestDeduplicator.dedupe(`feed-name:${uri}`, () => getFeedDisplayName(uri))
+                        const source: FeedSource = { kind: 'custom', label, uri }
+                        setSavedFeedSources((prev) => (prev.some((s) => s.uri === uri) ? prev : [...prev, source]))
+                        handleFeedsToggleSource(source)
+                      } catch (err) {
+                        setFeedAddError(err instanceof Error ? err.message : 'Could not add feed. Try again.')
+                      }
+                    }}
+                    onToggleWhenGuest={showAccountFeedUi ? undefined : openLoginModal}
+                    removableSourceUris={session ? removableSourceUris : undefined}
+                    onRemoveFeed={session ? handleRemoveFeed : undefined}
+                    onShareFeed={session ? handleShareFeed : undefined}
+                    onReorderSources={session ? handleReorderFeeds : undefined}
+                  />
+                </div>
               )}
-              <FeedSelector
-                variant="dropdown"
-                touchFriendly
-                sources={showAccountFeedUi ? allFeedSources : GUEST_FEED_SOURCES}
-                fallbackSource={showAccountFeedUi ? fallbackFeedSource : GUEST_FEED_SOURCES[0]}
-                mixEntries={showAccountFeedUi ? mixEntries : GUEST_MIX_ENTRIES}
-                onToggle={handleFeedsToggleSource}
-                setEntryPercent={setEntryPercent}
-                onAddCustom={async (input) => {
-                  if (!session) return
-                  setFeedAddError(null)
-                  try {
-                    const isFeedSource = typeof input === 'object' && input !== null && 'uri' in input
-                    const uri = isFeedSource ? await resolveFeedUri((input as FeedSource).uri!) : await resolveFeedUri(input as string)
-                    await addSavedFeed(uri)
-                    const label = isFeedSource ? (input as FeedSource).label ?? await requestDeduplicator.dedupe(`feed-name:${uri}`, () => getFeedDisplayName(uri)) : await requestDeduplicator.dedupe(`feed-name:${uri}`, () => getFeedDisplayName(uri))
-                    const source: FeedSource = { kind: 'custom', label, uri }
-                    setSavedFeedSources((prev) => (prev.some((s) => s.uri === uri) ? prev : [...prev, source]))
-                    handleFeedsToggleSource(source)
-                  } catch (err) {
-                    setFeedAddError(err instanceof Error ? err.message : 'Could not add feed. Try again.')
-                  }
-                }}
-                onToggleWhenGuest={showAccountFeedUi ? undefined : openLoginModal}
-                removableSourceUris={session ? removableSourceUris : undefined}
-                onRemoveFeed={session ? handleRemoveFeed : undefined}
-                onShareFeed={session ? handleShareFeed : undefined}
-                onReorderSources={session ? handleReorderFeeds : undefined}
-              />
-            </div>
+            </>
           )}
         </div>
       )}

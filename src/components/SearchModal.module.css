@@ -1,3 +1,14 @@
+/* Match post modal: transparent top bar + scroll padding-top 0; offset grid below back + toolbar */
+.searchContentBelowModalChrome {
+  padding-top: calc(2.5rem + max(var(--space-md), env(safe-area-inset-top, 0px)) + var(--space-sm));
+}
+
+@media (min-width: 768px) {
+  .searchContentBelowModalChrome {
+    padding-top: calc(2rem + max(var(--space-md), env(safe-area-inset-top, 0px)) + var(--space-sm));
+  }
+}
+
 /* Search term in modal top bar center slot */
 .searchQueryCenter {
   font-size: 1rem;
@@ -8,4 +19,11 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   max-width: 100%;
+}
+
+/* Mobile: query lives in Layout floating search bar (replaces Feeds) */
+@media (max-width: 767px) {
+  .searchQueryCenter {
+    display: none;
+  }
 }

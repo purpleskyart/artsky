@@ -41,6 +41,8 @@ interface AppModalProps {
   onClose: () => void
   onBack: () => void
   canGoBack: boolean
+  /** Desktop (≥768px): dimmed backdrop uses this so stacked query modals dismiss the full stack. Defaults to onClose. */
+  onDesktopBackdrop?: () => void
   /** When true, top bar has transparent background so content shows through. */
   transparentTopBar?: boolean
   /** When true, do not render the top bar (e.g. profile popup uses only the bottom bar). */
@@ -69,6 +71,7 @@ export default function AppModal({
   onClose,
   onBack,
   canGoBack,
+  onDesktopBackdrop,
   transparentTopBar = false,
   hideTopBar = false,
   compact = false,
@@ -269,8 +272,13 @@ export default function AppModal({
     return () => window.removeEventListener('keydown', onKeyDown, true)
   }, [onClose, onBack])
 
-  function handleBackdropClick(e: React.MouseEvent) {
-    if (e.target === overlayRef.current) onClose()
+  function handleBackdropClick(e: React.MouseEvent<HTMLDivElement>) {
+    if (e.target !== e.currentTarget) return
+    if (!isMobile && onDesktopBackdrop) {
+      onDesktopBackdrop()
+      return
+    }
+    onClose()
   }
 
   const modal = (
