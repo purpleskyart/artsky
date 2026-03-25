@@ -2113,7 +2113,7 @@ export default function Layout({ title, children, showNav }: Props) {
         </div>
       )}
       {showNav && !isDesktop && showFeedStyleSettingsFloat && (
-        <div ref={gearFloatWrapRef} className={`${styles.gearFloatWrap} ${mobileNavScrollHidden || (isModalOpen && modalScrollHidden) ? styles.gearFloatWrapScrollHidden : ''}`}>
+        <div ref={gearFloatWrapRef} className={`${styles.gearFloatWrap} ${isModalOpen ? styles.gearFloatWrapModalOpen : ''} ${mobileNavScrollHidden || (isModalOpen && modalScrollHidden) ? styles.gearFloatWrapScrollHidden : ''}`}>
           <button
             type="button"
             className={`${styles.feedFloatBtn} float-btn ${feedFloatButtonsExpanded ? styles.feedFloatGearActive : ''}`}
