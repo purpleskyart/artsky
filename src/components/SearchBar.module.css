@@ -3,6 +3,30 @@
   width: 100%;
 }
 
+/* Same vertical footprint as 36×36 .float-btn circles (gear / notifications) */
+.mobileFloatChrome .searchRow {
+  min-height: 36px;
+  height: 36px;
+  max-height: 36px;
+  align-items: center;
+  box-sizing: border-box;
+}
+
+.mobileFloatChrome .input {
+  min-height: 0;
+  height: auto;
+  padding: 0 0.35rem 0 0.5rem;
+  font-size: 16px;
+  line-height: 1.25;
+}
+
+.mobileFloatChrome .searchSubmitBtn {
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+  align-self: center;
+}
+
 .compact .searchRow {
   min-height: 0;
   border-width: 0;
@@ -43,8 +67,14 @@
 
 .searchRow:focus-within {
   outline: none;
-  transform: scale(1.03);
-  transition: transform 0.2s ease;
+}
+
+/* Avoid focus “zoom” feel on touch; keep subtle scale only for mouse / fine pointer */
+@media (hover: hover) and (pointer: fine) {
+  .searchRow:focus-within {
+    transform: scale(1.03);
+    transition: transform 0.2s ease;
+  }
 }
 
 .filterIconBtn {

@@ -1024,8 +1024,50 @@ button.logoLink {
 
 /* Mobile search modal (top layer): full search field instead of Feeds pill — leave room for gear / safe area */
 .feedsFloatWrapSearchSlot {
-  width: min(380px, calc(100vw - 5rem));
+  box-sizing: border-box;
   align-items: stretch;
+}
+
+/* Sit above .notificationFloatWrapAboveModal / .gearFloatWrap (1101) so the field isn’t a dead zone under the bell */
+.feedsFloatWrap.feedsFloatWrapSearchSlot {
+  z-index: 1102;
+}
+
+/* Centered slot when no floating gear (routes without feed-style FAB) */
+.feedsFloatWrapSearchSlot:not(.feedsFloatWrapSearchSlotBetweenChrome) {
+  width: min(
+    320px,
+    calc(
+      100vw - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px) - 7rem
+    )
+  );
+  max-width: 100%;
+}
+
+/*
+ * On feed (etc.) the gear sits after the modal back button (.gearFloatWrapModalOpen).
+ * Span the band between that column and the floating notification / login control on the right
+ * (.notificationFloatWrap / .loginFloatWrap use right: max(1rem, safe-area); button extends left).
+ */
+.feedsFloatWrapSearchSlot.feedsFloatWrapSearchSlotBetweenChrome {
+  left: calc(
+    max(var(--space-sm), env(safe-area-inset-left, 0px)) + 36px + 0.5rem + 36px + 0.5rem
+  );
+  /* Fallback if account/guest modifier missing */
+  right: max(var(--space-sm), env(safe-area-inset-right, 0px));
+  transform: none;
+  width: auto;
+  max-width: none;
+}
+
+/* Logged in: 36px bell — matches .notificationFloatBtn and .gearFloatWrap > .feedFloatBtn */
+.feedsFloatWrapSearchSlot.feedsFloatWrapSearchSlotBetweenChrome.feedsFloatWrapSearchSlotBetweenChromeRightAccount {
+  right: calc(max(1rem, env(safe-area-inset-right, 0px)) + 36px + 0.5rem);
+}
+
+/* Logged out: “Log in” pill — reserve width similar to .loginFloatBtn + offset */
+.feedsFloatWrapSearchSlot.feedsFloatWrapSearchSlotBetweenChrome.feedsFloatWrapSearchSlotBetweenChromeRightGuest {
+  right: calc(max(1rem, env(safe-area-inset-right, 0px)) + 7rem + 0.5rem);
 }
 
 .feedsFloatWrapSearchSlot > * {
@@ -1108,6 +1150,12 @@ button.logoLink {
   align-items: flex-start;
   gap: 0.5rem;
   pointer-events: auto;
+}
+
+/* Collapsed menu keeps a flex item under the gear; gap still counted space → 36px + 0.5rem row.
+   Drop row-gap until the options strip is open so the wrap matches notification row height (36px). */
+.gearFloatWrap:has(.feedFloatButtonsExpandable:not(.feedFloatButtonsExpandableOpen)) {
+  gap: 0;
 }
 
 /* Circle gear control — same 36×36 as modal back / desktop .headerGearBtn */
@@ -1299,25 +1347,26 @@ button.logoLink {
   z-index: 1101;
 }
 
+/* Same 36×36 glass circle as .gearFloatWrap > .feedFloatBtn + .float-btn */
 .notificationFloatBtn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 2rem;
-  height: 2rem;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
   padding: 0;
   color: var(--muted);
-  background: color-mix(in srgb, var(--glass-bg) 68%, transparent);
-  border: none;
   border-radius: 50%;
   cursor: pointer;
   font: inherit;
   -webkit-tap-highlight-color: transparent;
   position: relative;
-}
-
-.notificationFloatBtn:hover {
-  color: var(--text);
+  transition:
+    color var(--transition-fast),
+    background var(--transition-fast),
+    transform var(--transition-fast),
+    box-shadow var(--transition-fast);
 }
 
 .notificationFloatBtn svg {
@@ -2066,6 +2115,10 @@ button.logoLink {
   pointer-events: none;
   max-height: 0;
   min-height: 0;
+  /* Column flex parents size to the widest child; 9rem pills kept min-width:auto and made
+     .gearFloatWrap ~144px wide while “closed”, stealing taps from the centered search bar. */
+  min-width: 0;
+  width: 0;
   overflow: hidden;
   transition: opacity var(--transition-fast), max-height var(--transition-fast);
 }
@@ -2075,6 +2128,8 @@ button.logoLink {
   pointer-events: auto;
   max-height: 320px;
   overflow: visible;
+  width: auto;
+  min-width: 9rem;
 }
 
 .feedFloatButtonsExpandable .nsfwFloatBtn,
