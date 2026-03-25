@@ -1127,6 +1127,11 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
       .catch(() => setReplyAsProfile({ handle }))
   }, [sessionFromContext?.did, session?.did])
 
+  useEffect(() => {
+    setFollowUriOverride(null)
+    setAuthorFollowed(false)
+  }, [sessionFromContext?.did, session?.did])
+
   const replyAs = replyAsProfile ?? (session ? { handle: (session as { handle?: string }).handle ?? session.did } : null)
   const isOwnPost = thread && isThreadViewPost(thread) && session?.did === thread.post.author.did
   const authorViewer = thread && isThreadViewPost(thread) ? (thread.post.author as { viewer?: { following?: string } }).viewer : undefined

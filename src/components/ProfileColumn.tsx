@@ -32,6 +32,7 @@ export interface ProfileColumnProps {
   /** Sync follow affordance on cards with profile header when author feed omits viewer.following */
   profileAuthorDid?: string
   profileAuthorFollowingUri?: string | null
+  onProfileAuthorFollowChange?: (followRecordUri: string | null) => void
   /** Optional row under each card (e.g. collection owner controls) */
   belowCard?: (ctx: { item: TimelineItem; originalIndex: number }) => ReactNode
   /** When set (e.g. collection page owner), ⋮ menu can remove post from that collection */
@@ -62,6 +63,7 @@ export default function ProfileColumn(props: ProfileColumnProps) {
     suppressHoverNsfwUnblur = false,
     profileAuthorDid,
     profileAuthorFollowingUri,
+    onProfileAuthorFollowChange,
     belowCard,
     onRemovePostFromCollection,
     layout = 'profile',
@@ -124,6 +126,7 @@ export default function ProfileColumn(props: ProfileColumnProps) {
               actionsMenuOpenForIndex={actionsMenuOpenForIndex}
               profileAuthorDid={profileAuthorDid}
               profileAuthorFollowingUri={profileAuthorFollowingUri}
+              onProfileAuthorFollowChange={onProfileAuthorFollowChange}
               onRemovePostFromCollection={onRemovePostFromCollection}
               feedPreviewActionRow={feedPreviewActionRow}
             />

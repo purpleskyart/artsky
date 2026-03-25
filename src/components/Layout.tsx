@@ -862,24 +862,31 @@ export default function Layout({ title, children, showNav }: Props) {
   }, [did, hiddenPresetUris, feedOrder])
 
   const savedFeedsLoadedRef = useRef<boolean>(false)
+  const activeSessionDidForSavedFeedsRef = useRef<string | undefined>(undefined)
+  activeSessionDidForSavedFeedsRef.current = session?.did
+  const savedFeedsTargetDidRef = useRef<string | null>(null)
 
   const loadSavedFeeds = useCallback(async () => {
-    if (!session) {
+    const loadDid = activeSessionDidForSavedFeedsRef.current
+    if (!loadDid) {
       setSavedFeedSources([])
       return
     }
     let feeds: { type: string; value: string }[] = []
     try {
       const list = await getSavedFeedsFromPreferences()
+      if (activeSessionDidForSavedFeedsRef.current !== loadDid) return
       feeds = list.filter((f) => f.type === 'feed' && f.pinned)
 
       if (feeds.length === 0) {
         setSavedFeedSources([])
+        savedFeedsLoadedRef.current = true
         return
       }
 
       const feedUris = feeds.map((f) => f.value)
       const labels = await getFeedDisplayNamesBatch(feedUris)
+      if (activeSessionDidForSavedFeedsRef.current !== loadDid) return
 
       const withLabels = feeds.map((f) => ({
         kind: 'custom' as const,
@@ -889,6 +896,7 @@ export default function Layout({ title, children, showNav }: Props) {
       setSavedFeedSources(withLabels)
       savedFeedsLoadedRef.current = true
     } catch {
+      if (activeSessionDidForSavedFeedsRef.current !== loadDid) return
       savedFeedsLoadedRef.current = false
       setSavedFeedSources(
         feeds.length > 0
@@ -896,16 +904,21 @@ export default function Layout({ title, children, showNav }: Props) {
           : []
       )
     }
-  }, [session])
+  }, [])
 
   useEffect(() => {
     if (!session) {
+      savedFeedsTargetDidRef.current = null
       savedFeedsLoadedRef.current = false
       setSavedFeedSources([])
       return
     }
+    if (savedFeedsTargetDidRef.current !== session.did) {
+      savedFeedsTargetDidRef.current = session.did
+      savedFeedsLoadedRef.current = false
+    }
     if (savedFeedsLoadedRef.current) return
-    loadSavedFeeds()
+    void loadSavedFeeds()
   }, [session, loadSavedFeeds])
 
   useEffect(() => {

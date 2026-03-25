@@ -235,6 +235,10 @@ export function ProfileContent({
   const mouseMovedRef = useRef(false)
 
   useEffect(() => {
+    setFollowUriOverride(null)
+  }, [session?.did])
+
+  useEffect(() => {
     setProfile((getPreloadedProfileSnapshot(handle) as ProfileState | null) ?? null)
     if (!handle) return
     let cancelled = false
@@ -692,6 +696,13 @@ export function ProfileContent({
     }
   }
 
+  const onProfileAuthorFollowChange = useCallback((followRecordUri: string | null) => {
+    setFollowUriOverride(followRecordUri)
+    setProfile((prev) =>
+      prev ? { ...prev, viewer: { ...prev.viewer, following: followRecordUri ?? undefined } } : null,
+    )
+  }, [])
+
   async function handleNotificationToggle() {
     if (!profile || notificationLoading) return
     const next = !notificationSubscribed
@@ -989,6 +1000,7 @@ export function ProfileContent({
                       onLikedChange={(uri, likeRecordUri) => setLikeOverrides((prev) => ({ ...prev, [uri]: likeRecordUri ?? null }))}
                       profileAuthorDid={profile?.did}
                       profileAuthorFollowingUri={profile != null ? followingUri ?? null : undefined}
+                      onProfileAuthorFollowChange={onProfileAuthorFollowChange}
                     />
                   </div>
                 ))}
@@ -1073,6 +1085,7 @@ export function ProfileContent({
                   isSelected={(index) => (tab === 'posts' || tab === 'reposts') && index === keyboardFocusIndex}
                   profileAuthorDid={profile?.did}
                   profileAuthorFollowingUri={profile != null ? followingUri ?? null : undefined}
+                  onProfileAuthorFollowChange={onProfileAuthorFollowChange}
                 />
               ))}
             </div>

@@ -51,7 +51,7 @@ export function ViewModeProvider({ children }: { children: React.ReactNode }) {
   const toast = useToast()
   const isDesktop = useSyncExternalStore(subscribeDesktop, getDesktopSnapshot, () => false)
   const stored = getStored()
-  const defaultMode: ViewMode = !session && isDesktop ? '3' : '2'
+  const defaultMode: ViewMode = !session && isDesktop ? 'a' : '2'
   const [viewMode, setViewModeState] = useState<ViewMode>(() => {
     const v = stored ?? defaultMode
     return v === '1' || v === '2' || v === '3' || v === 'a' ? v : defaultMode
@@ -59,7 +59,7 @@ export function ViewModeProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (getStored() !== null) return
-    const nextDefault: ViewMode = !session && isDesktop ? '3' : '2'
+    const nextDefault: ViewMode = !session && isDesktop ? 'a' : '2'
     setViewModeState((prev) => (prev === nextDefault ? prev : nextDefault))
   }, [session, isDesktop])
 

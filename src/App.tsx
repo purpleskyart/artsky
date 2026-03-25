@@ -5,6 +5,7 @@ import { BrowserRouter, Navigate, Route, Routes, useLocation, type Location } fr
 import { REPO_URL } from './config/repo'
 import { initPerformanceMetrics } from './lib/performanceMetrics'
 import { appAbsoluteUrl } from './lib/appUrl'
+import { hasOAuthCallbackSearch } from './lib/oauth'
 import { CoreProvidersGroup } from './context/CoreProvidersGroup'
 import { FeedProvidersGroup } from './context/FeedProvidersGroup'
 import { ModalProvidersGroup } from './context/ModalProvidersGroup'
@@ -166,6 +167,19 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
   }
 }
 
+/**
+ * OAuth redirects to the registered redirect_uri (app root), e.g. /artsky/?code=…&state=… .
+ * That maps to router path "/" under basename. We must not redirect to /feed here — Navigate
+ * would drop the query string before SessionContext runs the OAuth callback.
+ */
+function RootIndexRoute() {
+  const { search } = useLocation()
+  if (hasOAuthCallbackSearch(search)) {
+    return <FeedPage />
+  }
+  return <Navigate to="/feed" replace />
+}
+
 function AppRoutes() {
   useScrollRestoration()
   const location = useLocation()
@@ -182,7 +196,7 @@ function AppRoutes() {
           <Route path="/profile/:handle" element={<ModalErrorBoundary><ProfilePage /></ModalErrorBoundary>} />
           <Route path="/tag/:tag" element={<ModalErrorBoundary><TagPage /></ModalErrorBoundary>} />
           <Route path="/:handle/:boardSlug" element={<ModalErrorBoundary><CollectionPage /></ModalErrorBoundary>} />
-          <Route path="/" element={<Navigate to="/feed" replace />} />
+          <Route path="/" element={<RootIndexRoute />} />
           <Route path="*" element={<Navigate to="/feed" replace />} />
         </Routes>
         {backgroundLocation && (

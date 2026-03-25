@@ -2,6 +2,13 @@ import type { BrowserOAuthClient } from '@atproto/oauth-client-browser'
 
 let clientPromise: Promise<BrowserOAuthClient> | null = null
 
+/** True when the URL is a Bluesky OAuth redirect (must stay on this pathname until the client consumes code/state). */
+export function hasOAuthCallbackSearch(search: string): boolean {
+  const q = search.startsWith('?') ? search.slice(1) : search
+  const params = new URLSearchParams(q)
+  return params.has('state') && (params.has('code') || params.has('error'))
+}
+
 /** Base URL for the app (origin + pathname to app root). Used as client_id base for HTTPS. */
 function getAppBaseUrl(): string {
   const origin = window.location.origin

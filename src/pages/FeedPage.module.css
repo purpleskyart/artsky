@@ -545,7 +545,9 @@
   width: 100%;
   min-width: 0;
   margin-bottom: 1rem;
-  overflow-anchor: none; /* Disable scroll anchoring to prevent scroll jamming when content changes */
+  /* Use default scroll anchoring so when cards above the viewport change height (media load,
+     carousel collapse, etc.), the browser can keep what you’re reading aligned instead of
+     sliding under a fixed scroll offset. Sentinels / load-more UI still opt out below. */
 }
 
 @media (min-width: 768px) {

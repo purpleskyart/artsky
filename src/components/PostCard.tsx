@@ -64,6 +64,8 @@ interface Props {
   profileAuthorDid?: string
   /** Follow record URI or null if not following; undefined = do not override author viewer from post */
   profileAuthorFollowingUri?: string | null
+  /** When following the profile subject from a grid card, notify parent so header + other cards stay in sync */
+  onProfileAuthorFollowChange?: (followRecordUri: string | null) => void
   /** When set (e.g. on your collection page), ⋮ menu includes removing this post from that collection */
   onRemovePostFromCollection?: (postUri: string) => void | Promise<void>
   /** Match homepage feed preview: centered collect / avatar / like, ⋮ on the right (also when card mode is Art Cards) */
@@ -121,6 +123,7 @@ function PostCardInner({
   isRevealed,
   profileAuthorDid,
   profileAuthorFollowingUri,
+  onProfileAuthorFollowChange,
   onRemovePostFromCollection,
   feedPreviewActionRow = false,
   openCollectionMenuSignal,
@@ -263,7 +266,7 @@ function PostCardInner({
 
   useEffect(() => {
     setFollowUriOverride(initialFollowingUri ?? null)
-  }, [post.uri, initialFollowingUri])
+  }, [post.uri, initialFollowingUri, session?.did])
 
   // Memoize event handlers to prevent unnecessary re-renders
   const handleFollowClick = useCallback(async (e: React.MouseEvent) => {
@@ -279,13 +282,24 @@ function PostCardInner({
     try {
       const res = await followAccountWithLifecycle(post.author.did)
       setFollowUriOverride(res.uri)
+      if (profileAuthorDid != null && post.author.did === profileAuthorDid) {
+        onProfileAuthorFollowChange?.(res.uri)
+      }
     } catch {
       // Revert optimistic update on failure
       setFollowUriOverride(null)
     } finally {
       setFollowLoading(false)
     }
-  }, [followLoading, isOwnPost, session?.did, isFollowingAuthor, post.author.did])
+  }, [
+    followLoading,
+    isOwnPost,
+    session?.did,
+    isFollowingAuthor,
+    post.author.did,
+    profileAuthorDid,
+    onProfileAuthorFollowChange,
+  ])
 
   const handleLikeClick = useCallback(async (e: React.MouseEvent) => {
     e.preventDefault()
@@ -823,7 +837,7 @@ function PostCardInner({
             ;(mediaWrapRef as React.MutableRefObject<HTMLDivElement | null>).current = el
             if (onMediaRef && (mediaMode === 'text' || (hasMedia && !(isMultipleImages && imageItems.length > 1)))) onMediaRef(0, el)
           }}
-          className={`${styles.mediaWrap} ${fillCell ? styles.mediaWrapFillCell : ''} ${constrainMediaHeight ? styles.mediaWrapConstrained : ''} ${isMultipleImages && imageItems.length > 1 ? styles.mediaWrapMultiStack : ''} ${!isCardNearViewport && hasMedia ? styles.mediaOffscreen : ''}`}
+          className={`${styles.mediaWrap} ${fillCell ? styles.mediaWrapFillCell : ''} ${constrainMediaHeight ? styles.mediaWrapConstrained : ''} ${isMultipleImages && imageItems.length > 1 ? styles.mediaWrapMultiStack : ''}`}
           style={
             fillCell || constrainMediaHeight ||
             (isMultipleImages && imageItems.length > 1)
