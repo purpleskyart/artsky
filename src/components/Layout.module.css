@@ -3146,6 +3146,12 @@ button.logoLink {
   color: var(--error);
 }
 
+.composeLazyFallback {
+  padding: 1rem 1.25rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
 @keyframes popIn {
   from {
     opacity: 0;

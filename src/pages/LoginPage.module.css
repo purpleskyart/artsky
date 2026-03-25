@@ -11,7 +11,7 @@
   background: var(--bg);
 }
 
-/* Liquid glass login card – width matches expanded (app password) state so layout doesn’t shift */
+/* Liquid glass login card */
 .card {
   position: relative;
   width: 100%;

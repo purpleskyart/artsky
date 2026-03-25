@@ -89,7 +89,7 @@ export default function ProfileColumn(props: ProfileColumnProps) {
           !unblurredUris.has(item.post.uri)
         return (
           <div
-            key={`${item.post.uri}-${originalIndex}`}
+            key={item.post.uri}
             ref={cardRef(originalIndex)}
             className={styles.gridItem}
             data-post-uri={item.post.uri}

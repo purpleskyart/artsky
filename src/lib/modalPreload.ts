@@ -1,6 +1,7 @@
 import { agent, getPostThreadCached, getProfileCached, getSession, publicAgent } from './bsky'
 
-let overlayChunksPreloaded = false
+let postOverlayPreloaded = false
+let profileOverlayPreloaded = false
 const postPrefetchInFlight = new Set<string>()
 const profilePrefetchInFlight = new Set<string>()
 const preloadedProfileByHandle = new Map<string, {
@@ -15,18 +16,24 @@ const preloadedProfileByHandle = new Map<string, {
   indexedAt?: string
 }>()
 
-export function preloadOverlayChunks(): void {
-  if (overlayChunksPreloaded) return
-  overlayChunksPreloaded = true
+/** Post modal overlay pulls in PostDetailModal; no separate import needed. */
+function preloadPostOverlayChunks(): void {
+  if (postOverlayPreloaded) return
+  postOverlayPreloaded = true
   void import('../components/PostModalOverlay')
+}
+
+/** Profile overlay + lazy ProfileModal (preload inner chunk for first open). */
+function preloadProfileOverlayChunks(): void {
+  if (profileOverlayPreloaded) return
+  profileOverlayPreloaded = true
   void import('../components/ProfileModalOverlay')
-  void import('../components/PostDetailModal')
   void import('../components/ProfileModal')
 }
 
 export function preloadPostOpen(uri: string): void {
   if (!uri) return
-  preloadOverlayChunks()
+  preloadPostOverlayChunks()
   if (postPrefetchInFlight.has(uri)) return
   postPrefetchInFlight.add(uri)
   const api = getSession() ? agent : publicAgent
@@ -42,7 +49,7 @@ export function preloadPostOpen(uri: string): void {
 export function preloadProfileOpen(handle: string): void {
   const normalized = handle.trim()
   if (!normalized) return
-  preloadOverlayChunks()
+  preloadProfileOverlayChunks()
   if (profilePrefetchInFlight.has(normalized)) return
   profilePrefetchInFlight.add(normalized)
   void getProfileCached(normalized)

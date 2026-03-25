@@ -32,8 +32,36 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        globIgnores: [
+          '**/video-*.js',
+          '**/ProfilePage-*.js',
+          '**/ProfilePage-*.css',
+          '**/PostDetailPage-*.js',
+          '**/PostDetailPage-*.css',
+          '**/TagPage-*.js',
+          '**/TagPage-*.css',
+          '**/CollectionPage-*.js',
+          '**/CollectionPage-*.css',
+          '**/CollectionsIndexPage-*.js',
+          '**/CollectionsIndexPage-*.css',
+          '**/PostModalOverlay-*.js',
+          '**/ProfileModalOverlay-*.js',
+          '**/PostDetailModal-*.js',
+          '**/ProfileModal-*.js',
+          '**/QuotesModal-*.js',
+          '**/QuotesModal-*.css',
+          '**/SearchModal-*.js',
+          '**/SearchModal-*.css',
+          '**/EditProfileModal-*.js',
+          '**/EditProfileModal-*.css',
+          '**/AppModal-*.js',
+          '**/AppModal-*.css',
+          '**/TagModal-*.js',
+          '**/CollectionsIndexModalOverlay-*.js',
+          '**/CollectionBoardModalOverlay-*.js',
+        ],
         navigateFallback: './index.html',
-        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024, // 3 MiB (main chunk exceeds 2 MiB default)
+        maximumFileSizeToCacheInBytes: 2 * 1024 * 1024,
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/(cdn\.bsky\.app|wsrv\.nl)\/.*/i,
@@ -43,6 +71,18 @@ export default defineConfig({
               expiration: {
                 maxEntries: 200,
                 maxAgeSeconds: 60 * 60 * 24 * 7, // 7 days
+              },
+            },
+          },
+          {
+            urlPattern: ({ request, url }) =>
+              request.mode === 'navigate' ? false : /\/assets\/[^/]+\.(?:js|css)$/.test(url.pathname),
+            handler: 'StaleWhileRevalidate',
+            options: {
+              cacheName: 'artsky-assets-runtime',
+              expiration: {
+                maxEntries: 120,
+                maxAgeSeconds: 60 * 60 * 24 * 30,
               },
             },
           },

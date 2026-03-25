@@ -19,11 +19,7 @@ A **PWA** (Progressive Web App) that works as an app-style view for [Bluesky](ht
 
 ## Login
 
-Use your **Bluesky handle** (or email) and an **App Password**.
-
-1. In Bluesky go to **Settings → App passwords**.
-2. Create a new app password and copy it.
-3. In artsky, sign in with your handle and that app password (not your main account password).
+Sign in with **Bluesky** (OAuth): enter your handle or email, then approve access in the Bluesky window. No separate app password is used.
 
 ## Branches (main vs dev)
 
@@ -100,7 +96,7 @@ npm install
 npm run dev
 ```
 
-Open **http://localhost:5173/** (dev uses base `/`). For production-like base path locally, run `npm run build && npm run preview` and open the URL shown (e.g. with base `/artsky/`).
+Open **http://localhost:5173/** or **http://127.0.0.1:5173/** (dev uses base `/`). Bluesky OAuth uses loopback URLs; opening the dev server via a LAN IP (e.g. `http://192.168.x.x:5173`) will not complete sign-in. For production-like base path locally, run `npm run build && npm run preview` and open the URL shown (e.g. with base `/artsky/`).
 
 ## Tech
 

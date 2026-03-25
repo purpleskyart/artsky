@@ -91,11 +91,6 @@ export function ReplyAsRow({
     <div className={styles.replyAs}>
       <span className={styles.replyAsLabel}>{label}</span>
       <span className={styles.replyAsUserChip}>
-        {replyAs.avatar ? (
-          <img src={replyAs.avatar} alt="" className={styles.replyAsAvatar} loading="lazy" />
-        ) : (
-          <span className={styles.replyAsAvatarPlaceholder} aria-hidden>{replyAs.handle.slice(0, 1).toUpperCase()}</span>
-        )}
         <div className={styles.replyAsHandleWrap} ref={wrapRef}>
           <button
             type="button"
@@ -103,7 +98,13 @@ export function ReplyAsRow({
             onClick={() => setDropdownOpen((o) => !o)}
             aria-expanded={dropdownOpen}
             aria-haspopup="true"
+            aria-label={`Switch account. Currently @${replyAs.handle}`}
           >
+            {replyAs.avatar ? (
+              <img src={replyAs.avatar} alt="" className={styles.replyAsAvatar} loading="lazy" />
+            ) : (
+              <span className={styles.replyAsAvatarPlaceholder} aria-hidden>{replyAs.handle.slice(0, 1).toUpperCase()}</span>
+            )}
             @{replyAs.handle}
           </button>
           {dropdownOpen && (

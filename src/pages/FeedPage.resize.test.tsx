@@ -1,6 +1,6 @@
 import { renderHook, act } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { useViewportWidth, useColumnCount } from '../hooks/useViewportWidth'
+import { useViewportWidth, useColumnCount, getRawAutoColumnCount } from '../hooks/useViewportWidth'
 
 /**
  * Unit tests for viewport resize handling optimization
@@ -120,6 +120,20 @@ describe('FeedPage - Viewport Resize Optimization', () => {
     it('should calculate responsive column count for all-columns mode on desktop', () => {
       const { result } = renderHook(() => useColumnCount('a', 150))
       expect(result.current).toBe(3)
+    })
+
+    it('should not change auto column count on small width jitter near bucket boundaries', () => {
+      Object.defineProperty(window, 'innerWidth', { value: 1280, writable: true, configurable: true })
+      const { result } = renderHook(() => useColumnCount('a', 150))
+      expect(result.current).toBe(getRawAutoColumnCount(1280))
+      const at1280 = result.current
+      act(() => {
+        Object.defineProperty(window, 'innerWidth', { value: 1279, writable: true, configurable: true })
+        window.dispatchEvent(new Event('resize'))
+        vi.advanceTimersByTime(150)
+      })
+      expect(result.current).toBe(at1280)
+      expect(getRawAutoColumnCount(1279)).not.toBe(at1280)
     })
 
     it('should memoize column count when viewport width changes but view mode stays same', () => {
