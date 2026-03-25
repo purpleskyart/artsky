@@ -139,7 +139,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       // localStorage or bsky not ready yet
       return []
     }
-  }, [session?.did, authResolved])
+  }, [session, authResolved])
 
   const value: SessionContextValue = useMemo(
     () => ({

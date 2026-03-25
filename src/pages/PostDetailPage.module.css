@@ -1299,6 +1299,9 @@
 }
 
 .replyAsHandleBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
   padding: 0;
   background: none;
   border: none;

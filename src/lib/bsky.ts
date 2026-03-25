@@ -160,19 +160,26 @@ export function getStoredSession(): AtpSessionData | null {
   return accounts.sessions[accounts.activeDid] ?? null
 }
 
-/** All stored sessions (for account switcher). OAuth: all OAuth DIDs. Credential: all app-password sessions. */
+/** All stored sessions (for account switcher). Merges OAuth DIDs with app-password sessions — they were mutually exclusive before, which hid one side when both existed. */
 export function getSessionsList(): AtpSessionData[] {
   const oauth = getOAuthAccounts()
-  if (oauth.dids.length > 0) {
-    return oauth.dids.map((did) => ({ did } as AtpSessionData))
-  }
   const accounts = getAccounts()
-  if (Object.keys(accounts.sessions).length === 0) {
+  const byDid = new Map<string, AtpSessionData>()
+
+  for (const did of oauth.dids) {
+    byDid.set(did, { did } as AtpSessionData)
+  }
+  for (const sess of Object.values(accounts.sessions)) {
+    if (sess?.did) {
+      byDid.set(sess.did, sess)
+    }
+  }
+  if (byDid.size === 0) {
     const single = getStoredSession()
     if (single) return [single]
     return []
   }
-  return Object.values(accounts.sessions)
+  return [...byDid.values()]
 }
 
 /** Switch active account to the given did. OAuth: restore that DID's session (caller may need to use restoreOAuthSession). Credential: resume on agent. Returns false if did is OAuth (caller should restore OAuth session). */
