@@ -101,6 +101,8 @@ interface Props {
   hideFilter?: boolean
   /** Override placeholder when filter is hidden */
   placeholderOverride?: string
+  /** 36px row to align with mobile float gear / notification glass circles */
+  matchMobileFloatChrome?: boolean
 }
 
 export default function SearchBar({
@@ -112,6 +114,7 @@ export default function SearchBar({
   seedQuery,
   hideFilter,
   placeholderOverride,
+  matchMobileFloatChrome,
 }: Props) {
   const navigate = useNavigate()
   const { openProfileModal, openPostModal, openTagModal, openSearchModal } = useProfileModal()
@@ -333,7 +336,10 @@ export default function SearchBar({
   }
 
   return (
-    <div className={`${styles.wrap} ${compact ? styles.compact : ''} ${suggestionsAbove ? styles.suggestionsAbove : ''}`} ref={containerRef}>
+    <div
+      className={`${styles.wrap} ${compact ? styles.compact : ''} ${suggestionsAbove ? styles.suggestionsAbove : ''} ${matchMobileFloatChrome ? styles.mobileFloatChrome : ''}`}
+      ref={containerRef}
+    >
       <div
         className={`${styles.searchRow} ${filterOpen ? styles.searchRowFilterOpen : ''} ${hideFilter ? styles.searchRowNoFilter : ''}`}
       >

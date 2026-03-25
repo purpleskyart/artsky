@@ -2015,16 +2015,16 @@ export default function Layout({ title, children, showNav }: Props) {
       )}
       {showNav && !isDesktop && (
         <div
-          className={`${styles.feedsFloatWrap} feeds-float-wrap ${isModalOpen ? styles.feedsFloatWrapAboveModal : ''} ${mobileNavScrollHidden || (isModalOpen && modalScrollHidden) ? styles.feedsFloatWrapScrollHidden : ''} ${searchModalTopQuery != null ? styles.feedsFloatWrapSearchSlot : ''}`}
+          className={`${styles.feedsFloatWrap} feeds-float-wrap ${isModalOpen ? styles.feedsFloatWrapAboveModal : ''} ${mobileNavScrollHidden || (isModalOpen && modalScrollHidden) ? styles.feedsFloatWrapScrollHidden : ''} ${searchModalTopQuery != null ? styles.feedsFloatWrapSearchSlot : ''} ${searchModalTopQuery != null && showFeedStyleSettingsFloat && isModalOpen ? styles.feedsFloatWrapSearchSlotBetweenChrome : ''} ${searchModalTopQuery != null && showFeedStyleSettingsFloat && isModalOpen && showAccountFeedUi ? styles.feedsFloatWrapSearchSlotBetweenChromeRightAccount : ''} ${searchModalTopQuery != null && showFeedStyleSettingsFloat && isModalOpen && !showAccountFeedUi ? styles.feedsFloatWrapSearchSlotBetweenChromeRightGuest : ''}`}
           ref={feedsDropdownRef}
         >
           {searchModalTopQuery != null ? (
             <SearchBar
-              compact
               seedQuery={searchModalTopQuery}
               hideFilter
               placeholderOverride="Search posts, users, #tags…"
               onSelectFeed={handleSelectFeedFromSearch}
+              matchMobileFloatChrome
             />
           ) : (
             <>
@@ -2209,7 +2209,7 @@ export default function Layout({ title, children, showNav }: Props) {
           <button
             ref={notificationsBtnRef}
             type="button"
-            className={styles.notificationFloatBtn}
+            className={`${styles.notificationFloatBtn} float-btn`}
             onClick={() => setNotificationsOpen((o) => !o)}
             aria-label="Notifications"
             aria-expanded={notificationsOpen}
