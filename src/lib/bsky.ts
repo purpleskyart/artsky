@@ -429,6 +429,16 @@ export type PostView = TimelineItem['post']
 const NSFW_LABEL_VALS = new Set(['porn', 'sexual', 'nudity', 'graphic-media'])
 
 /**
+ * Cache key for getProfileCached. Viewer-specific fields (e.g. viewer.following) must not be shared across accounts.
+ */
+function profileResponseCacheKey(actor: string, usePublic: boolean): string {
+  if (usePublic) return `profile:${actor}:public`
+  const sid = getSession()?.did
+  if (!sid) return `profile:${actor}:public`
+  return `profile:${actor}:${sid}`
+}
+
+/**
  * Cached profile fetcher with longer TTL (10 min + 5 min stale-while-revalidate)
  * Profiles rarely change, so we can cache them longer than feeds
  */
@@ -436,7 +446,7 @@ export async function getProfileCached(
   actor: string,
   usePublic = false
 ): Promise<{ handle?: string; displayName?: string; avatar?: string; did?: string; createdAt?: string; indexedAt?: string }> {
-  const cacheKey = `profile:${actor}`
+  const cacheKey = profileResponseCacheKey(actor, usePublic)
   const client = usePublic ? publicAgent : (getSession() ? agent : publicAgent)
   
   // Try to get from cache with revalidation support
