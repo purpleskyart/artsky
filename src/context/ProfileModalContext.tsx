@@ -36,6 +36,8 @@ type ProfileModalContextValue = {
   isModalOpen: boolean
   /** True if more than one modal is open (show back button). */
   canGoBack: boolean
+  /** When the topmost query modal is search, its query (e.g. mobile header search slot). */
+  searchModalTopQuery: string | null
   /** True when user has scrolled down in a modal (hide nav/back/gear). */
   modalScrollHidden: boolean
   setModalScrollHidden: (v: boolean) => void
@@ -47,7 +49,8 @@ const ProfileModalContext = createContext<ProfileModalContextValue | null>(null)
  * URL ↔ modal stack: single source of truth for all popups.
  * To add a new modal type: add the variant to ModalItem, then in parseSearchToModalStack (read param)
  * and modalItemToSearch (write param). openXxx() just navigates; stack is derived from location.search each render (no lag vs URL).
- * When both profile= and post= are in the URL, stack is [profile, post] so back from post returns to profile.
+ * Stack bottom → top: search, tag, profile, post (whichever params exist), e.g. [tag, post] or
+ * [search, profile, post] so back restores scroll/position under each layer.
  * Opening a profile from the app uses `?profile=` on the frozen pathname (e.g. `/feed?profile=`) so history stacks
  * like the feed post overlay: push post → POP restores the previous entry with the same mounted modal and scroll.
  */
@@ -61,8 +64,17 @@ function parseSearchToModalStack(search: string): ModalItem[] {
   const resolvedPostUri =
     resolvedPostUriRaw && resolvedPostUriRaw.length > 0 ? resolvedPostUriRaw : null
 
-  const stack: ModalItem[] = []
   const profileHandle = params.get('profile')
+  const searchQueryParam = params.get('search')
+  const tag = params.get('tag')
+  const quotesUri = params.get('quotes')
+
+  const stack: ModalItem[] = []
+  /* Bottom → top: search → tag → profile → post (must include tag/search before post or post-only wins and drops parents). */
+  if (searchQueryParam && searchQueryParam.length > 0) {
+    stack.push({ type: 'search', query: searchQueryParam })
+  }
+  if (tag) stack.push({ type: 'tag', tag })
   if (profileHandle) stack.push({ type: 'profile', handle: profileHandle })
 
   if (resolvedPostUri) {
@@ -74,12 +86,8 @@ function parseSearchToModalStack(search: string): ModalItem[] {
       focusUri: focusUri ?? undefined,
     })
   }
+
   if (stack.length > 0) return stack
-  const tag = params.get('tag')
-  if (tag) return [{ type: 'tag', tag }]
-  const searchQuery = params.get('search')
-  if (searchQuery) return [{ type: 'search', query: searchQuery }]
-  const quotesUri = params.get('quotes')
   if (quotesUri) return [{ type: 'quotes', uri: quotesUri }]
   return []
 }
@@ -123,8 +131,9 @@ function modalItemToSearch(item: ModalItem): string {
 }
 
 /**
- * Full-page post URLs use `/post/:uri` in the path. Modal stacks encode the post in `?post=`; keeping
- * both would show the path post while query pointed elsewhere — so modal navigation must use `/feed`.
+ * Full-page post URLs use `/profile/:handle/post/:rkey` or encoded `/post/:uri`. Modal stacks encode the
+ * post in `?post=`; keeping both would show the path post while query pointed elsewhere — so modal
+ * navigation must use `/feed` when leaving those paths.
  */
 function pathForModalNavigation(pathname: string): string {
   if (pathname.startsWith('/post/')) return '/feed'
@@ -146,6 +155,10 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
   const navigate = useNavigate()
   /** Same render as router URL — avoids one-frame (or stuck) stale stack when useEffect lagged behind navigate(). */
   const modalStack = useMemo(() => parseSearchToModalStack(location.search), [location.search])
+  const searchModalTopQuery = useMemo(() => {
+    const top = modalStack[modalStack.length - 1]
+    return top?.type === 'search' ? top.query : null
+  }, [modalStack])
 
   useEffect(() => {
     const t = requestAnimationFrame(() => setModalScrollHidden(false))
@@ -153,7 +166,7 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
   }, [location.search, location.pathname])
 
   /** Opens post via URI path with optional `reply` / `focus` query for instant modal resolution. */
-  const openPostModal = useCallback((uri: string, openReply?: boolean, focusUri?: string, _authorHandle?: string) => {
+  const openPostModal = useCallback((uri: string, openReply?: boolean, focusUri?: string, authorHandle?: string) => {
     const bg = getOverlayBackgroundLocation(location)
     /**
      * Path-based profile popup (`/profile/h` + backgroundLocation): encode as `?profile=&post=` on the
@@ -186,7 +199,6 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
     const profileInSearch = new URLSearchParams(location.search).get('profile')
     if (
       profileInSearch &&
-      hasPathOverlayStack(location) &&
       !location.pathname.startsWith('/post/') &&
       !/^\/profile\/[^/]+\/post\//.test(location.pathname)
     ) {
@@ -198,14 +210,68 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
       if (focusUri) p.set('focus', focusUri)
       else p.delete('focus')
       const qs = p.toString()
+      const frozenBg = getOverlayBackgroundLocation(location)
       navigate(
         { pathname: location.pathname, search: qs ? `?${qs}` : '', hash: location.hash },
-        { replace: false, state: location.state ?? undefined },
+        { replace: false, state: { backgroundLocation: frozenBg } },
       )
       return
     }
 
-    const path = getPostOverlayPath(uri)
+    /**
+     * Query-based search (`?search=…`): push `post=` on the same pathname even when history state
+     * lost `backgroundLocation` (e.g. restore / edge cases). Path-based `/post/` would not match
+     * these stacked query modals.
+     */
+    const searchInSearch = new URLSearchParams(location.search).get('search')
+    if (
+      searchInSearch &&
+      !location.pathname.startsWith('/post/') &&
+      !/^\/profile\/[^/]+\/post\//.test(location.pathname)
+    ) {
+      const p = new URLSearchParams(location.search.replace(/^\?/, ''))
+      p.set('post', uri)
+      p.delete('forumPost')
+      if (openReply) p.set('reply', '1')
+      else p.delete('reply')
+      if (focusUri) p.set('focus', focusUri)
+      else p.delete('focus')
+      const qs = p.toString()
+      const frozenBg = getOverlayBackgroundLocation(location)
+      navigate(
+        { pathname: location.pathname, search: qs ? `?${qs}` : '', hash: location.hash },
+        { replace: false, state: { backgroundLocation: frozenBg } },
+      )
+      return
+    }
+
+    /**
+     * Query-based tag modal (`?tag=…`): same as search — stack post on query so ProfileModal stack
+     * stays the source of truth (path `/post/` would drop the tag layer).
+     */
+    const tagInSearch = new URLSearchParams(location.search).get('tag')
+    if (
+      tagInSearch &&
+      !location.pathname.startsWith('/post/') &&
+      !/^\/profile\/[^/]+\/post\//.test(location.pathname)
+    ) {
+      const p = new URLSearchParams(location.search.replace(/^\?/, ''))
+      p.set('post', uri)
+      p.delete('forumPost')
+      if (openReply) p.set('reply', '1')
+      else p.delete('reply')
+      if (focusUri) p.set('focus', focusUri)
+      else p.delete('focus')
+      const qs = p.toString()
+      const frozenBg = getOverlayBackgroundLocation(location)
+      navigate(
+        { pathname: location.pathname, search: qs ? `?${qs}` : '', hash: location.hash },
+        { replace: false, state: { backgroundLocation: frozenBg } },
+      )
+      return
+    }
+
+    const path = getPostOverlayPath(uri, authorHandle)
     const q = new URLSearchParams()
     if (openReply) q.set('reply', '1')
     if (focusUri) q.set('focus', focusUri)
@@ -219,19 +285,17 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
   const openProfileModal = useCallback((handle: string) => {
     preloadProfileOpen(handle)
     const bg = getOverlayBackgroundLocation(location)
-    const rawSearch = bg.search?.replace(/^\?/, '') ?? ''
-    const p = new URLSearchParams(rawSearch)
+    /* Merge from current query (modal stack) so e.g. ?search= stays when opening profile from search. */
+    const p = new URLSearchParams(location.search.replace(/^\?/, ''))
     p.set('profile', handle)
     p.delete('post')
     p.delete('forumPost')
     p.delete('reply')
     p.delete('focus')
-    p.delete('tag')
-    p.delete('search')
     p.delete('quotes')
     const qs = p.toString()
     navigate(
-      { pathname: bg.pathname, search: qs ? `?${qs}` : '', hash: bg.hash ?? '' },
+      { pathname: bg.pathname, search: qs ? `?${qs}` : '', hash: location.hash ?? bg.hash ?? '' },
       { replace: false, state: { backgroundLocation: bg } },
     )
   }, [navigate, location])
@@ -239,14 +303,22 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
   const openTagModal = useCallback((tag: string) => {
     const item: ModalItem = { type: 'tag', tag }
     const search = `?${modalItemToSearch(item)}`
-    navigate({ pathname: pathForModalNavigation(location.pathname), search }, { replace: false })
-  }, [location.pathname, navigate])
+    const bg = getOverlayBackgroundLocation(location)
+    navigate(
+      { pathname: pathForModalNavigation(location.pathname), search },
+      { replace: false, state: { backgroundLocation: bg } },
+    )
+  }, [location, navigate])
 
   const openSearchModal = useCallback((query: string) => {
     const item: ModalItem = { type: 'search', query }
     const search = `?${modalItemToSearch(item)}`
-    navigate({ pathname: pathForModalNavigation(location.pathname), search }, { replace: false })
-  }, [location.pathname, navigate])
+    const bg = getOverlayBackgroundLocation(location)
+    navigate(
+      { pathname: pathForModalNavigation(location.pathname), search },
+      { replace: false, state: { backgroundLocation: bg } },
+    )
+  }, [location, navigate])
 
   const openQuotesModal = useCallback((postUri: string) => {
     const item: ModalItem = { type: 'quotes', uri: postUri }
@@ -316,6 +388,7 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
     closeAllModals,
     isModalOpen,
     canGoBack,
+    searchModalTopQuery,
     modalScrollHidden,
     setModalScrollHidden,
   }), [
@@ -329,6 +402,7 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
     closeAllModals,
     isModalOpen,
     canGoBack,
+    searchModalTopQuery,
     modalScrollHidden,
   ])
 
@@ -361,6 +435,7 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
           focusUri={item.focusUri}
           onClose={closeAllModals}
           onBack={closeModal}
+          onDesktopBackdrop={closeAllModals}
           canGoBack={canGoBackFromThis}
           isTopModal={isTop}
           stackIndex={index}
@@ -373,6 +448,7 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
           handle={item.handle}
           onClose={closeAllModals}
           onBack={closeModal}
+          onDesktopBackdrop={closeAllModals}
           canGoBack={canGoBackFromThis}
           isTopModal={isTop}
           stackIndex={index}
@@ -385,6 +461,7 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
           tag={item.tag}
           onClose={closeAllModals}
           onBack={closeModal}
+          onDesktopBackdrop={closeAllModals}
           canGoBack={canGoBackFromThis}
           isTopModal={isTop}
           stackIndex={index}
@@ -397,6 +474,7 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
           query={item.query}
           onClose={closeAllModals}
           onBack={closeModal}
+          onDesktopBackdrop={closeAllModals}
           canGoBack={canGoBackFromThis}
           isTopModal={isTop}
           stackIndex={index}
@@ -409,6 +487,7 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
           postUri={item.uri}
           onClose={closeAllModals}
           onBack={closeModal}
+          onDesktopBackdrop={closeAllModals}
           canGoBack={canGoBackFromThis}
           isTopModal={isTop}
           stackIndex={index}
@@ -442,6 +521,7 @@ export function useProfileModal() {
       closeAllModals: () => {},
       isModalOpen: false,
       canGoBack: false,
+      searchModalTopQuery: null,
       modalScrollHidden: false,
       setModalScrollHidden: () => {},
     }

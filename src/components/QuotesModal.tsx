@@ -14,11 +14,12 @@ interface QuotesModalProps {
   onClose: () => void
   onBack: () => void
   canGoBack: boolean
+  onDesktopBackdrop?: () => void
   isTopModal?: boolean
   stackIndex?: number
 }
 
-export default function QuotesModal({ postUri, onClose, onBack, canGoBack, isTopModal, stackIndex }: QuotesModalProps) {
+export default function QuotesModal({ postUri, onClose, onBack, canGoBack, onDesktopBackdrop, isTopModal, stackIndex }: QuotesModalProps) {
   const { openPostModal } = useProfileModal()
   const { nsfwPreference, unblurredUris, setUnblurred } = useModeration()
   const [items, setItems] = useState<TimelineItem[]>([])
@@ -82,6 +83,7 @@ export default function QuotesModal({ postUri, onClose, onBack, canGoBack, isTop
       onClose={onClose}
       onBack={onBack}
       canGoBack={canGoBack}
+      onDesktopBackdrop={onDesktopBackdrop}
       onPullToRefresh={refreshFn ? () => refreshFn() : undefined}
       scrollKey={postUri}
       isTopModal={isTopModal}

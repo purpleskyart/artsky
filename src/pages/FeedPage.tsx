@@ -32,6 +32,7 @@ import { useLikeOverrides } from '../context/LikeOverridesContext'
 import { usePullToRefresh, PULL_THRESHOLD_PX } from '../hooks/usePullToRefresh'
 import { useStandalonePwa } from '../hooks/useStandalonePwa'
 import { useColumnCount } from '../hooks/useViewportWidth'
+import { usePostCardGridPointerGate } from '../hooks/usePostCardGridPointerGate'
 import FeedColumn from '../components/FeedColumn'
 import { feedReducer, type FeedState } from './feedReducer'
 import { debounce } from '../lib/utils'
@@ -373,6 +374,7 @@ export default function FeedPage() {
   const navigate = useNavigate()
   const navigationType = useNavigationType()
   const isDesktop = useSyncExternalStore(subscribeDesktop, getDesktopSnapshot, () => false)
+  const { beginKeyboardNavigation, tryHoverSelectCard, gridPointerGateProps } = usePostCardGridPointerGate()
   const isStandalonePwa = useStandalonePwa()
   const { openLoginModal } = useLoginModal()
   const { session, authResolved } = useSession()
@@ -412,15 +414,6 @@ export default function FeedPage() {
   const lastScrollIntoViewIndexRef = useRef<number>(-1)
   /** Only scroll into view when focus was changed by keyboard (W/S/A/D), not by mouse hover */
   const scrollIntoViewFromKeyboardRef = useRef(false)
-  /** Only update focus on mouse enter when the user has actually moved the mouse (not when scroll moved content under cursor) */
-  const mouseMovedRef = useRef(false)
-  const lastMouseClientPosRef = useRef<{ x: number; y: number } | null>(null)
-  const mouseRearmStartPosRef = useRef<{ x: number; y: number } | null>(null)
-  /** True after W/S/A/D nav so we suppress hover outline on non-selected cards (focus is not moved to the card) */
-  const [keyboardNavActive, setKeyboardNavActive] = useState(false)
-  /** While false, hovering cards does not affect visual focus until the mouse physically moves again. */
-  const [hoverFocusEnabled, setHoverFocusEnabled] = useState(true)
-  const hoverFocusEnabledRef = useRef(true)
   /** When true, focus was set by mouse hover – don’t lift one image in multi-image cards; only keyboard A/D should */
   const [focusSetByMouse, setFocusSetByMouse] = useState(false)
   const [collectionMenuOpenForIndex, setCollectionMenuOpenForIndex] = useState<number | null>(null)
@@ -545,9 +538,11 @@ export default function FeedPage() {
     const stateSource = (location.state as { feedSource?: FeedSource })?.feedSource
     if (stateSource) {
       setSource(stateSource)
-      /* Must keep search/hash — navigate(pathname) alone drops the query (breaks modals). */
+      /* Under <Routes location={backgroundLocation}> this hook sees the frozen underlay; the real URL still has ?search= / ?tag= etc. */
+      const search = typeof window !== 'undefined' ? window.location.search : location.search
+      const hash = typeof window !== 'undefined' ? window.location.hash : location.hash
       navigate(
-        { pathname: location.pathname, search: location.search, hash: location.hash },
+        { pathname: location.pathname, search, hash },
         { replace: true },
       )
     }
@@ -947,19 +942,19 @@ export default function FeedPage() {
     dispatch({ type: 'SET_ACTIONS_MENU_OPEN', index: open ? index : null })
   }, [])
 
-  const handleMouseEnter = useCallback((originalIndex: number) => {
-    if (isDesktop && mouseMovedRef.current) {
-      const focusedCardIndex = focusTargets[keyboardFocusIndexRef.current]?.cardIndex ?? -1
-      /* Re-arm hover only when pointer enters a different card than current keyboard-focused card. */
-      if (focusedCardIndex === originalIndex) return
-      mouseMovedRef.current = false
-      hoverFocusEnabledRef.current = true
-      setHoverFocusEnabled(true)
-      setKeyboardNavActive(false)
-      setFocusSetByMouse(true)
-      dispatch({ type: 'SET_KEYBOARD_FOCUS', index: firstFocusIndexForCard[originalIndex] ?? 0 })
-    }
-  }, [isDesktop, firstFocusIndexForCard, focusTargets])
+  const handleMouseEnter = useCallback(
+    (originalIndex: number) => {
+      tryHoverSelectCard(
+        originalIndex,
+        () => focusTargets[keyboardFocusIndexRef.current]?.cardIndex ?? -1,
+        (cardIndex) => {
+          dispatch({ type: 'SET_KEYBOARD_FOCUS', index: firstFocusIndexForCard[cardIndex] ?? 0 })
+        },
+        { applyOnTouch: false, onApplied: () => setFocusSetByMouse(true) },
+      )
+    },
+    [tryHoverSelectCard, firstFocusIndexForCard, focusTargets],
+  )
 
   useEffect(() => {
     const currentIndex = feedState.keyboardFocusIndex
@@ -1075,28 +1070,6 @@ export default function FeedPage() {
     }
   }, [displayEntries.length])
 
-  useEffect(() => {
-    const onMouseMove = (e: MouseEvent) => {
-      const prev = lastMouseClientPosRef.current
-      const next = { x: e.clientX, y: e.clientY }
-      lastMouseClientPosRef.current = next
-      /* Ignore synthetic/scroll-induced mousemove where pointer coordinates did not change. */
-      if (prev && prev.x === next.x && prev.y === next.y) return
-      if (!mouseMovedRef.current) {
-        const start = mouseRearmStartPosRef.current
-        /* Require a deliberate move after keyboard nav (ignore tiny jitter). */
-        if (start) {
-          const dx = next.x - start.x
-          const dy = next.y - start.y
-          if ((dx * dx + dy * dy) < (12 * 12)) return
-        }
-        mouseMovedRef.current = true
-      }
-    }
-    window.addEventListener('mousemove', onMouseMove)
-    return () => window.removeEventListener('mousemove', onMouseMove)
-  }, [])
-
   // Scroll focused card/media into view only when focus was changed by keyboard (W/S/A/D), not on mouse hover
   useEffect(() => {
     if (!scrollIntoViewFromKeyboardRef.current) return
@@ -1174,13 +1147,7 @@ export default function FeedPage() {
       const columns = currentCols >= 2 ? currentDistribution : null
       const getRect = (idx: number) => cardRefsRef.current[idx]?.getBoundingClientRect()
       if (key === 'w' || e.key === 'ArrowUp') {
-        if (hoverFocusEnabledRef.current) {
-          hoverFocusEnabledRef.current = false
-          setHoverFocusEnabled(false)
-        }
-        mouseMovedRef.current = false
-        mouseRearmStartPosRef.current = lastMouseClientPosRef.current
-        setKeyboardNavActive(true)
+        beginKeyboardNavigation()
         scrollIntoViewFromKeyboardRef.current = true
         const onFirstImageOfCard = i === currentFirstByCard[currentCardIndex]
         const next = fromNone
@@ -1195,13 +1162,7 @@ export default function FeedPage() {
         return
       }
       if (key === 's' || e.key === 'ArrowDown') {
-        if (hoverFocusEnabledRef.current) {
-          hoverFocusEnabledRef.current = false
-          setHoverFocusEnabled(false)
-        }
-        mouseMovedRef.current = false
-        mouseRearmStartPosRef.current = lastMouseClientPosRef.current
-        setKeyboardNavActive(true)
+        beginKeyboardNavigation()
         scrollIntoViewFromKeyboardRef.current = true
         const onLastImageOfCard = i === currentLastByCard[currentCardIndex]
         const next = fromNone
@@ -1216,13 +1177,7 @@ export default function FeedPage() {
         return
       }
       if (key === 'a' || e.key === 'ArrowLeft') {
-        if (hoverFocusEnabledRef.current) {
-          hoverFocusEnabledRef.current = false
-          setHoverFocusEnabled(false)
-        }
-        mouseMovedRef.current = false
-        mouseRearmStartPosRef.current = lastMouseClientPosRef.current
-        setKeyboardNavActive(true)
+        beginKeyboardNavigation()
         scrollIntoViewFromKeyboardRef.current = true
         const nextCard = fromNone ? 0 : currentCols >= 2 && columns ? indexLeftClosest(columns, currentCardIndex, getRect) : currentCardIndex
         const next = fromNone ? 0 : nextCard !== currentCardIndex ? (currentLastByCard[nextCard] ?? i) : i
@@ -1231,13 +1186,7 @@ export default function FeedPage() {
         return
       }
       if (key === 'd' || e.key === 'ArrowRight') {
-        if (hoverFocusEnabledRef.current) {
-          hoverFocusEnabledRef.current = false
-          setHoverFocusEnabled(false)
-        }
-        mouseMovedRef.current = false
-        mouseRearmStartPosRef.current = lastMouseClientPosRef.current
-        setKeyboardNavActive(true)
+        beginKeyboardNavigation()
         scrollIntoViewFromKeyboardRef.current = true
         const nextCard = fromNone ? 0 : currentCols >= 2 && columns ? indexRightClosest(columns, currentCardIndex, getRect) : currentCardIndex
         const next = fromNone ? 0 : nextCard !== currentCardIndex ? (currentLastByCard[nextCard] ?? i) : i
@@ -1346,7 +1295,7 @@ export default function FeedPage() {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [isModalOpen, openPostModal, setLikeOverride])
+  }, [beginKeyboardNavigation, isModalOpen, openPostModal, setLikeOverride])
 
   useEffect(() => {
     if (blockConfirm) blockCancelRef.current?.focus()
@@ -1528,10 +1477,8 @@ export default function FeedPage() {
             <div
               ref={gridRef}
               className={`${styles.gridColumns} ${viewMode === 'a' ? styles.gridView3 : styles[`gridView${viewMode}`]}`}
-              data-feed-cards
+              {...gridPointerGateProps}
               data-view-mode={viewMode}
-              data-keyboard-nav={keyboardNavActive || undefined}
-              data-hover-focus-enabled={hoverFocusEnabled ? undefined : 'false'}
             >
               {distributedColumns.map((column, colIndex) => (
                 <FeedColumn

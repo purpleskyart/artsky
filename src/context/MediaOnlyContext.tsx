@@ -28,7 +28,7 @@ type MediaOnlyContextValue = {
 
 const MediaOnlyContext = createContext<MediaOnlyContextValue | null>(null)
 
-/** When nothing is stored: guests default to Media only; logged-in (or auth still resolving) default to All Posts. */
+/** When nothing is stored: guests default to Media only; logged-in default to All Posts. */
 function readStored(useLoggedInDefaults: boolean): MediaMode {
   try {
     const v = localStorage.getItem(STORAGE_KEY)
@@ -41,9 +41,24 @@ function readStored(useLoggedInDefaults: boolean): MediaMode {
 }
 
 export function MediaOnlyProvider({ children }: { children: ReactNode }) {
+  const { session } = useSession()
+  const did = session?.did
+  const useLoggedInDefaults = Boolean(did)
+  return (
+    <MediaOnlyProviderInner key={did ?? '__guest__'} useLoggedInDefaults={useLoggedInDefaults}>
+      {children}
+    </MediaOnlyProviderInner>
+  )
+}
+
+function MediaOnlyProviderInner({
+  children,
+  useLoggedInDefaults,
+}: {
+  children: ReactNode
+  useLoggedInDefaults: boolean
+}) {
   const toast = useToast()
-  const { session, authResolved } = useSession()
-  const useLoggedInDefaults = Boolean(session?.did) || !authResolved
   const [mediaMode, setMediaModeState] = useState<MediaMode>(() => readStored(useLoggedInDefaults))
 
   useEffect(() => {

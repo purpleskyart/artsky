@@ -38,9 +38,9 @@ export function getPostAppPath(atUri: string, authorHandle?: string | null): str
   return `/post/${encodeURIComponent(atUri)}`
 }
 
-/** In-app modal/navigation path that always resolves immediately (no handle->did lookup). */
-export function getPostOverlayPath(atUri: string): string {
-  return `/post/${encodeURIComponent(atUri)}`
+/** Same as {@link getPostAppPath}: short `/profile/handle/post/rkey` when `authorHandle` is known. */
+export function getPostOverlayPath(atUri: string, authorHandle?: string | null): string {
+  return getPostAppPath(atUri, authorHandle)
 }
 
 /**

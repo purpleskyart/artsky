@@ -364,12 +364,6 @@
   gap: 0.5rem;
 }
 
-@media (min-width: 768px) {
-  .headerLeftModalBackGear {
-    gap: 0.125rem;
-  }
-}
-
 .headerGearWrap {
   position: relative;
   display: flex;
@@ -1026,6 +1020,16 @@ button.logoLink {
 .feedsFloatWrap.feedsFloatWrapScrollHidden {
   opacity: 0;
   pointer-events: none;
+}
+
+/* Mobile search modal (top layer): full search field instead of Feeds pill — leave room for gear / safe area */
+.feedsFloatWrapSearchSlot {
+  width: min(380px, calc(100vw - 5rem));
+  align-items: stretch;
+}
+
+.feedsFloatWrapSearchSlot > * {
+  width: 100%;
 }
 
 /* When a modal is open, keep Feeds button above overlay so it stays clickable (desktop header and mobile gear are already above) */

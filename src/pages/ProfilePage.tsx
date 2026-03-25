@@ -21,6 +21,7 @@ import { useModeration, type NsfwPreference } from '../context/ModerationContext
 import { useHideReposts } from '../context/HideRepostsContext'
 import { EyeOpenIcon, EyeHalfIcon, EyeClosedIcon } from '../components/Icons'
 import { useColumnCount } from '../hooks/useViewportWidth'
+import { usePostCardGridPointerGate } from '../hooks/usePostCardGridPointerGate'
 import styles from './ProfilePage.module.css'
 
 const REASON_REPOST = 'app.bsky.feed.defs#reasonRepost'
@@ -232,7 +233,7 @@ export function ProfileContent({
   const profileGridItemsRef = useRef<TimelineItem[]>([])
   const scrollIntoViewFromKeyboardRef = useRef(false)
   const lastScrollIntoViewIndexRef = useRef(-1)
-  const mouseMovedRef = useRef(false)
+  const { beginKeyboardNavigation, tryHoverSelectCard, gridPointerGateProps } = usePostCardGridPointerGate()
 
   useEffect(() => {
     setFollowUriOverride(null)
@@ -572,7 +573,7 @@ export function ProfileContent({
       if (key === 'w' || key === 's' || key === 'a' || key === 'd' || key === 'e' || key === 'enter' || key === 'f' || key === 'm' || key === '`' || e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') e.preventDefault()
 
       if (key === 'w' || e.key === 'ArrowUp') {
-        mouseMovedRef.current = false
+        beginKeyboardNavigation()
         scrollIntoViewFromKeyboardRef.current = true
         if (cols >= 2) {
           const columns = distributeByHeight(items, cols)
@@ -583,7 +584,7 @@ export function ProfileContent({
         return
       }
       if (key === 's' || e.key === 'ArrowDown') {
-        mouseMovedRef.current = false
+        beginKeyboardNavigation()
         scrollIntoViewFromKeyboardRef.current = true
         if (cols >= 2) {
           const columns = distributeByHeight(items, cols)
@@ -594,7 +595,7 @@ export function ProfileContent({
         return
       }
       if (key === 'a' || e.key === 'ArrowLeft') {
-        mouseMovedRef.current = false
+        beginKeyboardNavigation()
         scrollIntoViewFromKeyboardRef.current = true
         setActionsMenuOpenForIndex(null)
         if (cols >= 2) {
@@ -606,7 +607,7 @@ export function ProfileContent({
         return
       }
       if (key === 'd' || e.key === 'ArrowRight') {
-        mouseMovedRef.current = false
+        beginKeyboardNavigation()
         scrollIntoViewFromKeyboardRef.current = true
         setActionsMenuOpenForIndex(null)
         if (cols >= 2) {
@@ -650,13 +651,7 @@ export function ProfileContent({
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [tab, cols, isModalOpen, openPostModal, inModal, likeOverrides, actionsMenuOpenForIndex])
-
-  useEffect(() => {
-    const onMouseMove = () => { mouseMovedRef.current = true }
-    window.addEventListener('mousemove', onMouseMove)
-    return () => window.removeEventListener('mousemove', onMouseMove)
-  }, [])
+  }, [beginKeyboardNavigation, tab, cols, isModalOpen, openPostModal, inModal, likeOverrides, actionsMenuOpenForIndex])
 
   const postText = (post: TimelineItem['post']) => (post.record as { text?: string })?.text?.trim() ?? ''
   const isReply = (post: TimelineItem['post']) => !!(post.record as { reply?: unknown })?.reply
@@ -1048,6 +1043,7 @@ export function ProfileContent({
             <div
               ref={gridRef}
               className={`${styles.gridColumns} ${viewMode === 'a' ? styles.gridView3 : styles[`gridView${viewMode}`]}`}
+              {...gridPointerGateProps}
               data-view-mode={viewMode}
             >
               {distributeByHeight(mediaItems, cols).map((column, colIndex) => (
@@ -1076,10 +1072,12 @@ export function ProfileContent({
                   cardRef={(index) => (el) => { cardRefsRef.current[index] = el }}
                   onActionsMenuOpenChange={(index, open) => setActionsMenuOpenForIndex(open ? index : null)}
                   onMouseEnter={(originalIndex) => {
-                    /* In modal, ignore hover so scrolling doesn’t move “selection” under the cursor and auto-unblur NSFW cards. */
-                    if (inModal) return
-                    mouseMovedRef.current = false
-                    setKeyboardFocusIndex(originalIndex)
+                    tryHoverSelectCard(
+                      originalIndex,
+                      () => keyboardFocusIndexRef.current,
+                      (idx) => setKeyboardFocusIndex(idx),
+                      { disabled: inModal },
+                    )
                   }}
                   suppressHoverNsfwUnblur={!!inModal}
                   isSelected={(index) => (tab === 'posts' || tab === 'reposts') && index === keyboardFocusIndex}

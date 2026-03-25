@@ -15,6 +15,7 @@ import { useToast } from '../context/ToastContext'
 import { useCollectionSaveActions } from '../context/CollectionSaveContext'
 import { useProfileModal } from '../context/ProfileModalContext'
 import { useColumnCount } from '../hooks/useViewportWidth'
+import { usePostCardGridPointerGate } from '../hooks/usePostCardGridPointerGate'
 import feedGridStyles from './FeedPage.module.css'
 import styles from './CollectionPage.module.css'
 
@@ -75,6 +76,7 @@ export function CollectionDetailContent({ uri: decodedUri }: CollectionDetailCon
   const { nsfwPreference, unblurredUris, setUnblurred } = useModeration()
   const modalScrollRef = useModalScroll()
   const { refreshUnionFromPds } = useCollectionSaveActions()
+  const { beginKeyboardNavigation, tryHoverSelectCard, gridPointerGateProps } = usePostCardGridPointerGate()
 
   const [title, setTitle] = useState('')
   const [isPrivate, setIsPrivate] = useState(false)
@@ -195,18 +197,22 @@ export function CollectionDetailContent({ uri: decodedUri }: CollectionDetailCon
         e.preventDefault()
       }
       if (key === 'w' || e.key === 'ArrowUp') {
+        beginKeyboardNavigation()
         setKeyboardFocusIndex((idx) => Math.max(0, idx - cols))
         return
       }
       if (key === 's' || e.key === 'ArrowDown') {
+        beginKeyboardNavigation()
         setKeyboardFocusIndex((idx) => Math.min(list.length - 1, idx + cols))
         return
       }
       if (key === 'a' || e.key === 'ArrowLeft') {
+        beginKeyboardNavigation()
         setKeyboardFocusIndex((idx) => Math.max(0, idx - 1))
         return
       }
       if (key === 'd' || e.key === 'ArrowRight') {
+        beginKeyboardNavigation()
         setKeyboardFocusIndex((idx) => Math.min(list.length - 1, idx + 1))
         return
       }
@@ -217,7 +223,7 @@ export function CollectionDetailContent({ uri: decodedUri }: CollectionDetailCon
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [displayItems.length, cols, openPostModal])
+  }, [beginKeyboardNavigation, displayItems.length, cols, openPostModal])
 
   const shareUrl = useMemo(() => {
     if (!decodedUri || !isLikelyCollectionRefParam(decodedUri)) return ''
@@ -296,6 +302,7 @@ export function CollectionDetailContent({ uri: decodedUri }: CollectionDetailCon
       ) : (
         <div
           className={`${feedGridStyles.gridColumns} ${viewMode === 'a' ? feedGridStyles.gridView3 : feedGridStyles[`gridView${viewMode}`]}`}
+          {...gridPointerGateProps}
           data-view-mode={viewMode}
         >
           {distributeByHeight(displayItems, cols).map((column, colIndex) => (
@@ -317,7 +324,13 @@ export function CollectionDetailContent({ uri: decodedUri }: CollectionDetailCon
               }
               cardRef={() => () => {}}
               onActionsMenuOpenChange={() => {}}
-              onMouseEnter={(originalIndex) => setKeyboardFocusIndex(originalIndex)}
+              onMouseEnter={(originalIndex) =>
+                tryHoverSelectCard(
+                  originalIndex,
+                  () => keyboardFocusIndexRef.current,
+                  (idx) => setKeyboardFocusIndex(idx),
+                )
+              }
               isSelected={(index) => index === keyboardFocusIndex}
                 onRemovePostFromCollection={isOwner ? onRemovePostFromCollection : undefined}
                 feedPreviewActionRow

@@ -95,9 +95,24 @@ interface Props {
   onClose?: () => void
   /** Show suggestions dropdown above the input (e.g. mobile overlay) */
   suggestionsAbove?: boolean
+  /** Sync input from URL / parent when it changes (e.g. mobile search modal top slot) */
+  seedQuery?: string
+  /** Omit filter control (narrow mobile slot) */
+  hideFilter?: boolean
+  /** Override placeholder when filter is hidden */
+  placeholderOverride?: string
 }
 
-export default function SearchBar({ onSelectFeed, inputRef: externalInputRef, compact, onClose, suggestionsAbove }: Props) {
+export default function SearchBar({
+  onSelectFeed,
+  inputRef: externalInputRef,
+  compact,
+  onClose,
+  suggestionsAbove,
+  seedQuery,
+  hideFilter,
+  placeholderOverride,
+}: Props) {
   const navigate = useNavigate()
   const { openProfileModal, openPostModal, openTagModal, openSearchModal } = useProfileModal()
   const [query, setQuery] = useState('')
@@ -112,6 +127,10 @@ export default function SearchBar({ onSelectFeed, inputRef: externalInputRef, co
   const containerRef = useRef<HTMLDivElement>(null)
   const internalInputRef = useRef<HTMLInputElement>(null)
   const inputRef = externalInputRef ?? internalInputRef
+
+  useEffect(() => {
+    if (seedQuery !== undefined) setQuery(seedQuery)
+  }, [seedQuery])
 
   const trimmed = query.trim()
   const isHashtag = trimmed.startsWith('#')
@@ -241,7 +260,8 @@ export default function SearchBar({ onSelectFeed, inputRef: externalInputRef, co
   }
 
   const placeholder =
-    filter === 'users' ? 'Search users, #hashtags…' : filter === 'feeds' ? 'Browse feeds…' : 'Search users, feeds, #hashtags…'
+    placeholderOverride ??
+    (filter === 'users' ? 'Search users, #hashtags…' : filter === 'feeds' ? 'Browse feeds…' : 'Search users, feeds, #hashtags…')
 
   /** Treat as profile only when clearly a handle: pasted URL, or single token that starts with @ or contains a period (e.g. bsky.app, @user). Single words with no period = text/hashtag search. */
   const looksLikeHandle =
@@ -274,7 +294,7 @@ export default function SearchBar({ onSelectFeed, inputRef: externalInputRef, co
     }
     if (trimmed.length > 0) {
       openSearchModal(trimmed)
-      setQuery('')
+      if (seedQuery === undefined) setQuery('')
       setOpen(false)
       inputRef.current?.blur()
       onClose?.()
@@ -314,16 +334,20 @@ export default function SearchBar({ onSelectFeed, inputRef: externalInputRef, co
 
   return (
     <div className={`${styles.wrap} ${compact ? styles.compact : ''} ${suggestionsAbove ? styles.suggestionsAbove : ''}`} ref={containerRef}>
-      <div className={`${styles.searchRow} ${filterOpen ? styles.searchRowFilterOpen : ''}`}>
-        <button
-          type="button"
-          className={`${styles.filterIconBtn} ${filterOpen ? styles.filterIconActive : ''}`}
-          onClick={() => setFilterOpen((v) => !v)}
-          aria-label="Search filter"
-          aria-expanded={filterOpen}
-        >
-          <FilterIcon />
-        </button>
+      <div
+        className={`${styles.searchRow} ${filterOpen ? styles.searchRowFilterOpen : ''} ${hideFilter ? styles.searchRowNoFilter : ''}`}
+      >
+        {!hideFilter && (
+          <button
+            type="button"
+            className={`${styles.filterIconBtn} ${filterOpen ? styles.filterIconActive : ''}`}
+            onClick={() => setFilterOpen((v) => !v)}
+            aria-label="Search filter"
+            aria-expanded={filterOpen}
+          >
+            <FilterIcon />
+          </button>
+        )}
         <input
           ref={(el) => {
             (internalInputRef as React.MutableRefObject<HTMLInputElement | null>).current = el
@@ -352,7 +376,7 @@ export default function SearchBar({ onSelectFeed, inputRef: externalInputRef, co
         >
           <SearchIcon />
         </button>
-        {filterOpen && (
+        {!hideFilter && filterOpen && (
           <div className={styles.filterDropdown}>
             {(['all', 'users', 'feeds'] as const).map((f) => (
               <button

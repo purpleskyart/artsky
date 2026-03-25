@@ -609,10 +609,20 @@ function PostCardInner({
       openPostModal(post.uri, undefined, undefined, post.author.handle)
     } else {
       setInitialPostForUri(post.uri, item)
-      const path = getPostOverlayPath(post.uri)
+      const path = getPostOverlayPath(post.uri, post.author?.handle)
       navigate(path, { state: { backgroundLocation: getOverlayBackgroundLocation(location) } })
     }
-  }, [onPostClick, post.uri, item, navigate, location, openPostModal, nsfwBlurred, onNsfwUnblur])
+  }, [
+    onPostClick,
+    post.uri,
+    post.author?.handle,
+    item,
+    navigate,
+    location,
+    openPostModal,
+    nsfwBlurred,
+    onNsfwUnblur,
+  ])
 
   const handleCardClick = useCallback((e: React.MouseEvent) => {
     if (nsfwTouchUnblurOnlyRef.current) {

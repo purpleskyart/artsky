@@ -8,11 +8,12 @@ interface ProfileModalProps {
   onClose: () => void
   onBack: () => void
   canGoBack: boolean
+  onDesktopBackdrop?: () => void
   isTopModal?: boolean
   stackIndex?: number
 }
 
-export default function ProfileModal({ handle, onClose, onBack, canGoBack, isTopModal, stackIndex }: ProfileModalProps) {
+export default function ProfileModal({ handle, onClose, onBack, canGoBack, onDesktopBackdrop, isTopModal, stackIndex }: ProfileModalProps) {
   const { openProfileModal } = useProfileModal()
   const [refreshFn, setRefreshFn] = useState<(() => void | Promise<void>) | null>(null)
 
@@ -22,6 +23,7 @@ export default function ProfileModal({ handle, onClose, onBack, canGoBack, isTop
       onClose={onClose}
       onBack={onBack}
       canGoBack={canGoBack}
+      onDesktopBackdrop={onDesktopBackdrop}
       transparentTopBar
       hideTopBar
       onPullToRefresh={refreshFn ? () => refreshFn() : undefined}

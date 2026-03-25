@@ -118,26 +118,35 @@ html[data-theme="dark"] [data-view-mode="1"] .card:hover {
   box-shadow: none;
 }
 
-/* When navigating with keyboard (W/S/A/D), only the selected card lifts – not the card under the mouse */
-[data-feed-cards][data-keyboard-nav] .card:hover:not(.cardSelected) {
-  outline: none;
+/* When navigating with keyboard (W/S/A/D), only the selected card lifts – not the card under the mouse.
+   Must use !important: desktop hover rules above use outline !important. */
+[data-feed-cards][data-keyboard-nav] .card:hover:not(.cardSelected),
+[data-feed-cards][data-keyboard-nav] .card:hover:focus-within:not(.cardSelected) {
+  outline: none !important;
+  box-shadow: none;
+  z-index: auto;
+}
+[data-feed-cards][data-keyboard-nav] .card:hover:not(.cardSelected)::after,
+[data-feed-cards][data-keyboard-nav] .card:hover:focus-within:not(.cardSelected)::after {
   box-shadow: none;
 }
-[data-feed-cards][data-keyboard-nav] .card:hover:not(.cardSelected)::after {
-  box-shadow: none;
-}
-[data-feed-cards][data-keyboard-nav] .card.cardLiked:hover:not(.cardSelected)::after {
+[data-feed-cards][data-keyboard-nav] .card.cardLiked:hover:not(.cardSelected)::after,
+[data-feed-cards][data-keyboard-nav] .card.cardLiked:hover:focus-within:not(.cardSelected)::after {
   box-shadow: inset 0 0 0 2px #ec4899;
 }
 /* While keyboard nav is active, keep hover visuals disabled until the user moves the mouse again. */
-[data-feed-cards][data-keyboard-nav][data-hover-focus-enabled="false"] .card:hover {
-  outline: none;
+[data-feed-cards][data-keyboard-nav][data-hover-focus-enabled="false"] .card:hover:not(.cardSelected),
+[data-feed-cards][data-keyboard-nav][data-hover-focus-enabled="false"] .card:hover:focus-within:not(.cardSelected) {
+  outline: none !important;
+  box-shadow: none;
+  z-index: auto;
+}
+[data-feed-cards][data-keyboard-nav][data-hover-focus-enabled="false"] .card:hover:not(.cardSelected)::after,
+[data-feed-cards][data-keyboard-nav][data-hover-focus-enabled="false"] .card:hover:focus-within:not(.cardSelected)::after {
   box-shadow: none;
 }
-[data-feed-cards][data-keyboard-nav][data-hover-focus-enabled="false"] .card:hover::after {
-  box-shadow: none;
-}
-[data-feed-cards][data-keyboard-nav][data-hover-focus-enabled="false"] .card.cardLiked:hover::after {
+[data-feed-cards][data-keyboard-nav][data-hover-focus-enabled="false"] .card.cardLiked:hover:not(.cardSelected)::after,
+[data-feed-cards][data-keyboard-nav][data-hover-focus-enabled="false"] .card.cardLiked:hover:focus-within:not(.cardSelected)::after {
   box-shadow: inset 0 0 0 2px #ec4899;
 }
 
