@@ -23,3 +23,12 @@ export function isHandleBoardPath(pathname: string): boolean {
   if (!m) return false
   return !RESERVED_APP_PATH_SEGMENTS.has(m[1].toLowerCase())
 }
+
+/** Pages that render the multi-column masonry grid (same view-mode “All columns” layout as the home feed). */
+export function isMultiColumnGridRoute(pathname: string): boolean {
+  const normalized = pathname.replace(/\/$/, '') || '/'
+  if (normalized === '/feed') return true
+  if (normalized.startsWith('/tag/')) return true
+  if (/^\/profile\/[^/]+$/.test(normalized)) return true
+  return isHandleBoardPath(normalized)
+}

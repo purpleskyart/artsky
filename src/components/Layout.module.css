@@ -1846,6 +1846,12 @@ button.logoLink {
   padding-right: env(safe-area-inset-right);
 }
 
+/* All Columns view: let the masonry grid use the full viewport width so column count matches card width */
+.main.mainAllColumns {
+  max-width: none;
+  width: 100%;
+}
+
 /* Keep feed selector (pills + Add Custom Feed) visible when scrolling the homepage */
 .feedSelectorStickyWrap {
   position: sticky;

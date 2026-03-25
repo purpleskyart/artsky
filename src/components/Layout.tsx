@@ -32,7 +32,7 @@ import {
 import { requestDeduplicator } from '../lib/RequestDeduplicator'
 import type { FeedSource } from '../types'
 import { GUEST_FEED_SOURCES, GUEST_MIX_ENTRIES } from '../config/feedSources'
-import { isHandleBoardPath } from '../lib/routes'
+import { isHandleBoardPath, isMultiColumnGridRoute } from '../lib/routes'
 import { getPostAppPath, parseBskyFeedPostUri } from '../lib/appUrl'
 import { useFeedMix } from '../context/FeedMixContext'
 import { FeedSwipeProvider } from '../context/FeedSwipeContext'
@@ -478,6 +478,7 @@ export default function Layout({ title, children, showNav }: Props) {
   const { nsfwPreference, cycleNsfwPreference } = useModeration()
   const { mediaMode, cycleMediaMode } = useMediaOnly()
   const path = loc.pathname
+  const mainAllColumnsWidth = viewMode === 'a' && isMultiColumnGridRoute(path)
   /** Mobile gear FAB: same view/theme/column controls as the home feed */
   const showFeedStyleSettingsFloat =
     path === '/feed' || path === '/collections' || isHandleBoardPath(path)
@@ -2250,7 +2251,11 @@ export default function Layout({ title, children, showNav }: Props) {
           </div>
         </div>
       )}
-      <main id="main-content" className={styles.main} aria-label="Main content">
+      <main
+        id="main-content"
+        className={`${styles.main} ${mainAllColumnsWidth ? styles.mainAllColumns : ''}`}
+        aria-label="Main content"
+      >
         {showNav && path === '/feed' ? (
           <div
             ref={feedPullRefreshWrapperRef}

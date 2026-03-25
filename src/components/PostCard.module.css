@@ -433,13 +433,15 @@ html[data-theme="dark"] [data-view-mode="1"] .card:focus-within:not(:has(.mediaG
 .cardActionRowAvatarFollow:active:not(:disabled) .cardActionRowAvatarPlus {
   transform: translateZ(0) scale(0.95);
 }
-/* All column views: show avatar in action row only, hide duplicate next to username */
+/* Multi-column views: show avatar in action row only, hide duplicate next to username */
 [data-view-mode="1"] .handleRow .authorAvatar,
 [data-view-mode="1"] .handleRow .authorAvatarPlaceholder,
 [data-view-mode="2"] .handleRow .authorAvatar,
 [data-view-mode="2"] .handleRow .authorAvatarPlaceholder,
 [data-view-mode="3"] .handleRow .authorAvatar,
-[data-view-mode="3"] .handleRow .authorAvatarPlaceholder {
+[data-view-mode="3"] .handleRow .authorAvatarPlaceholder,
+[data-view-mode="a"] .handleRow .authorAvatar,
+[data-view-mode="a"] .handleRow .authorAvatarPlaceholder {
   display: none;
 }
 
@@ -473,12 +475,14 @@ html[data-theme="dark"] [data-view-mode="1"] .card:focus-within:not(:has(.mediaG
     width: 1.5rem;
     height: 1.5rem;
   }
-  /* 3-column view on mobile: compact avatar */
-  [data-view-mode="3"] .cardActionRowAvatar img {
+  /* 3-column and All Columns on mobile: compact avatar */
+  [data-view-mode="3"] .cardActionRowAvatar img,
+  [data-view-mode="a"] .cardActionRowAvatar img {
     width: 1.1rem;
     height: 1.1rem;
   }
-  [data-view-mode="3"] .cardActionRowAvatar {
+  [data-view-mode="3"] .cardActionRowAvatar,
+  [data-view-mode="a"] .cardActionRowAvatar {
     width: 1.1rem;
     height: 1.1rem;
   }

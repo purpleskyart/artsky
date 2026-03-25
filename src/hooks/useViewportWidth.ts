@@ -43,8 +43,9 @@ export function useViewportWidth(debounceMs = 150): number {
  * @returns Number of columns (1+)
  */
 const DESKTOP_BREAKPOINT = 768
-const AUTO_MIN_COLUMN_WIDTH = 300
-const AUTO_MAX_COLUMNS = 8
+/** Wider minimum than before so previews stay readable; full-width main makes room for more columns. */
+const AUTO_MIN_COLUMN_WIDTH = 320
+const AUTO_MAX_COLUMNS = 12
 
 export function getColumnCountForViewMode(viewMode: ViewMode, width: number): number {
   if (viewMode === '1') return 1
