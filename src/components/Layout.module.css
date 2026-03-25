@@ -1093,15 +1093,17 @@ button.logoLink {
   }
 }
 
-/* Mobile: gear button positioned to the right of the back button (which appears when modals open) */
+/* Mobile: gear FAB bottom-right, above floating nav; menu stacks upward (column-reverse) */
 .gearFloatWrap {
   position: fixed;
-  top: max(var(--space-md), env(safe-area-inset-top, 59px));
-  left: max(var(--space-sm), env(safe-area-inset-left));
+  top: auto;
+  left: auto;
+  bottom: calc(max(0.75rem, env(safe-area-inset-bottom)) + var(--nav-height) + 0.75rem);
+  right: max(1rem, env(safe-area-inset-right));
   z-index: 1101;
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
+  flex-direction: column-reverse;
+  align-items: flex-end;
   gap: 0.5rem;
   pointer-events: auto;
 }
@@ -1111,11 +1113,6 @@ button.logoLink {
   width: 36px;
   height: 36px;
   box-sizing: border-box;
-}
-
-/* When modal is open, position gear to the right of the back button */
-.gearFloatWrap.gearFloatWrapModalOpen {
-  left: calc(max(var(--space-sm), env(safe-area-inset-left)) + 36px + 0.5rem);
 }
 
 .gearFloatWrap > .feedFloatBtn {
@@ -1139,6 +1136,10 @@ button.logoLink {
 .gearFloatExpandable {
   flex-direction: column;
   align-items: center;
+}
+
+.gearFloatWrap .gearFloatExpandable {
+  align-items: flex-end;
 }
 
 .gearFloatExpandable .nsfwFloatBtn,
@@ -1844,6 +1845,12 @@ button.logoLink {
   margin: 0 auto;
   padding-left: env(safe-area-inset-left);
   padding-right: env(safe-area-inset-right);
+}
+
+/* All Columns view: let the masonry grid use the full viewport width so column count matches card width */
+.main.mainAllColumns {
+  max-width: none;
+  width: 100%;
 }
 
 /* Keep feed selector (pills + Add Custom Feed) visible when scrolling the homepage */

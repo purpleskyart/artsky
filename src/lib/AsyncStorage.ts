@@ -16,6 +16,13 @@ interface WriteQueueEntry {
   serialized?: string
 }
 
+/** Never evict during quota cleanup — matches session keys in `bsky.ts`. */
+const LOCAL_STORAGE_AUTH_KEYS = new Set([
+  'artsky-bsky-session',
+  'artsky-accounts',
+  'artsky-oauth-accounts',
+])
+
 class AsyncStorage {
   private writeQueue = new Map<string, WriteQueueEntry>()
   private flushTimer: ReturnType<typeof setTimeout> | null = null
@@ -139,7 +146,7 @@ class AsyncStorage {
       
       for (let i = 0; i < localStorage.length; i++) {
         const k = localStorage.key(i)
-        if (k?.startsWith('artsky-')) {
+        if (k?.startsWith('artsky-') && !LOCAL_STORAGE_AUTH_KEYS.has(k)) {
           // Try to extract timestamp from value if it's JSON
           try {
             const val = localStorage.getItem(k)

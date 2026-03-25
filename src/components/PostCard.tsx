@@ -125,9 +125,9 @@ function PostCardInner({
   openCollectionMenuSignal,
 }: InnerProps) {
   /** Must stay > `TOUCH_DOUBLE_TAP_WINDOW_MS` so a second tap can cancel before we open. */
-  const TOUCH_OPEN_DELAY_MS = 155
-  /** Max ms between two taps to count as double-tap-like (like). Tighter than legacy 320ms so single-tap open can be faster. */
-  const TOUCH_DOUBLE_TAP_WINDOW_MS = 140
+  const TOUCH_OPEN_DELAY_MS = 450
+  /** Max ms between two taps to count as double-tap-like; matches PostDetailPage MediaGallery (400ms). */
+  const TOUCH_DOUBLE_TAP_WINDOW_MS = 400
   const MEDIA_CLICK_DOUBLE_TAP_WINDOW_MS = TOUCH_DOUBLE_TAP_WINDOW_MS
 
   const navigate = useNavigate()

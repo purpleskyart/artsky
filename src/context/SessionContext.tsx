@@ -48,7 +48,6 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let cancelled = false
-    const oauthTimeoutMs = 20_000
     const oauthCallbackTimeoutMs = 30_000
 
     const finish = () => {
@@ -66,14 +65,21 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         const search = typeof window !== 'undefined' ? window.location.search : ''
         const params = new URLSearchParams(search)
         const hasCallback = params.has('state') && (params.has('code') || params.has('error'))
-        const waitMs = hasCallback ? oauthCallbackTimeoutMs : oauthTimeoutMs
-        const oauthResult = await Promise.race([
-          oauth.initOAuth({
-            hasCallback,
-            preferredRestoreDid: !hasCallback ? oauthAccounts.activeDid ?? undefined : undefined,
-          }),
-          new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), waitMs)),
-        ])
+        const preferredRestoreDid =
+          !hasCallback
+            ? oauthAccounts.activeDid ?? oauthAccounts.dids[0] ?? undefined
+            : undefined
+
+        // OAuth callback: keep a bounded wait so a broken redirect cannot hang boot forever.
+        // Normal load (incl. after PWA update reload): await restore fully — a short race timeout
+        // could fire while IndexedDB still opens, skip OAuth, and look "logged out" despite valid tokens.
+        const oauthResult = hasCallback
+          ? await Promise.race([
+              oauth.initOAuth({ hasCallback: true }),
+              new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), oauthCallbackTimeoutMs)),
+            ])
+          : await oauth.initOAuth({ hasCallback: false, preferredRestoreDid })
+
         if (cancelled) return
         if (oauthResult?.session) {
           bsky.addOAuthDid(oauthResult.session.did)
