@@ -16,6 +16,7 @@ import { getOverlayBackgroundLocation } from '../lib/overlayNavigation'
 import { useModalScroll } from '../context/ModalScrollContext'
 import { useOffscreenOptimization } from '../hooks/useOffscreenOptimization'
 import { preloadPostOpen } from '../lib/modalPreload'
+import { getProgressiveImageDefaults } from '../lib/imageUtils'
 import PostText from './PostText'
 import ProfileLink from './ProfileLink'
 import PostActionsMenu from './PostActionsMenu'
@@ -147,7 +148,8 @@ function PostCardInner({
   const videoRef = useRef<HTMLVideoElement>(null)
   const mediaWrapRef = useRef<HTMLDivElement>(null)
   const hlsRef = useRef<Hls | null>(null)
-  const [videoInLoadRange, setVideoInLoadRange] = useState(false)
+  const videoPlayInViewRef = useRef(false)
+  const [videoPreloadInRange, setVideoPreloadInRange] = useState(false)
   const { post, reason } = item as { post: typeof item.post; reason?: { $type?: string; by?: { handle?: string; did?: string } } }
   const feedSource = (item as { _feedSource?: { kind?: string; label?: string } })._feedSource
   const feedLabel = feedSource?.label ?? (feedSource?.kind === 'timeline' ? 'Following' : undefined)
@@ -355,7 +357,11 @@ function PostCardInner({
   }, [isModalOpen])
 
   const isVideo = hasMedia && media!.type === 'video' && media!.videoPlaylist
-  const effectiveVideoInRange = isCardNearViewport && videoInLoadRange
+  const effectiveVideoPreloadRange = isCardNearViewport && videoPreloadInRange
+  const cardMediaPreloadDistance = useMemo(() => {
+    const { preloadDistance } = getProgressiveImageDefaults()
+    return feedPreviewActionRow ? preloadDistance + 480 : preloadDistance
+  }, [feedPreviewActionRow])
   const isMultipleImages = hasMedia && media!.type === 'image' && (media!.imageCount ?? 0) > 1
   const imageItems = useMemo(() => allMedia.filter((m) => m.type === 'image'), [allMedia])
   /** Indices in allMedia for each image (for onMediaRef / focusedMediaIndex when multi-image) */
@@ -398,30 +404,33 @@ function PostCardInner({
     if (mediaAspect != null && onAspectRatio) onAspectRatio(mediaAspect)
   }, [mediaAspect, onAspectRatio])
 
-  /* Only attach HLS / src when the clip is near the viewport to save bandwidth and memory */
+  /* Start fetching video (HLS) while still off-screen, using the same margins as feed images. Playback stays gated below. */
   useEffect(() => {
     if (!isVideo || !mediaWrapRef.current) {
-      setVideoInLoadRange(false)
+      setVideoPreloadInRange(false)
       return
     }
     const el = mediaWrapRef.current
+    const { preloadDistance } = getProgressiveImageDefaults()
+    const margin = feedPreviewActionRow ? `${preloadDistance + 480}px` : `${preloadDistance}px`
+    const rootMargin = `${margin} 0px ${margin} 0px`
     const observer = new IntersectionObserver(
       (entries) => {
         const entry = entries[0]
         if (!entry) return
-        setVideoInLoadRange(entry.isIntersecting)
+        setVideoPreloadInRange(entry.isIntersecting)
       },
-      { rootMargin: '320px 0px 320px 0px', threshold: 0 }
+      { rootMargin, threshold: 0 }
     )
     observer.observe(el)
     return () => {
       observer.disconnect()
-      setVideoInLoadRange(false)
+      setVideoPreloadInRange(false)
     }
-  }, [isVideo, post.uri])
+  }, [isVideo, post.uri, feedPreviewActionRow])
 
   useEffect(() => {
-    if (!isVideo || !media?.videoPlaylist || !effectiveVideoInRange) {
+    if (!isVideo || !media?.videoPlaylist || !effectiveVideoPreloadRange) {
       if (hlsRef.current) {
         hlsRef.current.destroy()
         hlsRef.current = null
@@ -475,35 +484,41 @@ function PostCardInner({
         v.removeAttribute('src')
       }
     }
-  }, [isVideo, media?.videoPlaylist, effectiveVideoInRange])
+  }, [isVideo, media?.videoPlaylist, effectiveVideoPreloadRange])
 
-  /* Autoplay video when in view, pause when out of view or when modal opens */
+  /* Autoplay only when actually in the viewport (not merely in the preload margin). Pause when out of view or modal opens. */
   const isModalOpenRef = useRef(isModalOpen)
   isModalOpenRef.current = isModalOpen
   useEffect(() => {
     if (!isVideo || !mediaWrapRef.current || !videoRef.current) return
     const el = mediaWrapRef.current
     const video = videoRef.current
+    videoPlayInViewRef.current = false
     if (isModalOpen) video.pause()
     const observer = new IntersectionObserver(
       (entries) => {
         const entry = entries[0]
         if (!entry || !video) return
+        const inView = entry.isIntersecting
+        videoPlayInViewRef.current = inView
         if (isModalOpenRef.current) {
           video.pause()
           return
         }
-        if (entry.isIntersecting) {
+        if (inView) {
           video.play().catch(() => {})
         } else {
           video.pause()
         }
       },
-      { threshold: 0.25, rootMargin: '0px' }
+      { threshold: 0, rootMargin: '0px' }
     )
     observer.observe(el)
-    return () => observer.disconnect()
-  }, [isVideo, isModalOpen])
+    return () => {
+      observer.disconnect()
+      videoPlayInViewRef.current = false
+    }
+  }, [isVideo, isModalOpen, post.uri])
 
   useEffect(() => {
     if (!isVideo || !videoRef.current) return
@@ -576,7 +591,7 @@ function PostCardInner({
   }, [hasMedia, post.uri, isRevealed, setUnblurred, modalScrollRef])
 
   const onMediaEnter = useCallback(() => {
-    if (videoRef.current) {
+    if (videoRef.current && videoPlayInViewRef.current) {
       videoRef.current.play().catch(() => {})
     }
   }, [])
@@ -892,7 +907,13 @@ function PostCardInner({
                   }}
                 >
                   {externalLink.thumb ? (
-                    <ProgressiveImage src={externalLink.thumb} alt="" className={styles.textOnlyPreviewLinkThumb} loading="lazy" />
+                    <ProgressiveImage
+                      src={externalLink.thumb}
+                      alt=""
+                      className={styles.textOnlyPreviewLinkThumb}
+                      loading="lazy"
+                      preloadDistance={cardMediaPreloadDistance}
+                    />
                   ) : null}
                   <span className={styles.textOnlyPreviewLinkTitle}>{externalLink.title}</span>
                   {externalLink.description ? (
@@ -913,7 +934,7 @@ function PostCardInner({
                 muted
                 playsInline
                 loop
-                preload={effectiveVideoInRange ? 'metadata' : 'none'}
+                preload={effectiveVideoPreloadRange ? 'metadata' : 'none'}
                 style={{ aspectRatio: mediaAspect != null ? `${mediaAspect}` : undefined }}
                 onLoadedMetadata={(e) => {
                   const v = e.currentTarget
@@ -950,6 +971,7 @@ function PostCardInner({
                             alt=""
                             className={styles.mediaGridImg}
                             loading="lazy"
+                            preloadDistance={cardMediaPreloadDistance}
                             onLoad={idx === 0 ? handleImageLoad : undefined}
                           />
                         </div>
@@ -965,6 +987,7 @@ function PostCardInner({
                 alt=""
                 className={styles.media}
                 loading={isSelected ? 'eager' : 'lazy'}
+                preloadDistance={cardMediaPreloadDistance}
                 onLoad={handleImageLoad}
               />
             </>
