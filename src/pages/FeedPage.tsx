@@ -735,22 +735,29 @@ export default function FeedPage() {
 
   // Infinite scroll: load more when sentinel enters view. Cooldown prevents re-triggering while sentinel stays in view (stops infinite load loop).
   // Large rootMargin so we load before the user reaches the end. After each load we also schedule a
-  // fallback check: if any column's sentinel is above (viewport bottom + margin) we trigger another
-  // load once the cooldown expires.
+  // fallback check: if any column clearly ends above the viewport bottom (visible gap), trigger another
+  // load once the cooldown expires — not when the user is already at the end (avoids infinite chaining).
   /** Debounce between automatic load-more triggers (sentinel can stay visible on short columns). Keep low so reaching another column’s bottom doesn’t feel stuck for seconds after a recent load. */
   const LOAD_MORE_COOLDOWN_MS = 900
   /** Start loading when sentinel is within this distance below the viewport (load before user reaches end). */
   const LOAD_MORE_ROOT_MARGIN_PX = 600
-  /** Consider a column "short" when its sentinel is above this line (trigger load before blank space visible). */
+  /** Min gap (px) between viewport bottom and a column sentinel to count as "short" (empty masonry below). Capped vs viewport so small phones still work. */
   const LOAD_MORE_SHORT_MARGIN_PX = 300
   useEffect(() => {
     if (!feedState.cursor) return
     const refs = loadMoreSentinelRefs.current
     let rafId = 0
     let retryId = 0
-    /** True when any column's sentinel is above (viewport bottom + margin) so we load before user reaches end. */
+    /**
+     * True when a column ends with clear empty space still visible below its sentinel — not when the user
+     * is scrolled to the document end (sentinel near viewport bottom). The old check used
+     * threshold = innerHeight + margin, so nearly every sentinel matched and scheduleRetry() chained
+     * load-more forever, locking scroll at the bottom on mobile.
+     */
     const anyColumnShort = () => {
-      const threshold = window.innerHeight + LOAD_MORE_SHORT_MARGIN_PX
+      const vh = window.innerHeight
+      const margin = Math.min(LOAD_MORE_SHORT_MARGIN_PX, Math.floor(vh * 0.4))
+      const threshold = vh - margin
       for (let c = 0; c < cols; c++) {
         const el = refs[c]
         if (!el) continue
