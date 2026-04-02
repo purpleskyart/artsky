@@ -380,10 +380,18 @@
   outline: none;
 }
 
+/* Match root post / global focus: no ring on touch tap; keyboard users on desktop still get a ring */
 .commentContentWrap:focus {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline: none;
   border-radius: 0.5rem;
+}
+
+@media (hover: hover) {
+  .commentContentWrap:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 0.5rem;
+  }
 }
 
 /* Focus on root post block (e.g. forum post doc): no scale to prevent layout shift */
@@ -796,8 +804,14 @@
 }
 
 .galleryImageBtn:focus {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline: none;
+}
+
+@media (hover: hover) {
+  .galleryImageBtn:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
 }
 
 .galleryMedia {
@@ -832,8 +846,14 @@
 }
 
 .galleryVideoWrap:focus {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline: none;
+}
+
+@media (hover: hover) {
+  .galleryVideoWrap:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
 }
 
 .galleryVideoWrap .galleryVideo {

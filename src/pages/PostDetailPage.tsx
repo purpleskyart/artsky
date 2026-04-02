@@ -193,6 +193,19 @@ function findReplyByUri(
   return null
 }
 
+/** Top-level thread root URI for a comment that may be nested under `tops`. */
+function topLevelUriForCommentUri(uri: string, tops: AppBskyFeedDefs.ThreadViewPost[]): string | null {
+  for (const t of tops) {
+    if (t.post.uri === uri) return t.post.uri
+    const nested =
+      'replies' in t && Array.isArray(t.replies)
+        ? (t.replies as unknown[]).filter((x): x is AppBskyFeedDefs.ThreadViewPost => isThreadViewPost(x as Parameters<typeof isThreadViewPost>[0]))
+        : []
+    if (findReplyByUri(nested, uri)) return t.post.uri
+  }
+  return null
+}
+
 function filterThreadReplies(thread: AppBskyFeedDefs.ThreadViewPost): AppBskyFeedDefs.ThreadViewPost[] {
   return 'replies' in thread && Array.isArray(thread.replies)
     ? (thread.replies as unknown[]).filter((x): x is AppBskyFeedDefs.ThreadViewPost => isThreadViewPost(x as Parameters<typeof isThreadViewPost>[0]))
@@ -1070,7 +1083,8 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
   const [followUriOverride, setFollowUriOverride] = useState<string | null>(null)
   const [likeLoading, setLikeLoading] = useState(false)
   const [repostLoading, setRepostLoading] = useState(false)
-  const [likeUriOverride, setLikeUriOverride] = useState<string | null>(null)
+  /** undefined = follow thread `viewer.like`; null = explicitly unliked; string = liked (incl. `'pending'` while API runs). */
+  const [likeUriOverride, setLikeUriOverride] = useState<string | null | undefined>(undefined)
   const [repostUriOverride, setRepostUriOverride] = useState<string | null>(null)
   const [replyingTo, setReplyingTo] = useState<{ uri: string; cid: string; handle: string } | null>(null)
   const [commentLikeOverrides, setCommentLikeOverrides] = useState<Record<string, string | null>>({})
@@ -1132,13 +1146,18 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
     setAuthorFollowed(false)
   }, [sessionFromContext?.did, session?.did])
 
+  useEffect(() => {
+    setLikeUriOverride(undefined)
+  }, [decodedUri])
+
   const replyAs = replyAsProfile ?? (session ? { handle: (session as { handle?: string }).handle ?? session.did } : null)
   const isOwnPost = thread && isThreadViewPost(thread) && session?.did === thread.post.author.did
   const authorViewer = thread && isThreadViewPost(thread) ? (thread.post.author as { viewer?: { following?: string } }).viewer : undefined
   const followingUri = authorViewer?.following ?? followUriOverride
   const alreadyFollowing = !!followingUri || authorFollowed
   const postViewer = thread && isThreadViewPost(thread) ? (thread.post as { viewer?: { like?: string; repost?: string } }).viewer : undefined
-  const likedUri = postViewer?.like ?? likeUriOverride
+  const likedUri =
+    likeUriOverride !== undefined ? likeUriOverride : postViewer?.like ?? null
   const repostedUri = postViewer?.repost ?? repostUriOverride
   const isLiked = !!likedUri
   const isReposted = !!repostedUri
@@ -1183,17 +1202,31 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
   async function handleLike() {
     if (!thread || !isThreadViewPost(thread) || likeLoading) return
     const { uri, cid } = thread.post
+    const viewerLike = postViewer?.like
+    const wasLiked = likeUriOverride !== undefined ? !!likeUriOverride : !!viewerLike
+    const unlikeRecordUri =
+      likeUriOverride !== undefined &&
+      likeUriOverride !== null &&
+      likeUriOverride !== 'pending'
+        ? likeUriOverride
+        : viewerLike
     setLikeLoading(true)
+    if (wasLiked) {
+      setLikeUriOverride(null)
+    } else {
+      setLikeUriOverride('pending')
+    }
     try {
-      if (isLiked) {
-        await unlikePostWithLifecycle(likedUri!)
+      if (wasLiked) {
+        if (!unlikeRecordUri) throw new Error('No like to remove')
+        await unlikePostWithLifecycle(unlikeRecordUri)
         setLikeUriOverride(null)
       } else {
         const res = await likePostWithLifecycle(uri, cid)
         setLikeUriOverride(res.uri)
       }
     } catch {
-      // leave state unchanged
+      setLikeUriOverride(undefined)
     } finally {
       setLikeLoading(false)
     }
@@ -1644,6 +1677,16 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
     return items
   }, [rootMediaForNav.length, threadRepliesFlat, threadRepliesVisible])
 
+  /** First keyboard focus index for each top-level comment (media slots, then body, per focusItems order). */
+  const topLevelCommentFirstFocusIndices = useMemo(() => {
+    return threadRepliesVisible.map((top) => {
+      const u = top.post.uri
+      const mediaIdx = focusItems.findIndex((it) => it.type === 'commentMedia' && it.commentUri === u)
+      if (mediaIdx >= 0) return mediaIdx
+      return focusItems.findIndex((it) => it.type === 'comment' && it.commentUri === u)
+    })
+  }, [focusItems, threadRepliesVisible])
+
   const navTotalItems = focusItems.length
   const handleCommentMediaFocus = useCallback((commentUri: string, mediaIndex: number) => {
     const idx = focusItems.findIndex((it) => it.type === 'commentMedia' && it.commentUri === commentUri && it.mediaIndex === mediaIndex)
@@ -1761,9 +1804,11 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
         return
       }
 
-      const isPrevKey = key === 'w' || e.key === 'ArrowUp'
-      const isNextKey = key === 's' || key === 'd' || key === 'a' || e.key === 'ArrowDown' || e.key === 'ArrowRight' || e.key === 'ArrowLeft'
-      if (!isPrevKey && !isNextKey) return
+      const isStepPrev = key === 'w' || e.key === 'ArrowUp' || e.key === 'ArrowLeft'
+      const isStepNext = key === 's' || e.key === 'ArrowDown' || e.key === 'ArrowRight'
+      const isTopLevelPrev = key === 'a'
+      const isTopLevelNext = key === 'd'
+      if (!isStepPrev && !isStepNext && !isTopLevelPrev && !isTopLevelNext) return
       if (!thread || !isThreadViewPost(thread)) return
 
       const totalItems = focusItems.length
@@ -1859,7 +1904,29 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
       }
 
       const current = keyboardFocusIndexRef.current
-      const next = isPrevKey ? Math.max(0, current - 1) : Math.min(totalItems - 1, current + 1)
+      const currentItem = focusItems[current]
+
+      if (isTopLevelPrev || isTopLevelNext) {
+        if (currentItem?.type !== 'comment' && currentItem?.type !== 'commentMedia') return
+        const topUri = topLevelUriForCommentUri(currentItem.commentUri, threadRepliesVisible)
+        if (topUri == null) return
+        const topUris = threadRepliesVisible.map((r) => r.post.uri)
+        const ti = topUris.indexOf(topUri)
+        if (ti < 0) return
+        const newTi = isTopLevelPrev ? ti - 1 : ti + 1
+        if (newTi < 0 || newTi >= topLevelCommentFirstFocusIndices.length) return
+        const next = topLevelCommentFirstFocusIndices[newTi]
+        if (next < 0 || next === current) return
+        e.preventDefault()
+        e.stopPropagation()
+        scrollIntoViewFromKeyboardRef.current = true
+        setKeyboardFocusIndex(next)
+        focusItemAtIndex(next, current)
+        return
+      }
+
+      if (!isStepPrev && !isStepNext) return
+      const next = isStepPrev ? Math.max(0, current - 1) : Math.min(totalItems - 1, current + 1)
       if (next !== current) {
         e.preventDefault()
         e.stopPropagation()
@@ -1870,7 +1937,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [postSectionCount, postSectionIndex, hasRepliesSection, threadRepliesFlat, focusedCommentIndex, commentFormFocused, thread, hasMediaSection, handleReplyTo, rootMediaForNav.length, openProfileModal, focusItems, handleLike, openActionsMenuUri])
+  }, [postSectionCount, postSectionIndex, hasRepliesSection, threadRepliesFlat, focusedCommentIndex, commentFormFocused, thread, hasMediaSection, handleReplyTo, rootMediaForNav.length, openProfileModal, focusItems, handleLike, openActionsMenuUri, threadRepliesVisible, topLevelCommentFirstFocusIndices])
 
   useEffect(() => {
     if (postSectionCount <= 1) return
@@ -1930,7 +1997,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
     scrollIntoViewFromKeyboardRef.current = false
   }, [focusedCommentIndex, hasRepliesSection, postSectionIndex, postSectionCount])
 
-  /* Scroll focused comment into view when focus changed by keyboard (W/S) – comment/commentMedia scroll is done in focusItemAtIndex so we only consume the ref here to avoid double-scroll */
+  /* Scroll focused comment into view when focus changed by keyboard (W/S/A/D) – comment/commentMedia scroll is done in focusItemAtIndex so we only consume the ref here to avoid double-scroll */
   useEffect(() => {
     if (!scrollIntoViewFromKeyboardRef.current) return
     const item = focusItems[keyboardFocusIndex]
@@ -2207,7 +2274,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                   disabled={likeLoading}
                   title={isLiked ? 'Remove like' : 'Like'}
                 >
-                  {likeLoading ? '…' : isLiked ? '♥' : '♡'} Like
+                  {isLiked ? '♥' : '♡'} Like
                 </button>
                 <div className={styles.repostWrap} ref={repostDropdownRef} style={{ order: 2 }}>
                   <button

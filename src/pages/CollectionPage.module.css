@@ -1,7 +1,7 @@
 .wrap {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 0.75rem 1rem 2rem;
+  padding: 0.75rem max(0.65rem, env(safe-area-inset-left)) 2rem max(0.65rem, env(safe-area-inset-right));
 }
 
 .header {

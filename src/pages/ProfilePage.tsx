@@ -95,32 +95,62 @@ function indexBelow(
   return currentIndex
 }
 
-function indexLeftByRow(
+/**
+ * Left: neighbor column card whose vertical center is closest (same as feed grid).
+ * Row-index matching breaks in All Columns masonry when column lengths diverge.
+ */
+function indexLeftClosest(
   columns: Array<Array<{ item: TimelineItem; originalIndex: number }>>,
-  currentIndex: number
+  currentIndex: number,
+  getRect: (index: number) => DOMRect | undefined
 ): number {
   for (let c = 0; c < columns.length; c++) {
-    const row = columns[c].findIndex((e) => e.originalIndex === currentIndex)
-    if (row < 0) continue
+    if (columns[c].findIndex((e) => e.originalIndex === currentIndex) < 0) continue
     if (c === 0) return currentIndex
     const leftCol = columns[c - 1]
-    if (row < leftCol.length) return leftCol[row].originalIndex
-    return currentIndex
+    const currentRect = getRect(currentIndex)
+    if (!currentRect) return currentIndex
+    const cy = (currentRect.top + currentRect.bottom) / 2
+    let bestIndex = currentIndex
+    let bestDist = Infinity
+    for (const { originalIndex } of leftCol) {
+      const r = getRect(originalIndex)
+      if (!r) continue
+      const dist = Math.abs((r.top + r.bottom) / 2 - cy)
+      if (dist < bestDist || (dist === bestDist && originalIndex < bestIndex)) {
+        bestDist = dist
+        bestIndex = originalIndex
+      }
+    }
+    return bestDist === Infinity ? currentIndex : bestIndex
   }
   return currentIndex
 }
 
-function indexRightByRow(
+function indexRightClosest(
   columns: Array<Array<{ item: TimelineItem; originalIndex: number }>>,
-  currentIndex: number
+  currentIndex: number,
+  getRect: (index: number) => DOMRect | undefined
 ): number {
   for (let c = 0; c < columns.length; c++) {
-    const row = columns[c].findIndex((e) => e.originalIndex === currentIndex)
-    if (row < 0) continue
+    if (columns[c].findIndex((e) => e.originalIndex === currentIndex) < 0) continue
     if (c === columns.length - 1) return currentIndex
     const rightCol = columns[c + 1]
-    if (row < rightCol.length) return rightCol[row].originalIndex
-    return currentIndex
+    const currentRect = getRect(currentIndex)
+    if (!currentRect) return currentIndex
+    const cy = (currentRect.top + currentRect.bottom) / 2
+    let bestIndex = currentIndex
+    let bestDist = Infinity
+    for (const { originalIndex } of rightCol) {
+      const r = getRect(originalIndex)
+      if (!r) continue
+      const dist = Math.abs((r.top + r.bottom) / 2 - cy)
+      if (dist < bestDist || (dist === bestDist && originalIndex < bestIndex)) {
+        bestDist = dist
+        bestIndex = originalIndex
+      }
+    }
+    return bestDist === Infinity ? currentIndex : bestIndex
   }
   return currentIndex
 }
@@ -600,7 +630,9 @@ export function ProfileContent({
         setActionsMenuOpenForIndex(null)
         if (cols >= 2) {
           const columns = distributeByHeight(items, cols)
-          setKeyboardFocusIndex((idx) => indexLeftByRow(columns, idx))
+          const idx = keyboardFocusIndexRef.current
+          const getRect = (index: number) => cardRefsRef.current[index]?.getBoundingClientRect()
+          setKeyboardFocusIndex(indexLeftClosest(columns, idx, getRect))
         } else {
           setKeyboardFocusIndex((idx) => Math.max(0, idx - 1))
         }
@@ -612,7 +644,9 @@ export function ProfileContent({
         setActionsMenuOpenForIndex(null)
         if (cols >= 2) {
           const columns = distributeByHeight(items, cols)
-          setKeyboardFocusIndex((idx) => indexRightByRow(columns, idx))
+          const idx = keyboardFocusIndexRef.current
+          const getRect = (index: number) => cardRefsRef.current[index]?.getBoundingClientRect()
+          setKeyboardFocusIndex(indexRightClosest(columns, idx, getRect))
         } else {
           setKeyboardFocusIndex((idx) => Math.min(items.length - 1, idx + 1))
         }
