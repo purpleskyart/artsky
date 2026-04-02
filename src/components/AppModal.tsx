@@ -12,6 +12,7 @@ import {
   MODAL_PULL_COMMIT_PX,
   MODAL_PULL_THRESHOLD_PX,
   MODAL_RUBBER_BAND_SCALE,
+  MODAL_AT_TOP_MAX_SCROLL_PX,
 } from '../hooks/usePullToRefresh'
 import { useStandalonePwa } from '../hooks/useStandalonePwa'
 import styles from './PostDetailModal.module.css'
@@ -98,6 +99,7 @@ export default function AppModal({
     pullCommitPx: MODAL_PULL_COMMIT_PX,
     pullThresholdPx: MODAL_PULL_THRESHOLD_PX,
     rubberBandScale: MODAL_RUBBER_BAND_SCALE,
+    atTopMaxScrollPx: MODAL_AT_TOP_MAX_SCROLL_PX,
   })
   const [topBarSlotEl, setTopBarSlotEl] = useState<HTMLDivElement | null>(null)
   const [topBarRightSlotEl, setTopBarRightSlotEl] = useState<HTMLDivElement | null>(null)
@@ -262,7 +264,7 @@ export default function AppModal({
         onClose()
         return
       }
-      if (e.key.toLowerCase() === 'q') {
+      if (e.key.toLowerCase() === 'q' || e.key === 'Backspace') {
         e.preventDefault()
         e.stopImmediatePropagation()
         onBack()

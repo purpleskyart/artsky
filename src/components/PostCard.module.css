@@ -1,7 +1,7 @@
 /* Liquid glass card – no shadow/glow, outline only. Promoted to own layer so scale doesn't jitter action row. */
 .card {
   position: relative;
-  border-radius: var(--glass-radius);
+  border-radius: var(--glass-radius-sm) var(--glass-radius-sm) var(--glass-radius) var(--glass-radius);
   overflow: visible;
   min-width: 0;
   background: var(--glass-bg);
@@ -21,7 +21,7 @@
   text-decoration: none;
   color: inherit;
   cursor: pointer;
-  border-radius: var(--glass-radius);
+  border-radius: var(--glass-radius-sm) var(--glass-radius-sm) var(--glass-radius) var(--glass-radius);
   overflow: visible;
   -webkit-tap-highlight-color: transparent;
 }
@@ -37,11 +37,11 @@
   box-shadow: none;
 }
 
-/* Focused/selected: lift toward user (shadow + purple border on desktop) */
+/* Selected (keyboard): outline on desktop only — no drop shadow */
 .cardSelected {
   outline: none;
   z-index: 10;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+  box-shadow: none;
 }
 .cardSelected::after {
   box-shadow: none;
@@ -54,17 +54,6 @@
     outline: 2px solid #a855f7 !important;
     outline-offset: 0px;
   }
-}
-html[data-theme="dark"] .cardSelected {
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
-}
-
-/* Single column: no drop shadow when selected so sides don’t glow at screen edge */
-[data-view-mode="1"] .cardSelected {
-  box-shadow: none;
-}
-html[data-theme="dark"] [data-view-mode="1"] .cardSelected {
-  box-shadow: none;
 }
 
 /* Pink ring when post is liked */
@@ -118,7 +107,7 @@ html[data-theme="dark"] [data-view-mode="1"] .card:hover {
   box-shadow: none;
 }
 
-/* When navigating with keyboard (W/S/A/D), only the selected card lifts – not the card under the mouse.
+/* When navigating with keyboard (W/S/A/D), suppress hover lift/outline on non-selected cards.
    Must use !important: desktop hover rules above use outline !important. */
 [data-feed-cards][data-keyboard-nav] .card:hover:not(.cardSelected),
 [data-feed-cards][data-keyboard-nav] .card:hover:focus-within:not(.cardSelected) {
@@ -164,7 +153,7 @@ html[data-theme="dark"] [data-view-mode="1"] .card:hover {
   }
 }
 
-/* When focused/selected: card lifts; ::after only has liked inset ring */
+/* When selected: ::after only has liked inset ring */
 .card.cardSelected::after {
   box-shadow: none;
 }
@@ -208,37 +197,26 @@ html[data-theme="dark"] [data-view-mode="1"] .card:hover {
   outline: none;
 }
 
-/* No purple focus ring – card uses lift instead; override global [tabindex="0"]:focus-visible */
+/* No focus ring on the link itself; card uses :focus-within outline on desktop */
 .cardLink:focus-visible {
   outline: none !important;
   box-shadow: none !important;
 }
-/* Keyboard focus: no outline; lift card when focus is not on a media cell (see below) */
+/* Keyboard / roving focus: outline on desktop only; no drop shadow (hover still lifts via .card:hover) */
 .card:focus-within {
   outline: none !important;
   z-index: 10;
 }
-/* On desktop, keep outline when card has focus within (e.g., when menu is open) */
 @media (hover: hover) {
   .card:focus-within {
     outline: 2px solid #a855f7 !important;
     outline-offset: 0px;
   }
 }
-/* Lift card (scale + shadow) only when focus is not on a media grid cell – otherwise card scale + cell scale makes the top image’s corners extend past the card’s rounded clip */
 .card:focus-within:not(:has(.mediaGridCellFocused)) {
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+  box-shadow: none;
 }
 .card:focus-within:not(:has(.mediaGridCellFocused))::after {
-  box-shadow: none;
-}
-html[data-theme="dark"] .card:focus-within:not(:has(.mediaGridCellFocused)) {
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
-}
-[data-view-mode="1"] .card:focus-within:not(:has(.mediaGridCellFocused)) {
-  box-shadow: none;
-}
-html[data-theme="dark"] [data-view-mode="1"] .card:focus-within:not(:has(.mediaGridCellFocused)) {
   box-shadow: none;
 }
 
@@ -273,10 +251,6 @@ html[data-theme="dark"] [data-view-mode="1"] .card:focus-within:not(:has(.mediaG
   }
   .cardActionRowCenter {
     gap: 0.35rem;
-  }
-  /* No shadow on focus on mobile */
-  .card:focus-within:not(:has(.mediaGridCellFocused)) {
-    box-shadow: none;
   }
   .mediaGridCellFocused {
     transform: none;
@@ -520,22 +494,23 @@ html[data-theme="dark"] [data-view-mode="1"] .card:focus-within:not(:has(.mediaG
 
 /* Minimalist: compact actions; no handle/text. Card rounded top only so it doesn’t clip the media; meta row draws rounded bottom so media corners stay visible (like full card view). */
 .cardMinimalist {
-  border-radius: var(--glass-radius) var(--glass-radius) 0 0;
+  border-radius: var(--glass-radius-sm) var(--glass-radius-sm) 0 0;
   overflow: visible;
 }
-/* Same as full card: preview (cardLink) fully rounded – .cardLink uses border-radius: var(--glass-radius) */
+/* Preview: tighter top arc than full cards; bottom matches meta / full radius */
 .cardMinimalist .cardLink {
-  border-radius: var(--glass-radius);
+  border-radius: var(--glass-radius-sm) var(--glass-radius-sm) var(--glass-radius) var(--glass-radius);
 }
-/* Match full card: media rounded so bottom of preview is rounded like full view (art-only uses same for media) */
 .cardMinimalist .mediaWrap,
 .cardMinimalist .nsfwOverlay {
-  border-radius: var(--glass-radius);
+  border-radius: var(--glass-radius-sm) var(--glass-radius-sm) var(--glass-radius) var(--glass-radius);
 }
 .cardMinimalist .meta {
   margin-bottom: 0;
   border-radius: 0 0 var(--glass-radius) var(--glass-radius);
   background: var(--glass-bg);
+  padding-left: 0.42rem;
+  padding-right: 0.42rem;
 }
 .cardMinimalist .cardActionRow {
   margin-bottom: 0;
@@ -543,12 +518,12 @@ html[data-theme="dark"] [data-view-mode="1"] .card:focus-within:not(:has(.mediaG
 
 /* Mini + art-only: no meta row, so the card div is the bottom – give it rounded bottom like full card */
 .cardMinimalist.cardArtOnly {
-  border-radius: var(--glass-radius);
+  border-radius: var(--glass-radius-sm) var(--glass-radius-sm) var(--glass-radius) var(--glass-radius);
 }
 /* Image/media stays square at bottom; only the card wrapper is rounded there */
 .cardMinimalist.cardArtOnly .mediaWrap,
 .cardMinimalist.cardArtOnly .nsfwOverlay {
-  border-radius: var(--glass-radius) var(--glass-radius) 0 0;
+  border-radius: var(--glass-radius-sm) var(--glass-radius-sm) 0 0;
 }
 
 .cardLikeRepostBtn {
@@ -631,27 +606,29 @@ html[data-theme="dark"] [data-view-mode="1"] .card:focus-within:not(:has(.mediaG
   display: flex;
   align-items: center;
   justify-content: center;
-  /* Round top to match card so media doesn’t stick out of corners */
-  border-radius: var(--glass-radius) var(--glass-radius) 0 0;
+  /* Round top to match card (same sm top as preview modes) */
+  border-radius: var(--glass-radius-sm) var(--glass-radius-sm) 0 0;
 }
 
-/* Art only: no meta row, so round the bottom so corners don't stick through the focus ring */
+/* Art only: flatter top than 16px full glass; bottom keeps full radius */
 .cardArtOnly .mediaWrap {
-  border-radius: var(--glass-radius);
+  border-radius: var(--glass-radius-sm) var(--glass-radius-sm) var(--glass-radius) var(--glass-radius);
 }
 .cardArtOnly .nsfwOverlay {
-  border-radius: var(--glass-radius);
+  border-radius: var(--glass-radius-sm) var(--glass-radius-sm) var(--glass-radius) var(--glass-radius);
 }
 
 /* Collection grid (etc.): Art Cards + feed-style action row — meta sits under media like Full Cards */
 .cardArtOnly.cardFeedPreviewActions .mediaWrap,
 .cardArtOnly.cardFeedPreviewActions .nsfwOverlay {
-  border-radius: var(--glass-radius) var(--glass-radius) 0 0;
+  border-radius: var(--glass-radius-sm) var(--glass-radius-sm) 0 0;
 }
 
 .cardArtOnly.cardFeedPreviewActions .meta {
   border-radius: 0 0 var(--glass-radius) var(--glass-radius);
   background: var(--glass-bg);
+  padding-left: 0.42rem;
+  padding-right: 0.42rem;
 }
 
 .artOnlyActions {

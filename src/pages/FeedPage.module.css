@@ -14,8 +14,8 @@
 .wrap {
   position: relative;
   padding: 0.25rem 0.5rem;
-  padding-left: max(0.75rem, env(safe-area-inset-left));
-  padding-right: max(0.75rem, env(safe-area-inset-right));
+  padding-left: max(0.45rem, env(safe-area-inset-left));
+  padding-right: max(0.45rem, env(safe-area-inset-right));
   padding-bottom: 2.5rem;
   padding-bottom: calc(2.5rem + env(safe-area-inset-bottom));
 }
@@ -61,18 +61,18 @@
   z-index: 1;
 }
 
-/* Extra side padding so edge cards don’t touch viewport and create visual edge artifacts */
+/* Side inset: keep safe-area but give preview cards more width for media */
 @media (min-width: 768px) {
   .wrap {
-    padding-left: max(1rem, env(safe-area-inset-left));
-    padding-right: max(1rem, env(safe-area-inset-right));
+    padding-left: max(0.65rem, env(safe-area-inset-left));
+    padding-right: max(0.65rem, env(safe-area-inset-right));
   }
 }
 
 @media (max-width: 767px) {
   .wrap {
-    padding-left: max(0.5rem, env(safe-area-inset-left));
-    padding-right: max(0.5rem, env(safe-area-inset-right));
+    padding-left: max(0.35rem, env(safe-area-inset-left));
+    padding-right: max(0.35rem, env(safe-area-inset-right));
   }
 }
 
@@ -497,7 +497,7 @@
 /* Grid layout */
 .grid {
   display: grid;
-  gap: 0.5rem;
+  gap: 0.4rem;
   width: 100%;
   min-width: 0;
   margin-bottom: 0.25rem;
@@ -507,7 +507,7 @@
 .gridView1 {
   grid-template-columns: repeat(1, minmax(0, 1fr));
   grid-auto-rows: auto;
-  gap: 0.5rem;
+  gap: 0.4rem;
 }
 
 /* 2/3 col: row height follows card content so cards scale with media aspect ratio */
@@ -518,11 +518,11 @@
 }
 .gridView2 {
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.5rem;
+  gap: 0.4rem;
 }
 .gridView3 {
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.5rem;
+  gap: 0.4rem;
 }
 
 /* Wrapper so card can size naturally; min-width prevents overflow in grid */
@@ -540,7 +540,7 @@
 .gridColumns {
   display: flex;
   flex-direction: row;
-  gap: 0.4rem;
+  gap: 0.35rem;
   align-items: flex-start;
   width: 100%;
   min-width: 0;
@@ -552,7 +552,7 @@
 
 @media (min-width: 768px) {
   .gridColumns.gridView1 .gridColumn {
-    gap: 0.75rem;
+    gap: 0.55rem;
   }
 }
 

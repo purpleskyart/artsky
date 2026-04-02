@@ -7,9 +7,11 @@ export const PULL_COMMIT_PX = 8
 export const PULL_REFRESH_HOLD_PX = 56
 
 /** Stricter defaults for modal scroll: require a deliberate pull, not a small nudge at scroll top. */
-export const MODAL_PULL_COMMIT_PX = 28
-export const MODAL_PULL_THRESHOLD_PX = 88
-export const MODAL_RUBBER_BAND_SCALE = 0.68
+export const MODAL_PULL_COMMIT_PX = 52
+export const MODAL_PULL_THRESHOLD_PX = 94
+export const MODAL_RUBBER_BAND_SCALE = 0.55
+/** Modals: stricter than feed’s default 2px — avoids arming when the list sits 1–2px off top after bounce. */
+export const MODAL_AT_TOP_MAX_SCROLL_PX = 1
 
 /** Finger delta → on-screen pull (iOS UIScrollView-style rubber band, not 1:1). */
 function fingerDeltaToPullOffset(dy: number, rubberBandScale = 1): number {
@@ -35,6 +37,8 @@ export interface UsePullToRefreshOptions {
   pullThresholdPx?: number
   /** Multiplier on rubber-band curve; below 1 = stiffer pull for the same finger travel (default 1). */
   rubberBandScale?: number
+  /** Pull arms only when `scrollTop <=` this (default 2). Use 0 in modals so a 1–2px offset does not arm refresh. */
+  atTopMaxScrollPx?: number
 }
 
 export interface UsePullToRefreshResult {
@@ -66,6 +70,7 @@ export function usePullToRefresh({
   pullCommitPx = PULL_COMMIT_PX,
   pullThresholdPx = PULL_THRESHOLD_PX,
   rubberBandScale = 1,
+  atTopMaxScrollPx = 2,
 }: UsePullToRefreshOptions): UsePullToRefreshResult {
   const startXRef = useRef(0)
   const startYRef = useRef(0)
@@ -167,19 +172,19 @@ export function usePullToRefresh({
       }
 
       if (!pullingRef.current) {
-        if (scrollTop <= 2 && dy > pullCommitPx) {
+        if (scrollTop <= atTopMaxScrollPx && dy > pullCommitPx) {
           pullingRef.current = true
         } else {
           return
         }
       }
 
-      if (pullingRef.current && scrollTop <= 2 && dy > 0) {
+      if (pullingRef.current && scrollTop <= atTopMaxScrollPx && dy > 0) {
         e.preventDefault()
         applyPullFromDy(dy)
       }
     },
-    [enabled, scrollRef, applyPullFromDy, pullCommitPx]
+    [enabled, scrollRef, applyPullFromDy, pullCommitPx, atTopMaxScrollPx]
   )
 
   const onTouchEnd = useCallback(
@@ -228,10 +233,10 @@ export function usePullToRefresh({
 
       if (maxTouchStartY != null && startYRef.current > maxTouchStartY) return
       if (!pullingRef.current) {
-        if (scrollTop <= 2 && dy > pullCommitPx) pullingRef.current = true
+        if (scrollTop <= atTopMaxScrollPx && dy > pullCommitPx) pullingRef.current = true
         else return
       }
-      if (pullingRef.current && scrollTop <= 2 && dy > 0) {
+      if (pullingRef.current && scrollTop <= atTopMaxScrollPx && dy > 0) {
         e.preventDefault()
         applyPullFromDy(dy)
       }
@@ -242,7 +247,16 @@ export function usePullToRefresh({
       el.removeEventListener('touchstart', onStart)
       el.removeEventListener('touchmove', onMove)
     }
-  }, [enabled, scrollRef, touchTargetRef, maxTouchStartY, applyPullFromDy, cancelSnap, pullCommitPx])
+  }, [
+    enabled,
+    scrollRef,
+    touchTargetRef,
+    maxTouchStartY,
+    applyPullFromDy,
+    cancelSnap,
+    pullCommitPx,
+    atTopMaxScrollPx,
+  ])
 
   useEffect(() => {
     return () => cancelSnap()

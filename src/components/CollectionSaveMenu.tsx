@@ -187,6 +187,12 @@ export default function CollectionSaveMenu({ postUri, openSignal, variant = 'ico
       if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
         return
       }
+      if (key === 'backspace') {
+        e.preventDefault()
+        setOpen(false)
+        triggerRef.current?.focus()
+        return
+      }
       if (key === 'w' || key === 's' || key === 'e' || key === 'enter' || e.key === 'ArrowUp' || e.key === 'ArrowDown') {
         const dropdown = dropdownRef.current
         if (!dropdown) return

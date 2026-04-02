@@ -300,16 +300,10 @@ function indexBelow(
   return currentIndex
 }
 
-/** Vertical overlap (shared space) between two rects in px. */
-function verticalOverlap(a: DOMRect, b: DOMRect): number {
-  const top = Math.max(a.top, b.top)
-  const bottom = Math.min(a.bottom, b.bottom)
-  return Math.max(0, bottom - top)
-}
-
 /**
- * Left nav: pick the card in the left column with the most vertical overlap.
- * If no card in that column has a valid rect (none loaded yet), stay put.
+ * Left nav: pick the card in the left column whose vertical center is closest to the current card.
+ * (Max-overlap alone is unstable with many narrow “All columns” lanes: tiny overlaps pick the wrong row and A/D feel like W/S.)
+ * If no card in that column has a valid rect (e.g. virtualized out), stay put.
  */
 function indexLeftClosest(
   columns: Array<Array<{ originalIndex: number }>>,
@@ -322,25 +316,25 @@ function indexLeftClosest(
     const leftCol = columns[c - 1]
     const currentRect = getRect(currentIndex)
     if (!currentRect) return currentIndex
+    const cy = (currentRect.top + currentRect.bottom) / 2
     let bestIndex = currentIndex
-    let bestOverlap = -1
+    let bestDist = Infinity
     for (const { originalIndex } of leftCol) {
       const r = getRect(originalIndex)
       if (!r) continue
-      const overlap = verticalOverlap(currentRect, r)
-      if (overlap > 0 && overlap > bestOverlap) {
-        bestOverlap = overlap
+      const dist = Math.abs((r.top + r.bottom) / 2 - cy)
+      if (dist < bestDist || (dist === bestDist && originalIndex < bestIndex)) {
+        bestDist = dist
         bestIndex = originalIndex
       }
     }
-    return bestIndex
+    return bestDist === Infinity ? currentIndex : bestIndex
   }
   return currentIndex
 }
 
 /**
- * Right nav: pick the card in the right column with the most vertical overlap.
- * If no card in that column has a valid rect (none loaded yet), stay put.
+ * Right nav: same as indexLeftClosest for the column to the right.
  */
 function indexRightClosest(
   columns: Array<Array<{ originalIndex: number }>>,
@@ -353,18 +347,19 @@ function indexRightClosest(
     const rightCol = columns[c + 1]
     const currentRect = getRect(currentIndex)
     if (!currentRect) return currentIndex
+    const cy = (currentRect.top + currentRect.bottom) / 2
     let bestIndex = currentIndex
-    let bestOverlap = -1
+    let bestDist = Infinity
     for (const { originalIndex } of rightCol) {
       const r = getRect(originalIndex)
       if (!r) continue
-      const overlap = verticalOverlap(currentRect, r)
-      if (overlap > 0 && overlap > bestOverlap) {
-        bestOverlap = overlap
+      const dist = Math.abs((r.top + r.bottom) / 2 - cy)
+      if (dist < bestDist || (dist === bestDist && originalIndex < bestIndex)) {
+        bestDist = dist
         bestIndex = originalIndex
       }
     }
-    return bestIndex
+    return bestDist === Infinity ? currentIndex : bestIndex
   }
   return currentIndex
 }
@@ -1134,7 +1129,7 @@ export default function FeedPage() {
       const focusInCollectionMenu = (document.activeElement as HTMLElement)?.closest?.('[data-collection-menu="true"]')
       const collectionMenuOpen = document.querySelector('[data-collection-menu="true"]') != null
       const menuOpenForFocusedCard = actionsMenuOpenForIndexRef.current === currentCardIndex
-      if ((focusInActionsMenu || focusInCollectionMenu || collectionMenuOpen || menuOpenForFocusedCard) && (key === 'w' || key === 's' || key === 'e' || key === 'enter' || key === 'q' || key === 'escape' || e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+      if ((focusInActionsMenu || focusInCollectionMenu || collectionMenuOpen || menuOpenForFocusedCard) && (key === 'w' || key === 's' || key === 'e' || key === 'enter' || key === 'q' || key === 'backspace' || key === 'escape' || e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
         return
       }
       /* Ignore key repeat for left/right only (so A/D don’t skip); allow repeat for W/S so holding moves up/down */
@@ -1163,6 +1158,8 @@ export default function FeedPage() {
             ? Math.max(0, i - 1)
             : (() => {
                 const nextCard = currentCols >= 2 && columns ? indexAbove(columns, currentCardIndex) : Math.max(0, currentCardIndex - 1)
+                /* At top of column there is no card above; don’t jump to last image of the same post (feels like random vertical scroll). */
+                if (nextCard === currentCardIndex) return i
                 return currentLastByCard[nextCard] ?? currentFirstByCard[nextCard] ?? 0
               })()
         dispatch({ type: 'SET_KEYBOARD_FOCUS', index: next })
@@ -1178,6 +1175,8 @@ export default function FeedPage() {
             ? Math.min(currentFocusTargets.length - 1, i + 1)
             : (() => {
                 const nextCard = currentCols >= 2 && columns ? indexBelow(columns, currentCardIndex) : Math.min(currentEntries.length - 1, currentCardIndex + 1)
+                /* At bottom of column, indexBelow returns same card; first focus index would jump to top of a multi-image post or confuse scroll. */
+                if (nextCard === currentCardIndex) return i
                 return currentFirstByCard[nextCard] ?? i
               })()
         dispatch({ type: 'SET_KEYBOARD_FOCUS', index: next })
