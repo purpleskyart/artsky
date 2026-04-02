@@ -74,11 +74,8 @@ const PRESET_SOURCES: FeedSource[] = [
 /** Nominal column width for height estimation (px). */
 const ESTIMATE_COL_WIDTH = 280
 const CARD_CHROME = 100
-const REPOST_CAROUSEL_ESTIMATE_HEIGHT = 200
 
 const REASON_REPOST = 'app.bsky.feed.defs#reasonRepost'
-const REPOST_CAROUSEL_WINDOW_MS = 60 * 60 * 1000
-const REPOST_CAROUSEL_MIN_COUNT = 4
 const DESKTOP_BREAKPOINT = 768
 function subscribeDesktop(cb: () => void) {
   if (typeof window === 'undefined') return () => {}
@@ -90,72 +87,17 @@ function getDesktopSnapshot() {
   return typeof window !== 'undefined' ? window.innerWidth >= DESKTOP_BREAKPOINT : false
 }
 
-export type FeedDisplayEntry =
-  | { type: 'post'; item: TimelineItem; entryIndex: number }
-  | { type: 'carousel'; items: TimelineItem[]; entryIndex: number }
+export type FeedDisplayEntry = { type: 'post'; item: TimelineItem; entryIndex: number }
 
 function isRepost(item: TimelineItem): boolean {
   return (item.reason as { $type?: string })?.$type === REASON_REPOST
 }
 
-function getItemTimestamp(item: TimelineItem): number {
-  const createdAt = (item.post.record as { createdAt?: string })?.createdAt
-  const indexedAt = (item.post as { indexedAt?: string }).indexedAt
-  const s = createdAt ?? indexedAt ?? ''
-  return s ? new Date(s).getTime() : 0
-}
-
-/** Group reposts: if more than 3 reposts fall within a 1-hour window, collapse into a carousel entry. */
 export function buildDisplayEntries(items: TimelineItem[]): FeedDisplayEntry[] {
-  const entries: FeedDisplayEntry[] = []
-  let entryIndex = 0
-  let repostWindow: TimelineItem[] = []
-  let windowMin = 0
-  let windowMax = 0
-
-  function flushRepostWindow() {
-    if (repostWindow.length >= REPOST_CAROUSEL_MIN_COUNT) {
-      entries.push({ type: 'carousel', items: [...repostWindow], entryIndex: entryIndex++ })
-    } else {
-      for (const item of repostWindow) {
-        entries.push({ type: 'post', item, entryIndex: entryIndex++ })
-      }
-    }
-    repostWindow = []
-  }
-
-  for (const item of items) {
-    if (!isRepost(item)) {
-      flushRepostWindow()
-      entries.push({ type: 'post', item, entryIndex: entryIndex++ })
-      continue
-    }
-    const t = getItemTimestamp(item)
-    if (repostWindow.length === 0) {
-      repostWindow.push(item)
-      windowMin = t
-      windowMax = t
-      continue
-    }
-    const newMin = Math.min(windowMin, t)
-    const newMax = Math.max(windowMax, t)
-    if (newMax - newMin <= REPOST_CAROUSEL_WINDOW_MS) {
-      repostWindow.push(item)
-      windowMin = newMin
-      windowMax = newMax
-    } else {
-      flushRepostWindow()
-      repostWindow = [item]
-      windowMin = t
-      windowMax = t
-    }
-  }
-  flushRepostWindow()
-  return entries
+  return items.map((item, entryIndex) => ({ type: 'post', item, entryIndex }))
 }
 
 function estimateEntryHeight(entry: FeedDisplayEntry): number {
-  if (entry.type === 'carousel') return REPOST_CAROUSEL_ESTIMATE_HEIGHT
   const media = getPostMediaInfoForDisplay(entry.item.post)
   if (!media) return CARD_CHROME + 80
   if (media.aspectRatio != null && media.aspectRatio > 0) {
@@ -164,14 +106,11 @@ function estimateEntryHeight(entry: FeedDisplayEntry): number {
   return CARD_CHROME + 220
 }
 
-/** Stable id for column placement and list keys (append, trim, repost carousel regroup). */
+/** Stable id for column placement and list keys (append, trim, load more). */
 export function stableCardKey(entry: FeedDisplayEntry): string {
-  if (entry.type === 'post') return `p:${entry.item.post.uri}`
-  const uris = entry.items.map((i) => i.post.uri).filter(Boolean).join('|')
-  return `c:${uris || 'empty'}`
+  return `p:${entry.item.post.uri}`
 }
 
-/** Column from last layout: composite key, or any member post URI for carousels. */
 function previousColumnForEntry(
   entry: FeedDisplayEntry,
   keyToColumn: Map<string, number>,
@@ -179,14 +118,6 @@ function previousColumnForEntry(
 ): number | undefined {
   const fromKey = keyToColumn.get(stableCardKey(entry))
   if (fromKey !== undefined && fromKey < numCols) return fromKey
-  if (entry.type === 'carousel') {
-    for (const item of entry.items) {
-      const uri = item.post.uri
-      if (!uri) continue
-      const c = keyToColumn.get(`p:${uri}`)
-      if (c !== undefined && c < numCols) return c
-    }
-  }
   return undefined
 }
 
@@ -205,7 +136,7 @@ function pickShortestColumnIndex(
   return best
 }
 
-/** Distribute entries (posts and carousels) so no column is much longer than others. */
+/** Distribute entries so no column is much longer than others. */
 function distributeEntriesByHeight(
   entries: FeedDisplayEntry[],
   numCols: number,
@@ -215,20 +146,12 @@ function distributeEntriesByHeight(
   if (cols < 1) return []
 
   // Reuse each card's column from the last layout when column count is unchanged — including when
-  // the entry list shrinks (repost carousel merge) or grows (load more), so previews don't jump.
+  // the entry list shrinks or grows (load more), so previews don't jump.
   if (previousDistribution && previousDistribution.length === cols) {
     const keyToColumn = new Map<string, number>()
     previousDistribution.forEach((col, colIndex) => {
       col.forEach(({ entry }) => {
         keyToColumn.set(stableCardKey(entry), colIndex)
-        // So when repost rows collapse into a carousel (or the reverse), placement can follow the
-        // same column as before instead of re-balancing to the shortest column.
-        if (entry.type === 'carousel') {
-          for (const item of entry.items) {
-            const uri = item.post.uri
-            if (uri) keyToColumn.set(`p:${uri}`, colIndex)
-          }
-        }
       })
     })
 
@@ -347,8 +270,14 @@ export default function FeedPage() {
   const { openLoginModal } = useLoginModal()
   const { session, authResolved } = useSession()
   const { viewMode } = useViewMode()
+  const gridRef = useRef<HTMLDivElement | null>(null)
+  const [gridLayoutKey, setGridLayoutKey] = useState(0)
+  const bindGridRef = useCallback((el: HTMLDivElement | null) => {
+    gridRef.current = el
+    setGridLayoutKey((n) => n + 1)
+  }, [])
   /** Debounced + hysteresis-stable column count (must match grid and load-more sentinels). */
-  const cols = useColumnCount(viewMode, 150)
+  const cols = useColumnCount(viewMode, 150, { measureRef: gridRef, measureLayoutKey: gridLayoutKey })
   const [source, setSource] = useState<FeedSource>(PRESET_SOURCES[0])
 
   // Use the normalized like overrides cache from context
@@ -395,7 +324,6 @@ export default function FeedPage() {
   const seenUrisRef = useRef(feedState.seenUris)
   seenUrisRef.current = feedState.seenUris
   const seenPostsContext = useSeenPosts()
-  const gridRef = useRef<HTMLDivElement | null>(null)
 
   // Register clear-seen handler so that long-press on Home can bring back all hidden (seen) items.
   useEffect(() => {
@@ -803,7 +731,6 @@ export default function FeedPage() {
   const mediaCountByUri = useMemo(() => {
     const map = new Map<string, number>()
     for (const entry of displayEntries) {
-      if (entry.type !== 'post') continue
       const uri = entry.item.post.uri
       if (!uri) continue
       map.set(uri, Math.max(1, getPostAllMediaForDisplay(entry.item.post).length))
@@ -851,12 +778,8 @@ export default function FeedPage() {
   const focusTargets = useMemo(() => {
     const out: { cardIndex: number; mediaIndex: number }[] = []
     displayEntries.forEach((entry, cardIndex) => {
-      if (entry.type === 'post') {
-        const n = mediaMode === 'text' ? 1 : (mediaCountByUri.get(entry.item.post.uri) ?? 1)
-        for (let m = 0; m < n; m++) out.push({ cardIndex, mediaIndex: m })
-      } else {
-        out.push({ cardIndex, mediaIndex: 0 })
-      }
+      const n = mediaMode === 'text' ? 1 : (mediaCountByUri.get(entry.item.post.uri) ?? 1)
+      for (let m = 0; m < n; m++) out.push({ cardIndex, mediaIndex: m })
     })
     return out
   }, [displayEntries, mediaMode, mediaCountByUri])
@@ -867,7 +790,7 @@ export default function FeedPage() {
     displayEntries.forEach((_entry, cardIndex) => {
       out[cardIndex] = idx
       const entry = displayEntries[cardIndex]
-      const n = entry.type === 'post' ? (mediaMode === 'text' ? 1 : (mediaCountByUri.get(entry.item.post.uri) ?? 1)) : 1
+      const n = mediaMode === 'text' ? 1 : (mediaCountByUri.get(entry.item.post.uri) ?? 1)
       idx += n
     })
     return out
@@ -876,7 +799,7 @@ export default function FeedPage() {
   const lastFocusIndexForCard = useMemo(() => {
     const out: number[] = []
     displayEntries.forEach((entry, cardIndex) => {
-      const n = entry.type === 'post' ? (mediaMode === 'text' ? 1 : (mediaCountByUri.get(entry.item.post.uri) ?? 1)) : 1
+      const n = mediaMode === 'text' ? 1 : (mediaCountByUri.get(entry.item.post.uri) ?? 1)
       out[cardIndex] = firstFocusIndexForCard[cardIndex] + n - 1
     })
     return out
@@ -1095,7 +1018,7 @@ export default function FeedPage() {
       const focusTarget = currentFocusTargets[i]
       const currentCardIndex = focusTarget?.cardIndex ?? 0
       const focusedEntry = currentEntries[currentCardIndex]
-      const focusedItem = focusedEntry?.type === 'post' ? focusedEntry.item : focusedEntry?.type === 'carousel' ? focusedEntry.items[0] : null
+      const focusedItem = focusedEntry?.item ?? null
 
       const key = e.key.toLowerCase()
       const focusInActionsMenu = (document.activeElement as HTMLElement)?.closest?.('[role="menu"]')
@@ -1453,7 +1376,7 @@ export default function FeedPage() {
         ) : (
           <>
             <div
-              ref={gridRef}
+              ref={bindGridRef}
               className={`${styles.gridColumns} ${viewMode === 'a' ? styles.gridView3 : styles[`gridView${viewMode}`]}`}
               {...gridPointerGateProps}
               data-view-mode={viewMode}

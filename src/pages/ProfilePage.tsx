@@ -29,6 +29,9 @@ const REASON_PIN = 'app.bsky.feed.defs#reasonPin'
 
 const VIEW_MODE_CYCLE: ViewMode[] = ['1', '2', '3', 'a']
 
+/** Profile lightbox: keep the masonry grid readable (All Columns on the full page can use more). */
+const PROFILE_MODAL_MAX_MASONRY_COLS = 3
+
 /** Nominal column width for height estimation (px). */
 const ESTIMATE_COL_WIDTH = 280
 const CARD_CHROME = 100
@@ -238,6 +241,9 @@ export function ProfileContent({
   const lastScrollIntoViewIndexRef = useRef(-1)
   const { beginKeyboardNavigation, tryHoverSelectCard, gridPointerGateProps } = usePostCardGridPointerGate()
 
+  /** Bumped after follow/unfollow (and grid follow sync) so a slow in-flight getProfile cannot overwrite viewer state. */
+  const profileFetchGenRef = useRef(0)
+
   useEffect(() => {
     setFollowUriOverride(null)
   }, [session?.did])
@@ -245,10 +251,11 @@ export function ProfileContent({
   useEffect(() => {
     setProfile((getPreloadedProfileSnapshot(handle) as ProfileState | null) ?? null)
     if (!handle) return
+    const gen = ++profileFetchGenRef.current
     let cancelled = false
     getProfileCached(handle, !session)
       .then((data) => {
-        if (cancelled) return
+        if (cancelled || gen !== profileFetchGenRef.current) return
         const profileData = data as { did?: string; displayName?: string; avatar?: string; description?: string; viewer?: { following?: string; blocking?: string }; verification?: { verifiedStatus?: string }; createdAt?: string; indexedAt?: string }
         if (!profileData.did) return
         setProfile({
@@ -391,14 +398,13 @@ export function ProfileContent({
   // tall post pushes short-column sentinels beyond rootMargin and the observer never sees them.
   loadingMoreRef.current = loadingMore
   const colsUncapped = useColumnCount(viewMode, 150)
-  /** Profile popups stay readable: All Columns mode uses full-width column count on the main profile page only. */
-  const colsForObserver = inModal && viewMode === 'a' ? Math.min(colsUncapped, 3) : colsUncapped
+  const cols = inModal ? Math.min(colsUncapped, PROFILE_MODAL_MAX_MASONRY_COLS) : colsUncapped
   const loadMoreCursor = tab === 'posts' && profilePostsFilter === 'liked' ? likedCursor : cursor
   const loadMore = tab === 'posts' && profilePostsFilter === 'liked' ? (c: string) => loadLiked(c) : load
   useEffect(() => {
     if (tab !== 'posts' && tab !== 'reposts') return
     if (!loadMoreCursor) return
-    const firstSentinel = colsForObserver >= 2 ? loadMoreSentinelRefs.current[0] : loadMoreSentinelRef.current
+    const firstSentinel = cols >= 2 ? loadMoreSentinelRefs.current[0] : loadMoreSentinelRef.current
     const root = inModal ? firstSentinel?.closest('[data-modal-scroll]') ?? null : null
     let retryId = 0
     const observer = new IntersectionObserver(
@@ -413,9 +419,9 @@ export function ProfileContent({
       },
       { root: root ?? undefined, rootMargin: '800px', threshold: 0 }
     )
-    if (colsForObserver >= 2) {
+    if (cols >= 2) {
       const refs = loadMoreSentinelRefs.current
-      for (let c = 0; c < colsForObserver; c++) {
+      for (let c = 0; c < cols; c++) {
         const el = refs[c]
         if (el) observer.observe(el)
       }
@@ -423,7 +429,7 @@ export function ProfileContent({
       retryId = window.setTimeout(() => {
         if (loadingMoreRef.current) return
         const rootBottom = root ? root.getBoundingClientRect().bottom : window.innerHeight
-        for (let c = 0; c < colsForObserver; c++) {
+        for (let c = 0; c < cols; c++) {
           const el = refs[c]
           if (!el) continue
           if (el.getBoundingClientRect().bottom < rootBottom) {
@@ -441,7 +447,7 @@ export function ProfileContent({
       observer.disconnect()
       clearTimeout(retryId)
     }
-  }, [tab, profilePostsFilter, loadMoreCursor, load, loadLiked, loadMore, inModal, colsForObserver])
+  }, [tab, profilePostsFilter, loadMoreCursor, load, loadLiked, loadMore, inModal, cols])
 
   const followingUri = profile?.viewer?.following ?? followUriOverride
   const isFollowing = !!followingUri
@@ -534,7 +540,6 @@ export function ProfileContent({
     if (loading || visibleTabs.length === 0) return
     if (!visibleTabs.includes(tab)) setTab(visibleTabs[0])
   }, [loading, visibleTabs, tab])
-  const cols = colsForObserver
   profileGridItemsRef.current = profileGridItems
   keyboardFocusIndexRef.current = keyboardFocusIndex
 
@@ -674,6 +679,7 @@ export function ProfileContent({
     setFollowLoading(true)
     try {
       const res = await followAccountWithLifecycle(profile.did)
+      profileFetchGenRef.current += 1
       setFollowUriOverride(res.uri)
     } catch {
       // leave state unchanged so user can retry
@@ -687,6 +693,7 @@ export function ProfileContent({
     setFollowLoading(true)
     try {
       await unfollowAccountWithLifecycle(followingUri)
+      profileFetchGenRef.current += 1
       setFollowUriOverride(null)
       setProfile((prev) =>
         prev ? { ...prev, viewer: { ...prev.viewer, following: undefined } } : null,
@@ -699,6 +706,7 @@ export function ProfileContent({
   }
 
   const onProfileAuthorFollowChange = useCallback((followRecordUri: string | null) => {
+    profileFetchGenRef.current += 1
     setFollowUriOverride(followRecordUri)
     setProfile((prev) =>
       prev ? { ...prev, viewer: { ...prev.viewer, following: followRecordUri ?? undefined } } : null,

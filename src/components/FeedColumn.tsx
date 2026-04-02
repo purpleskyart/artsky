@@ -2,7 +2,6 @@ import type { FeedDisplayEntry } from '../pages/FeedPage'
 import { stableCardKey } from '../pages/FeedPage'
 import { getPostAllMediaForDisplay, isPostNsfw } from '../lib/bsky'
 import OptimizedPostCard from './OptimizedPostCard'
-import RepostCarouselCard from './RepostCarouselCard'
 import { setInitialPostForUri } from '../lib/postCache'
 import styles from '../pages/FeedPage.module.css'
 import { memo, useCallback } from 'react'
@@ -49,7 +48,7 @@ const FeedCard = memo(function FeedCard({
   constrainMediaHeight?: boolean
   openCollectionMenuSignal?: number
 }) {
-  const key = entry.type === 'post' ? entry.item.post.uri : entry.items[0].post.uri
+  const key = entry.item.post.uri
   const handleMouseEnter = useCallback(() => onMouseEnter(originalIndex), [onMouseEnter, originalIndex])
   const handleMediaRef = useCallback((mediaIndex: number, el: HTMLElement | null) => {
     onMediaRef(originalIndex, mediaIndex, el)
@@ -59,7 +58,7 @@ const FeedCard = memo(function FeedCard({
   }, [onActionsMenuOpenChange, originalIndex])
   const handlePostClick = useCallback((uri: string, opts?: { initialItem?: unknown; openReply?: boolean }) => {
     if (opts?.initialItem) setInitialPostForUri(uri, opts.initialItem as never)
-    openPostModal(uri, opts?.openReply, undefined, entry.type === 'post' ? entry.item.post.author?.handle : entry.items[0].post.author?.handle)
+    openPostModal(uri, opts?.openReply, undefined, entry.item.post.author?.handle)
   }, [openPostModal, entry])
 
   return (
@@ -70,49 +69,39 @@ const FeedCard = memo(function FeedCard({
       data-post-uri={key}
       onMouseEnter={handleMouseEnter}
     >
-      {entry.type === 'post' ? (
-        <OptimizedPostCard
-          item={entry.item}
-          isSelected={isSelected}
-          focusedMediaIndex={focusedMediaIndex}
-          onMediaRef={handleMediaRef}
-          cardRef={() => {}} // No-op since we're using the wrapper div ref above
-          onActionsMenuOpenChange={handleActionsMenuOpenChange}
-          cardIndex={originalIndex}
-          actionsMenuOpenForIndex={actionsMenuOpenForIndex}
-          onPostClick={handlePostClick}
-          fillCell={false}
-          nsfwBlurred={
-            nsfwPreference === 'blurred' &&
-            isPostNsfw(entry.item.post) &&
-            !unblurredUris.has(entry.item.post.uri)
-          }
-          onNsfwUnblur={() => setUnblurred(entry.item.post.uri, true)}
-          setUnblurred={setUnblurred}
-          isRevealed={unblurredUris.has(entry.item.post.uri)}
-          likedUriOverride={likeOverrides[entry.item.post.uri]}
-          onLikedChange={(uri, likeRecordUri) =>
-            setLikeOverrides(uri, likeRecordUri ?? null)
-          }
-          seen={seenUris.has(entry.item.post.uri)}
-          constrainMediaHeight={constrainMediaHeight}
-          openCollectionMenuSignal={openCollectionMenuSignal}
-        />
-      ) : (
-        <RepostCarouselCard
-          items={entry.items}
-          onPostClick={handlePostClick}
-          cardRef={() => {}} // No-op since we're using the wrapper div ref above
-          seen={seenUris.has(entry.items[0].post.uri)}
-          data-post-uri={entry.items[0].post.uri}
-        />
-      )}
+      <OptimizedPostCard
+        item={entry.item}
+        isSelected={isSelected}
+        focusedMediaIndex={focusedMediaIndex}
+        onMediaRef={handleMediaRef}
+        cardRef={() => {}} // No-op since we're using the wrapper div ref above
+        onActionsMenuOpenChange={handleActionsMenuOpenChange}
+        cardIndex={originalIndex}
+        actionsMenuOpenForIndex={actionsMenuOpenForIndex}
+        onPostClick={handlePostClick}
+        fillCell={false}
+        nsfwBlurred={
+          nsfwPreference === 'blurred' &&
+          isPostNsfw(entry.item.post) &&
+          !unblurredUris.has(entry.item.post.uri)
+        }
+        onNsfwUnblur={() => setUnblurred(entry.item.post.uri, true)}
+        setUnblurred={setUnblurred}
+        isRevealed={unblurredUris.has(entry.item.post.uri)}
+        likedUriOverride={likeOverrides[entry.item.post.uri]}
+        onLikedChange={(uri, likeRecordUri) =>
+          setLikeOverrides(uri, likeRecordUri ?? null)
+        }
+        seen={seenUris.has(entry.item.post.uri)}
+        constrainMediaHeight={constrainMediaHeight}
+        openCollectionMenuSignal={openCollectionMenuSignal}
+      />
     </div>
   )
 }, (prevProps, nextProps) => {
   // Custom comparison: only re-render if props that matter for THIS card changed
-  const prevUri = prevProps.entry.type === 'post' ? prevProps.entry.item.post.uri : prevProps.entry.items[0].post.uri
-  const nextUri = nextProps.entry.type === 'post' ? nextProps.entry.item.post.uri : nextProps.entry.items[0].post.uri
+  const prevUri = prevProps.entry.item.post.uri
+  const nextUri = nextProps.entry.item.post.uri
   
   // Different post = must re-render
   if (prevUri !== nextUri) return false
@@ -145,7 +134,7 @@ export interface FeedColumnProps {
   /** Callback ref for load-more sentinel (when cursor exists) */
   loadMoreSentinelRef?: (el: HTMLDivElement | null) => void
   hasCursor?: boolean
-  /** Props passed through to PostCard/RepostCarouselCard */
+  /** Props passed through to PostCard */
   keyboardFocusIndex: number
   focusTargets: { cardIndex: number; mediaIndex: number }[]
   firstFocusIndexForCard: number[]
@@ -209,7 +198,7 @@ const FeedColumn = memo(function FeedColumn({
         const isSelected = focusedCardIndex === originalIndex
         const focusedMediaIndex =
           isSelected &&
-          !(focusSetByMouse && getPostAllMediaForDisplay(entry.type === 'post' ? entry.item.post : entry.items[0].post).length > 1)
+          !(focusSetByMouse && getPostAllMediaForDisplay(entry.item.post).length > 1)
             ? focusTargets[keyboardFocusIndex]?.mediaIndex
             : undefined
         
@@ -234,9 +223,7 @@ const FeedColumn = memo(function FeedColumn({
             cardRef={cardRef}
             constrainMediaHeight={constrainMediaHeight}
             openCollectionMenuSignal={
-              entry.type === 'post' && collectionMenuOpenForIndex === originalIndex
-                ? collectionMenuOpenSignal
-                : undefined
+              collectionMenuOpenForIndex === originalIndex ? collectionMenuOpenSignal : undefined
             }
           />
         )
