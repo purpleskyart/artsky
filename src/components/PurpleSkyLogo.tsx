@@ -1,7 +1,7 @@
 import { useId } from 'react'
 
 /**
- * Symmetrical bee mark (striped abdomen, waist, stinger) — same palette as public/icon.svg.
+ * Symmetrical bee mark (striped abdomen, waist, stinger) — same artwork as public/icon.svg / icon-pwa.svg.
  * Inline so the header is not stuck on a cached asset.
  */
 export default function PurpleSkyLogo({ className }: { className?: string }) {

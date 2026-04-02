@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef, useLayoutEffect, type RefObject } from 'react'
 import { debounce } from '../lib/utils'
 import type { ViewMode } from '../context/ViewModeContext'
 
@@ -86,25 +86,94 @@ export function getColumnCountForViewMode(viewMode: ViewMode, width: number): nu
   return getRawAutoColumnCount(width)
 }
 
-export function useColumnCount(viewMode: ViewMode, debounceMs = 150): number {
-  const width = useViewportWidth(debounceMs)
+export type UseColumnCountOptions = {
+  /**
+   * For view mode "All Columns" (`a`): observe this element's clientWidth so column count matches
+   * the real masonry width (main max-width, scrollbars, etc.), not only `window.innerWidth`.
+   */
+  measureRef?: RefObject<HTMLElement | null>
+  /**
+   * Bumps when the grid mounts/unmounts so we re-attach ResizeObserver (ref object identity is stable).
+   * Feed: callback ref + useState counter.
+   */
+  measureLayoutKey?: number
+}
+
+export function useColumnCount(
+  viewMode: ViewMode,
+  debounceMs = 150,
+  options?: UseColumnCountOptions
+): number {
+  const viewportWidth = useViewportWidth(debounceMs)
+  const [measuredLayoutWidth, setMeasuredLayoutWidth] = useState(0)
   const stableAutoRef = useRef(0)
   const lastViewModeRef = useRef<ViewMode>(viewMode)
+  const lastBasisKindRef = useRef<'viewport' | 'layout'>('viewport')
+
+  const measureRef = options?.measureRef
+  const measureLayoutKey = options?.measureLayoutKey ?? 0
+  const shouldMeasure = viewMode === 'a' && measureRef != null
+
+  useLayoutEffect(() => {
+    if (!shouldMeasure) {
+      setMeasuredLayoutWidth(0)
+      return
+    }
+    const el = measureRef!.current
+    if (typeof ResizeObserver === 'undefined') {
+      setMeasuredLayoutWidth(0)
+      return
+    }
+
+    let timeoutId: ReturnType<typeof setTimeout> | undefined
+    const flush = () => {
+      const w = measureRef!.current?.clientWidth ?? 0
+      setMeasuredLayoutWidth(w)
+    }
+    const scheduleFlush = () => {
+      if (timeoutId !== undefined) clearTimeout(timeoutId)
+      timeoutId = setTimeout(flush, debounceMs)
+    }
+
+    if (!el) {
+      setMeasuredLayoutWidth(0)
+      return () => {
+        if (timeoutId !== undefined) clearTimeout(timeoutId)
+      }
+    }
+
+    flush()
+    const ro = new ResizeObserver(() => scheduleFlush())
+    ro.observe(el)
+    return () => {
+      ro.disconnect()
+      if (timeoutId !== undefined) clearTimeout(timeoutId)
+    }
+  }, [shouldMeasure, measureRef, debounceMs, measureLayoutKey])
 
   return useMemo(() => {
     if (lastViewModeRef.current !== viewMode) {
       if (viewMode === 'a') stableAutoRef.current = 0
       lastViewModeRef.current = viewMode
+      lastBasisKindRef.current = 'viewport'
     }
 
     if (viewMode !== 'a') {
-      const c = getColumnCountForViewMode(viewMode, width)
+      const c = getColumnCountForViewMode(viewMode, viewportWidth)
       stableAutoRef.current = c
       return c
     }
 
-    const stable = getStableAutoColumnCount(width, stableAutoRef.current)
+    const useLayout = shouldMeasure && measuredLayoutWidth > 0
+    const basisWidth = useLayout ? measuredLayoutWidth : viewportWidth
+    const basisKind: 'viewport' | 'layout' = useLayout ? 'layout' : 'viewport'
+    if (basisKind !== lastBasisKindRef.current) {
+      stableAutoRef.current = 0
+      lastBasisKindRef.current = basisKind
+    }
+
+    const stable = getStableAutoColumnCount(basisWidth, stableAutoRef.current)
     stableAutoRef.current = stable
     return stable
-  }, [viewMode, width])
+  }, [viewMode, viewportWidth, measuredLayoutWidth, shouldMeasure])
 }

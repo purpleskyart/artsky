@@ -1192,6 +1192,20 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
       await unfollowAccountWithLifecycle(followingUri)
       setFollowUriOverride(null)
       setAuthorFollowed(false)
+      setThread((prev) => {
+        if (!prev || !isThreadViewPost(prev)) return prev
+        const author = prev.post.author as { viewer?: { following?: string } }
+        return {
+          ...prev,
+          post: {
+            ...prev.post,
+            author: {
+              ...prev.post.author,
+              viewer: { ...author.viewer, following: undefined },
+            },
+          },
+        }
+      })
     } catch {
       // leave state unchanged so user can retry
     } finally {

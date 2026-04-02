@@ -749,7 +749,7 @@ export type PostMediaUrlOptions = {
 /** Post detail & thread media: prefer Bluesky `fullsize` URLs (default when `opts` omitted). */
 export const POST_MEDIA_FULL: PostMediaUrlOptions = { imageQuality: 'full' }
 
-/** Feed cards, repost carousel tiles, quoted/parent preview cards: prefer `thumb` URLs. */
+/** Feed cards, quoted/parent preview cards: prefer `thumb` URLs. */
 export const POST_MEDIA_FEED_PREVIEW: PostMediaUrlOptions = { imageQuality: 'feed' }
 
 function embedImageUrl(
