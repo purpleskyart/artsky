@@ -74,16 +74,17 @@ class AsyncStorage {
     if (debounceMs > 0) {
       this.flushTimer = setTimeout(() => this.flush(), debounceMs)
     } else {
-      // Immediate flush for debounceMs = 0
-      this.flush()
+      // Must land in localStorage before the next tick: e.g. ViewModeProvider remounts on session
+      // / breakpoint and re-reads storage in useState; deferred idle writes race that and lose.
+      this.flush({ sync: true })
     }
   }
 
   /**
    * Flush the write queue to localStorage
-   * Uses requestIdleCallback to avoid blocking render
+   * Uses requestIdleCallback to avoid blocking render (unless sync for debounceMs === 0).
    */
-  private flush(): void {
+  private flush(options?: { sync?: boolean }): void {
     if (this.writeQueue.size === 0) return
 
     // Batch serialize all pending writes
@@ -126,8 +127,9 @@ class AsyncStorage {
       }
     }
 
-    // Use requestIdleCallback if available, otherwise setTimeout
-    if ('requestIdleCallback' in window) {
+    if (options?.sync) {
+      writeToStorage()
+    } else if ('requestIdleCallback' in window) {
       requestIdleCallback(writeToStorage)
     } else {
       setTimeout(writeToStorage, 0)

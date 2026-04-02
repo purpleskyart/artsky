@@ -82,18 +82,10 @@ describe('AsyncStorage Property-Based Tests', () => {
         ({ key, value }) => {
           localStorageMock.setItem.mockClear()
           
-          // Perform write
+          // Perform write (debounce 0 = synchronous so consumers re-reading storage on same tick see it)
           asyncStorage.set(key, value, 0)
-          
-          // Immediately after set(), localStorage.setItem should NOT have been called
-          // (it should be deferred to requestIdleCallback or setTimeout)
-          expect(localStorageMock.setItem).not.toHaveBeenCalled()
-          
-          // Advance timers to trigger async write
-          vi.runAllTimers()
-          
-          // Now it should have been called
           expect(localStorageMock.setItem).toHaveBeenCalled()
+          expect(localStorageMock.setItem).toHaveBeenCalledWith(key, JSON.stringify(value))
         }
       ),
       { numRuns: 100 }

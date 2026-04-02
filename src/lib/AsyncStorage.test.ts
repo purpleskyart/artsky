@@ -98,10 +98,8 @@ describe('AsyncStorage Unit Tests', () => {
   it('writes immediately when debounce is 0ms', () => {
     asyncStorage.set('test-key', 'value', 0)
 
-    expect(localStorageMock.setItem).not.toHaveBeenCalled()
-
-    vi.advanceTimersByTime(100)
     expect(localStorageMock.setItem).toHaveBeenCalledTimes(1)
+    expect(localStorageMock.setItem).toHaveBeenCalledWith('test-key', JSON.stringify('value'))
   })
 
   /**
@@ -158,7 +156,6 @@ describe('AsyncStorage Unit Tests', () => {
     })
 
     asyncStorage.set('artsky-new', 'value', 0)
-    vi.advanceTimersByTime(100)
 
     // Should have attempted multiple writes (cleanup + retry)
     expect(callCount).toBeGreaterThan(1)
@@ -280,7 +277,6 @@ describe('AsyncStorage Unit Tests', () => {
 
     // Should still be able to set and get values using memory fallback
     asyncStorage.set('test-key', 'test-value', 0)
-    vi.advanceTimersByTime(100)
 
     const result = asyncStorage.get('test-key')
     expect(result).toBe('test-value')
@@ -296,7 +292,6 @@ describe('AsyncStorage Unit Tests', () => {
     })
 
     asyncStorage.set('test-key', 'test-value', 0)
-    vi.advanceTimersByTime(100)
 
     // Should have attempted to write
     expect(localStorageMock.setItem).toHaveBeenCalled()
@@ -320,7 +315,6 @@ describe('AsyncStorage Unit Tests', () => {
     })
 
     asyncStorage.set('artsky-new', 'value', 0)
-    vi.advanceTimersByTime(100)
 
     // Should still be able to read from memory fallback
     const result = asyncStorage.get('artsky-new')
