@@ -95,62 +95,35 @@ function indexBelow(
   return currentIndex
 }
 
-/**
- * Left: neighbor column card whose vertical center is closest (same as feed grid).
- * Row-index matching breaks in All Columns masonry when column lengths diverge.
- */
-function indexLeftClosest(
+/** Same row index in the neighbor column as the feed grid (structural, no DOM geometry). */
+function indexLeftByRow(
   columns: Array<Array<{ item: TimelineItem; originalIndex: number }>>,
-  currentIndex: number,
-  getRect: (index: number) => DOMRect | undefined
+  currentIndex: number
 ): number {
   for (let c = 0; c < columns.length; c++) {
-    if (columns[c].findIndex((e) => e.originalIndex === currentIndex) < 0) continue
+    const row = columns[c].findIndex((e) => e.originalIndex === currentIndex)
+    if (row < 0) continue
     if (c === 0) return currentIndex
     const leftCol = columns[c - 1]
-    const currentRect = getRect(currentIndex)
-    if (!currentRect) return currentIndex
-    const cy = (currentRect.top + currentRect.bottom) / 2
-    let bestIndex = currentIndex
-    let bestDist = Infinity
-    for (const { originalIndex } of leftCol) {
-      const r = getRect(originalIndex)
-      if (!r) continue
-      const dist = Math.abs((r.top + r.bottom) / 2 - cy)
-      if (dist < bestDist || (dist === bestDist && originalIndex < bestIndex)) {
-        bestDist = dist
-        bestIndex = originalIndex
-      }
-    }
-    return bestDist === Infinity ? currentIndex : bestIndex
+    if (leftCol.length === 0) return currentIndex
+    const targetRow = Math.min(row, leftCol.length - 1)
+    return leftCol[targetRow].originalIndex
   }
   return currentIndex
 }
 
-function indexRightClosest(
+function indexRightByRow(
   columns: Array<Array<{ item: TimelineItem; originalIndex: number }>>,
-  currentIndex: number,
-  getRect: (index: number) => DOMRect | undefined
+  currentIndex: number
 ): number {
   for (let c = 0; c < columns.length; c++) {
-    if (columns[c].findIndex((e) => e.originalIndex === currentIndex) < 0) continue
+    const row = columns[c].findIndex((e) => e.originalIndex === currentIndex)
+    if (row < 0) continue
     if (c === columns.length - 1) return currentIndex
     const rightCol = columns[c + 1]
-    const currentRect = getRect(currentIndex)
-    if (!currentRect) return currentIndex
-    const cy = (currentRect.top + currentRect.bottom) / 2
-    let bestIndex = currentIndex
-    let bestDist = Infinity
-    for (const { originalIndex } of rightCol) {
-      const r = getRect(originalIndex)
-      if (!r) continue
-      const dist = Math.abs((r.top + r.bottom) / 2 - cy)
-      if (dist < bestDist || (dist === bestDist && originalIndex < bestIndex)) {
-        bestDist = dist
-        bestIndex = originalIndex
-      }
-    }
-    return bestDist === Infinity ? currentIndex : bestIndex
+    if (rightCol.length === 0) return currentIndex
+    const targetRow = Math.min(row, rightCol.length - 1)
+    return rightCol[targetRow].originalIndex
   }
   return currentIndex
 }
@@ -417,7 +390,9 @@ export function ProfileContent({
   // rootMargin to load before user sees empty space. Fallback timer handles the case where a very
   // tall post pushes short-column sentinels beyond rootMargin and the observer never sees them.
   loadingMoreRef.current = loadingMore
-  const colsForObserver = useColumnCount(viewMode, 150)
+  const colsUncapped = useColumnCount(viewMode, 150)
+  /** Profile popups stay readable: All Columns mode uses full-width column count on the main profile page only. */
+  const colsForObserver = inModal && viewMode === 'a' ? Math.min(colsUncapped, 3) : colsUncapped
   const loadMoreCursor = tab === 'posts' && profilePostsFilter === 'liked' ? likedCursor : cursor
   const loadMore = tab === 'posts' && profilePostsFilter === 'liked' ? (c: string) => loadLiked(c) : load
   useEffect(() => {
@@ -631,8 +606,7 @@ export function ProfileContent({
         if (cols >= 2) {
           const columns = distributeByHeight(items, cols)
           const idx = keyboardFocusIndexRef.current
-          const getRect = (index: number) => cardRefsRef.current[index]?.getBoundingClientRect()
-          setKeyboardFocusIndex(indexLeftClosest(columns, idx, getRect))
+          setKeyboardFocusIndex(indexLeftByRow(columns, idx))
         } else {
           setKeyboardFocusIndex((idx) => Math.max(0, idx - 1))
         }
@@ -645,8 +619,7 @@ export function ProfileContent({
         if (cols >= 2) {
           const columns = distributeByHeight(items, cols)
           const idx = keyboardFocusIndexRef.current
-          const getRect = (index: number) => cardRefsRef.current[index]?.getBoundingClientRect()
-          setKeyboardFocusIndex(indexRightClosest(columns, idx, getRect))
+          setKeyboardFocusIndex(indexRightByRow(columns, idx))
         } else {
           setKeyboardFocusIndex((idx) => Math.min(items.length - 1, idx + 1))
         }

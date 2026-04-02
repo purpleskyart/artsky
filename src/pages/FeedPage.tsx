@@ -301,65 +301,38 @@ function indexBelow(
 }
 
 /**
- * Left nav: pick the card in the left column whose vertical center is closest to the current card.
- * (Max-overlap alone is unstable with many narrow “All columns” lanes: tiny overlaps pick the wrong row and A/D feel like W/S.)
- * If no card in that column has a valid rect (e.g. virtualized out), stay put.
+ * Left/right nav: use the card at the same row index in the adjacent column (top of column = row 0).
+ * Shorter columns clamp to their last row. Purely structural — no DOM rects — so All Columns behaves
+ * like 2/3 column mode (no geometry ties, no skipped targets when layout is still settling).
  */
-function indexLeftClosest(
+function indexLeftByRow(
   columns: Array<Array<{ originalIndex: number }>>,
-  currentIndex: number,
-  getRect: (index: number) => DOMRect | undefined
+  currentIndex: number
 ): number {
   for (let c = 0; c < columns.length; c++) {
-    if (columns[c].findIndex((e) => e.originalIndex === currentIndex) < 0) continue
+    const row = columns[c].findIndex((e) => e.originalIndex === currentIndex)
+    if (row < 0) continue
     if (c === 0) return currentIndex
     const leftCol = columns[c - 1]
-    const currentRect = getRect(currentIndex)
-    if (!currentRect) return currentIndex
-    const cy = (currentRect.top + currentRect.bottom) / 2
-    let bestIndex = currentIndex
-    let bestDist = Infinity
-    for (const { originalIndex } of leftCol) {
-      const r = getRect(originalIndex)
-      if (!r) continue
-      const dist = Math.abs((r.top + r.bottom) / 2 - cy)
-      if (dist < bestDist || (dist === bestDist && originalIndex < bestIndex)) {
-        bestDist = dist
-        bestIndex = originalIndex
-      }
-    }
-    return bestDist === Infinity ? currentIndex : bestIndex
+    if (leftCol.length === 0) return currentIndex
+    const targetRow = Math.min(row, leftCol.length - 1)
+    return leftCol[targetRow].originalIndex
   }
   return currentIndex
 }
 
-/**
- * Right nav: same as indexLeftClosest for the column to the right.
- */
-function indexRightClosest(
+function indexRightByRow(
   columns: Array<Array<{ originalIndex: number }>>,
-  currentIndex: number,
-  getRect: (index: number) => DOMRect | undefined
+  currentIndex: number
 ): number {
   for (let c = 0; c < columns.length; c++) {
-    if (columns[c].findIndex((e) => e.originalIndex === currentIndex) < 0) continue
+    const row = columns[c].findIndex((e) => e.originalIndex === currentIndex)
+    if (row < 0) continue
     if (c === columns.length - 1) return currentIndex
     const rightCol = columns[c + 1]
-    const currentRect = getRect(currentIndex)
-    if (!currentRect) return currentIndex
-    const cy = (currentRect.top + currentRect.bottom) / 2
-    let bestIndex = currentIndex
-    let bestDist = Infinity
-    for (const { originalIndex } of rightCol) {
-      const r = getRect(originalIndex)
-      if (!r) continue
-      const dist = Math.abs((r.top + r.bottom) / 2 - cy)
-      if (dist < bestDist || (dist === bestDist && originalIndex < bestIndex)) {
-        bestDist = dist
-        bestIndex = originalIndex
-      }
-    }
-    return bestDist === Infinity ? currentIndex : bestIndex
+    if (rightCol.length === 0) return currentIndex
+    const targetRow = Math.min(row, rightCol.length - 1)
+    return rightCol[targetRow].originalIndex
   }
   return currentIndex
 }
@@ -1147,7 +1120,6 @@ export default function FeedPage() {
       /* Use ref + concrete value (not functional updater) so Strict Mode double-invoke doesn't move two steps */
       const fromNone = i < 0
       const columns = currentCols >= 2 ? currentDistribution : null
-      const getRect = (idx: number) => cardRefsRef.current[idx]?.getBoundingClientRect()
       if (key === 'w' || e.key === 'ArrowUp') {
         beginKeyboardNavigation()
         scrollIntoViewFromKeyboardRef.current = true
@@ -1185,7 +1157,7 @@ export default function FeedPage() {
       if (key === 'a' || e.key === 'ArrowLeft') {
         beginKeyboardNavigation()
         scrollIntoViewFromKeyboardRef.current = true
-        const nextCard = fromNone ? 0 : currentCols >= 2 && columns ? indexLeftClosest(columns, currentCardIndex, getRect) : currentCardIndex
+        const nextCard = fromNone ? 0 : currentCols >= 2 && columns ? indexLeftByRow(columns, currentCardIndex) : currentCardIndex
         const next = fromNone ? 0 : nextCard !== currentCardIndex ? (currentLastByCard[nextCard] ?? i) : i
         if (next !== i) dispatch({ type: 'SET_ACTIONS_MENU_OPEN', index: null })
         dispatch({ type: 'SET_KEYBOARD_FOCUS', index: next })
@@ -1194,7 +1166,7 @@ export default function FeedPage() {
       if (key === 'd' || e.key === 'ArrowRight') {
         beginKeyboardNavigation()
         scrollIntoViewFromKeyboardRef.current = true
-        const nextCard = fromNone ? 0 : currentCols >= 2 && columns ? indexRightClosest(columns, currentCardIndex, getRect) : currentCardIndex
+        const nextCard = fromNone ? 0 : currentCols >= 2 && columns ? indexRightByRow(columns, currentCardIndex) : currentCardIndex
         const next = fromNone ? 0 : nextCard !== currentCardIndex ? (currentLastByCard[nextCard] ?? i) : i
         if (next !== i) dispatch({ type: 'SET_ACTIONS_MENU_OPEN', index: null })
         dispatch({ type: 'SET_KEYBOARD_FOCUS', index: next })
