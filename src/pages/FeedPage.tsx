@@ -37,6 +37,7 @@ import FeedColumn from '../components/FeedColumn'
 import { feedReducer, type FeedState } from './feedReducer'
 import { debounce } from '../lib/utils'
 import { asyncStorage } from '../lib/AsyncStorage'
+import { pickAdjacentCardIndexByViewport } from '../lib/masonryHorizontalNav'
 import styles from './FeedPage.module.css'
 
 /** Dedupe feed items by post URI (keep first). Stops the same post appearing as both original and repost. */
@@ -224,9 +225,9 @@ function indexBelow(
 }
 
 /**
- * Left/right nav: use the card at the same row index in the adjacent column (top of column = row 0).
- * Shorter columns clamp to their last row. Purely structural — no DOM rects — so All Columns behaves
- * like 2/3 column mode (no geometry ties, no skipped targets when layout is still settling).
+ * Left/right nav fallback: same slot index in the adjacent column (not visual row). Used when DOM
+ * rects are unavailable; prefer {@link pickAdjacentCardIndexByViewport} for A/D so focus matches the
+ * preview beside the focused one on screen.
  */
 function indexLeftByRow(
   columns: Array<Array<{ originalIndex: number }>>,
@@ -1017,6 +1018,7 @@ export default function FeedPage() {
       setFocusSetByMouse(false)
       const focusTarget = currentFocusTargets[i]
       const currentCardIndex = focusTarget?.cardIndex ?? 0
+      const currentMediaIndex = focusTarget?.mediaIndex ?? 0
       const focusedEntry = currentEntries[currentCardIndex]
       const focusedItem = focusedEntry?.item ?? null
 
@@ -1077,20 +1079,37 @@ export default function FeedPage() {
         dispatch({ type: 'SET_KEYBOARD_FOCUS', index: next })
         return
       }
-      if (key === 'a' || e.key === 'ArrowLeft') {
+      if (key === 'a' || e.key === 'ArrowLeft' || key === 'd' || e.key === 'ArrowRight') {
         beginKeyboardNavigation()
         scrollIntoViewFromKeyboardRef.current = true
-        const nextCard = fromNone ? 0 : currentCols >= 2 && columns ? indexLeftByRow(columns, currentCardIndex) : currentCardIndex
-        const next = fromNone ? 0 : nextCard !== currentCardIndex ? (currentLastByCard[nextCard] ?? i) : i
-        if (next !== i) dispatch({ type: 'SET_ACTIONS_MENU_OPEN', index: null })
-        dispatch({ type: 'SET_KEYBOARD_FOCUS', index: next })
-        return
-      }
-      if (key === 'd' || e.key === 'ArrowRight') {
-        beginKeyboardNavigation()
-        scrollIntoViewFromKeyboardRef.current = true
-        const nextCard = fromNone ? 0 : currentCols >= 2 && columns ? indexRightByRow(columns, currentCardIndex) : currentCardIndex
-        const next = fromNone ? 0 : nextCard !== currentCardIndex ? (currentLastByCard[nextCard] ?? i) : i
+        const goLeft = key === 'a' || e.key === 'ArrowLeft'
+        const measureCardForHorizontal = (cardIdx: number) => {
+          const n = currentLastByCard[cardIdx] - currentFirstByCard[cardIdx] + 1
+          const m = Math.min(currentMediaIndex, Math.max(0, n - 1))
+          const el = mediaRefsRef.current[cardIdx]?.[m] ?? cardRefsRef.current[cardIdx]
+          if (!el) return null
+          const r = el.getBoundingClientRect()
+          if (r.width <= 0 && r.height <= 0) return null
+          return { top: r.top, left: r.left, width: r.width, height: r.height }
+        }
+        let next = i
+        if (fromNone) {
+          next = 0
+        } else if (currentCols >= 2 && columns) {
+          const byView = pickAdjacentCardIndexByViewport(
+            columns,
+            goLeft ? -1 : 1,
+            currentCardIndex,
+            measureCardForHorizontal,
+          )
+          const nextCard =
+            byView ?? (goLeft ? indexLeftByRow(columns, currentCardIndex) : indexRightByRow(columns, currentCardIndex))
+          if (nextCard !== currentCardIndex) {
+            const n = currentLastByCard[nextCard] - currentFirstByCard[nextCard] + 1
+            const m = Math.min(currentMediaIndex, Math.max(0, n - 1))
+            next = currentFirstByCard[nextCard] + m
+          }
+        }
         if (next !== i) dispatch({ type: 'SET_ACTIONS_MENU_OPEN', index: null })
         dispatch({ type: 'SET_KEYBOARD_FOCUS', index: next })
         return

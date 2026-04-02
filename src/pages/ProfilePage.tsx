@@ -22,6 +22,7 @@ import { useHideReposts } from '../context/HideRepostsContext'
 import { EyeOpenIcon, EyeHalfIcon, EyeClosedIcon } from '../components/Icons'
 import { useColumnCount } from '../hooks/useViewportWidth'
 import { usePostCardGridPointerGate } from '../hooks/usePostCardGridPointerGate'
+import { pickAdjacentCardIndexByViewport } from '../lib/masonryHorizontalNav'
 import styles from './ProfilePage.module.css'
 
 const REASON_REPOST = 'app.bsky.feed.defs#reasonRepost'
@@ -604,29 +605,29 @@ export function ProfileContent({
         }
         return
       }
-      if (key === 'a' || e.key === 'ArrowLeft') {
+      if (key === 'a' || e.key === 'ArrowLeft' || key === 'd' || e.key === 'ArrowRight') {
         beginKeyboardNavigation()
         scrollIntoViewFromKeyboardRef.current = true
         setActionsMenuOpenForIndex(null)
+        const goLeft = key === 'a' || e.key === 'ArrowLeft'
         if (cols >= 2) {
           const columns = distributeByHeight(items, cols)
           const idx = keyboardFocusIndexRef.current
-          setKeyboardFocusIndex(indexLeftByRow(columns, idx))
+          const measure = (cardIndex: number) => {
+            const el = cardRefsRef.current[cardIndex]
+            if (!el) return null
+            const r = el.getBoundingClientRect()
+            if (r.width <= 0 && r.height <= 0) return null
+            return { top: r.top, left: r.left, width: r.width, height: r.height }
+          }
+          setKeyboardFocusIndex(
+            pickAdjacentCardIndexByViewport(columns, goLeft ? -1 : 1, idx, measure) ??
+              (goLeft ? indexLeftByRow(columns, idx) : indexRightByRow(columns, idx)),
+          )
         } else {
-          setKeyboardFocusIndex((idx) => Math.max(0, idx - 1))
-        }
-        return
-      }
-      if (key === 'd' || e.key === 'ArrowRight') {
-        beginKeyboardNavigation()
-        scrollIntoViewFromKeyboardRef.current = true
-        setActionsMenuOpenForIndex(null)
-        if (cols >= 2) {
-          const columns = distributeByHeight(items, cols)
-          const idx = keyboardFocusIndexRef.current
-          setKeyboardFocusIndex(indexRightByRow(columns, idx))
-        } else {
-          setKeyboardFocusIndex((idx) => Math.min(items.length - 1, idx + 1))
+          setKeyboardFocusIndex((idx) =>
+            goLeft ? Math.max(0, idx - 1) : Math.min(items.length - 1, idx + 1),
+          )
         }
         return
       }
