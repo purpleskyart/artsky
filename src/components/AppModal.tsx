@@ -113,7 +113,11 @@ export default function AppModal({
     return () => scrollLock?.unlockScroll()
   }, [scrollLock])
 
-  /* Mobile: track on-screen keyboard via visualViewport and set --keyboard-inset on the overlay so the pane stays above the keyboard (CSS uses the variable for max-height). */
+  /* Mobile: track on-screen keyboard via visualViewport and set --keyboard-inset on the overlay so the pane stays above the keyboard (CSS uses the variable for max-height).
+   * Only listens to resize (keyboard open/close). Listening to visualViewport
+   * scroll caused a feedback loop: adjusting scroll inside the modal fires a
+   * viewport scroll event which re-runs this handler which changes pane height
+   * which shifts content which triggers more scroll adjustments. */
   useEffect(() => {
     if (!isMobile || typeof window === 'undefined') return
     const vv = window.visualViewport
@@ -124,10 +128,8 @@ export default function AppModal({
       el.style.setProperty('--keyboard-inset', `${inset}px`)
     }
     vv.addEventListener('resize', update)
-    vv.addEventListener('scroll', update, { passive: true })
     return () => {
       vv.removeEventListener('resize', update)
-      vv.removeEventListener('scroll', update)
       el.style.removeProperty('--keyboard-inset')
     }
   }, [isMobile])

@@ -1,11 +1,13 @@
 /**
- * Scroll a focused field into view and re-run when the visual viewport changes
- * (mobile on-screen keyboard). Returns a disposer; call on blur or unmount.
+ * Scroll a focused field into view and re-run when the visual viewport
+ * resizes (mobile on-screen keyboard open/close).
  *
- * Inside AppModal, adjusts `[data-modal-scroll]` so the field sits in the visible
- * visual viewport. Does NOT call el.scrollIntoView() inside modals because on iOS
- * Safari that can scroll the body/window behind the position:fixed overlay, causing
- * touch coordinates to desync from where elements visually appear.
+ * Returns a disposer; call on blur or unmount.
+ *
+ * Inside AppModal, adjusts only the `[data-modal-scroll]` container.
+ * Never calls el.scrollIntoView() in that path — on iOS Safari it scrolls
+ * the body/window behind the position:fixed overlay, desyncing touch
+ * coordinates from where elements visually appear.
  */
 function getVisibleViewportYBounds(): { top: number; bottom: number } {
   const vv = window.visualViewport
@@ -15,8 +17,6 @@ function getVisibleViewportYBounds(): { top: number; bottom: number } {
   }
   const fromLayoutTop = Math.max(pad, vv.offsetTop + pad)
   const fromLayoutBottom = Math.min(window.innerHeight - pad, vv.offsetTop + vv.height - pad)
-  /* Keyboard overlays layout (Chrome / some WebKit): also intersect with visual height so
-   * client rects line up when they're tied to the visual viewport. */
   if (vv.height < window.innerHeight - 48) {
     const visualTop = pad
     const visualBottom = vv.height - pad
@@ -28,60 +28,35 @@ function getVisibleViewportYBounds(): { top: number; bottom: number } {
   return { top: fromLayoutTop, bottom: Math.max(fromLayoutTop + 1, fromLayoutBottom) }
 }
 
-function alignFieldInModalScrollRoot(
-  el: HTMLElement,
-  scrollRoot: HTMLElement,
-  behavior: ScrollBehavior
-) {
+function alignFieldInModalScrollRoot(el: HTMLElement, scrollRoot: HTMLElement) {
   const { top: visibleTop, bottom: visibleBottom } = getVisibleViewportYBounds()
   const rect = el.getBoundingClientRect()
   const form = el.closest('form')
   const formBottom = form ? form.getBoundingClientRect().bottom : rect.bottom
   const effectiveBottom = Math.max(rect.bottom, Math.min(formBottom, rect.bottom + 80))
+  const tol = 6
+  // Already in view — no adjustment needed.
+  if (rect.top >= visibleTop - tol && effectiveBottom <= visibleBottom + tol) return
+  if (effectiveBottom - rect.top > visibleBottom - visibleTop && rect.top >= visibleTop - tol && rect.bottom <= visibleBottom + tol) return
   const targetMid = (visibleTop + visibleBottom) / 2
   const mid = (rect.top + effectiveBottom) / 2
   const delta = mid - targetMid
   const maxScroll = Math.max(0, scrollRoot.scrollHeight - scrollRoot.clientHeight)
-  const nextTop = Math.min(Math.max(0, scrollRoot.scrollTop + delta), maxScroll)
-  if (behavior === 'smooth') {
-    scrollRoot.scrollTo({ top: nextTop, behavior: 'smooth' })
-  } else {
-    scrollRoot.scrollTop = nextTop
-  }
+  scrollRoot.scrollTop = Math.min(Math.max(0, scrollRoot.scrollTop + delta), maxScroll)
 }
 
-/** Repeat alignment until the field + submit area sit in the visible band (handles late keyboard layout). */
-function alignFieldInModalScrollRootIterated(el: HTMLElement, scrollRoot: HTMLElement, behavior: ScrollBehavior) {
-  const maxPasses = 5
-  const tol = 6
-  for (let pass = 0; pass < maxPasses; pass++) {
+/** Repeat until the field + submit area sit in the visible band (handles rounding). */
+function alignFieldInModalScrollRootIterated(el: HTMLElement, scrollRoot: HTMLElement) {
+  for (let pass = 0; pass < 3; pass++) {
     const { top: visibleTop, bottom: visibleBottom } = getVisibleViewportYBounds()
     const rect = el.getBoundingClientRect()
     const form = el.closest('form')
     const formBottom = form ? form.getBoundingClientRect().bottom : rect.bottom
     const effectiveBottom = Math.max(rect.bottom, Math.min(formBottom, rect.bottom + 80))
-    if (rect.top >= visibleTop - tol && effectiveBottom <= visibleBottom + tol) {
-      break
-    }
-    if (effectiveBottom - rect.top > visibleBottom - visibleTop && rect.top >= visibleTop - tol && rect.bottom <= visibleBottom + tol) {
-      break
-    }
-    const useBehavior = pass === 0 ? behavior : 'auto'
-    alignFieldInModalScrollRoot(el, scrollRoot, useBehavior)
-  }
-}
-
-/* Only adjust the modal's own scroll container — never call el.scrollIntoView()
- * here. On iOS Safari, scrollIntoView scrolls ALL ancestor containers including
- * the body/window behind the position:fixed modal overlay. The overlay stays
- * visually in place but the underlying document shifts, causing iOS's touch
- * hit-testing to become offset from where elements actually appear on screen. */
-function scrollIntoModalScrollRoot(el: HTMLElement, scrollRoot: HTMLElement, behavior: ScrollBehavior) {
-  if (behavior === 'smooth') {
-    alignFieldInModalScrollRootIterated(el, scrollRoot, 'smooth')
-    requestAnimationFrame(() => alignFieldInModalScrollRootIterated(el, scrollRoot, 'auto'))
-  } else {
-    alignFieldInModalScrollRootIterated(el, scrollRoot, 'auto')
+    const tol = 6
+    if (rect.top >= visibleTop - tol && effectiveBottom <= visibleBottom + tol) break
+    if (effectiveBottom - rect.top > visibleBottom - visibleTop && rect.top >= visibleTop - tol && rect.bottom <= visibleBottom + tol) break
+    alignFieldInModalScrollRoot(el, scrollRoot)
   }
 }
 
@@ -91,12 +66,12 @@ function nudgeCaretPosition(el: HTMLElement) {
   el.setSelectionRange(pos, pos)
 }
 
-function runScroll(el: HTMLElement, behavior: ScrollBehavior) {
+function adjustScroll(el: HTMLElement) {
   const modalRoot = el.closest('[data-modal-scroll]') as HTMLElement | null
   if (modalRoot) {
-    scrollIntoModalScrollRoot(el, modalRoot, behavior)
+    alignFieldInModalScrollRootIterated(el, modalRoot)
   } else {
-    el.scrollIntoView({ block: 'center', behavior, inline: 'nearest' })
+    el.scrollIntoView({ block: 'center', behavior: 'auto', inline: 'nearest' })
   }
   requestAnimationFrame(() => nudgeCaretPosition(el))
 }
@@ -105,48 +80,52 @@ export function scrollFieldAboveKeyboard(el: HTMLElement): () => void {
   if (typeof window === 'undefined') return () => {}
 
   let cancelled = false
-  let cooldown = false
   let rafId: number | null = null
 
-  const doScroll = (behavior: ScrollBehavior) => {
-    if (cancelled) return
-    cooldown = true
-    runScroll(el, behavior)
-    // After a programmatic scroll, ignore viewport events briefly so the
-    // browser-fired scroll/resize that follows our own adjustment doesn't
-    // re-trigger the handler (breaks the iOS feedback loop).
-    window.setTimeout(() => { cooldown = false }, 150)
-  }
-
-  const onViewportResize = () => {
-    if (cancelled || cooldown) return
-    if (rafId !== null) return
+  const scheduleAdjust = () => {
+    if (rafId !== null) cancelAnimationFrame(rafId)
     rafId = requestAnimationFrame(() => {
       rafId = null
-      if (cancelled || cooldown) return
-      doScroll('auto')
+      if (cancelled) return
+      adjustScroll(el)
     })
   }
 
-  doScroll('smooth')
-  const t1 = window.setTimeout(() => doScroll('auto'), 80)
-  const t2 = window.setTimeout(() => doScroll('auto'), 300)
+  // Defer the initial scroll one frame so the browser's own focus-scroll
+  // (from a direct tap) settles first. For programmatic focus (reply button
+  // with preventScroll:true) this is the first and only needed scroll.
+  scheduleAdjust()
 
   const vv = window.visualViewport
+  const onResize = () => {
+    if (cancelled) return
+    if (rafId !== null) cancelAnimationFrame(rafId)
+    // Double-rAF: the first frame lets concurrent resize handlers run
+    // (AppModal sets --keyboard-inset which changes pane max-height);
+    // the second frame fires after the browser has reflowed those CSS
+    // changes, so getBoundingClientRect measurements are accurate.
+    rafId = requestAnimationFrame(() => {
+      if (cancelled) return
+      rafId = requestAnimationFrame(() => {
+        rafId = null
+        if (cancelled) return
+        adjustScroll(el)
+      })
+    })
+  }
+
   if (vv) {
-    // Only listen for resize (keyboard open/close). Listening to
-    // visualViewport scroll caused a feedback loop on iOS: programmatic
-    // scroll → viewport scroll event → handler → scroll → …
-    vv.addEventListener('resize', onViewportResize, { passive: true })
+    // Only listen for resize (keyboard open/close), not scroll.
+    // Responding to visualViewport.scroll causes a feedback loop on iOS
+    // where adjusting scroll fires another viewport event.
+    vv.addEventListener('resize', onResize, { passive: true })
   }
 
   return () => {
     cancelled = true
     if (rafId !== null) cancelAnimationFrame(rafId)
-    window.clearTimeout(t1)
-    window.clearTimeout(t2)
     if (vv) {
-      vv.removeEventListener('resize', onViewportResize)
+      vv.removeEventListener('resize', onResize)
     }
   }
 }
