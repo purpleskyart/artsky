@@ -2035,7 +2035,7 @@ button.logoLink {
   isolation: isolate;
 }
 
-/* Wrapper so the floating seen-posts button can sit above the nav on mobile. Above modals (z-index 1000–1001) so nav stays visible. Purplesky-style: center the nav pill. */
+/* Wrapper so the floating seen-posts button can sit above the nav on mobile. Usually above modals (1100); when a modal is open, .navOuterBelowModal tucks under the overlay so it isn’t pinned above the keyboard. */
 .navOuter {
   position: fixed;
   bottom: max(0.75rem, env(safe-area-inset-bottom));
@@ -2048,6 +2048,10 @@ button.logoLink {
   justify-content: center;
   align-items: flex-end;
   overflow: visible;
+}
+
+.navOuter.navOuterBelowModal {
+  z-index: 999;
 }
 
 .navOuter > .nav {

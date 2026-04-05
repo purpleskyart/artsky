@@ -214,6 +214,7 @@
   align-items: center;
   gap: 0.5rem;
   margin-bottom: 0.5rem;
+  min-width: 0;
 }
 
 .quotedPostAvatar {
@@ -221,6 +222,7 @@
   height: 1.5rem;
   border-radius: 50%;
   object-fit: cover;
+  flex-shrink: 0;
 }
 
 .quotedPostAvatarPlaceholder {
@@ -233,18 +235,25 @@
   align-items: center;
   justify-content: center;
   font-size: 0.75rem;
+  flex-shrink: 0;
 }
 
 .quotedPostHandle {
   font-weight: 600;
   color: var(--accent);
   text-decoration: none;
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .quotedPostTime {
   font-size: 0.8125rem;
   color: var(--muted);
   margin-left: auto;
+  flex-shrink: 0;
 }
 
 .quotedPostMediaGrid {

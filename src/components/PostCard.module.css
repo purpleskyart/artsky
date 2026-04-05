@@ -227,6 +227,7 @@ html[data-theme="dark"] [data-view-mode="1"] .card:hover {
   border-radius: var(--glass-radius-sm) var(--glass-radius-sm) 0 0;
   text-align: left;
   width: 100%;
+  min-width: 0;
   box-sizing: border-box;
   -webkit-tap-highlight-color: transparent;
   overflow: visible;
@@ -238,6 +239,7 @@ html[data-theme="dark"] [data-view-mode="1"] .card:hover {
   align-items: baseline;
   gap: 0.35rem 0.5rem;
   padding: 0.4rem 0.5rem 0.35rem;
+  min-width: 0;
 }
 
 .replyParentMediaBlock {
@@ -318,12 +320,18 @@ html[data-theme="dark"] [data-view-mode="1"] .card:hover {
   letter-spacing: 0.04em;
   color: var(--muted);
   margin: 0;
+  flex-shrink: 0;
 }
 
 .replyParentHandle {
   font-size: 0.8125rem;
   font-weight: 600;
-  display: inline-block;
+  min-width: 0;
+  max-width: 100%;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .replyParentSnippet {
