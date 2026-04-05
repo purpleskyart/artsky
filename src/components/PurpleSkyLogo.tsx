@@ -34,13 +34,11 @@ export default function PurpleSkyLogo({ className }: { className?: string }) {
             <ellipse cx={256} cy={338} rx={68} ry={88} />
           </clipPath>
         </defs>
-        {/* wings (behind body) */}
+        {/* wings (behind body) — tapered teardrops, not flat ellipses */}
         <g fill={`url(#${gradId})`}>
-          <ellipse cx={156} cy={214} rx={90} ry={54} transform="rotate(-34 156 214)" />
-          <ellipse cx={356} cy={214} rx={90} ry={54} transform="rotate(34 356 214)" />
+          <path d="M 225 172 C 128 141 76 191 74 221 C 72 252 132 272 217 247 C 229 226 238 198 225 172 Z" />
+          <path d="M 287 172 C 384 141 436 191 438 221 C 440 252 380 272 295 247 C 283 226 274 198 287 172 Z" />
         </g>
-        {/* stinger */}
-        <path fill={`url(#${gradId})`} d="M256 408 L228 434 L284 434 Z" />
         {/* abdomen + thorax + waist + head */}
         <g fill={`url(#${gradId})`}>
           <ellipse cx={256} cy={338} rx={68} ry={88} />
@@ -55,6 +53,8 @@ export default function PurpleSkyLogo({ className }: { className?: string }) {
           <rect x={188} y={342} width={136} height={14} fill={stripeFill} />
           <rect x={188} y={372} width={136} height={14} fill={stripeFill} />
         </g>
+        {/* small stinger tip (on top of abdomen) */}
+        <path fill={`url(#${gradId})`} d="M 242 418 L 256 474 L 270 418 Z" />
         {/* antennae */}
         <g fill="none" strokeWidth={14} strokeLinecap="round" strokeLinejoin="round">
           <path stroke={`url(#${gradId})`} d="M232 82 Q 205 52 188 38" />

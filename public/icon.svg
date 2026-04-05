@@ -10,10 +10,9 @@
   </defs>
   <g transform="translate(256 256) scale(1.12 1) translate(-256 -256)">
     <g fill="url(#artsky-logo-grad)">
-      <ellipse cx="156" cy="214" rx="90" ry="54" transform="rotate(-34 156 214)"/>
-      <ellipse cx="356" cy="214" rx="90" ry="54" transform="rotate(34 356 214)"/>
+      <path d="M 225 172 C 128 141 76 191 74 221 C 72 252 132 272 217 247 C 229 226 238 198 225 172 Z"/>
+      <path d="M 287 172 C 384 141 436 191 438 221 C 440 252 380 272 295 247 C 283 226 274 198 287 172 Z"/>
     </g>
-    <path fill="url(#artsky-logo-grad)" d="M256 408 L228 434 L284 434 Z"/>
     <g fill="url(#artsky-logo-grad)">
       <ellipse cx="256" cy="338" rx="68" ry="88"/>
       <ellipse cx="256" cy="262" rx="28" ry="18"/>
@@ -26,6 +25,7 @@
       <rect x="188" y="342" width="136" height="14" fill="#3d2572"/>
       <rect x="188" y="372" width="136" height="14" fill="#3d2572"/>
     </g>
+    <path fill="url(#artsky-logo-grad)" d="M 242 418 L 256 474 L 270 418 Z"/>
     <g fill="none" stroke-width="14" stroke-linecap="round" stroke-linejoin="round">
       <path stroke="url(#artsky-logo-grad)" d="M232 82 Q 205 52 188 38"/>
       <path stroke="url(#artsky-logo-grad)" d="M280 82 Q 307 52 324 38"/>
