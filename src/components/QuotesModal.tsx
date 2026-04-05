@@ -4,6 +4,7 @@ import type { TimelineItem } from '../lib/bsky'
 import ProfileColumn from './ProfileColumn'
 import AppModal from './AppModal'
 import { useProfileModal } from '../context/ProfileModalContext'
+import { useLikeOverrides } from '../context/LikeOverridesContext'
 import { useModeration } from '../context/ModerationContext'
 import { useModalScroll } from '../context/ModalScrollContext'
 import styles from './QuotesModal.module.css'
@@ -28,7 +29,7 @@ export default function QuotesModal({ postUri, onClose, onBack, canGoBack, onDes
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [refreshFn, setRefreshFn] = useState<(() => void | Promise<void>) | null>(null)
-  const [likeOverrides, setLikeOverrides] = useState<Record<string, string | null>>({})
+  const { likeOverrides, setLikeOverride } = useLikeOverrides()
   const loadMoreSentinelRef = useRef<HTMLDivElement>(null)
   const modalScrollRef = useModalScroll()
 
@@ -110,7 +111,7 @@ export default function QuotesModal({ postUri, onClose, onBack, canGoBack, onDes
                 unblurredUris={unblurredUris}
                 setUnblurred={setUnblurred}
                 likeOverrides={likeOverrides}
-                setLikeOverrides={setLikeOverrides}
+                setLikeOverrides={setLikeOverride}
                 openPostModal={openPostModal}
                 cardRef={() => () => {}}
                 onActionsMenuOpenChange={() => {}}

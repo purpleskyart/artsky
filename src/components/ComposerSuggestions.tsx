@@ -9,6 +9,7 @@ import {
 import { createPortal } from 'react-dom'
 import type { AppBskyActorDefs } from '@atproto/api'
 import { searchActorsTypeahead, searchPostsByTag } from '../lib/bsky'
+import { scrollFieldAboveKeyboard } from '../lib/mobileKeyboardFocus'
 import styles from './ComposerSuggestions.module.css'
 
 const TRIGGERS = ['@', '#'] as const
@@ -88,6 +89,7 @@ export default function ComposerSuggestions({
   const [dropdownAtCaret, setDropdownAtCaret] = useState<{ top: number; left: number } | null>(null)
   const triggerRef = useRef<{ trigger: TriggerKind; query: string; startIndex: number } | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const keyboardScrollCleanupRef = useRef<(() => void) | null>(null)
   const DROPDOWN_MAX_H = 280
 
   const triggerAtCursor = useMemo(
@@ -240,10 +242,19 @@ export default function ComposerSuggestions({
     syncCursor()
   }, [syncCursor])
 
+  const handleFocus = useCallback((e: React.FocusEvent<HTMLTextAreaElement>) => {
+    keyboardScrollCleanupRef.current?.()
+    keyboardScrollCleanupRef.current = scrollFieldAboveKeyboard(e.currentTarget)
+  }, [])
+
   const handleBlur = useCallback(() => {
+    keyboardScrollCleanupRef.current?.()
+    keyboardScrollCleanupRef.current = null
     setOpen(false)
     setSuggestions([])
   }, [])
+
+  useEffect(() => () => keyboardScrollCleanupRef.current?.(), [])
 
   useEffect(() => {
     if (!open || !listRef.current) return
@@ -334,6 +345,7 @@ export default function ComposerSuggestions({
         value={value}
         onChange={handleChange}
         onSelect={handleSelect}
+        onFocus={handleFocus}
         onBlur={handleBlur}
         onKeyUp={syncCursor}
         onKeyDown={handleKeyDown}

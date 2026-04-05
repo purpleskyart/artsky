@@ -29,6 +29,11 @@ interface ProgressiveImageProps {
    * If not provided, defaults adapt to viewport / save-data
    */
   preloadDistance?: number
+  /**
+   * `contain` letterboxes the image so it is never cropped (uses max width/height of the box).
+   * Default `cover` fills the aspect-ratio box and may crop edges.
+   */
+  objectFit?: 'cover' | 'contain'
 }
 
 type ObserverPoolEntry = {
@@ -82,6 +87,7 @@ export function ProgressiveImage({
   sizesAttr,
   maxRetries = 3,
   preloadDistance: preloadDistanceProp,
+  objectFit = 'cover',
 }: ProgressiveImageProps) {
   const LOAD_REVEAL_TIMEOUT_MS = 12_000
 
@@ -268,7 +274,7 @@ export function ProgressiveImage({
   if (permanentError) {
     return (
       <div
-        className={`${styles.progressiveImage} ${styles.error} ${className}`}
+        className={`${styles.progressiveImage} ${objectFit === 'contain' ? styles.modeContain : ''} ${styles.error} ${className}`}
         style={{ aspectRatio: aspectRatio ? String(aspectRatio) : undefined }}
         role="img"
         aria-label={`Failed to load: ${alt}`}
@@ -296,7 +302,7 @@ export function ProgressiveImage({
   return (
     <div
       ref={containerRef}
-      className={`${styles.progressiveImage} ${isLoaded ? styles.loaded : ''} ${className}`}
+      className={`${styles.progressiveImage} ${objectFit === 'contain' ? styles.modeContain : ''} ${isLoaded ? styles.loaded : ''} ${className}`}
       style={{ aspectRatio: aspectRatio ? String(aspectRatio) : undefined }}
     >
       {placeholderSrc && !isLoaded && !placeholderError && (

@@ -1,8 +1,13 @@
 import type { TimelineItem } from '../lib/bsky'
 
 /** Max posts kept in memory to limit DOM, React work, and OOM risk on long sessions. */
-export const MAX_FEED_ITEMS = 600
+export const MAX_FEED_ITEMS = 2000
 
+/**
+ * Feed order is newest-first at index 0; load-more appends older posts at the end.
+ * Keep the last N items (oldest slice) so trimming frees memory without dropping the tail the user
+ * is scrolling into; raising the cap reduces how often we trim and avoids big scroll jumps on mobile.
+ */
 function capFeedItems(items: TimelineItem[] | undefined | null): { items: TimelineItem[]; trimmed: boolean } {
   const list = items ?? []
   if (list.length <= MAX_FEED_ITEMS) return { items: list, trimmed: false }

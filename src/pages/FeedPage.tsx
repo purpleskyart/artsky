@@ -299,6 +299,8 @@ export default function FeedPage() {
   
   /** One sentinel per column so we load more when the user nears the bottom of any column (avoids blank space in short columns). */
   const loadMoreSentinelRefs = useRef<(HTMLDivElement | null)[]>([])
+  /** Per-column card counts; empty columns keep a top sentinel — must not drive "short column" auto load-more. */
+  const distributedColumnLengthsRef = useRef<number[]>([])
   const loadingMoreRef = useRef(false)
   /** Cooldown after triggering load more so we don't fire again while sentinel stays in view (stops infinite load loop). */
   const lastLoadMoreAtRef = useRef(0)
@@ -652,10 +654,12 @@ export default function FeedPage() {
      * load-more forever, locking scroll at the bottom on mobile.
      */
     const anyColumnShort = () => {
+      const lengths = distributedColumnLengthsRef.current
       const vh = window.innerHeight
       const margin = Math.min(LOAD_MORE_SHORT_MARGIN_PX, Math.floor(vh * 0.4))
       const threshold = vh - margin
       for (let c = 0; c < cols; c++) {
+        if ((lengths[c] ?? 0) === 0) continue
         const el = refs[c]
         if (!el) continue
         if (el.getBoundingClientRect().bottom < threshold) return true
@@ -774,6 +778,7 @@ export default function FeedPage() {
     previousColsRef.current = cols
     return newDistribution
   }, [displayEntries, cols, source, mediaMode, nsfwPreference])
+  distributedColumnLengthsRef.current = distributedColumns.map((c) => c.length)
   
   /** Flat list of focus targets: one per media item per post (or one per card in text-only mode). */
   const focusTargets = useMemo(() => {
@@ -1142,7 +1147,7 @@ export default function FeedPage() {
         const uri = item.post.uri
         const currentLikeUri = uri in currentLikeOverrides ? (currentLikeOverrides[uri] ?? undefined) : (item.post as { viewer?: { like?: string } }).viewer?.like
         if (currentLikeUri) {
-          unlikePostWithLifecycle(currentLikeUri).then(() => {
+          unlikePostWithLifecycle(currentLikeUri, uri).then(() => {
             setLikeOverride(uri, null)
           }).catch((err: unknown) => {
             console.error('Failed to unlike post:', err)

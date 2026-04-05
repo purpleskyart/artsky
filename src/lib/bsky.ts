@@ -1016,6 +1016,23 @@ export function getQuotedPostView(post: PostView): QuotedPostView | null {
   } as QuotedPostView
 }
 
+/**
+ * Parent post from a timeline/feed item's `reply` ref when the API returned a full PostView
+ * (not blocked/not found). Use for reply card previews in grids and feeds.
+ */
+export function getReplyParentPostView(item: TimelineItem): PostView | null {
+  const reply = (item as { reply?: { parent?: unknown } }).reply
+  const parent = reply?.parent
+  if (!parent || typeof parent !== 'object') return null
+  const p = parent as Record<string, unknown>
+  if (p.notFound === true || p.blocked === true) return null
+  const t = p.$type
+  if (t === 'app.bsky.feed.defs#notFoundPost' || t === 'app.bsky.feed.defs#blockedPost') return null
+  const author = p.author as { did?: string } | undefined
+  if (typeof p.uri !== 'string' || typeof p.cid !== 'string' || !author?.did) return null
+  return parent as PostView
+}
+
 /** Typeahead search for actors (usernames). Uses public API when not logged in (e.g. login page). */
 export async function searchActorsTypeahead(q: string, limit = 10) {
   const term = q.trim()
@@ -2039,21 +2056,30 @@ export async function getNotificationsWithLifecycle(
 // WRITE OPERATIONS - With Cache Invalidation
 // ============================================================================
 
+/** Drop getPostThread cache for this post so modals refetch viewer state (likes, etc.). */
+async function invalidatePostThreadCache(postUri: string): Promise<void> {
+  const { invalidateThreadCache } = await import('./postCache')
+  invalidateThreadCache(postUri)
+}
+
 /**
  * Like a post with cache invalidation. Returns the like record URI for optimistic UI.
  */
 export async function likePostWithLifecycle(uri: string, cid: string): Promise<{ uri: string }> {
   const result = await apiRequestManager.execute(`like:${uri}`, () => agent.like(uri, cid), { priority: RequestPriority.HIGH, timeout: 30000 })
   invalidateAfterPostLiked()
+  await invalidatePostThreadCache(uri)
   return result
 }
 
 /**
- * Unlike a post with cache invalidation
+ * Unlike a post with cache invalidation.
+ * @param subjectPostUri — post that was liked (AT URI); required to clear getPostThread cache for that post.
  */
-export async function unlikePostWithLifecycle(likeUri: string): Promise<void> {
+export async function unlikePostWithLifecycle(likeUri: string, subjectPostUri?: string): Promise<void> {
   await apiRequestManager.execute(`unlike:${likeUri}`, () => agent.deleteLike(likeUri), { priority: RequestPriority.HIGH, timeout: 30000 })
   invalidateAfterPostUnliked()
+  if (subjectPostUri) await invalidatePostThreadCache(subjectPostUri)
 }
 
 /**

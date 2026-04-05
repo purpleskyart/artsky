@@ -2329,7 +2329,7 @@ export default function Layout({ title, children, showNav }: Props) {
                 className={`${styles.searchOverlayCenter} ${!isDesktop ? styles.searchOverlayMobileBottom : styles.searchOverlayAboveKeyboard}`}
                 role="dialog"
                 aria-label="Search"
-                style={!isDesktop ? undefined : { bottom: searchOverlayBottom }}
+                style={{ bottom: searchOverlayBottom }}
               >
                 <div className={styles.searchOverlayCard}>
                   <SearchBar inputRef={searchInputRef} onClose={closeMobileSearch} suggestionsAbove onSelectFeed={handleSelectFeedFromSearch} />

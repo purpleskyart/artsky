@@ -6,6 +6,7 @@ import type { AppBskyFeedDefs } from '@atproto/api'
 import ProfileColumn from './ProfileColumn'
 import { useSession } from '../context/SessionContext'
 import { useProfileModal } from '../context/ProfileModalContext'
+import { useLikeOverrides } from '../context/LikeOverridesContext'
 import { useViewMode } from '../context/ViewModeContext'
 import { useModeration } from '../context/ModerationContext'
 import { useModalScroll } from '../context/ModalScrollContext'
@@ -89,7 +90,7 @@ export function SearchModalGridContent({
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [keyboardFocusIndex, setKeyboardFocusIndex] = useState(0)
-  const [likeOverrides, setLikeOverrides] = useState<Record<string, string | null>>({})
+  const { likeOverrides, setLikeOverride } = useLikeOverrides()
   const cardRefsRef = useRef<(HTMLDivElement | null)[]>([])
   const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null)
   const loadMoreSentinelRefs = useRef<(HTMLDivElement | null)[]>([])
@@ -258,12 +259,12 @@ export function SearchModalGridContent({
         const uri = item.post.uri
         const currentLikeUri = uri in likeOverrides ? (likeOverrides[uri] ?? undefined) : (item.post as { viewer?: { like?: string } }).viewer?.like
         if (currentLikeUri) {
-          unlikePostWithLifecycle(currentLikeUri).then(() => {
-            setLikeOverrides((prev) => ({ ...prev, [uri]: null }))
+          unlikePostWithLifecycle(currentLikeUri, uri).then(() => {
+            setLikeOverride(uri, null)
           }).catch(() => {})
         } else {
           likePostWithLifecycle(uri, item.post.cid).then((res) => {
-            setLikeOverrides((prev) => ({ ...prev, [uri]: res.uri }))
+            setLikeOverride(uri, res.uri)
           }).catch(() => {})
         }
         return
@@ -271,7 +272,7 @@ export function SearchModalGridContent({
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [beginKeyboardNavigation, mediaItems.length, cols, navigate, location, isModalOpen, inModal, openPostModal, likeOverrides, session])
+  }, [beginKeyboardNavigation, mediaItems.length, cols, navigate, location, isModalOpen, inModal, openPostModal, likeOverrides, session, setLikeOverride])
 
   if (!trimmedQuery) return null
 
@@ -311,7 +312,7 @@ export function SearchModalGridContent({
                 unblurredUris={unblurredUris}
                 setUnblurred={setUnblurred}
                 likeOverrides={likeOverrides}
-                setLikeOverrides={setLikeOverrides}
+                setLikeOverrides={setLikeOverride}
                 openPostModal={
                   inModal
                     ? openPostModal

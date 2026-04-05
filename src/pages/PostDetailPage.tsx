@@ -304,6 +304,8 @@ function MediaGallery({
   hideVideoControlsUntilTap = false,
   onFocusItem,
   onDoubleTapLike,
+  /** No per-item tab stops — use inside clickable preview cards (parent post / quote). */
+  forEmbeddedPreview = false,
 }: {
   items: Array<{ url: string; type: 'image' | 'video'; videoPlaylist?: string; aspectRatio?: number }>
   autoPlayFirstVideo?: boolean
@@ -312,6 +314,7 @@ function MediaGallery({
   onFocusItem?: (index: number) => void
   /** Called when user double-taps or double-clicks on media to like the post. */
   onDoubleTapLike?: () => void
+  forEmbeddedPreview?: boolean
 }) {
   const lastTapRef = useRef(0)
   const lastClickRef = useRef(0)
@@ -362,8 +365,8 @@ function MediaGallery({
                 className={styles.galleryVideoWrap}
                 style={{ aspectRatio: videoAspect }}
                 data-media-item={i}
-                tabIndex={0}
-                onFocus={() => onFocusItem?.(i)}
+                tabIndex={forEmbeddedPreview ? undefined : 0}
+                onFocus={forEmbeddedPreview ? undefined : () => onFocusItem?.(i)}
               >
                 <VideoWithHls
                   playlistUrl={m.videoPlaylist}
@@ -383,8 +386,8 @@ function MediaGallery({
               className={styles.galleryImageBtn}
               style={{ aspectRatio: aspect, ['--media-aspect']: aspect } as React.CSSProperties}
               data-media-item={i}
-              tabIndex={0}
-              onFocus={() => onFocusItem?.(i)}
+              tabIndex={forEmbeddedPreview ? undefined : 0}
+              onFocus={forEmbeddedPreview ? undefined : () => onFocusItem?.(i)}
             >
               <img src={m.url} alt="" className={styles.galleryMedia} loading="lazy" />
             </div>
@@ -1233,7 +1236,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
     try {
       if (wasLiked) {
         if (!unlikeRecordUri) throw new Error('No like to remove')
-        await unlikePostWithLifecycle(unlikeRecordUri)
+        await unlikePostWithLifecycle(unlikeRecordUri, uri)
         setLikeUriOverride(null)
       } else {
         const res = await likePostWithLifecycle(uri, cid)
@@ -1532,12 +1535,14 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
     setCommentLikeLoadingUri(uri)
     try {
       if (currentLikeUri) {
-        await unlikePostWithLifecycle(currentLikeUri)
+        await unlikePostWithLifecycle(currentLikeUri, uri)
         setCommentLikeOverrides((m) => ({ ...m, [uri]: null }))
       } else {
         const res = await likePostWithLifecycle(uri, cid)
         setCommentLikeOverrides((m) => ({ ...m, [uri]: res.uri }))
       }
+      /* Thread cache is keyed by the opened post URI; nested reply likes do not clear it via subject uri alone. */
+      invalidateThreadCache(decodedUri)
     } catch {
       // leave state unchanged
     } finally {
@@ -2061,19 +2066,27 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                   if (!parentPost) return null
                   const parentHandle = parentPost.author?.handle ?? parentPost.author?.did ?? ''
                   const parentText = (parentPost.record as { text?: string })?.text ?? ''
-                  const parentMedia = getPostAllMedia(parentPost, POST_MEDIA_FEED_PREVIEW)
+                  const parentMediaFull = getPostAllMedia(parentPost, POST_MEDIA_FULL)
+                  const openParentPost = () => {
+                    if (onClose) {
+                      openPostModal(parentPost.uri, undefined, undefined, parentPost.author?.handle)
+                    } else {
+                      navigate(getPostAppPath(parentPost.uri, parentPost.author?.handle))
+                    }
+                  }
                   return (
                     <div className={styles.parentPostWrap}>
                       <p className={styles.quotedPostLabel}>Replying to</p>
-                      <button
-                        type="button"
+                      <div
                         className={styles.quotedPostCard}
-                        onClick={() => {
-                          if (onClose) {
-                            openPostModal(parentPost.uri, undefined, undefined, parentPost.author?.handle)
-                          } else {
-                            navigate(getPostAppPath(parentPost.uri, parentPost.author?.handle))
-                          }
+                        role="button"
+                        tabIndex={0}
+                        aria-label={`Open post by @${parentHandle}`}
+                        onClick={openParentPost}
+                        onKeyDown={(e) => {
+                          if (e.key !== 'Enter' && e.key !== ' ') return
+                          e.preventDefault()
+                          openParentPost()
                         }}
                       >
                         <div className={styles.quotedPostHead}>
@@ -2091,17 +2104,13 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                             </span>
                           )}
                         </div>
-                        {parentMedia.length > 0 && (
-                          <div className={styles.quotedPostMediaGrid}>
-                            {parentMedia.map((m, i) => (
-                              <div key={i} className={styles.quotedPostMedia}>
-                                {m.type === 'image' ? (
-                                  <img src={m.url} alt="" loading="lazy" className={styles.quotedPostThumb} />
-                                ) : m.videoPlaylist ? (
-                                  <div className={styles.quotedPostVideoThumb} style={{ backgroundImage: m.url ? `url(${m.url})` : undefined }} />
-                                ) : null}
-                              </div>
-                            ))}
+                        {parentMediaFull.length > 0 && (
+                          <div className={styles.quotedPostGallery} onClick={(e) => e.stopPropagation()}>
+                            <MediaGallery
+                              items={parentMediaFull}
+                              forEmbeddedPreview
+                              hideVideoControlsUntilTap={!isDesktop}
+                            />
                           </div>
                         )}
                         {parentText ? (
@@ -2109,7 +2118,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                             <PostText text={parentText} facets={(parentPost.record as { facets?: unknown[] })?.facets} maxLength={200} stopPropagation />
                           </p>
                         ) : null}
-                      </button>
+                      </div>
                     </div>
                   )
                 })()
@@ -2220,19 +2229,27 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                   if (!quoted) return null
                   const quotedHandle = quoted.author?.handle ?? quoted.author?.did ?? ''
                   const quotedText = (quoted.record as { text?: string })?.text ?? ''
-                  const quotedMedia = getPostAllMedia(quoted, POST_MEDIA_FEED_PREVIEW)
+                  const quotedMediaFull = getPostAllMedia(quoted, POST_MEDIA_FULL)
+                  const openQuotedPost = () => {
+                    if (onClose) {
+                      openPostModal(quoted.uri, undefined, undefined, quoted.author?.handle)
+                    } else {
+                      navigate(getPostAppPath(quoted.uri, quoted.author?.handle))
+                    }
+                  }
                   return (
                     <div className={styles.quotedPostWrap}>
                       <p className={styles.quotedPostLabel}>Quoting</p>
-                      <button
-                        type="button"
+                      <div
                         className={styles.quotedPostCard}
-                        onClick={() => {
-                          if (onClose) {
-                            openPostModal(quoted.uri, undefined, undefined, quoted.author?.handle)
-                          } else {
-                            navigate(getPostAppPath(quoted.uri, quoted.author?.handle))
-                          }
+                        role="button"
+                        tabIndex={0}
+                        aria-label={`Open quoted post by @${quotedHandle}`}
+                        onClick={openQuotedPost}
+                        onKeyDown={(e) => {
+                          if (e.key !== 'Enter' && e.key !== ' ') return
+                          e.preventDefault()
+                          openQuotedPost()
                         }}
                       >
                         <div className={styles.quotedPostHead}>
@@ -2250,17 +2267,13 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                             </span>
                           )}
                         </div>
-                        {quotedMedia.length > 0 && (
-                          <div className={styles.quotedPostMediaGrid}>
-                            {quotedMedia.map((m, i) => (
-                              <div key={i} className={styles.quotedPostMedia}>
-                                {m.type === 'image' ? (
-                                  <img src={m.url} alt="" loading="lazy" className={styles.quotedPostThumb} />
-                                ) : m.videoPlaylist ? (
-                                  <div className={styles.quotedPostVideoThumb} style={{ backgroundImage: m.url ? `url(${m.url})` : undefined }} />
-                                ) : null}
-                              </div>
-                            ))}
+                        {quotedMediaFull.length > 0 && (
+                          <div className={styles.quotedPostGallery} onClick={(e) => e.stopPropagation()}>
+                            <MediaGallery
+                              items={quotedMediaFull}
+                              forEmbeddedPreview
+                              hideVideoControlsUntilTap={!isDesktop}
+                            />
                           </div>
                         )}
                         {quotedText ? (
@@ -2268,7 +2281,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                             <PostText text={quotedText} facets={(quoted.record as { facets?: unknown[] })?.facets} maxLength={200} stopPropagation />
                           </p>
                         ) : null}
-                      </button>
+                      </div>
                     </div>
                   )
                 })()}
