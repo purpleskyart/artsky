@@ -6,13 +6,6 @@ export const PULL_COMMIT_PX = 8
 /** Offset (px) to hold content at while refreshing (iPhone-style). */
 export const PULL_REFRESH_HOLD_PX = 56
 
-/** Stricter defaults for modal scroll: require a deliberate pull, not a small nudge at scroll top. */
-export const MODAL_PULL_COMMIT_PX = 52
-export const MODAL_PULL_THRESHOLD_PX = 94
-export const MODAL_RUBBER_BAND_SCALE = 0.55
-/** Modals: stricter than feed’s default 2px — avoids arming when the list sits 1–2px off top after bounce. */
-export const MODAL_AT_TOP_MAX_SCROLL_PX = 1
-
 /** Finger delta → on-screen pull (iOS UIScrollView-style rubber band, not 1:1). */
 function fingerDeltaToPullOffset(dy: number, rubberBandScale = 1): number {
   if (dy <= 0) return 0
@@ -131,9 +124,9 @@ export function usePullToRefresh({
       await Promise.resolve(onRefreshRef.current())
     } finally {
       setIsRefreshing(false)
-      setPullDistance(0)
+      snapBackToZero(PULL_REFRESH_HOLD_PX)
     }
-  }, [cancelSnap])
+  }, [cancelSnap, snapBackToZero])
 
   const applyPullFromDy = useCallback(
     (dy: number) => {

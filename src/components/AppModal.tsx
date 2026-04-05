@@ -9,10 +9,6 @@ import { useSwipeToClose } from '../hooks/useSwipeToClose'
 import {
   usePullToRefresh,
   PULL_REFRESH_HOLD_PX,
-  MODAL_PULL_COMMIT_PX,
-  MODAL_PULL_THRESHOLD_PX,
-  MODAL_RUBBER_BAND_SCALE,
-  MODAL_AT_TOP_MAX_SCROLL_PX,
 } from '../hooks/usePullToRefresh'
 import { useStandalonePwa } from '../hooks/useStandalonePwa'
 import styles from './PostDetailModal.module.css'
@@ -96,10 +92,7 @@ export default function AppModal({
     touchTargetRef: scrollRef,
     onRefresh: onPullToRefresh ?? (() => {}),
     enabled: !!onPullToRefresh && isMobile && isStandalonePwa,
-    pullCommitPx: MODAL_PULL_COMMIT_PX,
-    pullThresholdPx: MODAL_PULL_THRESHOLD_PX,
-    rubberBandScale: MODAL_RUBBER_BAND_SCALE,
-    atTopMaxScrollPx: MODAL_AT_TOP_MAX_SCROLL_PX,
+    atTopMaxScrollPx: 1,
   })
   const [topBarSlotEl, setTopBarSlotEl] = useState<HTMLDivElement | null>(null)
   const [topBarRightSlotEl, setTopBarRightSlotEl] = useState<HTMLDivElement | null>(null)
@@ -119,6 +112,25 @@ export default function AppModal({
     scrollLock?.lockScroll()
     return () => scrollLock?.unlockScroll()
   }, [scrollLock])
+
+  /* Mobile: track on-screen keyboard via visualViewport and set --keyboard-inset on the overlay so the pane stays above the keyboard (CSS uses the variable for max-height). */
+  useEffect(() => {
+    if (!isMobile || typeof window === 'undefined') return
+    const vv = window.visualViewport
+    const el = overlayRef.current
+    if (!vv || !el) return
+    const update = () => {
+      const inset = Math.max(0, Math.round(window.innerHeight - (vv.offsetTop + vv.height)))
+      el.style.setProperty('--keyboard-inset', `${inset}px`)
+    }
+    vv.addEventListener('resize', update)
+    vv.addEventListener('scroll', update, { passive: true })
+    return () => {
+      vv.removeEventListener('resize', update)
+      vv.removeEventListener('scroll', update)
+      el.style.removeProperty('--keyboard-inset')
+    }
+  }, [isMobile])
 
   /* When modal is open, route wheel events to the modal scroll area so scrolling never moves the page behind. Only the topmost modal does this so stacking (e.g. post on profile) scrolls the visible modal. */
   useLayoutEffect(() => {
@@ -303,9 +315,9 @@ export default function AppModal({
           onClick={(e) => e.stopPropagation()}
         >
           <div
-            className={`${styles.modalPaneBody}${onPullToRefresh && isMobile && isStandalonePwa ? ` ${styles.modalPanePullSnap}` : ''}`}
+            className={styles.modalPaneBody}
             style={
-              onPullToRefresh && isMobile && isStandalonePwa
+              pullRefresh.pullDistance > 0
                 ? { transform: `translateY(${pullRefresh.pullDistance}px)` }
                 : undefined
             }

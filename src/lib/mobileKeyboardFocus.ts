@@ -33,9 +33,15 @@ function alignFieldInModalScrollRoot(
   behavior: ScrollBehavior
 ) {
   const { top: visibleTop, bottom: visibleBottom } = getVisibleViewportYBounds()
-  const targetMid = (visibleTop + visibleBottom) / 2
   const rect = el.getBoundingClientRect()
-  const mid = (rect.top + rect.bottom) / 2
+  // Extend effective area to include the parent form's submit button / footer
+  // so they stay visible while typing. Cap at 80px extra to avoid over-scrolling
+  // if the form has a tall header above the field.
+  const form = el.closest('form')
+  const formBottom = form ? form.getBoundingClientRect().bottom : rect.bottom
+  const effectiveBottom = Math.max(rect.bottom, Math.min(formBottom, rect.bottom + 80))
+  const targetMid = (visibleTop + visibleBottom) / 2
+  const mid = (rect.top + effectiveBottom) / 2
   const delta = mid - targetMid
   const maxScroll = Math.max(0, scrollRoot.scrollHeight - scrollRoot.clientHeight)
   const nextTop = Math.min(Math.max(0, scrollRoot.scrollTop + delta), maxScroll)
@@ -46,14 +52,21 @@ function alignFieldInModalScrollRoot(
   }
 }
 
-/** Repeat alignment until the field sits in the visible band (handles late keyboard layout). */
+/** Repeat alignment until the field + submit area sit in the visible band (handles late keyboard layout). */
 function alignFieldInModalScrollRootIterated(el: HTMLElement, scrollRoot: HTMLElement, behavior: ScrollBehavior) {
   const maxPasses = 5
   const tol = 6
   for (let pass = 0; pass < maxPasses; pass++) {
     const { top: visibleTop, bottom: visibleBottom } = getVisibleViewportYBounds()
     const rect = el.getBoundingClientRect()
-    if (rect.top >= visibleTop - tol && rect.bottom <= visibleBottom + tol) {
+    const form = el.closest('form')
+    const formBottom = form ? form.getBoundingClientRect().bottom : rect.bottom
+    const effectiveBottom = Math.max(rect.bottom, Math.min(formBottom, rect.bottom + 80))
+    if (rect.top >= visibleTop - tol && effectiveBottom <= visibleBottom + tol) {
+      break
+    }
+    // If the effective area is taller than the visible band, accept when the field itself fits
+    if (effectiveBottom - rect.top > visibleBottom - visibleTop && rect.top >= visibleTop - tol && rect.bottom <= visibleBottom + tol) {
       break
     }
     const useBehavior = pass === 0 ? behavior : 'auto'
