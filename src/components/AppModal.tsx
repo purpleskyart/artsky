@@ -8,7 +8,6 @@ import { useScrollLock } from '../context/ScrollLockContext'
 import { useSwipeToClose } from '../hooks/useSwipeToClose'
 import {
   usePullToRefresh,
-  PULL_REFRESH_HOLD_PX,
   PULL_THRESHOLD_PX,
 } from '../hooks/usePullToRefresh'
 import { useStandalonePwa } from '../hooks/useStandalonePwa'
