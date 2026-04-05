@@ -537,6 +537,8 @@ export default function Layout({ title, children, showNav }: Props) {
   const [aboutOpen, setAboutOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [searchOverlayBottom, setSearchOverlayBottom] = useState(0)
+  /** Mobile: virtual keyboard shrinks/pans visual viewport — hide bottom nav pill only while it’s open. */
+  const [mobileVirtualKeyboardOpen, setMobileVirtualKeyboardOpen] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const accountBtnRef = useRef<HTMLButtonElement>(null)
   const accountMenuRef = useRef<HTMLDivElement>(null)
@@ -1156,6 +1158,32 @@ export default function Layout({ title, children, showNav }: Props) {
     return () => {
       window.removeEventListener('scroll', onScroll)
       if (scrollEndTimerRef.current) clearTimeout(scrollEndTimerRef.current)
+    }
+  }, [isDesktop])
+
+  useEffect(() => {
+    if (isDesktop) setMobileVirtualKeyboardOpen(false)
+  }, [isDesktop])
+
+  /* Mobile: detect on-screen keyboard via Visual Viewport API; hide nav bar only while keyboard is up. */
+  useEffect(() => {
+    if (isDesktop || typeof window === 'undefined') return
+    const vv = window.visualViewport
+    if (!vv) return
+    const update = () => {
+      const ih = window.innerHeight
+      const h = vv.height
+      const ot = vv.offsetTop
+      const shrunk = h < ih * 0.88
+      const panned = ot > 48
+      setMobileVirtualKeyboardOpen(shrunk || panned)
+    }
+    update()
+    vv.addEventListener('resize', update)
+    vv.addEventListener('scroll', update, { passive: true })
+    return () => {
+      vv.removeEventListener('resize', update)
+      vv.removeEventListener('scroll', update)
     }
   }, [isDesktop])
 
@@ -2292,7 +2320,7 @@ export default function Layout({ title, children, showNav }: Props) {
           {typeof document !== 'undefined' &&
             createPortal(
               <div
-                className={`${styles.navOuter} nav-outer ${navVisible ? '' : styles.navHidden} ${isModalOpen ? styles.navOuterBelowModal : ''} ${!isDesktop && (mobileNavScrollHidden || (isModalOpen && modalScrollHidden)) ? styles.navOuterScrollHidden : ''}`}
+                className={`${styles.navOuter} nav-outer ${navVisible ? '' : styles.navHidden} ${!isDesktop && mobileVirtualKeyboardOpen ? styles.navOuterKeyboardInset : ''} ${!isDesktop && (mobileNavScrollHidden || (isModalOpen && modalScrollHidden)) ? styles.navOuterScrollHidden : ''}`}
               >
                 {!isModalOpen && (
                   <button
