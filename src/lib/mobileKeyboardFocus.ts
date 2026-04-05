@@ -4,7 +4,7 @@
  *
  * Returns a disposer; call on blur or unmount.
  *
- * Inside AppModal, adjusts only the `[data-modal-scroll]` container.
+ * Inside AppModal or the Layout compose card, adjusts only the `[data-modal-scroll]` container.
  * Never calls el.scrollIntoView() in that path — on iOS Safari it scrolls
  * the body/window behind the position:fixed overlay, desyncing touch
  * coordinates from where elements visually appear.

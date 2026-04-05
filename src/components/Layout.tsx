@@ -2382,7 +2382,7 @@ export default function Layout({ title, children, showNav }: Props) {
                 onDrop={handleComposeDrop}
                 style={!isDesktop ? { bottom: composeOverlayBottom } : undefined}
               >
-                <div className={styles.composeCard}>
+                <div className={styles.composeCard} data-modal-scroll>
                   <header className={styles.composeHeader}>
                     <button type="button" className={styles.composeCancel} onClick={closeCompose} disabled={composePosting}>
                       Cancel
