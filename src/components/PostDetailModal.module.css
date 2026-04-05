@@ -164,7 +164,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--bg);
+  /* Transparent so the strip matches .pane (--surface), not page --bg */
+  background: transparent;
   pointer-events: none;
   z-index: 0;
 }
@@ -391,8 +392,8 @@
   .overlayExpanded.overlay {
     padding-top: 0;
     padding-bottom: 0;
-    /* Solid bg so the strip between pane and keyboard (iOS visual-viewport push) doesn't show the page behind */
-    background: var(--bg);
+    /* Match .pane (--surface) so safe-area / keyboard gaps aren’t a different tint than the modal */
+    background: var(--surface);
   }
   /* Shrink pane to stay above the on-screen keyboard; --keyboard-inset is set by AppModal via visualViewport */
   .paneExpanded.pane {
