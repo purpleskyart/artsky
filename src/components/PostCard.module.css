@@ -189,6 +189,168 @@ html[data-theme="dark"] [data-view-mode="1"] .card:hover {
   flex-shrink: 0;
 }
 
+.cardFillCell .replyParentStrip {
+  flex-shrink: 0;
+}
+
+/* Reply cards: show parent context above the reply media */
+.cardHasReplyParent .mediaWrap {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+.cardArtOnly.cardHasReplyParent .mediaWrap {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+.cardArtOnly.cardFeedPreviewActions.cardHasReplyParent .mediaWrap,
+.cardArtOnly.cardFeedPreviewActions.cardHasReplyParent .nsfwOverlay {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+/* .mediaWrap top is already square; inner text block had its own top radius — caused a “step” under the strip */
+.cardHasReplyParent .textOnlyPreview {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+.replyParentStrip {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  padding: 0;
+  background: var(--glass-highlight);
+  border-bottom: 1px solid var(--border);
+  border-radius: var(--glass-radius-sm) var(--glass-radius-sm) 0 0;
+  text-align: left;
+  width: 100%;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+  overflow: visible;
+}
+
+.replyParentStripHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.5rem;
+  padding: 0.4rem 0.5rem 0.35rem;
+}
+
+.replyParentMediaBlock {
+  width: 100%;
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+}
+
+.replyParentMediaSlide {
+  position: relative;
+  width: 100%;
+  max-height: var(--feed-card-media-max-height, 280px);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: visible;
+  background: var(--bg);
+}
+
+.replyParentMediaBlockMulti .replyParentMediaSlide {
+  max-height: min(11rem, var(--feed-card-media-max-height, 280px));
+  border-bottom: 1px solid var(--border);
+}
+
+.replyParentMediaBlockMulti .replyParentMediaSlide:last-child {
+  border-bottom: none;
+}
+
+.replyParentMediaImg {
+  max-width: 100%;
+  max-height: var(--feed-card-media-max-height, 280px);
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  object-position: center;
+  display: block;
+  vertical-align: top;
+}
+
+.replyParentMediaBlockMulti .replyParentMediaImg {
+  max-height: min(11rem, var(--feed-card-media-max-height, 280px));
+}
+
+.replyParentMediaImgPlaceholder {
+  width: 100%;
+  min-height: 4rem;
+  background: var(--border);
+}
+
+.replyParentVideoPlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  line-height: 1;
+  color: #fff;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+}
+
+.replyParentBody {
+  min-width: 0;
+  padding: 0.35rem 0.5rem 0.45rem;
+}
+
+.replyParentBody:empty {
+  display: none;
+  padding: 0;
+}
+
+.replyParentLabel {
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  margin: 0;
+}
+
+.replyParentHandle {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  display: inline-block;
+}
+
+.replyParentSnippet {
+  font-size: 0.75rem;
+  color: var(--text);
+  margin: 0.2rem 0 0;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 8;
+  line-clamp: 8;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.replyParentSnippetMuted {
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin: 0.2rem 0 0;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 8;
+  line-clamp: 8;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-style: italic;
+}
+
 .cardLink:hover {
   text-decoration: none;
 }
@@ -760,6 +922,25 @@ html[data-theme="dark"] [data-view-mode="1"] .card:hover {
   height: 100%;
   object-fit: contain;
   object-position: center;
+}
+
+/* Feed text-only cards: avoid a full 1:1 square when the post is a short line of text */
+.mediaWrap.mediaWrapTextOnly {
+  aspect-ratio: unset;
+  min-height: 2.75rem;
+  height: auto;
+  align-items: stretch;
+}
+
+.cardNsfwBlurred .mediaWrap.mediaWrapTextOnly {
+  min-height: 5rem;
+}
+
+.mediaWrap.mediaWrapTextOnly .textOnlyPreview {
+  height: auto;
+  flex: 0 1 auto;
+  align-self: stretch;
+  min-height: 2.5rem;
 }
 
 .textOnlyPreview {

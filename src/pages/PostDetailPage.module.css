@@ -187,6 +187,15 @@
   border-radius: 0.5rem;
   cursor: pointer;
   transition: border-color 0.15s, background 0.15s;
+  font: inherit;
+  color: inherit;
+  box-sizing: border-box;
+}
+
+/* Full MediaGallery (same as root post) inside parent / quote preview */
+.quotedPostGallery {
+  width: 100%;
+  margin-bottom: 0.5rem;
 }
 
 .quotedPostCard:hover {

@@ -329,6 +329,52 @@ describe('PostCard Derived State Memoization', () => {
   })
 })
 
+describe('PostCard reply parent preview', () => {
+  it('shows parent author and text when feed item includes reply.parent PostView', () => {
+    const parentPost = {
+      uri: 'at://did:plc:parent/app.bsky.feed.post/parent1',
+      cid: 'bafyparent',
+      author: {
+        did: 'did:plc:parent',
+        handle: 'original.bsky.social',
+        displayName: 'Original',
+      },
+      record: {
+        text: 'The post being replied to',
+        createdAt: new Date().toISOString(),
+      },
+      indexedAt: new Date().toISOString(),
+    }
+    const item = createMockPost({
+      post: {
+        ...createMockPost().post,
+        record: {
+          text: 'My reply text',
+          createdAt: new Date().toISOString(),
+          reply: {
+            root: { uri: parentPost.uri, cid: parentPost.cid },
+            parent: { uri: parentPost.uri, cid: parentPost.cid },
+          },
+        },
+      },
+      reply: {
+        root: parentPost,
+        parent: parentPost,
+      },
+    } as TimelineItem)
+
+    render(
+      <BrowserRouter>
+        <PostCard item={item} />
+      </BrowserRouter>,
+    )
+
+    expect(screen.getByText('Replying to')).toBeInTheDocument()
+    expect(screen.getByText(/@original\.bsky\.social/)).toBeInTheDocument()
+    expect(screen.getByText(/The post being replied to/)).toBeInTheDocument()
+  })
+})
+
 // Property-Based Tests
 import fc from 'fast-check'
 

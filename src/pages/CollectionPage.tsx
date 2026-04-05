@@ -14,6 +14,7 @@ import { useModalScroll } from '../context/ModalScrollContext'
 import { useToast } from '../context/ToastContext'
 import { useCollectionSaveActions } from '../context/CollectionSaveContext'
 import { useProfileModal } from '../context/ProfileModalContext'
+import { useLikeOverrides } from '../context/LikeOverridesContext'
 import { useColumnCount } from '../hooks/useViewportWidth'
 import { usePostCardGridPointerGate } from '../hooks/usePostCardGridPointerGate'
 import feedGridStyles from './FeedPage.module.css'
@@ -84,7 +85,7 @@ export function CollectionDetailContent({ uri: decodedUri }: CollectionDetailCon
   const [items, setItems] = useState<TimelineItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [likeOverrides, setLikeOverrides] = useState<Record<string, string | null>>({})
+  const { likeOverrides, setLikeOverride } = useLikeOverrides()
   const [keyboardFocusIndex, setKeyboardFocusIndex] = useState(0)
   const keyboardFocusIndexRef = useRef(0)
   const displayItemsRef = useRef<TimelineItem[]>([])
@@ -318,7 +319,7 @@ export function CollectionDetailContent({ uri: decodedUri }: CollectionDetailCon
               unblurredUris={unblurredUris}
               setUnblurred={setUnblurred}
               likeOverrides={likeOverrides}
-              setLikeOverrides={setLikeOverrides}
+              setLikeOverrides={setLikeOverride}
               openPostModal={(uri, openReply, focusUri, authorHandle) =>
                 openPostModal(uri, openReply, focusUri, authorHandle)
               }

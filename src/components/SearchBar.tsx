@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useProfileModal } from '../context/ProfileModalContext'
 import { searchActorsTypeahead, getSuggestedFeeds, getProfileCached } from '../lib/bsky'
+import { scrollFieldAboveKeyboard } from '../lib/mobileKeyboardFocus'
 import type { FeedSource } from '../types'
 import type { AppBskyActorDefs, AppBskyFeedDefs } from '@atproto/api'
 import styles from './SearchBar.module.css'
@@ -130,6 +131,7 @@ export default function SearchBar({
   const containerRef = useRef<HTMLDivElement>(null)
   const internalInputRef = useRef<HTMLInputElement>(null)
   const inputRef = externalInputRef ?? internalInputRef
+  const keyboardScrollCleanupRef = useRef<(() => void) | null>(null)
 
   useEffect(() => {
     if (seedQuery !== undefined) setQuery(seedQuery)
@@ -185,6 +187,8 @@ export default function SearchBar({
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
+
+  useEffect(() => () => keyboardScrollCleanupRef.current?.(), [])
 
   const profileFromUrl = trimmed ? extractProfileHandleFromSearchQuery(trimmed) : null
 
@@ -366,7 +370,15 @@ export default function SearchBar({
             setQuery(e.target.value)
             setOpen(true)
           }}
-          onFocus={() => setOpen(true)}
+          onFocus={(e) => {
+            setOpen(true)
+            keyboardScrollCleanupRef.current?.()
+            keyboardScrollCleanupRef.current = scrollFieldAboveKeyboard(e.currentTarget)
+          }}
+          onBlur={() => {
+            keyboardScrollCleanupRef.current?.()
+            keyboardScrollCleanupRef.current = null
+          }}
           onKeyDown={onKeyDown}
           className={styles.input}
           aria-label="Search"

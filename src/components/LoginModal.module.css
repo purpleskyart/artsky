@@ -1,15 +1,16 @@
+/* Above AppModal stack (base 1000), mobile search (~1200), compose (~1300), global toast (~1300) */
 .backdrop {
   position: fixed;
   inset: 0;
   background: var(--overlay-bg);
-  z-index: 200;
+  z-index: 1400;
   animation: loginModalFadeIn 0.2s ease;
 }
 
 .center {
   position: fixed;
   inset: 0;
-  z-index: 201;
+  z-index: 1401;
   display: flex;
   align-items: center;
   justify-content: center;

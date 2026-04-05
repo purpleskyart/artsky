@@ -2,7 +2,7 @@ import { createContext, lazy, Suspense, useCallback, useContext, useEffect, useM
 import { useLocation, useNavigate, type Location } from 'react-router-dom'
 import { ChunkLoadError } from '../components/ChunkLoadError'
 import { isHandleBoardPath } from '../lib/routes'
-import { getPostOverlayPath } from '../lib/appUrl'
+import { getPostOverlayPath, postUriToQuotesParam, quotesParamToPostUri } from '../lib/appUrl'
 import { getOverlayBackgroundLocation, hasPathOverlayStack } from '../lib/overlayNavigation'
 import { preloadProfileOpen } from '../lib/modalPreload'
 
@@ -53,6 +53,7 @@ const ProfileModalContext = createContext<ProfileModalContextValue | null>(null)
  * [search, profile, post] so back restores scroll/position under each layer.
  * Opening a profile from the app uses `?profile=` on the frozen pathname (e.g. `/feed?profile=`) so history stacks
  * like the feed post overlay: push post → POP restores the previous entry with the same mounted modal and scroll.
+ * `?quotes=` uses compact `did/rkey` (see postUriToQuotesParam) for shareable URLs; full `at://` still parses.
  */
 function parseSearchToModalStack(search: string): ModalItem[] {
   const params = new URLSearchParams(search)
@@ -88,7 +89,10 @@ function parseSearchToModalStack(search: string): ModalItem[] {
   }
 
   if (stack.length > 0) return stack
-  if (quotesUri) return [{ type: 'quotes', uri: quotesUri }]
+  if (quotesUri) {
+    const uri = quotesParamToPostUri(quotesUri)
+    if (uri) return [{ type: 'quotes', uri }]
+  }
   return []
 }
 
@@ -113,7 +117,7 @@ function appendModalItemToSearchParams(p: URLSearchParams, item: ModalItem): voi
     return
   }
   if (item.type === 'quotes') {
-    p.set('quotes', item.uri)
+    p.set('quotes', postUriToQuotesParam(item.uri))
     return
   }
 }

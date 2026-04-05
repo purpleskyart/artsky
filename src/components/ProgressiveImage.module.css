@@ -5,6 +5,25 @@
   border-radius: inherit;
 }
 
+/* Letterbox inside max-height from parent; aspectRatio on this box reserves space while loading */
+.progressiveImage.modeContain {
+  overflow: visible;
+  max-height: inherit;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.progressiveImage.modeContain .fullImage {
+  object-fit: contain;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
+  position: relative;
+}
+
 .placeholder {
   position: absolute;
   top: 0;

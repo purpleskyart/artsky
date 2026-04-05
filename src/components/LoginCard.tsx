@@ -192,7 +192,7 @@ export default function LoginCard({ onSuccess, onClose }: LoginCardProps) {
                   top: dropdownPosition.top,
                   left: dropdownPosition.left,
                   width: dropdownPosition.width,
-                  zIndex: 202,
+                  zIndex: 1402,
                 }}
               >
                 <ul className={styles.suggestions} role="listbox">

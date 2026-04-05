@@ -19,8 +19,8 @@ export interface ProfileColumnProps {
   nsfwPreference: 'nsfw' | 'sfw' | 'blurred'
   unblurredUris: Set<string>
   setUnblurred: (uri: string, revealed: boolean) => void
-  likeOverrides: Record<string, string | null>
-  setLikeOverrides: React.Dispatch<React.SetStateAction<Record<string, string | null>>>
+  likeOverrides: Record<string, string | null | undefined>
+  setLikeOverrides: (postUri: string, likeUri: string | null) => void
   openPostModal: (uri: string, openReply?: boolean, focusUri?: string, authorHandle?: string) => void
   cardRef: (index: number) => (el: HTMLDivElement | null) => void
   onActionsMenuOpenChange: (index: number, open: boolean) => void
@@ -118,9 +118,7 @@ export default function ProfileColumn(props: ProfileColumnProps) {
               setUnblurred={setUnblurred}
               isRevealed={unblurredUris.has(item.post.uri)}
               likedUriOverride={likeOverrides[item.post.uri]}
-              onLikedChange={(uri, likeRecordUri) =>
-                setLikeOverrides((prev) => ({ ...prev, [uri]: likeRecordUri ?? null }))
-              }
+              onLikedChange={(uri, likeRecordUri) => setLikeOverrides(uri, likeRecordUri ?? null)}
               onActionsMenuOpenChange={(open) => onActionsMenuOpenChange(originalIndex, open)}
               cardIndex={originalIndex}
               actionsMenuOpenForIndex={actionsMenuOpenForIndex}

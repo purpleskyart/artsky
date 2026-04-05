@@ -19,6 +19,7 @@ import Layout from '../components/Layout'
 import { useViewMode, type ViewMode } from '../context/ViewModeContext'
 import { useModeration, type NsfwPreference } from '../context/ModerationContext'
 import { useHideReposts } from '../context/HideRepostsContext'
+import { useLikeOverrides } from '../context/LikeOverridesContext'
 import { EyeOpenIcon, EyeHalfIcon, EyeClosedIcon } from '../components/Icons'
 import { useColumnCount } from '../hooks/useViewportWidth'
 import { usePostCardGridPointerGate } from '../hooks/usePostCardGridPointerGate'
@@ -226,7 +227,7 @@ export function ProfileContent({
   const [followListModal, setFollowListModal] = useState<'followers' | 'following' | 'mutuals' | 'followedByFollows' | null>(null)
   const [followeesWhoFollowPreview, setFolloweesWhoFollowPreview] = useState<ProfileViewBasic[] | null>(null)
   const [, setFolloweesWhoFollowLoading] = useState(false)
-  const [likeOverrides, setLikeOverrides] = useState<Record<string, string | null>>({})
+  const { likeOverrides, setLikeOverride } = useLikeOverrides()
   const { openPostModal, isModalOpen } = useProfileModal()
   const modalScrollRef = useModalScroll()
   const gridRef = useRef<HTMLDivElement | null>(null)
@@ -651,12 +652,12 @@ export function ProfileContent({
         const uri = item.post.uri
         const currentLikeUri = uri in likeOverrides ? (likeOverrides[uri] ?? undefined) : (item.post as { viewer?: { like?: string } }).viewer?.like
         if (currentLikeUri) {
-          unlikePostWithLifecycle(currentLikeUri).then(() => {
-            setLikeOverrides((prev) => ({ ...prev, [uri]: null }))
+          unlikePostWithLifecycle(currentLikeUri, uri).then(() => {
+            setLikeOverride(uri, null)
           }).catch(() => {})
         } else {
           likePostWithLifecycle(uri, item.post.cid).then((res) => {
-            setLikeOverrides((prev) => ({ ...prev, [uri]: res.uri }))
+            setLikeOverride(uri, res.uri)
           }).catch(() => {})
         }
         return
@@ -664,7 +665,7 @@ export function ProfileContent({
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [beginKeyboardNavigation, tab, cols, isModalOpen, openPostModal, inModal, likeOverrides, actionsMenuOpenForIndex])
+  }, [beginKeyboardNavigation, tab, cols, isModalOpen, openPostModal, inModal, likeOverrides, actionsMenuOpenForIndex, setLikeOverride])
 
   const postText = (post: TimelineItem['post']) => (post.record as { text?: string })?.text?.trim() ?? ''
   const isReply = (post: TimelineItem['post']) => !!(post.record as { reply?: unknown })?.reply
@@ -1008,7 +1009,7 @@ export function ProfileContent({
                       setUnblurred={setUnblurred}
                       isRevealed={unblurredUris.has(item.post.uri)}
                       likedUriOverride={likeOverrides[item.post.uri]}
-                      onLikedChange={(uri, likeRecordUri) => setLikeOverrides((prev) => ({ ...prev, [uri]: likeRecordUri ?? null }))}
+                      onLikedChange={(uri, likeRecordUri) => setLikeOverride(uri, likeRecordUri ?? null)}
                       profileAuthorDid={profile?.did}
                       profileAuthorFollowingUri={profile != null ? followingUri ?? null : undefined}
                       onProfileAuthorFollowChange={onProfileAuthorFollowChange}
@@ -1083,7 +1084,7 @@ export function ProfileContent({
                   unblurredUris={unblurredUris}
                   setUnblurred={setUnblurred}
                   likeOverrides={likeOverrides}
-                  setLikeOverrides={setLikeOverrides}
+                  setLikeOverrides={setLikeOverride}
                   openPostModal={openPostModal}
                   cardRef={(index) => (el) => { cardRefsRef.current[index] = el }}
                   onActionsMenuOpenChange={(index, open) => setActionsMenuOpenForIndex(open ? index : null)}

@@ -26,6 +26,26 @@ export function parseBskyFeedPostUri(uri: string): { did: string; rkey: string }
   return rkey ? { did, rkey } : null
 }
 
+/** Compact `?quotes=` value: `did:plc:…/rkey` (shorter than full `at://…/app.bsky.feed.post/…`). */
+export function postUriToQuotesParam(atUri: string): string {
+  const parsed = parseBskyFeedPostUri(atUri)
+  if (parsed) return `${parsed.did}/${parsed.rkey}`
+  return atUri
+}
+
+/** Resolve `quotes` query (compact or full at-uri) to `at://…/app.bsky.feed.post/…` for APIs. */
+export function quotesParamToPostUri(param: string): string | null {
+  const t = param.trim()
+  if (!t) return null
+  if (t.startsWith('at://')) return t
+  const slash = t.indexOf('/')
+  if (slash <= 0 || slash >= t.length - 1) return null
+  const did = t.slice(0, slash)
+  const rkey = t.slice(slash + 1)
+  if (!did.startsWith('did:') || !rkey) return null
+  return `at://${did}/app.bsky.feed.post/${rkey}`
+}
+
 /**
  * In-app path to open a post (matches Bluesky’s `/profile/handle/post/rkey` when author handle is known).
  * Falls back to `/post/{encoded at-uri}` when handle is missing.

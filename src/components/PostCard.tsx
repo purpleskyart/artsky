@@ -2,7 +2,7 @@ import { useRef, useEffect, useLayoutEffect, useState, useCallback, useMemo, mem
 import { useNavigate, useLocation } from 'react-router-dom'
 import type Hls from 'hls.js'
 import { loadHls } from '../lib/loadHls'
-import { getPostMediaInfoForDisplay, getPostAllMediaForDisplay, getPostExternalLink, POST_MEDIA_FEED_PREVIEW, likePostWithLifecycle, unlikePostWithLifecycle, followAccountWithLifecycle, type TimelineItem } from '../lib/bsky'
+import { getPostMediaInfoForDisplay, getPostAllMediaForDisplay, getPostExternalLink, getReplyParentPostView, POST_MEDIA_FEED_PREVIEW, likePostWithLifecycle, unlikePostWithLifecycle, followAccountWithLifecycle, type TimelineItem } from '../lib/bsky'
 import { useSession } from '../context/SessionContext'
 import { useLoginModal } from '../context/LoginModalContext'
 import { useArtOnly } from '../context/ArtOnlyContext'
@@ -22,6 +22,11 @@ import ProfileLink from './ProfileLink'
 import PostActionsMenu from './PostActionsMenu'
 import { ProgressiveImage } from './ProgressiveImage'
 import styles from './PostCard.module.css'
+
+function replyParentMemoKey(item: TimelineItem): string {
+  const p = getReplyParentPostView(item)
+  return p ? `${p.uri}:${p.cid}` : ''
+}
 
 interface Props {
   item: TimelineItem
@@ -153,7 +158,20 @@ function PostCardInner({
   const { post, reason } = item as { post: typeof item.post; reason?: { $type?: string; by?: { handle?: string; did?: string } } }
   const feedSource = (item as { _feedSource?: { kind?: string; label?: string } })._feedSource
   const feedLabel = feedSource?.label ?? (feedSource?.kind === 'timeline' ? 'Following' : undefined)
-  
+  const replyParentPost = getReplyParentPostView(item)
+  const replyParentHandle = replyParentPost
+    ? (replyParentPost.author.handle ?? replyParentPost.author.did)
+    : ''
+  const replyParentText = (replyParentPost?.record as { text?: string })?.text?.trim() ?? ''
+  const replyParentExternal = useMemo(
+    () => (replyParentPost ? getPostExternalLink(replyParentPost) : null),
+    [replyParentPost],
+  )
+  const replyParentAllMedia = useMemo(
+    () => (replyParentPost ? getPostAllMediaForDisplay(replyParentPost, POST_MEDIA_FEED_PREVIEW) : []),
+    [replyParentPost],
+  )
+
   // Memoize derived state to prevent unnecessary recalculations
   const media = useMemo(() => getPostMediaInfoForDisplay(post, POST_MEDIA_FEED_PREVIEW), [post])
   const hasMedia = !!media
@@ -321,7 +339,7 @@ function PostCardInner({
     }
     try {
       if (wasLiked) {
-        await unlikePostWithLifecycle(previousLikedUri!)
+        await unlikePostWithLifecycle(previousLikedUri!, post.uri)
         setLikedUri(undefined)
         onLikedChange?.(post.uri, null)
       } else {
@@ -364,6 +382,10 @@ function PostCardInner({
   }, [feedPreviewActionRow])
   const isMultipleImages = hasMedia && media!.type === 'image' && (media!.imageCount ?? 0) > 1
   const imageItems = useMemo(() => allMedia.filter((m) => m.type === 'image'), [allMedia])
+  const isTextOnlyPreview = !hasMedia || mediaMode === 'text'
+  /** Feed / loose grids: short text posts should not reserve a full square (1:1) of empty space. */
+  const useCompactTextOnlyHeight =
+    isTextOnlyPreview && !fillCell && !constrainMediaHeight && !(isMultipleImages && imageItems.length > 1)
   /** Indices in allMedia for each image (for onMediaRef / focusedMediaIndex when multi-image) */
   const imageMediaIndices = useMemo(
     () => allMedia.map((m, i) => (m.type === 'image' ? i : -1)).filter((i): i is number => i >= 0),
@@ -680,7 +702,7 @@ function PostCardInner({
     }
     if (effectiveLikedUri) {
       setLikedUri(undefined)
-      unlikePostWithLifecycle(effectiveLikedUri).then(() => {
+      unlikePostWithLifecycle(effectiveLikedUri, post.uri).then(() => {
         onLikedChange?.(post.uri, null)
       }).catch(() => setLikedUri(effectiveLikedUri))
     } else {
@@ -748,7 +770,7 @@ function PostCardInner({
     <div
       ref={setCardRef}
       data-post-uri={post.uri}
-      className={`${styles.card} ${nsfwBlurred ? styles.cardNsfwBlurred : ''} ${isSelected ? styles.cardSelected : ''} ${isLiked ? styles.cardLiked : ''} ${seen && !isSelected ? styles.cardSeen : ''} ${fillCell ? styles.cardFillCell : ''} ${artOnly ? styles.cardArtOnly : ''} ${minimalist ? styles.cardMinimalist : ''} ${feedPreviewActionRow ? styles.cardFeedPreviewActions : ''}`}
+      className={`${styles.card} ${replyParentPost ? styles.cardHasReplyParent : ''} ${nsfwBlurred ? styles.cardNsfwBlurred : ''} ${isSelected ? styles.cardSelected : ''} ${isLiked ? styles.cardLiked : ''} ${seen && !isSelected ? styles.cardSeen : ''} ${fillCell ? styles.cardFillCell : ''} ${artOnly ? styles.cardArtOnly : ''} ${minimalist ? styles.cardMinimalist : ''} ${feedPreviewActionRow ? styles.cardFeedPreviewActions : ''}`}
     >
       <div
         role="button"
@@ -817,7 +839,7 @@ function PostCardInner({
             }
             if (effectiveLikedUri) {
               setLikedUri(undefined)
-              unlikePostWithLifecycle(effectiveLikedUri).then(() => {
+              unlikePostWithLifecycle(effectiveLikedUri, post.uri).then(() => {
                 onLikedChange?.(post.uri, null)
               }).catch(() => setLikedUri(effectiveLikedUri))
             } else {
@@ -857,19 +879,109 @@ function PostCardInner({
           }
         }}
       >
+        {replyParentPost ? (
+          <div
+            data-reply-parent-strip
+            className={styles.replyParentStrip}
+            role="group"
+            aria-label={`Replying to @${replyParentHandle}`}
+          >
+            <div className={styles.replyParentStripHeader}>
+              <p className={styles.replyParentLabel}>Replying to</p>
+              <ProfileLink handle={replyParentHandle} className={styles.replyParentHandle}>
+                @{replyParentHandle}
+              </ProfileLink>
+            </div>
+            {replyParentAllMedia.length > 0 ? (
+              <div
+                className={`${styles.replyParentMediaBlock} ${replyParentAllMedia.length > 1 ? styles.replyParentMediaBlockMulti : ''}`}
+              >
+                {replyParentAllMedia.map((m, i) => {
+                  const ar =
+                    m.type === 'image' && m.aspectRatio != null
+                      ? m.aspectRatio
+                      : m.type === 'video'
+                        ? m.aspectRatio ?? 16 / 9
+                        : 1
+                  return (
+                    <div key={i} className={styles.replyParentMediaSlide}>
+                      {m.type === 'image' ? (
+                        <ProgressiveImage
+                          src={m.url}
+                          alt=""
+                          aspectRatio={ar}
+                          objectFit="contain"
+                          loading="lazy"
+                          preloadDistance={cardMediaPreloadDistance}
+                        />
+                      ) : m.videoPlaylist ? (
+                        <>
+                          {m.url ? (
+                            <img src={m.url} alt="" className={styles.replyParentMediaImg} loading="lazy" />
+                          ) : (
+                            <div className={styles.replyParentMediaImgPlaceholder} aria-hidden />
+                          )}
+                          <span className={styles.replyParentVideoPlay} aria-hidden>
+                            ▶
+                          </span>
+                        </>
+                      ) : null}
+                    </div>
+                  )
+                })}
+              </div>
+            ) : replyParentExternal?.thumb ? (
+              <div className={styles.replyParentMediaBlock}>
+                <div className={styles.replyParentMediaSlide}>
+                  <ProgressiveImage
+                    src={replyParentExternal.thumb}
+                    alt=""
+                    aspectRatio={16 / 9}
+                    objectFit="contain"
+                    loading="lazy"
+                    preloadDistance={cardMediaPreloadDistance}
+                  />
+                </div>
+              </div>
+            ) : null}
+            <div className={styles.replyParentBody}>
+              {replyParentText ? (
+                <div className={styles.replyParentSnippet}>
+                  <PostText
+                    text={replyParentText}
+                    facets={(replyParentPost.record as { facets?: unknown[] })?.facets}
+                    stopPropagation
+                    interactive={false}
+                  />
+                </div>
+              ) : replyParentExternal ? (
+                <p className={styles.replyParentSnippet}>{replyParentExternal.title}</p>
+              ) : replyParentAllMedia.length === 0 && !replyParentExternal?.thumb ? (
+                <p className={styles.replyParentSnippetMuted}>Original post</p>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
         <div
           ref={(el) => {
             ;(mediaWrapRef as React.MutableRefObject<HTMLDivElement | null>).current = el
             if (onMediaRef && (mediaMode === 'text' || (hasMedia && !(isMultipleImages && imageItems.length > 1)))) onMediaRef(0, el)
           }}
-          className={`${styles.mediaWrap} ${fillCell ? styles.mediaWrapFillCell : ''} ${constrainMediaHeight ? styles.mediaWrapConstrained : ''} ${isMultipleImages && imageItems.length > 1 ? styles.mediaWrapMultiStack : ''}`}
+          className={`${styles.mediaWrap} ${fillCell ? styles.mediaWrapFillCell : ''} ${constrainMediaHeight ? styles.mediaWrapConstrained : ''} ${isMultipleImages && imageItems.length > 1 ? styles.mediaWrapMultiStack : ''} ${useCompactTextOnlyHeight ? styles.mediaWrapTextOnly : ''}`}
           style={
             fillCell || constrainMediaHeight ||
             (isMultipleImages && imageItems.length > 1)
               ? undefined
               : {
-                  aspectRatio:
-                    !hasMedia ? '1' : mediaAspect != null ? String(mediaAspect) : isVideo ? '1' : undefined,
+                  aspectRatio: useCompactTextOnlyHeight
+                    ? undefined
+                    : !hasMedia
+                      ? '1'
+                      : mediaAspect != null
+                        ? String(mediaAspect)
+                        : isVideo
+                          ? '1'
+                          : undefined,
                 }
           }
           onMouseEnter={onMediaEnter}
@@ -1150,13 +1262,14 @@ function PostCardInner({
           {!minimalist && (!artOnly || !feedPreviewActionRow) && (
           <div className={styles.handleBlock}>
             <div className={styles.handleRow}>
-              {post.author.avatar ? (
-                <ProgressiveImage src={post.author.avatar} alt="" className={styles.authorAvatar} loading="lazy" />
-              ) : post.author.did ? (
-                <span className={styles.authorAvatarPlaceholder} aria-hidden>
-                  {(handle || post.author.did).slice(0, 1).toUpperCase()}
-                </span>
-              ) : null}
+              {!(showFeedStyleActionRow && post.author.avatar) &&
+                (post.author.avatar ? (
+                  <ProgressiveImage src={post.author.avatar} alt="" className={styles.authorAvatar} loading="lazy" />
+                ) : post.author.did ? (
+                  <span className={styles.authorAvatarPlaceholder} aria-hidden>
+                    {(handle || post.author.did).slice(0, 1).toUpperCase()}
+                  </span>
+                ) : null)}
               <span className={styles.handleRowMain}>
                 <span className={effectiveLikedUri ? styles.handleLinkWrapLiked : styles.handleLinkWrap}>
                   <ProfileLink
@@ -1257,6 +1370,7 @@ export default memo(PostCard, (prevProps, nextProps) => {
   if (prevProps.onRemovePostFromCollection !== nextProps.onRemovePostFromCollection) return false
   if (prevProps.feedPreviewActionRow !== nextProps.feedPreviewActionRow) return false
   if (prevProps.openCollectionMenuSignal !== nextProps.openCollectionMenuSignal) return false
+  if (replyParentMemoKey(prevProps.item) !== replyParentMemoKey(nextProps.item)) return false
 
   // Check if the post content has changed (cid is the content identifier)
   if (prevProps.item.post.cid !== nextProps.item.post.cid) return false
