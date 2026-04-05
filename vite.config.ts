@@ -15,7 +15,15 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'prompt',
-      includeAssets: ['favicon.ico', 'icon.svg', 'icon-pwa.svg'],
+      includeAssets: [
+        'favicon.ico',
+        'icon.svg',
+        'icon-pwa.svg',
+        'icon-app.svg',
+        'apple-touch-icon.png',
+        'icon-192.png',
+        'icon-512.png',
+      ],
       manifest: {
         name: 'PurpleSky',
         short_name: 'PurpleSky',
@@ -27,7 +35,9 @@ export default defineConfig({
         scope: './',
         start_url: './',
         icons: [
-          { src: './icon-pwa.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any maskable' },
+          { src: './icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: './icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: './icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
       workbox: {

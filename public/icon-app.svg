@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" shape-rendering="geometricPrecision" fill-rule="evenodd" clip-rule="evenodd">
+  <!-- Solid tile for home screen / launcher (theme matches manifest theme_color); OS applies rounding -->
+  <rect width="512" height="512" fill="#1a1a2e"/>
+  <defs>
+    <linearGradient id="icon-app-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#8B52EE"/>
+      <stop offset="100%" stop-color="#7D55FC"/>
+    </linearGradient>
+    <clipPath id="icon-app-abdomen">
+      <ellipse cx="256" cy="338" rx="68" ry="88"/>
+    </clipPath>
+  </defs>
+  <!-- Slightly tighter than icon-pwa so maskable / round launchers keep antennae and wings inside safe zone -->
+  <g transform="translate(256 256) scale(0.74) translate(-256 -256)">
+    <g transform="translate(256 256) scale(1.12 1) translate(-256 -256)">
+      <g fill="url(#icon-app-grad)">
+        <path d="M 225 172 C 128 141 76 191 74 221 C 72 252 132 272 217 247 C 229 226 238 198 225 172 Z"/>
+        <path d="M 287 172 C 384 141 436 191 438 221 C 440 252 380 272 295 247 C 283 226 274 198 287 172 Z"/>
+      </g>
+      <g fill="url(#icon-app-grad)">
+        <ellipse cx="256" cy="338" rx="68" ry="88"/>
+        <ellipse cx="256" cy="262" rx="28" ry="18"/>
+        <ellipse cx="256" cy="206" rx="50" ry="46"/>
+        <circle cx="256" cy="110" r="56"/>
+      </g>
+      <g clip-path="url(#icon-app-abdomen)">
+        <rect x="188" y="282" width="136" height="14" fill="#3d2572"/>
+        <rect x="188" y="312" width="136" height="14" fill="#3d2572"/>
+        <rect x="188" y="342" width="136" height="14" fill="#3d2572"/>
+        <rect x="188" y="372" width="136" height="14" fill="#3d2572"/>
+      </g>
+      <path fill="url(#icon-app-grad)" d="M 242 418 L 256 474 L 270 418 Z"/>
+      <g fill="none" stroke-width="14" stroke-linecap="round" stroke-linejoin="round">
+        <path stroke="url(#icon-app-grad)" d="M232 82 Q 205 52 188 38"/>
+        <path stroke="url(#icon-app-grad)" d="M280 82 Q 307 52 324 38"/>
+      </g>
+      <g fill="url(#icon-app-grad)">
+        <circle cx="188" cy="38" r="9"/>
+        <circle cx="324" cy="38" r="9"/>
+      </g>
+    </g>
+  </g>
+</svg>

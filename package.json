@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "dev:artsky-dev": "VITE_BASE_PATH=/artsky-dev/ VITE_APP_ENV=dev vite --port 5174",
-    "build": "node scripts/generate-oauth-metadata.js && tsc -b && vite build && cp dist/index.html dist/404.html",
+    "build": "node scripts/generate-app-icons.mjs && node scripts/generate-oauth-metadata.js && tsc -b && vite build && cp dist/index.html dist/404.html",
+    "generate:icons": "node scripts/generate-app-icons.mjs",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest",
@@ -39,6 +40,7 @@
     "fake-indexeddb": "^6.2.5",
     "fast-check": "^4.5.3",
     "globals": "^16.5.0",
+    "sharp": "^0.34.5",
     "jsdom": "^28.1.0",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.46.4",
