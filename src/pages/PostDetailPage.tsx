@@ -21,8 +21,22 @@ import { getPostAppPath } from '../lib/appUrl'
 import { useLoginModal } from '../context/LoginModalContext'
 import { useToast } from '../context/ToastContext'
 import styles from './PostDetailPage.module.css'
+import { scrollFieldAboveKeyboard } from '../lib/mobileKeyboardFocus'
 
 const ACTION_ICON_SIZE = 18
+
+/** Active reply composer for this parent post URI (inline vs top/bottom `.commentForm` share different class names). */
+const ACTIVE_REPLY_ATTR = 'data-active-reply-target'
+
+function queryReplyComposerTextarea(parentPostUri: string): HTMLTextAreaElement | null {
+  if (typeof document === 'undefined') return null
+  try {
+    const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(parentPostUri) : parentPostUri.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+    return document.querySelector(`[${ACTIVE_REPLY_ATTR}="${esc}"] textarea`)
+  } catch {
+    return null
+  }
+}
 function RepostIcon() {
   return (
     <svg width={ACTION_ICON_SIZE} height={ACTION_ICON_SIZE} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
@@ -752,7 +766,7 @@ function PostBlock({
         </div>
       )}
       {isReplyTarget && replyingTo && setReplyComment && onReplySubmit && clearReplyingTo && commentFormRef && (
-        <div className={styles.inlineReplyFormWrap}>
+        <div className={styles.inlineReplyFormWrap} data-active-reply-target={post.uri}>
           <form ref={commentFormRef} onSubmit={onReplySubmit} className={styles.inlineReplyForm}>
             <div className={styles.inlineReplyFormHeader}>
               <button type="button" className={styles.cancelReply} onClick={clearReplyingTo} aria-label="Cancel reply">
@@ -1450,10 +1464,6 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
     if (!thread || !isThreadViewPost(thread) || !initialOpenReply) return
     const handle = thread.post.author?.handle ?? thread.post.author?.did ?? ''
     setReplyingTo({ uri: thread.post.uri, cid: thread.post.cid, handle })
-    requestAnimationFrame(() => {
-      const form = document.querySelector(`.${styles.commentForm} textarea`) as HTMLTextAreaElement | null
-      form?.focus()
-    })
   }, [thread, initialOpenReply])
 
   useEffect(() => {
@@ -1468,6 +1478,32 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
+  }, [replyingTo])
+
+  /* Focus + scroll the real reply composer (nested inline uses .inlineReplyForm, not .commentForm — avoid wrong textarea). */
+  useEffect(() => {
+    if (!replyingTo) return
+    const uri = replyingTo.uri
+    let cancelled = false
+    const run = () => {
+      if (cancelled) return
+      const ta = queryReplyComposerTextarea(uri)
+      if (!ta) return
+      ta.focus({ preventScroll: true })
+      scrollFieldAboveKeyboard(ta)
+    }
+    requestAnimationFrame(() => {
+      requestAnimationFrame(run)
+    })
+    const t1 = window.setTimeout(run, 0)
+    const t2 = window.setTimeout(run, 120)
+    const t3 = window.setTimeout(run, 400)
+    return () => {
+      cancelled = true
+      window.clearTimeout(t1)
+      window.clearTimeout(t2)
+      window.clearTimeout(t3)
+    }
   }, [replyingTo])
 
   function notifyCommentError(message: string) {
@@ -1527,8 +1563,6 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
 
   function handleReplyTo(parentUri: string, parentCid: string, handle: string) {
     setReplyingTo({ uri: parentUri, cid: parentCid, handle })
-    const form = document.querySelector(`.${styles.commentForm} textarea`) as HTMLTextAreaElement | null
-    form?.focus()
   }
 
   async function handleCommentLike(uri: string, cid: string, currentLikeUri: string | null) {
@@ -2378,7 +2412,12 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
             </section>
             </article>
             {thread && isThreadViewPost(thread) && (
-              <div className={styles.inlineReplyFormWrap}>
+              <div
+                className={styles.inlineReplyFormWrap}
+                data-active-reply-target={
+                  !replyingTo || replyingTo.uri === thread.post.uri ? thread.post.uri : undefined
+                }
+              >
                 <div>
                   <form ref={commentFormTopRef} onSubmit={handlePostReplyFromTop} className={styles.commentForm}>
                     {replyAs && (
@@ -2561,7 +2600,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
               </div>
             )}
             {(thread && isThreadViewPost(thread) && 'replies' in thread && Array.isArray(thread.replies) && thread.replies.length >= 6 && (!replyingTo || replyingTo.uri === thread.post.uri)) && (
-              <div className={styles.inlineReplyFormWrap}>
+              <div className={styles.inlineReplyFormWrap} data-active-reply-target={thread.post.uri}>
                 <div
                   ref={commentFormWrapRef}
                   tabIndex={-1}

@@ -64,19 +64,27 @@
   box-shadow: inset 0 0 0 2px #ec4899;
 }
 
-/* Darken card when marked as seen (scrolled past) - but not the media */
-.cardSeen .meta,
-.cardSeen .handleBlock,
-.cardSeen .textOnlyPreview,
-.cardSeen .cardActionRow {
-  filter: brightness(0.82);
+/* Darken card when marked as seen (scrolled past) - but not the media.
+   handleBlock + cardActionRow live inside .meta; text-only preview is above actions in .textOnlyPreview.
+   Use a veil pseudo-element instead of filter: brightness() so like/handle row still dims when children
+   use transforms, translateZ stacking, or gradient text (background-clip) — filter on the parent can skip
+   those layers in some compositing paths. */
+.cardSeen .textOnlyPreview {
+  position: relative;
 }
-/* Dark mode: stronger seen dimming so the difference from unseen is clear */
-html[data-theme="dark"] .cardSeen .meta,
-html[data-theme="dark"] .cardSeen .handleBlock,
-html[data-theme="dark"] .cardSeen .textOnlyPreview,
-html[data-theme="dark"] .cardSeen .cardActionRow {
-  filter: brightness(0.68);
+.cardSeen .meta::after,
+.cardSeen .textOnlyPreview::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 3;
+  background: rgba(0, 0, 0, 0.12);
+}
+html[data-theme="dark"] .cardSeen .meta::after,
+html[data-theme="dark"] .cardSeen .textOnlyPreview::after {
+  background: rgba(0, 0, 0, 0.24);
 }
 
 /* Hover: lift toward user (shadow + purple border on desktop) */

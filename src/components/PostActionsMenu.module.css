@@ -52,6 +52,9 @@
   right: 0;
   margin-bottom: 0.25rem;
   min-width: 160px;
+  /* Fixed + one horizontal inset (left or right) makes width:auto span the viewport; shrink to content */
+  width: max-content;
+  max-width: calc(100vw - 1rem);
   padding: 0.35rem;
   background: var(--surface);
   border: 1px solid var(--border);

@@ -389,9 +389,12 @@ export default function FeedSelector({
                   ? percent >= 100
                     ? { background: 'var(--accent)' }
                     : {
-                        /* Surface as base; accent gradient on top so no seam at the boundary */
+                        /* Solid accent strip by width avoids gradient-stop fringe on the unfilled (right) edge */
                         backgroundColor: 'var(--surface)',
-                        backgroundImage: `linear-gradient(to right, var(--accent) 0%, var(--accent) ${percent}%, transparent ${percent}%)`,
+                        backgroundImage: 'linear-gradient(var(--accent), var(--accent))',
+                        backgroundRepeat: 'no-repeat',
+                        backgroundPosition: 'left center',
+                        backgroundSize: `${percent}% 100%`,
                       }
                   : undefined
               }

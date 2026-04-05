@@ -712,7 +712,8 @@
   transition: background 0.15s ease, border-color 0.15s ease;
 }
 
-.tabs button:not(.ratioBtnSide):not(.addFeedPage):hover {
+/* Exclude feed mix pills: they keep glass border on hover (purple outline looked like a wrong “right edge”) */
+.tabs button:not(.ratioBtnSide):not(.addFeedPage):not(.feedPillWithFill):hover {
   border-color: var(--accent);
 }
 
@@ -727,8 +728,9 @@
   filter: brightness(0.92);
 }
 
-/* Ratio pills: glass border by default (avoids purple at right edge when not hovered); hover gets accent outline */
+/* Ratio pills: keep glass border on hover/focus too (generic .tabs button:hover used accent on every edge) */
 .tabs button.feedPillWithFill,
+.tabs button.feedPillWithFill:hover,
 .tabs button.feedPillWithFill:focus,
 .tabs button.feedPillWithFill:active {
   border-color: var(--glass-border);

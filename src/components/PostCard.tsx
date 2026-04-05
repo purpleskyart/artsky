@@ -54,7 +54,7 @@ interface Props {
   likedUriOverride?: string | null
   /** Called when like state changes from double-tap (so parent can sync likeOverrides); likeRecordUri null = unliked */
   onLikedChange?: (postUri: string, likeRecordUri: string | null) => void
-  /** When true, card is marked as seen (e.g. scrolled past); shown darkened */
+  /** When true, card is marked as seen (e.g. scrolled past); meta/text preview darkened (media stays bright) */
   seen?: boolean
   /** Called when the ... actions menu opens or closes (for parent to track which card's menu is open) */
   onActionsMenuOpenChange?: (open: boolean) => void
@@ -770,7 +770,7 @@ function PostCardInner({
     <div
       ref={setCardRef}
       data-post-uri={post.uri}
-      className={`${styles.card} ${replyParentPost ? styles.cardHasReplyParent : ''} ${nsfwBlurred ? styles.cardNsfwBlurred : ''} ${isSelected ? styles.cardSelected : ''} ${isLiked ? styles.cardLiked : ''} ${seen && !isSelected ? styles.cardSeen : ''} ${fillCell ? styles.cardFillCell : ''} ${artOnly ? styles.cardArtOnly : ''} ${minimalist ? styles.cardMinimalist : ''} ${feedPreviewActionRow ? styles.cardFeedPreviewActions : ''}`}
+      className={`${styles.card} ${replyParentPost ? styles.cardHasReplyParent : ''} ${nsfwBlurred ? styles.cardNsfwBlurred : ''} ${isSelected ? styles.cardSelected : ''} ${isLiked ? styles.cardLiked : ''} ${seen ? styles.cardSeen : ''} ${fillCell ? styles.cardFillCell : ''} ${artOnly ? styles.cardArtOnly : ''} ${minimalist ? styles.cardMinimalist : ''} ${feedPreviewActionRow ? styles.cardFeedPreviewActions : ''}`}
     >
       <div
         role="button"
