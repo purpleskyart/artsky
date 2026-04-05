@@ -520,6 +520,8 @@ export default function Layout({ title, children, showNav }: Props) {
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false)
   const [composeOpen, setComposeOpen] = useState(false)
   const [composeOverlayBottom, setComposeOverlayBottom] = useState(0)
+  /** Mobile compose: once the real keyboard has shown, use actual inset; before that, reserve a typical gap so first paint matches post-focus layout. */
+  const composeKeyboardUsedRef = useRef(false)
   const [composeSegments, setComposeSegments] = useState<ComposeSegment[]>([{ id: Math.random().toString(36).slice(2), text: '', images: [], imageAlts: [] }])
   const [composeSegmentIndex, setComposeSegmentIndex] = useState(0)
   const [composePosting, setComposePosting] = useState(false)
@@ -1115,20 +1117,38 @@ export default function Layout({ title, children, showNav }: Props) {
     return () => clearTimeout(id)
   }, [mobileSearchOpen, isDesktop])
 
+  /* Keyboard inset for compose: resize only (same as AppModal). Listening to
+   * visualViewport scroll makes `offsetTop` track iOS viewport panning and
+   * spikes `bottom` on the fixed overlay so the sheet jumps too high.
+   * Until the keyboard is visible, reserve a typical inset so the sheet does not
+   * start at the full-viewport bottom then jump when the field is focused. */
   useEffect(() => {
     if (!composeOpen || isDesktop || typeof window === 'undefined') return
     const vv = window.visualViewport
     if (!vv) return
     const viewport = vv
+    function estimatedKeyboardInset(): number {
+      const h = window.innerHeight
+      return Math.min(340, Math.max(200, Math.round(h * 0.35)))
+    }
     function update() {
-      setComposeOverlayBottom(window.innerHeight - (viewport.offsetTop + viewport.height))
+      const inferred = Math.max(
+        0,
+        Math.round(window.innerHeight - (viewport.offsetTop + viewport.height))
+      )
+      if (inferred > 72) {
+        composeKeyboardUsedRef.current = true
+        setComposeOverlayBottom(inferred)
+      } else if (!composeKeyboardUsedRef.current) {
+        setComposeOverlayBottom(estimatedKeyboardInset())
+      } else {
+        setComposeOverlayBottom(0)
+      }
     }
     update()
     viewport.addEventListener('resize', update)
-    viewport.addEventListener('scroll', update, { passive: true })
     return () => {
       viewport.removeEventListener('resize', update)
-      viewport.removeEventListener('scroll', update)
     }
   }, [composeOpen, isDesktop])
 
@@ -1238,7 +1258,7 @@ export default function Layout({ title, children, showNav }: Props) {
     setComposeSegments([{ id: Math.random().toString(36).slice(2), text: '', images: [], imageAlts: [] }])
     setComposeSegmentIndex(0)
     setComposeError(null)
-    setComposeOverlayBottom(0)
+    composeKeyboardUsedRef.current = false
   }
 
   function closeCompose() {
@@ -2382,7 +2402,7 @@ export default function Layout({ title, children, showNav }: Props) {
                 onDrop={handleComposeDrop}
                 style={!isDesktop ? { bottom: composeOverlayBottom } : undefined}
               >
-                <div className={styles.composeCard}>
+                <div className={styles.composeCard} data-compose-sheet>
                   <header className={styles.composeHeader}>
                     <button type="button" className={styles.composeCancel} onClick={closeCompose} disabled={composePosting}>
                       Cancel

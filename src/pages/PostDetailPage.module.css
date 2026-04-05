@@ -1011,13 +1011,13 @@
 }
 
 .wrapInModal .replies {
-  padding-right: 0;
+  padding-right: 0.5rem;
 }
 .wrapInModal .repliesTopLevel .topLevelCommentWrap > .postBlock {
-  padding-right: 0;
+  padding-right: 0.5rem;
 }
 .wrapInModal .repliesContainer .replies .postBlock {
-  padding-right: 0;
+  padding-right: 0.5rem;
 }
 
 .collapsedCommentWrap {
@@ -1263,7 +1263,7 @@
 .inlineReplyFormWrap {
   margin-top: 0.75rem;
   padding-left: 0.25rem;
-  padding-right: 0;
+  padding-right: 0.5rem;
 }
 
 /* No outline by default; scale when form or any control inside has focus */

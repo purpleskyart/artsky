@@ -21,7 +21,6 @@ import { getPostAppPath } from '../lib/appUrl'
 import { useLoginModal } from '../context/LoginModalContext'
 import { useToast } from '../context/ToastContext'
 import styles from './PostDetailPage.module.css'
-import { scrollFieldAboveKeyboard } from '../lib/mobileKeyboardFocus'
 
 const ACTION_ICON_SIZE = 18
 
@@ -1480,17 +1479,21 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
     return () => window.removeEventListener('keydown', onKey)
   }, [replyingTo])
 
-  /* Focus + scroll the real reply composer (nested inline uses .inlineReplyForm, not .commentForm — avoid wrong textarea). */
+  /* Focus the real reply composer textarea so the mobile keyboard opens.
+   * ComposerSuggestions.handleFocus handles scrollFieldAboveKeyboard with
+   * proper cleanup — calling it here too would create leaked viewport
+   * listeners that fight over scroll position and misplace the caret. */
   useEffect(() => {
     if (!replyingTo) return
     const uri = replyingTo.uri
     let cancelled = false
+    let focused = false
     const run = () => {
-      if (cancelled) return
+      if (cancelled || focused) return
       const ta = queryReplyComposerTextarea(uri)
       if (!ta) return
+      focused = true
       ta.focus({ preventScroll: true })
-      scrollFieldAboveKeyboard(ta)
     }
     requestAnimationFrame(() => {
       requestAnimationFrame(run)

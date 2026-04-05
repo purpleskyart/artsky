@@ -8,11 +8,7 @@ import { useScrollLock } from '../context/ScrollLockContext'
 import { useSwipeToClose } from '../hooks/useSwipeToClose'
 import {
   usePullToRefresh,
-  PULL_REFRESH_HOLD_PX,
-  MODAL_PULL_COMMIT_PX,
-  MODAL_PULL_THRESHOLD_PX,
-  MODAL_RUBBER_BAND_SCALE,
-  MODAL_AT_TOP_MAX_SCROLL_PX,
+  PULL_THRESHOLD_PX,
 } from '../hooks/usePullToRefresh'
 import { useStandalonePwa } from '../hooks/useStandalonePwa'
 import styles from './PostDetailModal.module.css'
@@ -96,10 +92,7 @@ export default function AppModal({
     touchTargetRef: scrollRef,
     onRefresh: onPullToRefresh ?? (() => {}),
     enabled: !!onPullToRefresh && isMobile && isStandalonePwa,
-    pullCommitPx: MODAL_PULL_COMMIT_PX,
-    pullThresholdPx: MODAL_PULL_THRESHOLD_PX,
-    rubberBandScale: MODAL_RUBBER_BAND_SCALE,
-    atTopMaxScrollPx: MODAL_AT_TOP_MAX_SCROLL_PX,
+    atTopMaxScrollPx: 1,
   })
   const [topBarSlotEl, setTopBarSlotEl] = useState<HTMLDivElement | null>(null)
   const [topBarRightSlotEl, setTopBarRightSlotEl] = useState<HTMLDivElement | null>(null)
@@ -119,6 +112,40 @@ export default function AppModal({
     scrollLock?.lockScroll()
     return () => scrollLock?.unlockScroll()
   }, [scrollLock])
+
+  /* Mobile: track on-screen keyboard via visualViewport and set --keyboard-inset on the overlay so the pane stays above the keyboard (CSS uses the variable for max-height).
+   * Only listens to resize (keyboard open/close). Listening to visualViewport
+   * scroll caused a feedback loop: adjusting scroll inside the modal fires a
+   * viewport scroll event which re-runs this handler which changes pane height
+   * which shifts content which triggers more scroll adjustments. */
+  useEffect(() => {
+    if (!isMobile || typeof window === 'undefined') return
+    const vv = window.visualViewport
+    const el = overlayRef.current
+    if (!vv || !el) return
+    const update = () => {
+      const inset = Math.max(0, Math.round(window.innerHeight - (vv.offsetTop + vv.height)))
+      el.style.setProperty('--keyboard-inset', `${inset}px`)
+    }
+    vv.addEventListener('resize', update)
+    return () => {
+      vv.removeEventListener('resize', update)
+      el.style.removeProperty('--keyboard-inset')
+    }
+  }, [isMobile])
+
+  /* Mobile pull-to-refresh: propagate pull offset to Layout floating buttons (gear, feeds, notification)
+     which live outside the modal portal but should move with the pull. */
+  useEffect(() => {
+    if (isMobile && pullRefresh.pullDistance > 0) {
+      document.documentElement.style.setProperty('--modal-pull-offset', `${pullRefresh.pullDistance}px`)
+    } else {
+      document.documentElement.style.removeProperty('--modal-pull-offset')
+    }
+    return () => {
+      document.documentElement.style.removeProperty('--modal-pull-offset')
+    }
+  }, [isMobile, pullRefresh.pullDistance])
 
   /* When modal is open, route wheel events to the modal scroll area so scrolling never moves the page behind. Only the topmost modal does this so stacking (e.g. post on profile) scrolls the visible modal. */
   useLayoutEffect(() => {
@@ -302,30 +329,36 @@ export default function AppModal({
           onTouchEnd={swipe.onTouchEnd}
           onClick={(e) => e.stopPropagation()}
         >
+          {onPullToRefresh && isMobile && isStandalonePwa && (
+            <div
+              className={styles.modalPanePullRefreshHeader}
+              aria-hidden={pullRefresh.pullDistance === 0 && !pullRefresh.isRefreshing}
+              aria-live="polite"
+              aria-label={pullRefresh.isRefreshing ? 'Refreshing' : undefined}
+            >
+              {(pullRefresh.pullDistance > 0 || pullRefresh.isRefreshing) && (
+                <div
+                  className={styles.pullRefreshSpinner}
+                  style={
+                    pullRefresh.isRefreshing
+                      ? undefined
+                      : {
+                          animation: 'none',
+                          transform: `rotate(${Math.min(1, pullRefresh.pullDistance / PULL_THRESHOLD_PX) * 360}deg)`,
+                        }
+                  }
+                />
+              )}
+            </div>
+          )}
           <div
-            className={`${styles.modalPaneBody}${onPullToRefresh && isMobile && isStandalonePwa ? ` ${styles.modalPanePullSnap}` : ''}`}
+            className={styles.modalPaneBody}
             style={
-              onPullToRefresh && isMobile && isStandalonePwa
+              pullRefresh.pullDistance > 0
                 ? { transform: `translateY(${pullRefresh.pullDistance}px)` }
                 : undefined
             }
           >
-            {onPullToRefresh && isMobile && isStandalonePwa && (
-              <div
-                className={styles.modalPanePullRefreshHeader}
-                style={{
-                  height:
-                    pullRefresh.pullDistance > 0 || pullRefresh.isRefreshing ? PULL_REFRESH_HOLD_PX : 0,
-                }}
-                aria-hidden={pullRefresh.pullDistance === 0 && !pullRefresh.isRefreshing}
-                aria-live="polite"
-                aria-label={pullRefresh.isRefreshing ? 'Refreshing' : undefined}
-              >
-                {(pullRefresh.pullDistance > 0 || pullRefresh.isRefreshing) && (
-                  <div className={styles.pullRefreshSpinner} />
-                )}
-              </div>
-            )}
             <button
               type="button"
               className={`float-btn modal-back-btn ${styles.modalFloatingBack}${modalScrollHidden ? ` ${styles.modalFloatingBackScrollHidden}` : ''}`}

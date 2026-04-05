@@ -1009,7 +1009,7 @@ button.logoLink {
   position: fixed;
   top: max(var(--space-md), env(safe-area-inset-top, 59px));
   left: 50%;
-  transform: translateX(-50%);
+  transform: translateX(-50%) translateY(var(--modal-pull-offset, 0px));
   z-index: 90;
   display: flex;
   flex-direction: column;
@@ -1055,7 +1055,7 @@ button.logoLink {
   );
   /* Fallback if account/guest modifier missing */
   right: max(var(--space-sm), env(safe-area-inset-right, 0px));
-  transform: none;
+  transform: translateY(var(--modal-pull-offset, 0px));
   width: auto;
   max-width: none;
 }
@@ -1150,6 +1150,7 @@ button.logoLink {
   align-items: flex-start;
   gap: 0.5rem;
   pointer-events: auto;
+  transform: translateY(var(--modal-pull-offset, 0px));
 }
 
 /* Collapsed menu keeps a flex item under the gear; gap still counted space → 36px + 0.5rem row.
@@ -1294,6 +1295,7 @@ button.logoLink {
   flex-direction: column;
   align-items: flex-end;
   transition: opacity var(--transition-fast);
+  transform: translateY(var(--modal-pull-offset, 0px));
 }
 
 .loginFloatWrap.loginFloatWrapScrollHidden {
@@ -1336,6 +1338,7 @@ button.logoLink {
   flex-direction: column;
   align-items: flex-end;
   transition: opacity var(--transition-fast);
+  transform: translateY(var(--modal-pull-offset, 0px));
 }
 
 .notificationFloatWrap.notificationFloatWrapScrollHidden {
@@ -2723,7 +2726,9 @@ button.logoLink {
 
 @media (max-width: 767px) {
   .composeOverlayMobile {
-    align-items: center;
+    /* Bottom-align so the sheet stays above the keyboard inset instead of
+     * vertically centering in a short band (which reads as “jumped too high”). */
+    align-items: flex-end;
     justify-content: center;
     padding: 1.5rem;
     padding-left: max(1.5rem, env(safe-area-inset-left));
@@ -2736,7 +2741,8 @@ button.logoLink {
 .composeCard {
   width: 100%;
   max-width: 420px;
-  max-height: 85vh;
+  /* Cap height relative to the overlay (keyboard already shrinks the fixed overlay on mobile). */
+  max-height: min(85vh, 100%);
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   padding: 1.25rem;
