@@ -9,6 +9,7 @@ import { useSwipeToClose } from '../hooks/useSwipeToClose'
 import {
   usePullToRefresh,
   PULL_REFRESH_HOLD_PX,
+  PULL_THRESHOLD_PX,
 } from '../hooks/usePullToRefresh'
 import { useStandalonePwa } from '../hooks/useStandalonePwa'
 import styles from './PostDetailModal.module.css'
@@ -131,6 +132,19 @@ export default function AppModal({
       el.style.removeProperty('--keyboard-inset')
     }
   }, [isMobile])
+
+  /* Mobile pull-to-refresh: propagate pull offset to Layout floating buttons (gear, feeds, notification)
+     which live outside the modal portal but should move with the pull. */
+  useEffect(() => {
+    if (isMobile && pullRefresh.pullDistance > 0) {
+      document.documentElement.style.setProperty('--modal-pull-offset', `${pullRefresh.pullDistance}px`)
+    } else {
+      document.documentElement.style.removeProperty('--modal-pull-offset')
+    }
+    return () => {
+      document.documentElement.style.removeProperty('--modal-pull-offset')
+    }
+  }, [isMobile, pullRefresh.pullDistance])
 
   /* When modal is open, route wheel events to the modal scroll area so scrolling never moves the page behind. Only the topmost modal does this so stacking (e.g. post on profile) scrolls the visible modal. */
   useLayoutEffect(() => {
@@ -314,6 +328,28 @@ export default function AppModal({
           onTouchEnd={swipe.onTouchEnd}
           onClick={(e) => e.stopPropagation()}
         >
+          {onPullToRefresh && isMobile && isStandalonePwa && (
+            <div
+              className={styles.modalPanePullRefreshHeader}
+              aria-hidden={pullRefresh.pullDistance === 0 && !pullRefresh.isRefreshing}
+              aria-live="polite"
+              aria-label={pullRefresh.isRefreshing ? 'Refreshing' : undefined}
+            >
+              {(pullRefresh.pullDistance > 0 || pullRefresh.isRefreshing) && (
+                <div
+                  className={styles.pullRefreshSpinner}
+                  style={
+                    pullRefresh.isRefreshing
+                      ? undefined
+                      : {
+                          animation: 'none',
+                          transform: `rotate(${Math.min(1, pullRefresh.pullDistance / PULL_THRESHOLD_PX) * 360}deg)`,
+                        }
+                  }
+                />
+              )}
+            </div>
+          )}
           <div
             className={styles.modalPaneBody}
             style={
@@ -322,22 +358,6 @@ export default function AppModal({
                 : undefined
             }
           >
-            {onPullToRefresh && isMobile && isStandalonePwa && (
-              <div
-                className={styles.modalPanePullRefreshHeader}
-                style={{
-                  height:
-                    pullRefresh.pullDistance > 0 || pullRefresh.isRefreshing ? PULL_REFRESH_HOLD_PX : 0,
-                }}
-                aria-hidden={pullRefresh.pullDistance === 0 && !pullRefresh.isRefreshing}
-                aria-live="polite"
-                aria-label={pullRefresh.isRefreshing ? 'Refreshing' : undefined}
-              >
-                {(pullRefresh.pullDistance > 0 || pullRefresh.isRefreshing) && (
-                  <div className={styles.pullRefreshSpinner} />
-                )}
-              </div>
-            )}
             <button
               type="button"
               className={`float-btn modal-back-btn ${styles.modalFloatingBack}${modalScrollHidden ? ` ${styles.modalFloatingBackScrollHidden}` : ''}`}

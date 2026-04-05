@@ -1009,7 +1009,7 @@ button.logoLink {
   position: fixed;
   top: max(var(--space-md), env(safe-area-inset-top, 59px));
   left: 50%;
-  transform: translateX(-50%);
+  transform: translateX(-50%) translateY(var(--modal-pull-offset, 0px));
   z-index: 90;
   display: flex;
   flex-direction: column;
@@ -1055,7 +1055,7 @@ button.logoLink {
   );
   /* Fallback if account/guest modifier missing */
   right: max(var(--space-sm), env(safe-area-inset-right, 0px));
-  transform: none;
+  transform: translateY(var(--modal-pull-offset, 0px));
   width: auto;
   max-width: none;
 }
@@ -1150,6 +1150,7 @@ button.logoLink {
   align-items: flex-start;
   gap: 0.5rem;
   pointer-events: auto;
+  transform: translateY(var(--modal-pull-offset, 0px));
 }
 
 /* Collapsed menu keeps a flex item under the gear; gap still counted space → 36px + 0.5rem row.
@@ -1294,6 +1295,7 @@ button.logoLink {
   flex-direction: column;
   align-items: flex-end;
   transition: opacity var(--transition-fast);
+  transform: translateY(var(--modal-pull-offset, 0px));
 }
 
 .loginFloatWrap.loginFloatWrapScrollHidden {
@@ -1336,6 +1338,7 @@ button.logoLink {
   flex-direction: column;
   align-items: flex-end;
   transition: opacity var(--transition-fast);
+  transform: translateY(var(--modal-pull-offset, 0px));
 }
 
 .notificationFloatWrap.notificationFloatWrapScrollHidden {

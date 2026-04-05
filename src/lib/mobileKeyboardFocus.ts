@@ -89,13 +89,22 @@ function scrollIntoModalScrollRoot(el: HTMLElement, scrollRoot: HTMLElement, beh
   }
 }
 
+function nudgeCaretPosition(el: HTMLElement) {
+  if (!(el instanceof HTMLTextAreaElement) && !(el instanceof HTMLInputElement)) return
+  const pos = el.selectionStart ?? 0
+  el.setSelectionRange(pos, pos)
+}
+
 function runScroll(el: HTMLElement, behavior: ScrollBehavior) {
   const modalRoot = el.closest('[data-modal-scroll]') as HTMLElement | null
   if (modalRoot) {
     scrollIntoModalScrollRoot(el, modalRoot, behavior)
-    return
+  } else {
+    el.scrollIntoView({ block: 'center', behavior, inline: 'nearest' })
   }
-  el.scrollIntoView({ block: 'center', behavior, inline: 'nearest' })
+  // iOS WebKit: caret can stick at the pre-scroll position after programmatic
+  // scroll of a parent; nudge the selection to force recalculation.
+  requestAnimationFrame(() => nudgeCaretPosition(el))
 }
 
 export function scrollFieldAboveKeyboard(el: HTMLElement): () => void {
