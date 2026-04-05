@@ -3,8 +3,9 @@
  * (mobile on-screen keyboard). Returns a disposer; call on blur or unmount.
  *
  * Inside AppModal, adjusts `[data-modal-scroll]` so the field sits in the visible
- * visual viewport — avoids relying on a single scrollIntoView pass that some WebKit
- * builds mishandle inside fixed overlays.
+ * visual viewport. Does NOT call el.scrollIntoView() inside modals because on iOS
+ * Safari that can scroll the body/window behind the position:fixed overlay, causing
+ * touch coordinates to desync from where elements visually appear.
  */
 function getVisibleViewportYBounds(): { top: number; bottom: number } {
   const vv = window.visualViewport
@@ -15,7 +16,7 @@ function getVisibleViewportYBounds(): { top: number; bottom: number } {
   const fromLayoutTop = Math.max(pad, vv.offsetTop + pad)
   const fromLayoutBottom = Math.min(window.innerHeight - pad, vv.offsetTop + vv.height - pad)
   /* Keyboard overlays layout (Chrome / some WebKit): also intersect with visual height so
-   * client rects line up when they’re tied to the visual viewport. */
+   * client rects line up when they're tied to the visual viewport. */
   if (vv.height < window.innerHeight - 48) {
     const visualTop = pad
     const visualBottom = vv.height - pad
@@ -34,9 +35,6 @@ function alignFieldInModalScrollRoot(
 ) {
   const { top: visibleTop, bottom: visibleBottom } = getVisibleViewportYBounds()
   const rect = el.getBoundingClientRect()
-  // Extend effective area to include the parent form's submit button / footer
-  // so they stay visible while typing. Cap at 80px extra to avoid over-scrolling
-  // if the form has a tall header above the field.
   const form = el.closest('form')
   const formBottom = form ? form.getBoundingClientRect().bottom : rect.bottom
   const effectiveBottom = Math.max(rect.bottom, Math.min(formBottom, rect.bottom + 80))
@@ -65,7 +63,6 @@ function alignFieldInModalScrollRootIterated(el: HTMLElement, scrollRoot: HTMLEl
     if (rect.top >= visibleTop - tol && effectiveBottom <= visibleBottom + tol) {
       break
     }
-    // If the effective area is taller than the visible band, accept when the field itself fits
     if (effectiveBottom - rect.top > visibleBottom - visibleTop && rect.top >= visibleTop - tol && rect.bottom <= visibleBottom + tol) {
       break
     }
@@ -74,18 +71,17 @@ function alignFieldInModalScrollRootIterated(el: HTMLElement, scrollRoot: HTMLEl
   }
 }
 
+/* Only adjust the modal's own scroll container — never call el.scrollIntoView()
+ * here. On iOS Safari, scrollIntoView scrolls ALL ancestor containers including
+ * the body/window behind the position:fixed modal overlay. The overlay stays
+ * visually in place but the underlying document shifts, causing iOS's touch
+ * hit-testing to become offset from where elements actually appear on screen. */
 function scrollIntoModalScrollRoot(el: HTMLElement, scrollRoot: HTMLElement, behavior: ScrollBehavior) {
-  el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'auto' })
-
-  const runAlign = () => alignFieldInModalScrollRootIterated(el, scrollRoot, 'auto')
-
   if (behavior === 'smooth') {
-    requestAnimationFrame(() => {
-      alignFieldInModalScrollRootIterated(el, scrollRoot, 'smooth')
-      requestAnimationFrame(runAlign)
-    })
+    alignFieldInModalScrollRootIterated(el, scrollRoot, 'smooth')
+    requestAnimationFrame(() => alignFieldInModalScrollRootIterated(el, scrollRoot, 'auto'))
   } else {
-    requestAnimationFrame(runAlign)
+    alignFieldInModalScrollRootIterated(el, scrollRoot, 'auto')
   }
 }
 
@@ -102,8 +98,6 @@ function runScroll(el: HTMLElement, behavior: ScrollBehavior) {
   } else {
     el.scrollIntoView({ block: 'center', behavior, inline: 'nearest' })
   }
-  // iOS WebKit: caret can stick at the pre-scroll position after programmatic
-  // scroll of a parent; nudge the selection to force recalculation.
   requestAnimationFrame(() => nudgeCaretPosition(el))
 }
 
@@ -111,40 +105,48 @@ export function scrollFieldAboveKeyboard(el: HTMLElement): () => void {
   if (typeof window === 'undefined') return () => {}
 
   let cancelled = false
-  const scrollSmooth = () => {
+  let cooldown = false
+  let rafId: number | null = null
+
+  const doScroll = (behavior: ScrollBehavior) => {
     if (cancelled) return
-    runScroll(el, 'smooth')
-  }
-  const scrollSnap = () => {
-    if (cancelled) return
-    runScroll(el, 'auto')
+    cooldown = true
+    runScroll(el, behavior)
+    // After a programmatic scroll, ignore viewport events briefly so the
+    // browser-fired scroll/resize that follows our own adjustment doesn't
+    // re-trigger the handler (breaks the iOS feedback loop).
+    window.setTimeout(() => { cooldown = false }, 150)
   }
 
-  scrollSmooth()
-  requestAnimationFrame(() => {
-    if (cancelled) return
-    requestAnimationFrame(scrollSmooth)
-  })
-  const t1 = window.setTimeout(scrollSmooth, 50)
-  const t2 = window.setTimeout(scrollSnap, 200)
-  const t3 = window.setTimeout(scrollSnap, 450)
-  const t4 = window.setTimeout(scrollSnap, 700)
+  const onViewportResize = () => {
+    if (cancelled || cooldown) return
+    if (rafId !== null) return
+    rafId = requestAnimationFrame(() => {
+      rafId = null
+      if (cancelled || cooldown) return
+      doScroll('auto')
+    })
+  }
+
+  doScroll('smooth')
+  const t1 = window.setTimeout(() => doScroll('auto'), 80)
+  const t2 = window.setTimeout(() => doScroll('auto'), 300)
 
   const vv = window.visualViewport
   if (vv) {
-    vv.addEventListener('resize', scrollSnap, { passive: true })
-    vv.addEventListener('scroll', scrollSnap, { passive: true })
+    // Only listen for resize (keyboard open/close). Listening to
+    // visualViewport scroll caused a feedback loop on iOS: programmatic
+    // scroll → viewport scroll event → handler → scroll → …
+    vv.addEventListener('resize', onViewportResize, { passive: true })
   }
 
   return () => {
     cancelled = true
+    if (rafId !== null) cancelAnimationFrame(rafId)
     window.clearTimeout(t1)
     window.clearTimeout(t2)
-    window.clearTimeout(t3)
-    window.clearTimeout(t4)
     if (vv) {
-      vv.removeEventListener('resize', scrollSnap)
-      vv.removeEventListener('scroll', scrollSnap)
+      vv.removeEventListener('resize', onViewportResize)
     }
   }
 }
