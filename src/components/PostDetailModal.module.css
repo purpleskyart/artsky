@@ -1,11 +1,14 @@
 .overlay {
   position: fixed;
   inset: 0;
-  /* Use dvh so overlay always fills the screen on mobile (navbar stays in place; no viewport jump) */
+  /* dvh follows dynamic viewport; lvh (where supported) keeps full screen when the keyboard shrinks dvh so the shell doesn’t jump. */
   min-height: 100vh;
   min-height: 100dvh;
   height: 100dvh;
   max-height: 100dvh;
+  min-height: 100lvh;
+  height: 100lvh;
+  max-height: 100lvh;
   z-index: 1000;
   display: flex;
   flex-direction: column;

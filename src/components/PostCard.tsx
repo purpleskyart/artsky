@@ -888,7 +888,7 @@ function PostCardInner({
           >
             <div className={styles.replyParentStripHeader}>
               <p className={styles.replyParentLabel}>Replying to</p>
-              <ProfileLink handle={replyParentHandle} className={styles.replyParentHandle}>
+              <ProfileLink handle={replyParentHandle} className={styles.replyParentHandle} title={`@${replyParentHandle}`}>
                 @{replyParentHandle}
               </ProfileLink>
             </div>
