@@ -2726,7 +2726,9 @@ button.logoLink {
 
 @media (max-width: 767px) {
   .composeOverlayMobile {
-    align-items: center;
+    /* Bottom-align so the sheet stays above the keyboard inset instead of
+     * vertically centering in a short band (which reads as “jumped too high”). */
+    align-items: flex-end;
     justify-content: center;
     padding: 1.5rem;
     padding-left: max(1.5rem, env(safe-area-inset-left));
@@ -2739,7 +2741,8 @@ button.logoLink {
 .composeCard {
   width: 100%;
   max-width: 420px;
-  max-height: 85vh;
+  /* Cap height relative to the overlay (keyboard already shrinks the fixed overlay on mobile). */
+  max-height: min(85vh, 100%);
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   padding: 1.25rem;

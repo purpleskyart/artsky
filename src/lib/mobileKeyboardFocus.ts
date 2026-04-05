@@ -4,7 +4,9 @@
  *
  * Returns a disposer; call on blur or unmount.
  *
- * Inside AppModal or the Layout compose card, adjusts only the `[data-modal-scroll]` container.
+ * Inside AppModal, adjusts only the `[data-modal-scroll]` container.
+ * Layout compose uses `[data-compose-sheet]`: no scroll adjustment (overlay
+ * handles keyboard); avoids centering the field which hides Cancel/Post.
  * Never calls el.scrollIntoView() in that path — on iOS Safari it scrolls
  * the body/window behind the position:fixed overlay, desyncing touch
  * coordinates from where elements visually appear.
@@ -67,6 +69,10 @@ function nudgeCaretPosition(el: HTMLElement) {
 }
 
 function adjustScroll(el: HTMLElement) {
+  if (el.closest('[data-compose-sheet]')) {
+    requestAnimationFrame(() => nudgeCaretPosition(el))
+    return
+  }
   const modalRoot = el.closest('[data-modal-scroll]') as HTMLElement | null
   if (modalRoot) {
     alignFieldInModalScrollRootIterated(el, modalRoot)

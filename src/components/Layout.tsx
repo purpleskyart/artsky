@@ -1115,6 +1115,9 @@ export default function Layout({ title, children, showNav }: Props) {
     return () => clearTimeout(id)
   }, [mobileSearchOpen, isDesktop])
 
+  /* Keyboard inset for compose: resize only (same as AppModal). Listening to
+   * visualViewport scroll makes `offsetTop` track iOS viewport panning and
+   * spikes `bottom` on the fixed overlay so the sheet jumps too high. */
   useEffect(() => {
     if (!composeOpen || isDesktop || typeof window === 'undefined') return
     const vv = window.visualViewport
@@ -1125,10 +1128,8 @@ export default function Layout({ title, children, showNav }: Props) {
     }
     update()
     viewport.addEventListener('resize', update)
-    viewport.addEventListener('scroll', update, { passive: true })
     return () => {
       viewport.removeEventListener('resize', update)
-      viewport.removeEventListener('scroll', update)
     }
   }, [composeOpen, isDesktop])
 
@@ -2382,7 +2383,7 @@ export default function Layout({ title, children, showNav }: Props) {
                 onDrop={handleComposeDrop}
                 style={!isDesktop ? { bottom: composeOverlayBottom } : undefined}
               >
-                <div className={styles.composeCard} data-modal-scroll>
+                <div className={styles.composeCard} data-compose-sheet>
                   <header className={styles.composeHeader}>
                     <button type="button" className={styles.composeCancel} onClick={closeCompose} disabled={composePosting}>
                       Cancel
