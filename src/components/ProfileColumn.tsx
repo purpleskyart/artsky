@@ -1,8 +1,9 @@
-import type { ReactNode } from 'react'
+import { type ReactNode, useRef, useState, useEffect, memo } from 'react'
 import type { TimelineItem } from '../lib/bsky'
 import { isPostNsfw } from '../lib/bsky'
 import PostCard from './PostCard'
 import { setInitialPostForUri } from '../lib/postCache'
+import { observeVirtualization } from '../lib/cardVirtualization'
 import profileStyles from '../pages/ProfilePage.module.css'
 import feedStyles from '../pages/FeedPage.module.css'
 
@@ -42,6 +43,37 @@ export interface ProfileColumnProps {
   /** Center collect / avatar / like with ⋮ on the right (homepage preview layout) */
   feedPreviewActionRow?: boolean
 }
+
+/**
+ * Lightweight virtualization wrapper: replaces children with a fixed-height
+ * placeholder when far off-screen, freeing images/video/observers from memory.
+ */
+const VirtualizedCell = memo(function VirtualizedCell({ children }: { children: ReactNode }) {
+  const ref = useRef<HTMLDivElement | null>(null)
+  const heightRef = useRef(0)
+  const showingRef = useRef(true)
+  const [isNear, setIsNear] = useState(true)
+
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    return observeVirtualization(el, (near) => {
+      if (!near && showingRef.current && el) {
+        heightRef.current = el.offsetHeight
+      }
+      setIsNear(near)
+    })
+  }, [])
+
+  const virtualized = !isNear && heightRef.current > 0
+  showingRef.current = !virtualized
+
+  return (
+    <div ref={ref} style={{ width: '100%' }}>
+      {virtualized ? <div style={{ height: heightRef.current }} aria-hidden /> : children}
+    </div>
+  )
+})
 
 export default function ProfileColumn(props: ProfileColumnProps) {
   const {
@@ -104,30 +136,32 @@ export default function ProfileColumn(props: ProfileColumnProps) {
               if (!suppressHoverNsfwUnblur && isNsfwBlurred) setUnblurred(item.post.uri, true)
             }}
           >
-            <PostCard
-              item={item}
-              isSelected={isSelected(originalIndex)}
-              cardRef={() => {}} // No-op since we're using the wrapper div ref above
-              onPostClick={(uri, opts) => {
-                if (opts?.initialItem) setInitialPostForUri(uri, opts.initialItem)
-                openPostModal(uri, opts?.openReply, undefined, item.post.author?.handle)
-              }}
-              constrainMediaHeight={constrainMediaHeight}
-              nsfwBlurred={isNsfwBlurred}
-              onNsfwUnblur={() => setUnblurred(item.post.uri, true)}
-              setUnblurred={setUnblurred}
-              isRevealed={unblurredUris.has(item.post.uri)}
-              likedUriOverride={likeOverrides[item.post.uri]}
-              onLikedChange={(uri, likeRecordUri) => setLikeOverrides(uri, likeRecordUri ?? null)}
-              onActionsMenuOpenChange={(open) => onActionsMenuOpenChange(originalIndex, open)}
-              cardIndex={originalIndex}
-              actionsMenuOpenForIndex={actionsMenuOpenForIndex}
-              profileAuthorDid={profileAuthorDid}
-              profileAuthorFollowingUri={profileAuthorFollowingUri}
-              onProfileAuthorFollowChange={onProfileAuthorFollowChange}
-              onRemovePostFromCollection={onRemovePostFromCollection}
-              feedPreviewActionRow={feedPreviewActionRow}
-            />
+            <VirtualizedCell>
+              <PostCard
+                item={item}
+                isSelected={isSelected(originalIndex)}
+                cardRef={() => {}}
+                onPostClick={(uri, opts) => {
+                  if (opts?.initialItem) setInitialPostForUri(uri, opts.initialItem)
+                  openPostModal(uri, opts?.openReply, undefined, item.post.author?.handle)
+                }}
+                constrainMediaHeight={constrainMediaHeight}
+                nsfwBlurred={isNsfwBlurred}
+                onNsfwUnblur={() => setUnblurred(item.post.uri, true)}
+                setUnblurred={setUnblurred}
+                isRevealed={unblurredUris.has(item.post.uri)}
+                likedUriOverride={likeOverrides[item.post.uri]}
+                onLikedChange={(uri, likeRecordUri) => setLikeOverrides(uri, likeRecordUri ?? null)}
+                onActionsMenuOpenChange={(open) => onActionsMenuOpenChange(originalIndex, open)}
+                cardIndex={originalIndex}
+                actionsMenuOpenForIndex={actionsMenuOpenForIndex}
+                profileAuthorDid={profileAuthorDid}
+                profileAuthorFollowingUri={profileAuthorFollowingUri}
+                onProfileAuthorFollowChange={onProfileAuthorFollowChange}
+                onRemovePostFromCollection={onRemovePostFromCollection}
+                feedPreviewActionRow={feedPreviewActionRow}
+              />
+            </VirtualizedCell>
           {belowCard ? belowCard({ item, originalIndex }) : null}
           </div>
         )
