@@ -956,7 +956,7 @@ function PostCardInner({
                 </div>
               ) : replyParentExternal ? (
                 <p className={styles.replyParentSnippet}>{replyParentExternal.title}</p>
-              ) : replyParentAllMedia.length === 0 && !replyParentExternal?.thumb ? (
+              ) : replyParentAllMedia.length === 0 ? (
                 <p className={styles.replyParentSnippetMuted}>Original post</p>
               ) : null}
             </div>
