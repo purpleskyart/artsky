@@ -12,9 +12,19 @@ function getVisibleViewportYBounds(): { top: number; bottom: number } {
   if (!vv) {
     return { top: pad, bottom: window.innerHeight - pad }
   }
-  const top = Math.max(pad, vv.offsetTop + pad)
-  const bottom = Math.min(window.innerHeight - pad, vv.offsetTop + vv.height - pad)
-  return { top, bottom: Math.max(top + 1, bottom) }
+  const fromLayoutTop = Math.max(pad, vv.offsetTop + pad)
+  const fromLayoutBottom = Math.min(window.innerHeight - pad, vv.offsetTop + vv.height - pad)
+  /* Keyboard overlays layout (Chrome / some WebKit): also intersect with visual height so
+   * client rects line up when they’re tied to the visual viewport. */
+  if (vv.height < window.innerHeight - 48) {
+    const visualTop = pad
+    const visualBottom = vv.height - pad
+    return {
+      top: Math.max(fromLayoutTop, visualTop),
+      bottom: Math.min(fromLayoutBottom, visualBottom),
+    }
+  }
+  return { top: fromLayoutTop, bottom: Math.max(fromLayoutTop + 1, fromLayoutBottom) }
 }
 
 function alignFieldInModalScrollRoot(
@@ -36,19 +46,33 @@ function alignFieldInModalScrollRoot(
   }
 }
 
+/** Repeat alignment until the field sits in the visible band (handles late keyboard layout). */
+function alignFieldInModalScrollRootIterated(el: HTMLElement, scrollRoot: HTMLElement, behavior: ScrollBehavior) {
+  const maxPasses = 5
+  const tol = 6
+  for (let pass = 0; pass < maxPasses; pass++) {
+    const { top: visibleTop, bottom: visibleBottom } = getVisibleViewportYBounds()
+    const rect = el.getBoundingClientRect()
+    if (rect.top >= visibleTop - tol && rect.bottom <= visibleBottom + tol) {
+      break
+    }
+    const useBehavior = pass === 0 ? behavior : 'auto'
+    alignFieldInModalScrollRoot(el, scrollRoot, useBehavior)
+  }
+}
+
 function scrollIntoModalScrollRoot(el: HTMLElement, scrollRoot: HTMLElement, behavior: ScrollBehavior) {
-  /* Prime the correct scroll container (especially WebKit inside fixed modals). */
   el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'auto' })
 
-  const runAlign = (b: ScrollBehavior) => alignFieldInModalScrollRoot(el, scrollRoot, b)
+  const runAlign = () => alignFieldInModalScrollRootIterated(el, scrollRoot, 'auto')
 
   if (behavior === 'smooth') {
     requestAnimationFrame(() => {
-      runAlign('smooth')
-      requestAnimationFrame(() => runAlign('auto'))
+      alignFieldInModalScrollRootIterated(el, scrollRoot, 'smooth')
+      requestAnimationFrame(runAlign)
     })
   } else {
-    requestAnimationFrame(() => runAlign('auto'))
+    requestAnimationFrame(runAlign)
   }
 }
 
@@ -82,6 +106,7 @@ export function scrollFieldAboveKeyboard(el: HTMLElement): () => void {
   const t1 = window.setTimeout(scrollSmooth, 50)
   const t2 = window.setTimeout(scrollSnap, 200)
   const t3 = window.setTimeout(scrollSnap, 450)
+  const t4 = window.setTimeout(scrollSnap, 700)
 
   const vv = window.visualViewport
   if (vv) {
@@ -94,6 +119,7 @@ export function scrollFieldAboveKeyboard(el: HTMLElement): () => void {
     window.clearTimeout(t1)
     window.clearTimeout(t2)
     window.clearTimeout(t3)
+    window.clearTimeout(t4)
     if (vv) {
       vv.removeEventListener('resize', scrollSnap)
       vv.removeEventListener('scroll', scrollSnap)
