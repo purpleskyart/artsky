@@ -15,19 +15,29 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'prompt',
-      includeAssets: ['favicon.ico', 'icon.svg', 'icon-pwa.svg'],
+      includeAssets: [
+        'favicon.ico',
+        'icon.svg',
+        'icon-pwa.svg',
+        'icon-app.svg',
+        'apple-touch-icon.png',
+        'icon-192.png',
+        'icon-512.png',
+      ],
       manifest: {
         name: 'PurpleSky',
         short_name: 'PurpleSky',
         description: 'Bluesky feed for art',
-        theme_color: '#1a1a2e',
-        background_color: '#0f0f1a',
+        theme_color: '#5b21b6',
+        background_color: '#4c1d95',
         display: 'standalone',
         orientation: 'portrait',
         scope: './',
         start_url: './',
         icons: [
-          { src: './icon-pwa.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any maskable' },
+          { src: './icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: './icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: './icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
       workbox: {
