@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
-import { searchPostsByTag, getPostMediaInfo, isPostNsfw, likePostWithLifecycle, unlikePostWithLifecycle } from '../lib/bsky'
+import { searchPostsByTag, getPostMediaInfo, isPostNsfw, likePostWithLifecycle, unlikePostWithLifecycle, followAccountWithLifecycle, unfollowAccountWithLifecycle } from '../lib/bsky'
 import type { TimelineItem } from '../lib/bsky'
 import type { AppBskyFeedDefs } from '@atproto/api'
 import ProfileColumn from '../components/ProfileColumn'
@@ -224,6 +224,55 @@ export function TagContent({ tag, inModal = false, onRegisterRefresh }: { tag: s
       }
       if (key === 'f' && session) {
         const item = items[i]
+        if (!item?.post?.author) return
+        const author = item.post.author as { did: string; viewer?: { following?: string } }
+        if (session.did === author.did) return
+        const followingUri = author.viewer?.following
+        if (followingUri) {
+          unfollowAccountWithLifecycle(followingUri).then(() => {
+            setItems((prev) =>
+              prev.map((it) => {
+                if (it.post.uri !== item.post.uri) return it
+                const post = it.post
+                const auth = post.author as { did: string; handle?: string; viewer?: { following?: string } }
+                return {
+                  ...it,
+                  post: {
+                    ...post,
+                    author: {
+                      ...auth,
+                      viewer: { ...auth.viewer, following: undefined },
+                    },
+                  } as TimelineItem['post'],
+                }
+              })
+            )
+          }).catch(() => {})
+        } else {
+          followAccountWithLifecycle(author.did).then((res) => {
+            setItems((prev) =>
+              prev.map((it) => {
+                if (it.post.uri !== item.post.uri) return it
+                const post = it.post
+                const auth = post.author as { did: string; handle?: string; viewer?: { following?: string } }
+                return {
+                  ...it,
+                  post: {
+                    ...post,
+                    author: {
+                      ...auth,
+                      viewer: { ...auth.viewer, following: res.uri },
+                    },
+                  } as TimelineItem['post'],
+                }
+              })
+            )
+          }).catch(() => {})
+        }
+        return
+      }
+      if (e.code === 'Space' && inModal) {
+        const item = items[i]
         if (!item?.post?.uri || !item?.post?.cid) return
         const uri = item.post.uri
         const currentLikeUri = uri in likeOverrides ? (likeOverrides[uri] ?? undefined) : (item.post as { viewer?: { like?: string } }).viewer?.like
@@ -241,7 +290,7 @@ export function TagContent({ tag, inModal = false, onRegisterRefresh }: { tag: s
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [beginKeyboardNavigation, mediaItems.length, cols, navigate, location, isModalOpen, inModal, openPostModal, likeOverrides, session, setLikeOverride])
+  }, [beginKeyboardNavigation, mediaItems.length, cols, navigate, location, isModalOpen, inModal, openPostModal, likeOverrides, session, setLikeOverride, setItems])
 
   if (!tag) return null
 

@@ -648,6 +648,55 @@ export function ProfileContent({
       }
       if (key === 'f') {
         const item = items[i]
+        if (!item?.post?.author) return
+        const author = item.post.author as { did: string; viewer?: { following?: string } }
+        if (!session || session.did === author.did) return
+        const followingUri = author.viewer?.following
+        if (followingUri) {
+          unfollowAccountWithLifecycle(followingUri).then(() => {
+            setItems((prev) =>
+              prev.map((it) => {
+                if (it.post.uri !== item.post.uri) return it
+                const post = it.post
+                const auth = post.author as { did: string; handle?: string; viewer?: { following?: string } }
+                return {
+                  ...it,
+                  post: {
+                    ...post,
+                    author: {
+                      ...auth,
+                      viewer: { ...auth.viewer, following: undefined },
+                    },
+                  } as TimelineItem['post'],
+                }
+              })
+            )
+          }).catch(() => {})
+        } else {
+          followAccountWithLifecycle(author.did).then((res) => {
+            setItems((prev) =>
+              prev.map((it) => {
+                if (it.post.uri !== item.post.uri) return it
+                const post = it.post
+                const auth = post.author as { did: string; handle?: string; viewer?: { following?: string } }
+                return {
+                  ...it,
+                  post: {
+                    ...post,
+                    author: {
+                      ...auth,
+                      viewer: { ...auth.viewer, following: res.uri },
+                    },
+                  } as TimelineItem['post'],
+                }
+              })
+            )
+          }).catch(() => {})
+        }
+        return
+      }
+      if (e.code === 'Space' && inModal) {
+        const item = items[i]
         if (!item?.post?.uri || !item?.post?.cid) return
         const uri = item.post.uri
         const currentLikeUri = uri in likeOverrides ? (likeOverrides[uri] ?? undefined) : (item.post as { viewer?: { like?: string } }).viewer?.like
@@ -665,7 +714,7 @@ export function ProfileContent({
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [beginKeyboardNavigation, tab, cols, isModalOpen, openPostModal, inModal, likeOverrides, actionsMenuOpenForIndex, setLikeOverride])
+  }, [beginKeyboardNavigation, tab, cols, isModalOpen, openPostModal, inModal, likeOverrides, actionsMenuOpenForIndex, setLikeOverride, session, setItems])
 
   const postText = (post: TimelineItem['post']) => (post.record as { text?: string })?.text?.trim() ?? ''
   const isReply = (post: TimelineItem['post']) => !!(post.record as { reply?: unknown })?.reply
