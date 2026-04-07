@@ -1779,9 +1779,18 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
       }
       if (e.ctrlKey || e.metaKey) return
       const key = e.key.toLowerCase()
-      if (key === 'f') {
-        if (thread && isThreadViewPost(thread)) {
-          e.preventDefault()
+      if (key === 'f' || e.code === 'Space') {
+        e.preventDefault()
+        const currentIdx = keyboardFocusIndexRef.current
+        const currentItem = focusItems[currentIdx]
+        if (currentItem && (currentItem.type === 'comment' || currentItem.type === 'commentMedia')) {
+          const commentUri = currentItem.commentUri
+          const replyNode = findReplyByUri(threadReplies, commentUri)
+          if (replyNode) {
+            const currentLikeUri = commentLikeOverrides[commentUri] ?? replyNode.post.viewer?.like ?? null
+            handleCommentLike(commentUri, replyNode.post.cid, currentLikeUri)
+          }
+        } else if (thread && isThreadViewPost(thread)) {
           handleLike()
         }
         return
@@ -1993,7 +2002,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [postSectionCount, postSectionIndex, hasRepliesSection, threadRepliesFlat, focusedCommentIndex, commentFormFocused, thread, hasMediaSection, handleReplyTo, rootMediaForNav.length, openProfileModal, focusItems, handleLike, openActionsMenuUri, threadRepliesVisible, topLevelCommentFirstFocusIndices])
+  }, [postSectionCount, postSectionIndex, hasRepliesSection, threadRepliesFlat, focusedCommentIndex, commentFormFocused, thread, hasMediaSection, handleReplyTo, rootMediaForNav.length, openProfileModal, focusItems, handleLike, handleCommentLike, commentLikeOverrides, openActionsMenuUri, threadRepliesVisible, topLevelCommentFirstFocusIndices, threadReplies, findReplyByUri])
 
   useEffect(() => {
     if (postSectionCount <= 1) return
@@ -2282,10 +2291,14 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                         role="button"
                         tabIndex={0}
                         aria-label={`Open quoted post by @${quotedHandle}`}
-                        onClick={openQuotedPost}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          openQuotedPost()
+                        }}
                         onKeyDown={(e) => {
                           if (e.key !== 'Enter' && e.key !== ' ') return
                           e.preventDefault()
+                          e.stopPropagation()
                           openQuotedPost()
                         }}
                       >
