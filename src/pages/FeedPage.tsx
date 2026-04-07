@@ -1051,40 +1051,41 @@ export default function FeedPage() {
       const fromNone = i < 0
       const columns = currentCols >= 2 ? currentDistribution : null
       if (key === 'w' || e.key === 'ArrowUp') {
+        if (fromNone) return // No focus yet, don't jump to top
         beginKeyboardNavigation()
         scrollIntoViewFromKeyboardRef.current = true
         const onFirstImageOfCard = i === currentFirstByCard[currentCardIndex]
-        const next = fromNone
-          ? (currentLastByCard[currentEntries.length - 1] ?? currentFocusTargets.length - 1)
-          : !onFirstImageOfCard
-            ? Math.max(0, i - 1)
-            : (() => {
-                const nextCard = currentCols >= 2 && columns ? indexAbove(columns, currentCardIndex) : Math.max(0, currentCardIndex - 1)
-                /* At top of column there is no card above; don’t jump to last image of the same post (feels like random vertical scroll). */
-                if (nextCard === currentCardIndex) return i
-                return currentLastByCard[nextCard] ?? currentFirstByCard[nextCard] ?? 0
-              })()
+        const next = !onFirstImageOfCard
+          ? Math.max(0, i - 1)
+          : (() => {
+              const nextCard = currentCols >= 2 && columns ? indexAbove(columns, currentCardIndex) : Math.max(0, currentCardIndex - 1)
+              /* At top of column there is no card above; don't jump to last image of the same post (feels like random vertical scroll). */
+              if (nextCard === currentCardIndex) return null
+              return currentLastByCard[nextCard] ?? currentFirstByCard[nextCard] ?? null
+            })()
+        if (next === null) return
         dispatch({ type: 'SET_KEYBOARD_FOCUS', index: next })
         return
       }
       if (key === 's' || e.key === 'ArrowDown') {
+        if (fromNone) return // No focus yet, don't jump to top
         beginKeyboardNavigation()
         scrollIntoViewFromKeyboardRef.current = true
         const onLastImageOfCard = i === currentLastByCard[currentCardIndex]
-        const next = fromNone
-          ? 0
-          : !onLastImageOfCard
-            ? Math.min(currentFocusTargets.length - 1, i + 1)
-            : (() => {
-                const nextCard = currentCols >= 2 && columns ? indexBelow(columns, currentCardIndex) : Math.min(currentEntries.length - 1, currentCardIndex + 1)
-                /* At bottom of column, indexBelow returns same card; first focus index would jump to top of a multi-image post or confuse scroll. */
-                if (nextCard === currentCardIndex) return i
-                return currentFirstByCard[nextCard] ?? i
-              })()
+        const next = !onLastImageOfCard
+          ? Math.min(currentFocusTargets.length - 1, i + 1)
+          : (() => {
+              const nextCard = currentCols >= 2 && columns ? indexBelow(columns, currentCardIndex) : Math.min(currentEntries.length - 1, currentCardIndex + 1)
+              /* At bottom of column, indexBelow returns same card; first focus index would jump to top of a multi-image post or confuse scroll. */
+              if (nextCard === currentCardIndex) return null
+              return currentFirstByCard[nextCard] ?? null
+            })()
+        if (next === null) return
         dispatch({ type: 'SET_KEYBOARD_FOCUS', index: next })
         return
       }
       if (key === 'a' || e.key === 'ArrowLeft' || key === 'd' || e.key === 'ArrowRight') {
+        if (fromNone) return // No focus yet, don't jump
         beginKeyboardNavigation()
         scrollIntoViewFromKeyboardRef.current = true
         const goLeft = key === 'a' || e.key === 'ArrowLeft'
@@ -1098,9 +1099,7 @@ export default function FeedPage() {
           return { top: r.top, left: r.left, width: r.width, height: r.height }
         }
         let next = i
-        if (fromNone) {
-          next = 0
-        } else if (currentCols >= 2 && columns) {
+        if (currentCols >= 2 && columns) {
           const byView = pickAdjacentCardIndexByViewport(
             columns,
             goLeft ? -1 : 1,
