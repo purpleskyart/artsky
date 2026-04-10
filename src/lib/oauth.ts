@@ -71,6 +71,7 @@ export type OAuthSession = import('@atproto/oauth-client').OAuthSession
 /**
  * Initialize OAuth: restore existing session or process callback after redirect.
  * When hasCallback is false and preferredRestoreDid is set, restores that DID's session (for multi-account).
+ * All errors are caught and returned as undefined so callers never need to handle OAuth exceptions.
  */
 export async function initOAuth(options?: {
   hasCallback?: boolean
@@ -79,27 +80,31 @@ export async function initOAuth(options?: {
   | { session: OAuthSession; state?: string | null }
   | undefined
 > {
-  const oauth = await getOAuthClient()
-  const hasCallback =
-    options?.hasCallback ??
-    (typeof window !== 'undefined'
-      ? (() => {
-          const params = new URLSearchParams(window.location.search)
-          return params.has('state') && (params.has('code') || params.has('error'))
-        })()
-      : false)
-  if (hasCallback) {
-    return oauth.init()
-  }
-  if (options?.preferredRestoreDid) {
-    try {
-      const session = await oauth.restore(options.preferredRestoreDid, true)
-      return { session }
-    } catch {
-      return undefined
+  try {
+    const oauth = await getOAuthClient()
+    const hasCallback =
+      options?.hasCallback ??
+      (typeof window !== 'undefined'
+        ? (() => {
+            const params = new URLSearchParams(window.location.search)
+            return params.has('state') && (params.has('code') || params.has('error'))
+          })()
+        : false)
+    if (hasCallback) {
+      return await oauth.init()
     }
+    if (options?.preferredRestoreDid) {
+      try {
+        const session = await oauth.restore(options.preferredRestoreDid, true)
+        return { session }
+      } catch {
+        return undefined
+      }
+    }
+    return await oauth.init()
+  } catch {
+    return undefined
   }
-  return oauth.init()
 }
 
 /**

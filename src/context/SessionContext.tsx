@@ -5,6 +5,18 @@ import { REPO_URL } from '../config/repo'
 import * as bsky from '../lib/bsky'
 import * as oauth from '../lib/oauth'
 
+// Suppress background OAuth token-refresh errors from reaching React's error boundary.
+// The @atproto/oauth-client-browser fires these as unhandled promise rejections after
+// restore() has already returned, so they can't be caught with try/catch.
+if (typeof window !== 'undefined') {
+  window.addEventListener('unhandledrejection', (e) => {
+    const msg = e.reason instanceof Error ? e.reason.message : String(e.reason ?? '')
+    if (/TokenRefreshError|session was deleted|token.*refresh|refresh.*token/i.test(msg)) {
+      e.preventDefault()
+    }
+  })
+}
+
 interface SessionContextValue {
   session: AtpSessionData | null
   sessionsList: AtpSessionData[]
@@ -102,6 +114,11 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           bsky.setOAuthAgent(agent, oauthResult.session)
           finish()
           return
+        }
+        // Restore returned no session — if we tried a specific DID and it failed, remove it
+        // so hasPersistedLoginHint() stops returning true for a dead session on next load.
+        if (!hasCallback && preferredRestoreDid && !oauthResult?.session) {
+          bsky.removeOAuthDid(preferredRestoreDid)
         }
       } catch {
         // Don't auto-logout on token refresh errors - keep session data so user can retry
