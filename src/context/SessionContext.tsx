@@ -112,7 +112,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           bsky.addOAuthDid(oauthResult.session.did)
           const agent = new Agent(oauthResult.session)
           bsky.setOAuthAgent(agent, oauthResult.session)
-          finish()
+          // Pass the session DID directly to finish to ensure session state is set
+          finish({ did: oauthResult.session.did } as AtpSessionData)
           return
         }
         // Restore returned no session — if we tried a specific DID and it failed, remove it
