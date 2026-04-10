@@ -276,11 +276,6 @@ export function useIsPostSavedToAnyCollection(postUri: string): boolean {
   )
 }
 
-/** @deprecated Use useIsPostSavedToAnyCollection */
-export function useIsPostSavedToActiveCollection(postUri: string): boolean {
-  return useIsPostSavedToAnyCollection(postUri)
-}
-
 const COLLECTION_SAVE_ACTIONS_FALLBACK = {
   savingUri: null as string | null,
   activeCollectionAtUri: null as string | null,

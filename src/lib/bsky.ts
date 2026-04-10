@@ -894,12 +894,6 @@ export function getPostAllMedia(
   return out
 }
 
-/** @deprecated Use getPostMediaInfo. Returns first image or video thumbnail for card display. */
-export function getPostMediaUrl(post: PostView, opts?: PostMediaUrlOptions): { url: string; type: 'image' | 'video' } | null {
-  const info = getPostMediaInfo(post, opts)
-  return info ? { url: info.url, type: info.type } : null
-}
-
 /**
  * Media for display: uses the post's own media, or for quote posts with no outer media, the quoted post's media.
  * Use for profile grid and cards so text-only quote posts show the quoted post's media.
