@@ -1,7 +1,10 @@
 import { lazy, Suspense, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { useProfileModal } from '../context/ProfileModalContext'
+import AppModal from './AppModal'
 
-const ProfileModal = lazy(() => import('./ProfileModal'))
+// Lazy-load ProfileContent inline to avoid circular dependency
+const ProfileContent = lazy(() => import('../pages/ProfilePage').then(m => ({ default: m.ProfileContent })))
 
 /**
  * Profile opened from feed (or another page) via `/profile/:handle` with `state.backgroundLocation`.
@@ -10,6 +13,7 @@ const ProfileModal = lazy(() => import('./ProfileModal'))
 export default function ProfileModalOverlay() {
   const { handle } = useParams<{ handle: string }>()
   const navigate = useNavigate()
+  const { openProfileModal } = useProfileModal()
   const onClose = useCallback(() => {
     navigate(-1)
   }, [navigate])
@@ -19,14 +23,24 @@ export default function ProfileModalOverlay() {
 
   return (
     <Suspense fallback={null}>
-      <ProfileModal
-        handle={h}
+      <AppModal
+        ariaLabel="Profile"
         onClose={onClose}
         onBack={onClose}
         canGoBack={false}
+        transparentTopBar
+        hideTopBar
+        scrollKey={h}
+        profileScrollPersistenceHandle={h}
         isTopModal
         stackIndex={0}
-      />
+      >
+        <ProfileContent
+          handle={h}
+          openProfileModal={openProfileModal}
+          inModal
+        />
+      </AppModal>
     </Suspense>
   )
 }

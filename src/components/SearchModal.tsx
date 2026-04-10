@@ -33,7 +33,7 @@ export default function SearchModal({
 
   useEffect(() => {
     void import('./PostDetailModal')
-    void import('./ProfileModal')
+    // Removed ProfileModal import to avoid circular dependency
   }, [])
 
   return (

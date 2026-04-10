@@ -1,7 +1,8 @@
-import { useState } from 'react'
-import { useProfileModal } from '../context/ProfileModalContext'
-import { ProfileContent } from '../pages/ProfilePage'
+import { lazy, Suspense, useState } from 'react'
 import AppModal from './AppModal'
+
+// Lazy-load ProfileContent inline to avoid circular dependency with ProfilePage
+const ProfileContent = lazy(() => import('../pages/ProfilePage').then(m => ({ default: m.ProfileContent })))
 
 interface ProfileModalProps {
   handle: string
@@ -11,10 +12,10 @@ interface ProfileModalProps {
   onDesktopBackdrop?: () => void
   isTopModal?: boolean
   stackIndex?: number
+  openProfileModal: (handle: string) => void
 }
 
-export default function ProfileModal({ handle, onClose, onBack, canGoBack, onDesktopBackdrop, isTopModal, stackIndex }: ProfileModalProps) {
-  const { openProfileModal } = useProfileModal()
+export default function ProfileModal({ handle, onClose, onBack, canGoBack, onDesktopBackdrop, isTopModal, stackIndex, openProfileModal }: ProfileModalProps) {
   const [refreshFn, setRefreshFn] = useState<(() => void | Promise<void>) | null>(null)
 
   return (
@@ -32,12 +33,14 @@ export default function ProfileModal({ handle, onClose, onBack, canGoBack, onDes
       isTopModal={isTopModal}
       stackIndex={stackIndex}
     >
-      <ProfileContent
-        handle={handle}
-        openProfileModal={openProfileModal}
-        inModal
-        onRegisterRefresh={(fn) => setRefreshFn(() => fn)}
-      />
+      <Suspense fallback={null}>
+        <ProfileContent
+          handle={handle}
+          openProfileModal={openProfileModal}
+          inModal
+          onRegisterRefresh={(fn) => setRefreshFn(() => fn)}
+        />
+      </Suspense>
     </AppModal>
   )
 }
