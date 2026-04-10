@@ -695,6 +695,23 @@ function PostCardInner({
     openPostInModalOrFeed()
   }, [openPostInModalOrFeed])
 
+  const openReplyParentPost = useCallback(() => {
+    if (!replyParentPost) return
+    preloadPostOpen(replyParentPost.uri)
+    if (onPostClick) {
+      onPostClick(replyParentPost.uri, { initialItem: { post: replyParentPost } })
+      return
+    }
+    if (location.pathname.startsWith('/profile/')) {
+      setInitialPostForUri(replyParentPost.uri, { post: replyParentPost })
+      openPostModal(replyParentPost.uri, undefined, undefined, replyParentPost.author.handle)
+    } else {
+      setInitialPostForUri(replyParentPost.uri, { post: replyParentPost })
+      const path = getPostOverlayPath(replyParentPost.uri, replyParentPost.author?.handle)
+      navigate(path, { state: { backgroundLocation: getOverlayBackgroundLocation(location) } })
+    }
+  }, [replyParentPost, onPostClick, location, openPostModal, navigate])
+
   const handleMediaDoubleTapLike = useCallback(() => {
     if (!session?.did) {
       openLoginModal()
@@ -884,8 +901,19 @@ function PostCardInner({
           <div
             data-reply-parent-strip
             className={styles.replyParentStrip}
-            role="group"
-            aria-label={`Replying to @${replyParentHandle}`}
+            role="button"
+            tabIndex={0}
+            aria-label={`View post by @${replyParentHandle}`}
+            onClick={(e) => {
+              e.stopPropagation()
+              openReplyParentPost()
+            }}
+            onKeyDown={(e) => {
+              if (e.key !== 'Enter' && e.key !== ' ') return
+              e.preventDefault()
+              e.stopPropagation()
+              openReplyParentPost()
+            }}
           >
             <div className={styles.replyParentStripHeader}>
               <p className={styles.replyParentLabel}>Replying to</p>
