@@ -40,7 +40,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<AtpSessionData | null>(getInitialSession)
   const [authResolved, setAuthResolved] = useState(getInitialAuthResolved)
   // Block render until auth is resolved when there's a persisted login hint (prevents logged-out flash)
-  const [loading] = useState(() => !getInitialAuthResolved())
+  const [loading, setLoading] = useState(() => !getInitialAuthResolved())
 
   useEffect(() => {
     // Removed requestPersistentStorage - modern browsers handle storage persistence automatically
@@ -108,7 +108,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         if (!cancelled) finish()
       })
       .finally(() => {
-        if (!cancelled) setAuthResolved(true)
+        if (!cancelled) {
+          setAuthResolved(true)
+          setLoading(false)
+        }
       })
 
     return () => {
