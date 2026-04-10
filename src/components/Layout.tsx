@@ -54,6 +54,7 @@ const PRESET_FEED_SOURCES: FeedSource[] = [
 
 const HIDDEN_PRESET_FEEDS_PREFIX = 'artsky-hidden-preset-feeds'
 const FEED_ORDER_PREFIX = 'artsky-feed-order'
+const GUEST_CUSTOM_FEEDS_KEY = 'artsky-guest-custom-feeds'
 
 function hiddenPresetKey(did: string): string {
   return `${HIDDEN_PRESET_FEEDS_PREFIX}-${did || 'guest'}`
@@ -61,6 +62,39 @@ function hiddenPresetKey(did: string): string {
 
 function feedOrderKey(did: string): string {
   return `${FEED_ORDER_PREFIX}-${did || 'guest'}`
+}
+
+function loadGuestCustomFeeds(): FeedSource[] {
+  try {
+    const raw = localStorage.getItem(GUEST_CUSTOM_FEEDS_KEY)
+    if (!raw) return []
+    const arr = JSON.parse(raw) as { uri: string; label: string }[]
+    return Array.isArray(arr) ? arr.map((f) => ({ kind: 'custom' as const, uri: f.uri, label: f.label })) : []
+  } catch {
+    return []
+  }
+}
+
+function saveGuestCustomFeed(feed: FeedSource): void {
+  if (!feed.uri) return
+  try {
+    const current = loadGuestCustomFeeds()
+    if (current.some((f) => f.uri === feed.uri)) return
+    const updated = [...current, { uri: feed.uri, label: feed.label }]
+    localStorage.setItem(GUEST_CUSTOM_FEEDS_KEY, JSON.stringify(updated))
+  } catch {
+    // ignore
+  }
+}
+
+function removeGuestCustomFeed(uri: string): void {
+  try {
+    const current = loadGuestCustomFeeds()
+    const updated = current.filter((f) => f.uri !== uri)
+    localStorage.setItem(GUEST_CUSTOM_FEEDS_KEY, JSON.stringify(updated))
+  } catch {
+    // ignore
+  }
 }
 
 function feedSourceId(s: FeedSource): string {
@@ -817,7 +851,11 @@ export default function Layout({ title, children, showNav }: Props) {
     async (source: FeedSource) => {
       if (!source.uri) return
       try {
-        await removeSavedFeedByUri(source.uri)
+        if (session) {
+          await removeSavedFeedByUri(source.uri)
+        } else {
+          removeGuestCustomFeed(source.uri)
+        }
         setSavedFeedSources((prev) => prev.filter((s) => s.uri !== source.uri))
         if (mixEntries.some((e) => e.source.uri === source.uri)) toggleSource(source)
         if (presetUris.has(source.uri)) {
@@ -912,7 +950,9 @@ export default function Layout({ title, children, showNav }: Props) {
     if (!session) {
       savedFeedsTargetDidRef.current = null
       savedFeedsLoadedRef.current = false
-      setSavedFeedSources([])
+      // Load guest custom feeds from localStorage
+      const guestFeeds = loadGuestCustomFeeds()
+      setSavedFeedSources(guestFeeds)
       return
     }
     if (savedFeedsTargetDidRef.current !== session.did) {
@@ -1697,7 +1737,7 @@ export default function Layout({ title, children, showNav }: Props) {
   return (
     <div className={`${styles.wrap} ${showNav && isDesktop ? styles.wrapWithHeader : ''} ${showNav && !isDesktop ? styles.wrapMobileTop : ''}`}>
       <FeedPullRefreshContext.Provider value={feedPullRefreshContextValue}>
-      <FeedSwipeProvider feedSources={showAccountFeedUi ? allFeedSources : GUEST_FEED_SOURCES} setSingleFeed={setSingleFeed}>
+      <FeedSwipeProvider feedSources={showAccountFeedUi ? allFeedSources : [...GUEST_FEED_SOURCES, ...savedFeedSources]} setSingleFeed={setSingleFeed}>
       <a href="#main-content" className={styles.skipLink}>
         Skip to main content
       </a>
@@ -1844,29 +1884,31 @@ export default function Layout({ title, children, showNav }: Props) {
                           )}
                           <FeedSelector
                             variant="dropdown"
-                            sources={showAccountFeedUi ? allFeedSources : GUEST_FEED_SOURCES}
+                            sources={showAccountFeedUi ? allFeedSources : [...GUEST_FEED_SOURCES, ...savedFeedSources]}
                             fallbackSource={showAccountFeedUi ? fallbackFeedSource : GUEST_FEED_SOURCES[0]}
                             mixEntries={showAccountFeedUi ? mixEntries : GUEST_MIX_ENTRIES}
                             onToggle={handleFeedsToggleSource}
                             setEntryPercent={setEntryPercent}
                             onAddCustom={async (input) => {
-                              if (!session) return
                               setFeedAddError(null)
                               try {
                                 const isFeedSource = typeof input === 'object' && input !== null && 'uri' in input
                                 const uri = isFeedSource ? await resolveFeedUri((input as FeedSource).uri!) : await resolveFeedUri(input as string)
-                                await addSavedFeed(uri)
                                 const label = isFeedSource ? (input as FeedSource).label ?? await requestDeduplicator.dedupe(`feed-name:${uri}`, () => getFeedDisplayName(uri)) : await requestDeduplicator.dedupe(`feed-name:${uri}`, () => getFeedDisplayName(uri))
                                 const source: FeedSource = { kind: 'custom', label, uri }
+                                if (session) {
+                                  await addSavedFeed(uri)
+                                } else {
+                                  saveGuestCustomFeed(source)
+                                }
                                 setSavedFeedSources((prev) => (prev.some((s) => s.uri === uri) ? prev : [...prev, source]))
                                 handleFeedsToggleSource(source)
                               } catch (err) {
                                 setFeedAddError(err instanceof Error ? err.message : 'Could not add feed. Try again.')
                               }
                             }}
-                            onToggleWhenGuest={showAccountFeedUi ? undefined : openLoginModal}
-                            removableSourceUris={session ? removableSourceUris : undefined}
-                            onRemoveFeed={session ? handleRemoveFeed : undefined}
+                            removableSourceUris={session ? removableSourceUris : new Set(savedFeedSources.map((s) => s.uri).filter((uri): uri is string => !!uri))}
+                            onRemoveFeed={handleRemoveFeed}
                             onShareFeed={session ? handleShareFeed : undefined}
                             onReorderSources={session ? handleReorderFeeds : undefined}
                           />
@@ -1913,29 +1955,31 @@ export default function Layout({ title, children, showNav }: Props) {
                         )}
                         <FeedSelector
                           variant="dropdown"
-                          sources={showAccountFeedUi ? allFeedSources : GUEST_FEED_SOURCES}
+                          sources={showAccountFeedUi ? allFeedSources : [...GUEST_FEED_SOURCES, ...savedFeedSources]}
                           fallbackSource={showAccountFeedUi ? fallbackFeedSource : GUEST_FEED_SOURCES[0]}
                           mixEntries={showAccountFeedUi ? mixEntries : GUEST_MIX_ENTRIES}
                           onToggle={handleFeedsToggleSource}
                           setEntryPercent={setEntryPercent}
                           onAddCustom={async (input) => {
-                            if (!session) return
                             setFeedAddError(null)
                             try {
                               const isFeedSource = typeof input === 'object' && input !== null && 'uri' in input
                               const uri = isFeedSource ? await resolveFeedUri((input as FeedSource).uri!) : await resolveFeedUri(input as string)
-                              await addSavedFeed(uri)
                               const label = isFeedSource ? (input as FeedSource).label ?? await requestDeduplicator.dedupe(`feed-name:${uri}`, () => getFeedDisplayName(uri)) : await requestDeduplicator.dedupe(`feed-name:${uri}`, () => getFeedDisplayName(uri))
                               const source: FeedSource = { kind: 'custom', label, uri }
+                              if (session) {
+                                await addSavedFeed(uri)
+                              } else {
+                                saveGuestCustomFeed(source)
+                              }
                               setSavedFeedSources((prev) => (prev.some((s) => s.uri === uri) ? prev : [...prev, source]))
                               handleFeedsToggleSource(source)
                             } catch (err) {
                               setFeedAddError(err instanceof Error ? err.message : 'Could not add feed. Try again.')
                             }
                           }}
-                          onToggleWhenGuest={showAccountFeedUi ? undefined : openLoginModal}
-                          removableSourceUris={session ? removableSourceUris : undefined}
-                          onRemoveFeed={session ? handleRemoveFeed : undefined}
+                          removableSourceUris={session ? removableSourceUris : new Set(savedFeedSources.map((s) => s.uri).filter((uri): uri is string => !!uri))}
+                          onRemoveFeed={handleRemoveFeed}
                           onShareFeed={session ? handleShareFeed : undefined}
                           onReorderSources={session ? handleReorderFeeds : undefined}
                         />
