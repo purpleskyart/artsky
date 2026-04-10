@@ -455,12 +455,6 @@ export function ProfileContent({
   const isFollowing = !!followingUri
   const isOwnProfile = !!session && !!profile && session.did === profile.did
   const showFollowButton = !!session && !!profile && !isOwnProfile
-  const showInitialPlaceholder =
-    loading &&
-    !profile &&
-    items.length === 0 &&
-    likedItems.length === 0 &&
-    feeds.length === 0
 
   const isRepost = (item: TimelineItem) => (item.reason as { $type?: string })?.$type === REASON_REPOST
   const isPinned = (item: TimelineItem) => (item.reason as { $type?: string })?.$type === REASON_PIN
@@ -1039,11 +1033,12 @@ export function ProfileContent({
         )}
         {error && <p className={styles.error}>{error}</p>}
         <div className={styles.profileContent}>
-          textItems.length === 0 ? (
-            <div className={styles.empty}>No text-only posts (no media, no replies).</div>
-          ) : (
-            <>
-              <div className={`${styles.grid} ${styles.gridView1}`} data-view-mode="1">
+          {tab === 'text' ? (
+            textItems.length === 0 ? (
+              <div className={styles.empty}>No text-only posts (no media, no replies).</div>
+            ) : (
+              <>
+                <div className={`${styles.grid} ${styles.gridView1}`} data-view-mode="1">
                 {textItems.map((item, index) => (
                   <div key={`${item.post.uri}-${index}`}>
                     <PostCard
@@ -1068,9 +1063,9 @@ export function ProfileContent({
               {cursor && <div ref={loadMoreSentinelRef} className={styles.loadMoreSentinel} aria-hidden />}
               {loadingMore && <div className={styles.loadingMore}>Loading…</div>}
             </>
-          )
-        ) : tab === 'feeds' ? (
-          feeds.length === 0 ? (
+            )
+          ) : tab === 'feeds' ? (
+            feeds.length === 0 ? (
             <div className={styles.empty}>No feeds.</div>
           ) : (
             <ul className={styles.feedsList}>

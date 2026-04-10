@@ -1,10 +1,21 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import { agent, getSession, getProfileCached } from '../lib/bsky'
 import { useScrollLock } from '../context/ScrollLockContext'
+import { useProfileModal } from '../context/ProfileModalContext'
 import styles from './EditProfileModal.module.css'
 
 const DESCRIPTION_MAX = 256
+const MOBILE_BREAKPOINT = 768
+function subscribeMobile(cb: () => void) {
+  if (typeof window === 'undefined') return () => {}
+  const mq = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`)
+  mq.addEventListener('change', cb)
+  return () => mq.removeEventListener('change', cb)
+}
+function getMobileSnapshot() {
+  return typeof window !== 'undefined' ? window.innerWidth < MOBILE_BREAKPOINT : false
+}
 
 interface EditProfileModalProps {
   onClose: () => void
@@ -18,6 +29,8 @@ export default function EditProfileModal({ onClose, onSaved }: EditProfileModalP
   const overlayRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const scrollLock = useScrollLock()
+  const { closeAllModals } = useProfileModal()
+  const isMobile = useSyncExternalStore(subscribeMobile, getMobileSnapshot, () => false)
   const [displayName, setDisplayName] = useState('')
   const [handle, setHandle] = useState('')
   const [description, setDescription] = useState('')
@@ -77,7 +90,10 @@ export default function EditProfileModal({ onClose, onSaved }: EditProfileModalP
   }, [avatarUrl])
 
   function handleBackdropClick(e: React.MouseEvent) {
-    if (e.target === overlayRef.current) onClose()
+    if (e.target === overlayRef.current) {
+      if (isMobile) onClose()
+      else closeAllModals()
+    }
   }
 
   function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {

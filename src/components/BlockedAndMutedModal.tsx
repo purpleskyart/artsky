@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 import {
   listBlockedAccounts,
   listMutedAccounts,
@@ -8,7 +8,19 @@ import {
   unmuteAccount,
 } from '../lib/bsky'
 import { useScrollLock } from '../context/ScrollLockContext'
+import { useProfileModal } from '../context/ProfileModalContext'
 import styles from './BlockedAndMutedModal.module.css'
+
+const MOBILE_BREAKPOINT = 768
+function subscribeMobile(cb: () => void) {
+  if (typeof window === 'undefined') return () => {}
+  const mq = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`)
+  mq.addEventListener('change', cb)
+  return () => mq.removeEventListener('change', cb)
+}
+function getMobileSnapshot() {
+  return typeof window !== 'undefined' ? window.innerWidth < MOBILE_BREAKPOINT : false
+}
 
 type BlockedEntry = { blockUri: string; did: string; handle?: string; displayName?: string; avatar?: string }
 type MutedEntry = { did: string; handle: string; displayName?: string; avatar?: string }
@@ -45,6 +57,8 @@ function formatDuration(expiresAt?: string): string {
 
 export default function BlockedAndMutedModal({ onClose }: { onClose: () => void }) {
   const scrollLock = useScrollLock()
+  const { closeAllModals } = useProfileModal()
+  const isMobile = useSyncExternalStore(subscribeMobile, getMobileSnapshot, () => false)
   const [blocked, setBlocked] = useState<BlockedEntry[]>([])
   const [muted, setMuted] = useState<MutedEntry[]>([])
   const [mutedWords, setMutedWords] = useState<MutedWordEntry[]>([])
@@ -145,7 +159,7 @@ export default function BlockedAndMutedModal({ onClose }: { onClose: () => void 
       role="dialog"
       aria-modal="true"
       aria-labelledby="blocked-muted-title"
-      onClick={onClose}
+      onClick={isMobile ? onClose : closeAllModals}
     >
       <div className={styles.pane} onClick={(e) => e.stopPropagation()}>
         <div className={styles.topBar}>
