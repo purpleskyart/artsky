@@ -60,21 +60,33 @@ function LoadingSpinner() {
   )
 }
 
-class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
-  state = { error: null as Error | null }
+class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null, recovering: boolean }> {
+  state = { error: null as Error | null, recovering: false }
 
   static getDerivedStateFromError(error: Error) {
-    return { error }
+    // Session/token errors: auto-recover by clearing state and redirecting to feed
+    const isSessionError = /session was deleted by another process|TokenRefreshError/i.test(error.message)
+    if (isSessionError) {
+      return { error, recovering: true }
+    }
+    return { error, recovering: false }
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
-    console.error('App error:', error, info.componentStack)
+    const isSessionError = /session was deleted by another process|TokenRefreshError/i.test(error.message)
+    if (isSessionError) {
+      // Auto-recover: clear error state and navigate to feed after a tick
+      setTimeout(() => {
+        this.setState({ error: null, recovering: false })
+        window.location.assign(appAbsoluteUrl('/feed'))
+      }, 0)
+    } else {
+      console.error('App error:', error, info.componentStack)
+    }
   }
 
   render() {
-    if (this.state.error) {
-      const isSessionDeleted =
-        /session was deleted by another process|TokenRefreshError/i.test(this.state.error.message)
+    if (this.state.error && !this.state.recovering) {
       return (
         <div
           style={{
@@ -91,78 +103,46 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
           }}
         >
           <div style={{ maxWidth: '28rem' }}>
-            <h1 style={{ margin: '0 0 0.5rem', fontSize: '1.25rem' }}>
-              {isSessionDeleted ? 'Session Error' : 'Something went wrong'}
-            </h1>
-            <p style={{ margin: 0, fontSize: '0.95rem' }}>
-              {isSessionDeleted
-                ? 'There was a problem with your session. Try refreshing the page to restore it.'
-                : this.state.error.message}
+            <h1 style={{ margin: '0 0 0.5rem', fontSize: '1.25rem' }}>Something went wrong</h1>
+            <p style={{ margin: 0, fontSize: '0.95rem' }}>{this.state.error.message}</p>
+            <p style={{ margin: '1rem 0 0', fontSize: '0.9rem', color: 'var(--muted)' }}>
+              Try refreshing the page. Check the browser console for details.
             </p>
-            {isSessionDeleted && (
-              <p style={{ margin: '1rem 0 0', fontSize: '0.9rem' }}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    this.setState({ error: null })
-                    window.location.assign(appAbsoluteUrl('/feed'))
-                  }}
-                  style={{
-                    padding: '0.5rem 1rem',
-                    fontSize: '0.95rem',
-                    cursor: 'pointer',
-                    background: 'var(--accent)',
-                    color: 'var(--bg)',
-                    border: 'none',
-                    borderRadius: 'var(--glass-radius-sm, 6px)',
-                    fontWeight: 500,
-                  }}
-                >
-                  Retry
-                </button>
-              </p>
-            )}
-            {!isSessionDeleted && (
-              <>
-                <p style={{ margin: '1rem 0 0', fontSize: '0.9rem', color: 'var(--muted)' }}>
-                  Try refreshing the page. Check the browser console for details.
-                </p>
-                <p style={{ margin: '0.75rem 0 0' }}>
-                  <button
-                    type="button"
-                    onClick={() => window.location.reload()}
-                    style={{
-                      padding: '0.5rem 1rem',
-                      fontSize: '0.95rem',
-                      cursor: 'pointer',
-                      background: 'var(--accent)',
-                      color: 'var(--bg)',
-                      border: 'none',
-                      borderRadius: 'var(--glass-radius-sm, 6px)',
-                      fontWeight: 500,
-                    }}
-                  >
-                    Refresh
-                  </button>
-                </p>
-                <p style={{ margin: '1.25rem 0 0', fontSize: '0.9rem' }}>
-                  <a
-                    href={REPO_URL}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', color: 'var(--muted)', textDecoration: 'none' }}
-                    title="View source"
-                  >
-                    <GitLogo />
-                    <span>View source</span>
-                  </a>
-                </p>
-              </>
-            )}
+            <p style={{ margin: '0.75rem 0 0' }}>
+              <button
+                type="button"
+                onClick={() => window.location.reload()}
+                style={{
+                  padding: '0.5rem 1rem',
+                  fontSize: '0.95rem',
+                  cursor: 'pointer',
+                  background: 'var(--accent)',
+                  color: 'var(--bg)',
+                  border: 'none',
+                  borderRadius: 'var(--glass-radius-sm, 6px)',
+                  fontWeight: 500,
+                }}
+              >
+                Refresh
+              </button>
+            </p>
+            <p style={{ margin: '1.25rem 0 0', fontSize: '0.9rem' }}>
+              <a
+                href={REPO_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', color: 'var(--muted)', textDecoration: 'none' }}
+                title="View source"
+              >
+                <GitLogo />
+                <span>View source</span>
+              </a>
+            </p>
           </div>
         </div>
       )
     }
+    // Recovering from session error or no error: render children normally
     return this.props.children
   }
 }
