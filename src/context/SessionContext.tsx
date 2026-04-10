@@ -1,7 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { Agent } from '@atproto/api'
 import type { AtpSessionData } from '@atproto/api'
-import { REPO_URL } from '../config/repo'
 import * as bsky from '../lib/bsky'
 import * as oauth from '../lib/oauth'
 
