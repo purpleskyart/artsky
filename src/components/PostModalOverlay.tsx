@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { getProfileCached } from '../lib/bsky'
+import { useProfileModal } from '../context/ProfileModalContext'
 import PostDetailModal from './PostDetailModal'
 
 const handleDidCache = new Map<string, string>()
@@ -13,6 +14,7 @@ export default function PostModalOverlay() {
   const { uri, handle, rkey } = useParams<{ uri?: string; handle?: string; rkey?: string }>()
   const navigate = useNavigate()
   const location = useLocation()
+  const { openProfileModal } = useProfileModal()
   const [resolvedUri, setResolvedUri] = useState<string | null>(() => {
     if (uri) return decodeURIComponent(uri)
     if (!handle || !rkey) return null
@@ -85,6 +87,7 @@ export default function PostModalOverlay() {
       canGoBack={false}
       isTopModal
       stackIndex={0}
+      openProfileModal={openProfileModal}
     />
   )
 }

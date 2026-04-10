@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from 'react'
-import { useProfileModal } from '../context/ProfileModalContext'
 import { PostDetailContent } from '../pages/PostDetailPage'
 import AppModal from './AppModal'
 
@@ -13,10 +12,10 @@ interface PostDetailModalProps {
   onDesktopBackdrop?: () => void
   isTopModal?: boolean
   stackIndex?: number
+  openProfileModal: (handle: string) => void
 }
 
-export default function PostDetailModal({ uri, openReply, focusUri, onClose, onBack, canGoBack, onDesktopBackdrop, isTopModal, stackIndex }: PostDetailModalProps) {
-  const { openProfileModal } = useProfileModal()
+export default function PostDetailModal({ uri, openReply, focusUri, onClose, onBack, canGoBack, onDesktopBackdrop, isTopModal, stackIndex, openProfileModal }: PostDetailModalProps) {
   const [authorHandle, setAuthorHandle] = useState<string | null>(null)
   const [refreshFn, setRefreshFn] = useState<(() => void | Promise<void>) | null>(null)
 

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useParams } from 'react-router-dom'
 import { useSession } from '../context/SessionContext'
-import { useProfileModal } from '../context/ProfileModalContext'
+// Removed useProfileModal import to break circular dependency
 import { useEditProfile } from '../context/EditProfileContext'
 import { useModalTopBarSlot } from '../context/ModalTopBarSlotContext'
 import { agent, publicAgent, isAgentAuthenticated, getPostMediaInfo, getPostMediaInfoForDisplay, getActorFeeds, listActivitySubscriptions, putActivitySubscription, isPostNsfw, getProfileCached, likePostWithLifecycle, unlikePostWithLifecycle, followAccountWithLifecycle, unfollowAccountWithLifecycle, type TimelineItem, type ProfileViewBasic } from '../lib/bsky'
@@ -184,11 +184,15 @@ type GeneratorView = { uri: string; displayName: string; description?: string; a
 export function ProfileContent({
   handle,
   openProfileModal: _openProfileModal,
+  openPostModal,
+  isModalOpen,
   inModal = false,
   onRegisterRefresh,
 }: {
   handle: string
   openProfileModal: (h: string) => void
+  openPostModal: (uri: string, openReply?: boolean, focusUri?: string, authorHandle?: string) => void
+  isModalOpen: boolean
   /** When true, we are the profile popup content so keyboard shortcuts always apply. When false, skip if another modal (e.g. post) is open. */
   inModal?: boolean
   /** When in a modal, call with a function that refreshes this view (used for pull-to-refresh). */
@@ -228,7 +232,7 @@ export function ProfileContent({
   const [followeesWhoFollowPreview, setFolloweesWhoFollowPreview] = useState<ProfileViewBasic[] | null>(null)
   const [, setFolloweesWhoFollowLoading] = useState(false)
   const { likeOverrides, setLikeOverride } = useLikeOverrides()
-  const { openPostModal, isModalOpen } = useProfileModal()
+  // openPostModal and isModalOpen are now passed as props to avoid circular dependency
   const modalScrollRef = useModalScroll()
   const gridRef = useRef<HTMLDivElement | null>(null)
   const editProfileCtx = useEditProfile()
@@ -1169,7 +1173,6 @@ export function ProfileContent({
 export default function ProfilePage() {
   const { handle: handleParam } = useParams<{ handle: string }>()
   const handle = handleParam ? decodeURIComponent(handleParam) : ''
-  const { openProfileModal } = useProfileModal()
 
   if (!handle) {
     return (
@@ -1183,7 +1186,12 @@ export default function ProfilePage() {
 
   return (
     <Layout title={`@${handle}`} showNav>
-      <ProfileContent handle={handle} openProfileModal={openProfileModal} />
+      <ProfileContent
+        handle={handle}
+        openProfileModal={() => {}}
+        openPostModal={() => {}}
+        isModalOpen={false}
+      />
     </Layout>
   )
 }
