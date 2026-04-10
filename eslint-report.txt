@@ -1,0 +1,861 @@
+
+> artsky@0.0.0 lint
+> eslint .
+
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/components/CollectionSaveMenu.tsx
+   84:7   error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/components/CollectionSaveMenu.tsx:84:7
+  82 |   useLayoutEffect(() => {
+  83 |     if (!open || !triggerRef.current) {
+> 84 |       setDropdownPosition(null)
+     |       ^^^^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  85 |       return
+  86 |     }
+  87 |     setDropdownPosition(updateDropdownPosition())                         react-hooks/set-state-in-effect
+  124:5   error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/components/CollectionSaveMenu.tsx:124:5
+  122 |     if (!open || !session?.did) return
+  123 |     let cancelled = false
+> 124 |     setLoadingRows(true)
+      |     ^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  125 |     listCollectionsWithMembership(postUri)
+  126 |       .then((r) => {
+  127 |         if (!cancelled) setRows(r)  react-hooks/set-state-in-effect
+  255:16  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/components/CollectionSaveMenu.tsx:255:16
+  253 |
+  254 |   useEffect(() => {
+> 255 |     if (!open) setEditingNewTitle(false)
+      |                ^^^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  256 |   }, [open])
+  257 |
+  258 |   useEffect(() => {                                                                                 react-hooks/set-state-in-effect
+  259:5   error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/components/CollectionSaveMenu.tsx:259:5
+  257 |
+  258 |   useEffect(() => {
+> 259 |     setOptimisticSaved(false)
+      |     ^^^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  260 |     setForceSavedRowCheck(false)
+  261 |   }, [postUri])
+  262 |                                                                                        react-hooks/set-state-in-effect
+  264:24  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/components/CollectionSaveMenu.tsx:264:24
+  262 |
+  263 |   useEffect(() => {
+> 264 |     if (savedAnywhere) setForceSavedRowCheck(false)
+      |                        ^^^^^^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  265 |   }, [savedAnywhere])
+  266 |
+  267 |   const onTriggerClick = useCallback(                                react-hooks/set-state-in-effect
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/components/ComposerSuggestions.tsx
+  290:6  warning  React Hook useLayoutEffect has a missing dependency: 'inputRef'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  313:6  warning  React Hook useCallback has a missing dependency: 'inputRef'. Either include it or remove the dependency array      react-hooks/exhaustive-deps
+  327:6  warning  React Hook useEffect has a missing dependency: 'inputRef'. Either include it or remove the dependency array        react-hooks/exhaustive-deps
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/components/EditProfileModal.tsx
+  62:30  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/components/FeedSelector.tsx
+  178:6  warning  React Hook useEffect has a missing dependency: 'searchWords'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/components/FollowListModal.tsx
+  75:5  warning  React Hook useCallback has unnecessary dependencies: 'authenticatedClient' and 'viewerDid'. Either exclude them or remove the dependency array  react-hooks/exhaustive-deps
+  88:9  error    'out' is never reassigned. Use 'const' instead                                                                                                  prefer-const
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/components/Layout.bugCondition.pbt.test.tsx
+    1:32  error  'vi' is defined but never used                      @typescript-eslint/no-unused-vars
+    1:36  error  'beforeAll' is defined but never used               @typescript-eslint/no-unused-vars
+    1:47  error  'afterEach' is defined but never used               @typescript-eslint/no-unused-vars
+   61:35  error  Unexpected any. Specify a different type            @typescript-eslint/no-explicit-any
+   80:19  error  'effectPromise' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  127:35  error  Unexpected any. Specify a different type            @typescript-eslint/no-explicit-any
+  150:13  error  'renderCount' is assigned a value but never used    @typescript-eslint/no-unused-vars
+  155:19  error  'effectPromise' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  205:35  error  Unexpected any. Specify a different type            @typescript-eslint/no-explicit-any
+  206:17  error  'session' is never reassigned. Use 'const' instead  prefer-const
+  229:19  error  'effectPromise' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  283:35  error  Unexpected any. Specify a different type            @typescript-eslint/no-explicit-any
+  284:19  error  'session' is assigned a value but never used        @typescript-eslint/no-unused-vars
+  304:19  error  'effectPromise' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/components/Layout.preservation.pbt.test.tsx
+   39:7   error  'mockSessions' is assigned a value but never used    @typescript-eslint/no-unused-vars
+   83:29  error  'attemptedCustomFeedLoad' is defined but never used  @typescript-eslint/no-unused-vars
+   86:35  error  Unexpected any. Specify a different type             @typescript-eslint/no-explicit-any
+   89:17  error  'loadSavedFeeds' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  143:35  error  Unexpected any. Specify a different type             @typescript-eslint/no-explicit-any
+  146:17  error  'loadSavedFeeds' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  151:19  error  'serverFeeds' is assigned a value but never used     @typescript-eslint/no-unused-vars
+  151:32  error  Unexpected any. Specify a different type             @typescript-eslint/no-explicit-any
+  202:17  error  'session' is assigned a value but never used         @typescript-eslint/no-unused-vars
+  203:33  error  Unexpected any. Specify a different type             @typescript-eslint/no-explicit-any
+  307:11  error  'currentSession' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  372:73  error  Unexpected any. Specify a different type             @typescript-eslint/no-explicit-any
+  450:39  error  'i' is defined but never used                        @typescript-eslint/no-unused-vars
+  463:39  error  'i' is defined but never used                        @typescript-eslint/no-unused-vars
+  473:39  error  'i' is defined but never used                        @typescript-eslint/no-unused-vars
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/components/Layout.tsx
+  133:14  error    Fast refresh only works when a file only exports components. Move your React context(s) to a separate file               react-refresh/only-export-components
+  445:6   warning  React Hook useEffect has a missing dependency: 'editProfile'. Either include it or remove the dependency array           react-hooks/exhaustive-deps
+  586:5   warning  React Hook useCallback has a missing dependency: 'fallbackFeedSource'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  601:5   warning  React Hook useMemo has a missing dependency: 'presetUris'. Either include it or remove the dependency array              react-hooks/exhaustive-deps
+  839:5   warning  React Hook useCallback has a missing dependency: 'presetUris'. Either include it or remove the dependency array          react-hooks/exhaustive-deps
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/components/OptimizedPostCard.tsx
+  41:3   error  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/components/OptimizedPostCard.tsx:41:3
+  39 |   const wrapRef = useRef<HTMLDivElement | null>(null)
+  40 |   const cardRefPropRef = useRef(props.cardRef)
+> 41 |   cardRefPropRef.current = props.cardRef
+     |   ^^^^^^^^^^^^^^^^^^^^^^ Cannot update ref during render
+  42 |
+  43 |   const measuredHeightRef = useRef(0)
+  44 |   const showingContentRef = useRef(true)                                                                             react-hooks/refs
+  63:46  error  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/components/OptimizedPostCard.tsx:63:46
+  61 |   }, [])
+  62 |
+> 63 |   const showPlaceholder = !isNearViewport && measuredHeightRef.current > 0
+     |                                              ^^^^^^^^^^^^^^^^^^^^^^^^^ Cannot access ref value during render
+  64 |   showingContentRef.current = !showPlaceholder
+  65 |
+  66 |   return (                                                                                                       react-hooks/refs
+  64:3   error  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/components/OptimizedPostCard.tsx:64:3
+  62 |
+  63 |   const showPlaceholder = !isNearViewport && measuredHeightRef.current > 0
+> 64 |   showingContentRef.current = !showPlaceholder
+     |   ^^^^^^^^^^^^^^^^^^^^^^^^^ Cannot update ref during render
+  65 |
+  66 |   return (
+  67 |     <div ref={setWrapRef} className={styles.optimizeWrap}>                                                                                                       react-hooks/refs
+  69:31  error  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/components/OptimizedPostCard.tsx:69:31
+  67 |     <div ref={setWrapRef} className={styles.optimizeWrap}>
+  68 |       {showPlaceholder ? (
+> 69 |         <div style={{ height: measuredHeightRef.current }} aria-hidden />
+     |                               ^^^^^^^^^^^^^^^^^^^^^^^^^ Cannot access ref value during render
+  70 |       ) : (
+  71 |         <PostCard {...props} cardRef={() => {}} onAspectRatio={undefined} />
+  72 |       )}  react-hooks/refs
+  69:31  error  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/components/OptimizedPostCard.tsx:69:31
+  67 |     <div ref={setWrapRef} className={styles.optimizeWrap}>
+  68 |       {showPlaceholder ? (
+> 69 |         <div style={{ height: measuredHeightRef.current }} aria-hidden />
+     |                               ^^^^^^^^^^^^^^^^^^^^^^^^^ Cannot access ref value during render
+  70 |       ) : (
+  71 |         <PostCard {...props} cardRef={() => {}} onAspectRatio={undefined} />
+  72 |       )}  react-hooks/refs
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/components/PostActionsMenu.tsx
+  261:6  warning  React Hook useEffect has a missing dependency: 'setOpen'. Either include it or remove the dependency array    react-hooks/exhaustive-deps
+  316:6  warning  React Hook useEffect has a missing dependency: 'setOpen'. Either include it or remove the dependency array    react-hooks/exhaustive-deps
+  326:6  warning  React Hook useCallback has a missing dependency: 'setOpen'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  416:6  warning  React Hook useCallback has a missing dependency: 'setOpen'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  430:6  warning  React Hook useCallback has a missing dependency: 'setOpen'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/components/PostCard.bug-condition.test.tsx
+  1:36  error  'beforeEach' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/components/PostCard.preservation.test.tsx
+  1:36  error  'beforeEach' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/components/PostCard.test.tsx
+  244:9   error  'clickHandler1' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  244:24  error  Unexpected any. Specify a different type            @typescript-eslint/no-explicit-any
+  245:9   error  'clickHandler2' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  245:24  error  Unexpected any. Specify a different type            @typescript-eslint/no-explicit-any
+  432:13  error  '_parentState' is defined but never used            @typescript-eslint/no-unused-vars
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/components/PostCard.tsx
+  421:6   warning  React Hook useEffect has missing dependencies: 'hasMedia', 'isVideo', and 'media.aspectRatio'. Either include them or remove the dependency array                                                                                                                react-hooks/exhaustive-deps
+  503:26  warning  The ref value 'videoRef.current' will likely have changed by the time this effect cleanup function runs. If this ref points to a node rendered by React, copy 'videoRef.current' to a variable inside the effect, and use that variable in the cleanup function  react-hooks/exhaustive-deps
+  509:6   warning  React Hook useEffect has a missing dependency: 'media'. Either include it or remove the dependency array                                                                                                                                                         react-hooks/exhaustive-deps
+  755:6   warning  React Hook useCallback has a missing dependency: 'MEDIA_CLICK_DOUBLE_TAP_WINDOW_MS'. Either include it or remove the dependency array                                                                                                                            react-hooks/exhaustive-deps
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/components/PostDetailModal.tsx
+  24:5  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/components/PostDetailModal.tsx:24:5
+  22 |
+  23 |   useEffect(() => {
+> 24 |     setAuthorHandle(null)
+     |     ^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  25 |   }, [uri])
+  26 |
+  27 |   /* Push profile on top of post (same as clicking author) so swipe-right/back returns to post */  react-hooks/set-state-in-effect
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/components/PostModalOverlay.tsx
+  26:7  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/components/PostModalOverlay.tsx:26:7
+  24 |   useEffect(() => {
+  25 |     if (uri) {
+> 26 |       setResolvedUri(decodeURIComponent(uri))
+     |       ^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  27 |       setResolving(false)
+  28 |       return
+  29 |     }  react-hooks/set-state-in-effect
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/components/PostText.tsx
+  12:98  error  Unnecessary escape character: \/  no-useless-escape
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/components/ProfileColumn.tsx
+  68:34  error  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/components/ProfileColumn.tsx:68:34
+  66 |   }, [])
+  67 |
+> 68 |   const virtualized = !isNear && heightRef.current > 0
+     |                                  ^^^^^^^^^^^^^^^^^ Cannot access ref value during render
+  69 |   showingRef.current = !virtualized
+  70 |
+  71 |   return (                                                                   react-hooks/refs
+  69:3   error  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/components/ProfileColumn.tsx:69:3
+  67 |
+  68 |   const virtualized = !isNear && heightRef.current > 0
+> 69 |   showingRef.current = !virtualized
+     |   ^^^^^^^^^^^^^^^^^^ Cannot update ref during render
+  70 |
+  71 |   return (
+  72 |     <div ref={ref} style={{ width: '100%' }}>                                                                   react-hooks/refs
+  73:44  error  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/components/ProfileColumn.tsx:73:44
+  71 |   return (
+  72 |     <div ref={ref} style={{ width: '100%' }}>
+> 73 |       {virtualized ? <div style={{ height: heightRef.current }} aria-hidden /> : children}
+     |                                            ^^^^^^^^^^^^^^^^^ Cannot access ref value during render
+  74 |     </div>
+  75 |   )
+  76 | })  react-hooks/refs
+  73:44  error  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/components/ProfileColumn.tsx:73:44
+  71 |   return (
+  72 |     <div ref={ref} style={{ width: '100%' }}>
+> 73 |       {virtualized ? <div style={{ height: heightRef.current }} aria-hidden /> : children}
+     |                                            ^^^^^^^^^^^^^^^^^ Cannot access ref value during render
+  74 |     </div>
+  75 |   )
+  76 | })  react-hooks/refs
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/components/ProgressiveImage.tsx
+  193:65  warning  The ref value 'containerRef.current' will likely have changed by the time this effect cleanup function runs. If this ref points to a node rendered by React, copy 'containerRef.current' to a variable inside the effect, and use that variable in the cleanup function                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      react-hooks/exhaustive-deps
+  200:5   error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/components/ProgressiveImage.tsx:200:5
+  198 |   useLayoutEffect(() => {
+  199 |     loadFinishedRef.current = false
+> 200 |     setRetryCount(0)
+      |     ^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  201 |     setPermanentError(false)
+  202 |     setIsLoaded(false)
+  203 |     setImageError(false)  react-hooks/set-state-in-effect
+  212:7   error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/components/ProgressiveImage.tsx:212:7
+  210 |   useLayoutEffect(() => {
+  211 |     if (loading === 'eager' || isLoaded) {
+> 212 |       setShouldPreload(true)
+      |       ^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  213 |       return
+  214 |     }
+  215 |                                        react-hooks/set-state-in-effect
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/components/SearchBar.tsx
+  143:9  warning  The 'hashtagOption' conditional could make the dependencies of useEffect Hook (at line 210) change on every render. To fix this, wrap the initialization of 'hashtagOption' in its own useMemo() Hook  react-hooks/exhaustive-deps
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/components/SuggestedFollows.tsx
+  42:25  error  '_handle' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/context/ArtOnlyContext.tsx
+   26:17  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             react-refresh/only-export-components
+   59:14  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             react-refresh/only-export-components
+   97:7   error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/context/ArtOnlyContext.tsx:97:7
+   95 |     if (prevDidRef.current !== did) {
+   96 |       prevDidRef.current = did
+>  97 |       setCardViewModeState(loadModeForDid(did))
+      |       ^^^^^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+   98 |       return
+   99 |     }
+  100 |     persistMode(did, cardViewMode)  react-hooks/set-state-in-effect
+  143:17  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             react-refresh/only-export-components
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/context/CollectionSaveContext.tsx
+  270:17  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+  280:17  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+  294:17  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/context/CoreProvidersGroup.property.test.tsx
+    1:24  error  'expect' is defined but never used                                                                                                @typescript-eslint/no-unused-vars
+    3:10  error  'renderHook' is defined but never used                                                                                            @typescript-eslint/no-unused-vars
+   65:14  error  'themeChanges' is defined but never used                                                                                          @typescript-eslint/no-unused-vars
+  123:19  error  'initialRenderCounts' is assigned a value but never used                                                                          @typescript-eslint/no-unused-vars
+  168:28  error  Unexpected any. Specify a different type                                                                                          @typescript-eslint/no-explicit-any
+  169:30  error  Unexpected any. Specify a different type                                                                                          @typescript-eslint/no-explicit-any
+  170:33  error  Unexpected any. Specify a different type                                                                                          @typescript-eslint/no-explicit-any
+  171:28  error  Unexpected any. Specify a different type                                                                                          @typescript-eslint/no-explicit-any
+  196:28  error  Unexpected any. Specify a different type                                                                                          @typescript-eslint/no-explicit-any
+  262:46  error  Unexpected any. Specify a different type                                                                                          @typescript-eslint/no-explicit-any
+  265:34  error  React Hook "useTheme" is called conditionally. React Hooks must be called in the exact same order in every component render       react-hooks/rules-of-hooks
+  268:36  error  React Hook "useSession" is called conditionally. React Hooks must be called in the exact same order in every component render     react-hooks/rules-of-hooks
+  271:39  error  React Hook "useScrollLock" is called conditionally. React Hooks must be called in the exact same order in every component render  react-hooks/rules-of-hooks
+  274:34  error  React Hook "useToast" is called conditionally. React Hooks must be called in the exact same order in every component render       react-hooks/rules-of-hooks
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/context/EditProfileContext.tsx
+  56:17  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/context/FeedMixContext.tsx
+   80:7   error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/context/FeedMixContext.tsx:80:7
+  78 |       save(entries, enabled, prevDidRef.current)
+  79 |       const loaded = loadStored(did)
+> 80 |       setEntries(loaded.entries)
+     |       ^^^^^^^^^^ Avoid calling setState() directly within an effect
+  81 |       setEnabledState(loaded.enabled)
+  82 |       prevDidRef.current = did
+  83 |       return  react-hooks/set-state-in-effect
+  199:17  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          react-refresh/only-export-components
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/context/FeedSwipeContext.tsx
+  11:17  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/context/HideRepostsContext.tsx
+  76:17  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/context/LikeOverridesContext.test.tsx
+  129:11  error  'getLikeOverride1' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/context/LikeOverridesContext.tsx
+  76:17  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/context/LoginModalContext.tsx
+  47:17  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/context/MediaOnlyContext.tsx
+    9:14  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+  101:17  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/context/ModalExpandContext.tsx
+  44:17  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/context/ModalLazyLoading.test.tsx
+  2:18  error  'screen' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/context/ModalScrollContext.tsx
+  20:17  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/context/ModalTopBarSlotContext.tsx
+  11:17  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/context/ModerationContext.tsx
+   9:14  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+  84:17  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/context/ProfileModalContext.tsx
+  509:17  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/context/ScrollLockContext.tsx
+  52:17  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/context/SeenPostsContext.tsx
+  49:39  error  '_anchor' is defined but never used                                                                                             @typescript-eslint/no-unused-vars
+  54:41  error  '_anchor' is defined but never used                                                                                             @typescript-eslint/no-unused-vars
+  84:17  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/context/SessionContext.tsx
+  140:6   warning  React Hook useMemo has unnecessary dependencies: 'authResolved' and 'session'. Either exclude them or remove the dependency array  react-hooks/exhaustive-deps
+  232:17  error    Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components     react-refresh/only-export-components
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/context/ThemeContext.tsx
+   63:5   error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/context/ThemeContext.tsx:63:5
+  61 |     }
+  62 |     const next = getResolved(theme)
+> 63 |     setResolved(next)
+     |     ^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  64 |     document.documentElement.setAttribute('data-theme', next)
+  65 |     setThemeColorMeta(next)
+  66 |   }, [theme])  react-hooks/set-state-in-effect
+  106:17  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      react-refresh/only-export-components
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/context/ToastContext.tsx
+  59:17  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/context/ViewModeContext.tsx
+   15:14  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+  109:17  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+  116:17  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/hooks/useListKeyboardNav.ts
+  35:3  error  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/hooks/useListKeyboardNav.ts:35:3
+  33 | }: ListKeyboardNavOptions): void {
+  34 |   const focusedIndexRef = useRef(focusedIndex)
+> 35 |   focusedIndexRef.current = focusedIndex
+     |   ^^^^^^^^^^^^^^^^^^^^^^^ Cannot update ref during render
+  36 |   const onActivateRef = useRef(onActivate)
+  37 |   onActivateRef.current = onActivate
+  38 |  react-hooks/refs
+  37:3  error  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/hooks/useListKeyboardNav.ts:37:3
+  35 |   focusedIndexRef.current = focusedIndex
+  36 |   const onActivateRef = useRef(onActivate)
+> 37 |   onActivateRef.current = onActivate
+     |   ^^^^^^^^^^^^^^^^^^^^^ Cannot update ref during render
+  38 |
+  39 |   useEffect(() => {
+  40 |     if (!enabled || itemCount <= 0) return                       react-hooks/refs
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/hooks/useOffscreenOptimization.test.ts
+  86:9  error  Unexpected aliasing of 'this' to local variable  @typescript-eslint/no-this-alias
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/hooks/useOffscreenOptimization.ts
+  17:3  error  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/hooks/useOffscreenOptimization.ts:17:3
+  15 |   const observerRef = useRef<IntersectionObserver | null>(null)
+  16 |   const optionsRef = useRef(options)
+> 17 |   optionsRef.current = options
+     |   ^^^^^^^^^^^^^^^^^^ Cannot update ref during render
+  18 |
+  19 |   useEffect(() => {
+  20 |     if (!element) return  react-hooks/refs
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/hooks/useViewportWidth.ts
+   23:5   error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/hooks/useViewportWidth.ts:23:5
+  21 |
+  22 |     // Set initial width
+> 23 |     setWidth(window.innerWidth)
+     |     ^^^^^^^^ Avoid calling setState() directly within an effect
+  24 |
+  25 |     // Add event listener
+  26 |     window.addEventListener('resize', handleResize, { passive: true })  react-hooks/set-state-in-effect
+  155:9   error  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/hooks/useViewportWidth.ts:155:9
+  153 |
+  154 |   return useMemo(() => {
+> 155 |     if (lastViewModeRef.current !== viewMode) {
+      |         ^^^^^^^^^^^^^^^^^^^^^^^ Cannot access ref value during render
+  156 |       if (viewMode === 'a') stableAutoRef.current = 0
+  157 |       lastViewModeRef.current = viewMode
+  158 |       lastBasisKindRef.current = 'viewport'                                                                                                                                                                                                                                                                                        react-hooks/refs
+  156:29  error  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/hooks/useViewportWidth.ts:156:29
+  154 |   return useMemo(() => {
+  155 |     if (lastViewModeRef.current !== viewMode) {
+> 156 |       if (viewMode === 'a') stableAutoRef.current = 0
+      |                             ^^^^^^^^^^^^^^^^^^^^^ Cannot update ref during render
+  157 |       lastViewModeRef.current = viewMode
+  158 |       lastBasisKindRef.current = 'viewport'
+  159 |     }                                                                                                                                                                                                                                                                     react-hooks/refs
+  157:7   error  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/hooks/useViewportWidth.ts:157:7
+  155 |     if (lastViewModeRef.current !== viewMode) {
+  156 |       if (viewMode === 'a') stableAutoRef.current = 0
+> 157 |       lastViewModeRef.current = viewMode
+      |       ^^^^^^^^^^^^^^^^^^^^^^^ Cannot update ref during render
+  158 |       lastBasisKindRef.current = 'viewport'
+  159 |     }
+  160 |                                                                                                                                                                                                                                                                                                                   react-hooks/refs
+  158:7   error  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/hooks/useViewportWidth.ts:158:7
+  156 |       if (viewMode === 'a') stableAutoRef.current = 0
+  157 |       lastViewModeRef.current = viewMode
+> 158 |       lastBasisKindRef.current = 'viewport'
+      |       ^^^^^^^^^^^^^^^^^^^^^^^^ Cannot update ref during render
+  159 |     }
+  160 |
+  161 |     if (viewMode !== 'a') {                                                                                                                                                                                                                                                                                                                                      react-hooks/refs
+  163:7   error  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/hooks/useViewportWidth.ts:163:7
+  161 |     if (viewMode !== 'a') {
+  162 |       const c = getColumnCountForViewMode(viewMode, viewportWidth)
+> 163 |       stableAutoRef.current = c
+      |       ^^^^^^^^^^^^^^^^^^^^^ Cannot update ref during render
+  164 |       return c
+  165 |     }
+  166 |                                                                                                                                                                                                                                                                                                                                                                  react-hooks/refs
+  170:23  error  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/hooks/useViewportWidth.ts:170:23
+  168 |     const basisWidth = useLayout ? measuredLayoutWidth : viewportWidth
+  169 |     const basisKind: 'viewport' | 'layout' = useLayout ? 'layout' : 'viewport'
+> 170 |     if (basisKind !== lastBasisKindRef.current) {
+      |                       ^^^^^^^^^^^^^^^^^^^^^^^^ Cannot access ref value during render
+  171 |       stableAutoRef.current = 0
+  172 |       lastBasisKindRef.current = basisKind
+  173 |     }                                                                                                                                                                                                   react-hooks/refs
+  171:7   error  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/hooks/useViewportWidth.ts:171:7
+  169 |     const basisKind: 'viewport' | 'layout' = useLayout ? 'layout' : 'viewport'
+  170 |     if (basisKind !== lastBasisKindRef.current) {
+> 171 |       stableAutoRef.current = 0
+      |       ^^^^^^^^^^^^^^^^^^^^^ Cannot update ref during render
+  172 |       lastBasisKindRef.current = basisKind
+  173 |     }
+  174 |                                                                                                                                                                                                                                                                                                    react-hooks/refs
+  172:7   error  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/hooks/useViewportWidth.ts:172:7
+  170 |     if (basisKind !== lastBasisKindRef.current) {
+  171 |       stableAutoRef.current = 0
+> 172 |       lastBasisKindRef.current = basisKind
+      |       ^^^^^^^^^^^^^^^^^^^^^^^^ Cannot update ref during render
+  173 |     }
+  174 |
+  175 |     const stable = getStableAutoColumnCount(basisWidth, stableAutoRef.current)                                                                                                                                                                                                                                                                                                 react-hooks/refs
+  175:57  error  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/hooks/useViewportWidth.ts:175:57
+  173 |     }
+  174 |
+> 175 |     const stable = getStableAutoColumnCount(basisWidth, stableAutoRef.current)
+      |                                                         ^^^^^^^^^^^^^^^^^^^^^ Passing a ref to a function may read its value during render
+  176 |     stableAutoRef.current = stable
+  177 |     return stable
+  178 |   }, [viewMode, viewportWidth, measuredLayoutWidth, shouldMeasure])                                                                                                                                                                                                                        react-hooks/refs
+  176:5   error  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/hooks/useViewportWidth.ts:176:5
+  174 |
+  175 |     const stable = getStableAutoColumnCount(basisWidth, stableAutoRef.current)
+> 176 |     stableAutoRef.current = stable
+      |     ^^^^^^^^^^^^^^^^^^^^^ Cannot update ref during render
+  177 |     return stable
+  178 |   }, [viewMode, viewportWidth, measuredLayoutWidth, shouldMeasure])
+  179 | }                                                                                                                                                                                                                                                                                                              react-hooks/refs
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/lib/AsyncStorage.pbt.test.ts
+  42:47  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  46:23  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  46:59  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/lib/AsyncStorage.test.ts
+   41:47  error  Unexpected any. Specify a different type              @typescript-eslint/no-explicit-any
+   45:23  error  Unexpected any. Specify a different type              @typescript-eslint/no-explicit-any
+   45:59  error  Unexpected any. Specify a different type              @typescript-eslint/no-explicit-any
+  147:11  error  'originalSetItem' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  270:49  error  Unexpected any. Specify a different type              @typescript-eslint/no-explicit-any
+  273:23  error  Unexpected any. Specify a different type              @typescript-eslint/no-explicit-any
+  273:59  error  Unexpected any. Specify a different type              @typescript-eslint/no-explicit-any
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/lib/apiRateLimit.bugCondition.pbt.test.ts
+    3:10  error  'requestDeduplicator' is defined but never used  @typescript-eslint/no-unused-vars
+   22:18  error  Unexpected any. Specify a different type         @typescript-eslint/no-explicit-any
+   23:24  error  Unexpected any. Specify a different type         @typescript-eslint/no-explicit-any
+   24:25  error  Unexpected any. Specify a different type         @typescript-eslint/no-explicit-any
+   25:25  error  Unexpected any. Specify a different type         @typescript-eslint/no-explicit-any
+   26:33  error  Unexpected any. Specify a different type         @typescript-eslint/no-explicit-any
+   27:25  error  Unexpected any. Specify a different type         @typescript-eslint/no-explicit-any
+   31:36  error  Unexpected any. Specify a different type         @typescript-eslint/no-explicit-any
+  124:47  error  'usePublic' is assigned a value but never used   @typescript-eslint/no-unused-vars
+  139:50  error  'usePublic' is assigned a value but never used   @typescript-eslint/no-unused-vars
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/lib/apiRateLimit.preservation.pbt.test.ts
+   91:49  error  'actor' is defined but never used  @typescript-eslint/no-unused-vars
+  277:49  error  'actor' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/lib/bsky-updates.ts
+   49:44  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   79:44  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  106:44  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  135:49  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  163:47  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  190:53  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/lib/bsky.ts
+  1626:12  error  '_' is defined but never used             @typescript-eslint/no-unused-vars
+  1983:44  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  2002:49  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  2004:80  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  2023:47  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  2025:76  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  2043:53  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  2045:88  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/lib/codeSplitting.test.ts
+  20:7  error  'bundleContents' is never reassigned. Use 'const' instead  prefer-const
+  21:7  error  'bundleSizes' is never reassigned. Use 'const' instead     prefer-const
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/lib/downloadImage.ts
+  44:32  error  '_reject' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/lib/errorHandling.integration.test.tsx
+  498:53  error  Unexpected any. Specify a different type             @typescript-eslint/no-explicit-any
+  502:25  error  Unexpected any. Specify a different type             @typescript-eslint/no-explicit-any
+  502:61  error  Unexpected any. Specify a different type             @typescript-eslint/no-explicit-any
+  609:55  error  Unexpected any. Specify a different type             @typescript-eslint/no-explicit-any
+  612:25  error  Unexpected any. Specify a different type             @typescript-eslint/no-explicit-any
+  612:61  error  Unexpected any. Specify a different type             @typescript-eslint/no-explicit-any
+  664:26  error  'chunkContainer' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  671:26  error  'imageContainer' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/lib/lazyLoading.pbt.test.ts
+   46:17  error  'originalImport' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  123:56  error  Unexpected any. Specify a different type             @typescript-eslint/no-explicit-any
+  124:62  error  Unexpected any. Specify a different type             @typescript-eslint/no-explicit-any
+  125:58  error  Unexpected any. Specify a different type             @typescript-eslint/no-explicit-any
+  126:61  error  Unexpected any. Specify a different type             @typescript-eslint/no-explicit-any
+  419:20  error  'error' is defined but never used                    @typescript-eslint/no-unused-vars
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/lib/performanceMetrics.ts
+  116:24  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  117:33  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/lib/utils.ts
+  13:46  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/pages/FeedPage.debounce.test.tsx
+  23:47  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  90:34  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/pages/FeedPage.masonry.test.tsx
+  24:41  error  'top' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/pages/FeedPage.tsx
+    98:17  error    Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+   112:17  error    Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+   612:6   warning  React Hook useCallback has an unnecessary dependency: 'mixTotalPercent'. Either exclude it or remove the dependency array       react-hooks/exhaustive-deps
+  1518:28  error    '_' is defined but never used                                                                                                   @typescript-eslint/no-unused-vars
+  1518:31  error    Empty block statement                                                                                                           no-empty
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/pages/PostDetailPage.tsx
+    84:7  error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/pages/PostDetailPage.tsx:84:7
+  82 |   useEffect(() => {
+  83 |     if (sessionsList.length === 0) {
+> 84 |       setAccountProfiles({})
+     |       ^^^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  85 |       return
+  86 |     }
+  87 |     let cancelled = false         react-hooks/set-state-in-effect
+  1158:6  warning  React Hook useEffect has missing dependencies: 'session' and 'sessionFromContext'. Either include them or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          react-hooks/exhaustive-deps
+  1445:6  warning  React Hook useCallback has an unnecessary dependency: 'sessionFromContext.did'. Either exclude it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               react-hooks/exhaustive-deps
+  1640:9  warning  The 'threadReplies' conditional could make the dependencies of useMemo Hook (at line 1711) change on every render. To fix this, wrap the initialization of 'threadReplies' in its own useMemo() Hook                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           react-hooks/exhaustive-deps
+  2005:6  warning  React Hook useEffect has an unnecessary dependency: 'findReplyByUri'. Either exclude it or remove the dependency array. Outer scope values like 'findReplyByUri' aren't valid dependencies because mutating them doesn't re-render the component                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               react-hooks/exhaustive-deps
+  2868:7  error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/pages/PostDetailPage.tsx:2868:7
+  2866 |   useEffect(() => {
+  2867 |     if (uri) {
+> 2868 |       setResolvedUri(decodeURIComponent(uri))
+       |       ^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  2869 |       setResolving(false)
+  2870 |       return
+  2871 |     }  react-hooks/set-state-in-effect
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/pages/ProfilePage.tsx
+  186:21  error    '_openProfileModal' is defined but never used                                                                                                                                                                                         @typescript-eslint/no-unused-vars
+  276:6   warning  React Hook useEffect has a missing dependency: 'session'. Either include it or remove the dependency array                                                                                                                            react-hooks/exhaustive-deps
+  286:6   warning  React Hook useCallback has a missing dependency: 'profile'. Either include it or remove the dependency array                                                                                                                          react-hooks/exhaustive-deps
+  290:6   warning  React Hook useEffect has missing dependencies: 'profile' and 'session'. Either include them or remove the dependency array                                                                                                            react-hooks/exhaustive-deps
+  353:6   warning  React Hook useCallback has missing dependencies: 'profile' and 'session'. Either include them or remove the dependency array                                                                                                          react-hooks/exhaustive-deps
+  377:6   warning  React Hook useEffect has missing dependencies: 'profile' and 'session'. Either include them or remove the dependency array                                                                                                            react-hooks/exhaustive-deps
+  405:9   warning  The 'loadMore' conditional could make the dependencies of useEffect Hook (at line 452) change on every render. Move it inside the useEffect callback. Alternatively, wrap the initialization of 'loadMore' in its own useMemo() Hook  react-hooks/exhaustive-deps
+  534:6   warning  React Hook useMemo has a missing dependency: 'isRepostOrQuote'. Either include it or remove the dependency array                                                                                                                      react-hooks/exhaustive-deps
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/test/bundleSizeTracker.ts
+   30:32  error  'distPath' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  166:64  error  'outputPath' is defined but never used         @typescript-eslint/no-unused-vars
+  176:38  error  'inputPath' is defined but never used          @typescript-eslint/no-unused-vars
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/test/performanceUtils.ts
+  136:24  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  137:33  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  207:50  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  208:28  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/test/renderCounter.tsx
+  40:5   error  Error: This value cannot be modified
+
+Modifying a variable defined outside a component or hook is not allowed. Consider using an effect.
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/test/renderCounter.tsx:40:5
+  38 |   
+  39 |   const WrappedComponent = (props: P) => {
+> 40 |     renderCountRef.current += 1
+     |     ^^^^^^^^^^^^^^ value cannot be modified
+  41 |     if (import.meta.env.DEV) {
+  42 |       console.log(`[RenderCounter] ${componentName} rendered ${renderCountRef.current} times`)
+  43 |     }
+
+Hint: If this value is a Ref (value returned by `useRef()`), rename the variable to end in "Ref"  react-hooks/immutability
+  48:25  error  Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      @typescript-eslint/no-explicit-any
+  56:45  error  Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      @typescript-eslint/no-explicit-any
+  65:43  error  Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      @typescript-eslint/no-explicit-any
+
+/Users/xox/Library/CloudStorage/Dropbox/Cursor Code/GitHub/artsky/src/test/stubs/virtual-pwa-register.ts
+  2:28  error  '_options' is defined but never used     @typescript-eslint/no-unused-vars
+  6:17  error  '_reloadPage' is defined but never used  @typescript-eslint/no-unused-vars
+
+✖ 235 problems (202 errors, 33 warnings)
+  4 errors and 0 warnings potentially fixable with the `--fix` option.
+
