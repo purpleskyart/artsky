@@ -4,13 +4,65 @@ import { ChunkLoadError } from '../components/ChunkLoadError'
 import { isHandleBoardPath } from '../lib/routes'
 import { getPostOverlayPath, postUriToQuotesParam, quotesParamToPostUri } from '../lib/appUrl'
 import { getOverlayBackgroundLocation, hasPathOverlayStack } from '../lib/overlayNavigation'
-import { preloadProfileOpen } from '../lib/modalPreload'
+import { getProfileCached } from '../lib/bsky'
 
 const PostDetailModal = lazy(() => import('../components/PostDetailModal'))
 const ProfileModal = lazy(() => import('../components/ProfileModal'))
 const TagModal = lazy(() => import('../components/TagModal'))
 const SearchModal = lazy(() => import('../components/SearchModal'))
 const QuotesModal = lazy(() => import('../components/QuotesModal'))
+
+// Local preload state to avoid circular dependency with modalPreload.ts
+let profileOverlayPreloaded = false
+let profilePagePreloaded = false
+const profilePrefetchInFlight = new Set<string>()
+const preloadedProfileByHandle = new Map<string, {
+  handle?: string
+  displayName?: string
+  avatar?: string
+  description?: string
+  did?: string
+  viewer?: { following?: string; blocking?: string }
+  verification?: { verifiedStatus?: string }
+  createdAt?: string
+  indexedAt?: string
+}>()
+
+function preloadProfileOverlayChunks(): void {
+  if (profileOverlayPreloaded) return
+  profileOverlayPreloaded = true
+  void import('../components/ProfileModalOverlay')
+  void import('../components/ProfileModal')
+}
+
+function preloadProfilePageChunk(): void {
+  if (profilePagePreloaded) return
+  profilePagePreloaded = true
+  void import('../pages/ProfilePage')
+}
+
+function preloadProfileOpen(handle: string): void {
+  const normalized = handle.trim()
+  if (!normalized) return
+  preloadProfileOverlayChunks()
+  preloadProfilePageChunk()
+  if (profilePrefetchInFlight.has(normalized)) return
+  profilePrefetchInFlight.add(normalized)
+  void getProfileCached(normalized)
+    .then((data) => {
+      preloadedProfileByHandle.set(normalized.toLowerCase(), data)
+    })
+    .catch(() => {
+      // Best-effort prefetch only.
+    })
+    .finally(() => {
+      profilePrefetchInFlight.delete(normalized)
+    })
+}
+
+export function getPreloadedProfileSnapshot(handle: string) {
+  return preloadedProfileByHandle.get(handle.trim().toLowerCase()) ?? null
+}
 
 export type ModalItem =
   | { type: 'post'; uri: string; openReply?: boolean; focusUri?: string }
