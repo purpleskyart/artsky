@@ -15,15 +15,9 @@ export const MEDIA_MODE_LABELS: Record<MediaMode, string> = {
 type MediaOnlyContextValue = {
   /** Current mode: mediaText (show all with media+text), media (filter to posts with media), text (hide media in cards). */
   mediaMode: MediaMode
-  /** @deprecated Use mediaMode === 'media' */
-  mediaOnly: boolean
   setMediaMode: (value: MediaMode) => void
   /** Cycle: Media+Text → Media only → Text only → Media+Text. */
   cycleMediaMode: (options?: { showToast?: boolean }) => void
-  /** @deprecated Use setMediaMode or cycleMediaMode */
-  setMediaOnly: (value: boolean) => void
-  /** @deprecated Use cycleMediaMode */
-  toggleMediaOnly: (options?: { showToast?: boolean }) => void
 }
 
 const MediaOnlyContext = createContext<MediaOnlyContextValue | null>(null)
@@ -81,18 +75,10 @@ function MediaOnlyProviderInner({
     })
   }, [toast])
 
-  const setMediaOnly = useCallback((value: boolean) => {
-    setMediaModeState(value ? 'media' : 'mediaText')
-  }, [])
-
-  const toggleMediaOnly = useCallback((options?: { showToast?: boolean }) => {
-    cycleMediaMode(options)
-  }, [cycleMediaMode])
-
   const mediaOnly = mediaMode === 'media'
 
   return (
-    <MediaOnlyContext.Provider value={{ mediaMode, mediaOnly, setMediaMode, cycleMediaMode, setMediaOnly, toggleMediaOnly }}>
+    <MediaOnlyContext.Provider value={{ mediaMode, setMediaMode, cycleMediaMode }}>
       {children}
     </MediaOnlyContext.Provider>
   )
@@ -103,11 +89,8 @@ export function useMediaOnly() {
   if (!ctx) {
     return {
       mediaMode: 'mediaText' as MediaMode,
-      mediaOnly: false,
       setMediaMode: () => {},
       cycleMediaMode: () => {},
-      setMediaOnly: () => {},
-      toggleMediaOnly: () => {},
     }
   }
   return ctx

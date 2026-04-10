@@ -9,7 +9,7 @@
  * - Timeout handling
  */
 
-import { AtpAgent } from '@atproto/api'
+import { AtpAgent, type AppBskyFeedDefs, type AppBskyActorDefs, type AppBskyNotificationDefs } from '@atproto/api'
 import { responseCache } from './ResponseCache'
 import { RequestPriority } from './RequestQueue'
 import { apiRequestManager } from './apiRequestManager'
@@ -46,7 +46,7 @@ export async function getTimeline(
   const cacheKey = `timeline:${limit}:${cursor ?? 'initial'}`
   
   // Check cache first
-  const cached = responseCache.get<{ feed: any[]; cursor?: string }>(cacheKey)
+  const cached = responseCache.get<{ feed: AppBskyFeedDefs.FeedViewPost[]; cursor?: string }>(cacheKey)
   if (cached) return { data: { feed: cached.feed, cursor: cached.cursor } }
 
   // Execute with queue priority and cancellation support
@@ -76,7 +76,7 @@ export async function getFeed(
 ) {
   const cacheKey = `feed:${feedUri}:${limit}:${cursor ?? 'initial'}`
 
-  const cached = responseCache.get<{ feed: any[]; cursor?: string }>(cacheKey)
+  const cached = responseCache.get<{ feed: AppBskyFeedDefs.FeedViewPost[]; cursor?: string }>(cacheKey)
   if (cached) return { data: { feed: cached.feed, cursor: cached.cursor } }
 
   const result = await apiRequestManager.execute(
@@ -103,7 +103,7 @@ export async function getProfile(
 ) {
   const cacheKey = `profile:${actor}`
 
-  const cached = responseCache.get<{ data: any }>(cacheKey)
+  const cached = responseCache.get<{ data: AppBskyActorDefs.ProfileView }>(cacheKey)
   if (cached) return cached.data
 
   const result = await apiRequestManager.execute(
@@ -132,7 +132,7 @@ export async function getFollowers(
 ) {
   const cacheKey = `followers:${actor}:${limit}:${cursor ?? 'initial'}`
 
-  const cached = responseCache.get<{ followers: any[]; cursor?: string }>(cacheKey)
+  const cached = responseCache.get<{ followers: AppBskyActorDefs.ProfileView[]; cursor?: string }>(cacheKey)
   if (cached) return { data: { followers: cached.followers, cursor: cached.cursor } }
 
   const result = await apiRequestManager.execute(
@@ -160,7 +160,7 @@ export async function getFollows(
 ) {
   const cacheKey = `follows:${actor}:${limit}:${cursor ?? 'initial'}`
 
-  const cached = responseCache.get<{ follows: any[]; cursor?: string }>(cacheKey)
+  const cached = responseCache.get<{ follows: AppBskyActorDefs.ProfileView[]; cursor?: string }>(cacheKey)
   if (cached) return { data: { follows: cached.follows, cursor: cached.cursor } }
 
   const result = await apiRequestManager.execute(
@@ -187,7 +187,7 @@ export async function getNotifications(
 ) {
   const cacheKey = `notifications:${limit}:${cursor ?? 'initial'}`
 
-  const cached = responseCache.get<{ notifications: any[]; cursor?: string }>(cacheKey)
+  const cached = responseCache.get<{ notifications: AppBskyNotificationDefs.Notification[]; cursor?: string }>(cacheKey)
   if (cached) return { data: { notifications: cached.notifications, cursor: cached.cursor } }
 
   const result = await apiRequestManager.execute(

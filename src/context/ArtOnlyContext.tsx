@@ -72,10 +72,6 @@ type ArtOnlyContextValue = {
   artOnly: boolean
   /** True when mode is minimalist (only collect + like buttons) */
   minimalist: boolean
-  /** @deprecated use setCardViewMode */
-  setArtOnly: (value: boolean) => void
-  /** @deprecated use cycleCardView */
-  toggleArtOnly: () => void
 }
 
 const ArtOnlyContext = createContext<ArtOnlyContextValue | null>(null)
@@ -112,14 +108,6 @@ export function ArtOnlyProvider({ children }: { children: React.ReactNode }) {
     })
   }, [toast])
 
-  const setArtOnly = useCallback((value: boolean) => {
-    setCardViewModeState(value ? 'artOnly' : 'default')
-  }, [])
-
-  const toggleArtOnly = useCallback(() => {
-    cycleCardView()
-  }, [cycleCardView])
-
   const artOnly = cardViewMode !== 'default'
   const minimalist = cardViewMode === 'minimalist'
 
@@ -129,8 +117,6 @@ export function ArtOnlyProvider({ children }: { children: React.ReactNode }) {
     cycleCardView,
     artOnly,
     minimalist,
-    setArtOnly,
-    toggleArtOnly,
   }
 
   return (
@@ -149,8 +135,6 @@ export function useArtOnly() {
       cycleCardView: () => {},
       artOnly: true,
       minimalist: false,
-      setArtOnly: () => {},
-      toggleArtOnly: () => {},
     }
   }
   return ctx
