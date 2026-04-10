@@ -75,8 +75,6 @@ function MediaOnlyProviderInner({
     })
   }, [toast])
 
-  const mediaOnly = mediaMode === 'media'
-
   return (
     <MediaOnlyContext.Provider value={{ mediaMode, setMediaMode, cycleMediaMode }}>
       {children}

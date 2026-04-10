@@ -187,7 +187,7 @@ export async function getNotifications(
 ) {
   const cacheKey = `notifications:${limit}:${cursor ?? 'initial'}`
 
-  const cached = responseCache.get<{ notifications: AppBskyNotificationDefs.Notification[]; cursor?: string }>(cacheKey)
+  const cached = responseCache.get<{ notifications: AppBskyNotificationDefs.NotificationView[]; cursor?: string }>(cacheKey)
   if (cached) return { data: { notifications: cached.notifications, cursor: cached.cursor } }
 
   const result = await apiRequestManager.execute(
