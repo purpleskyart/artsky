@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { useProfileModal } from '../context/ProfileModalContext'
+import { preloadTagOpen } from '../lib/modalPreload'
 
 interface TagLinkProps {
   tag: string
@@ -16,6 +17,7 @@ export default function TagLink({ tag, className, onClick, children }: TagLinkPr
     <Link
       to={`/tag/${tagSlug}`}
       className={className}
+      onMouseEnter={() => preloadTagOpen(tag)}
       onClick={(e) => {
         e.preventDefault()
         openTagModal(tag.replace(/^#/, ''))

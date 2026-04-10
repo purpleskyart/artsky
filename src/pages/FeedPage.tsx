@@ -38,6 +38,7 @@ import { feedReducer, type FeedState } from './feedReducer'
 import { debounce } from '../lib/utils'
 import { asyncStorage } from '../lib/AsyncStorage'
 import { pickAdjacentCardIndexByViewport } from '../lib/masonryHorizontalNav'
+import { preloadPostOpen } from '../lib/modalPreload'
 import styles from './FeedPage.module.css'
 
 /** Dedupe feed items by post URI (keep first). Stops the same post appearing as both original and repost. */
@@ -733,6 +734,17 @@ export default function FeedPage() {
     [feedState.items, mediaMode, feedState.seenUrisAtReset, nsfwPreference, hideRepostsFromDids]
   )
   const displayEntries = useMemo(() => buildDisplayEntries(displayItems), [displayItems])
+
+  // Prefetch first few posts when feed loads for instant feel on first clicks
+  useEffect(() => {
+    if (displayItems.length === 0) return
+    // Prefetch first 5 posts (mobile users scroll more, need more coverage)
+    const itemsToPrefetch = displayItems.slice(0, 5)
+    for (const item of itemsToPrefetch) {
+      preloadPostOpen(item.post.uri)
+    }
+  }, [displayItems])
+
   const mediaCountByUri = useMemo(() => {
     const map = new Map<string, number>()
     for (const entry of displayEntries) {
