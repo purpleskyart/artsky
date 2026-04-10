@@ -35,6 +35,7 @@ function ProfileLink({ handle, className, title, 'aria-label': ariaLabel, onClic
       className={className}
       title={title}
       aria-label={ariaLabel}
+      onMouseEnter={() => preloadProfileOpen(handle)}
       onPointerDown={() => preloadProfileOpen(handle)}
       onClick={handleClick}
       onTouchStart={stopTouchBubble}

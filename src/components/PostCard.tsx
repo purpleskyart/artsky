@@ -776,6 +776,7 @@ function PostCardInner({
         role="button"
         tabIndex={0}
         className={styles.cardLink}
+        onMouseEnter={() => preloadPostOpen(post.uri)}
         onPointerDown={() => preloadPostOpen(post.uri)}
         onClick={(e) => {
           e.preventDefault()

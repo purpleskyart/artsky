@@ -7,7 +7,7 @@ import { useEditProfile } from '../context/EditProfileContext'
 import { useModalTopBarSlot } from '../context/ModalTopBarSlotContext'
 import { agent, publicAgent, isAgentAuthenticated, getPostMediaInfo, getPostMediaInfoForDisplay, getActorFeeds, listActivitySubscriptions, putActivitySubscription, isPostNsfw, getProfileCached, likePostWithLifecycle, unlikePostWithLifecycle, followAccountWithLifecycle, unfollowAccountWithLifecycle, type TimelineItem, type ProfileViewBasic } from '../lib/bsky'
 import { setInitialPostForUri } from '../lib/postCache'
-import { getPreloadedProfileSnapshot } from '../lib/modalPreload'
+import { getPreloadedProfileSnapshot, preloadPostOpen } from '../lib/modalPreload'
 import PostCard from '../components/PostCard'
 import ProfileColumn from '../components/ProfileColumn'
 import { useModalScroll } from '../context/ModalScrollContext'
@@ -498,6 +498,16 @@ export function ProfileContent({
     .filter((item) => mediaByPostUri.get(item.post.uri))
     .filter((item) => nsfwPreference !== 'sfw' || !isPostNsfw(item.post))
   const profileGridItems = mediaItems
+
+  // Prefetch first few posts when profile loads for instant feel on first clicks
+  useEffect(() => {
+    if (profileGridItems.length === 0) return
+    // Prefetch first 5 posts (mobile users scroll more, need more coverage)
+    const itemsToPrefetch = profileGridItems.slice(0, 5)
+    for (const item of itemsToPrefetch) {
+      preloadPostOpen(item.post.uri)
+    }
+  }, [profileGridItems])
 
   /* For modal: which tabs have content (hide empty categories) */
   const tabHasContent = useMemo(() => {

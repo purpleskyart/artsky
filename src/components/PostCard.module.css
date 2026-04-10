@@ -24,6 +24,7 @@
   border-radius: var(--glass-radius-sm) var(--glass-radius-sm) var(--glass-radius) var(--glass-radius);
   overflow: visible;
   -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
 /* Ring layer above media so it's never clipped; pointer-events: none so clicks hit the card */
