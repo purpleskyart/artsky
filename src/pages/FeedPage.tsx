@@ -291,7 +291,7 @@ export default function FeedPage() {
   const [feedState, dispatch] = useReducer(feedReducer, {
     items: [],
     cursor: undefined,
-    loading: true,
+    loading: false,
     loadingMore: false,
     error: null,
     keyboardFocusIndex: -1,
@@ -501,7 +501,7 @@ export default function FeedPage() {
       }
 
       if (!authResolved) {
-        if (!nextCursor) dispatch({ type: 'SET_LOADING', loading: true })
+        // Don't set loading state while waiting for auth - let Suspense handle it
         return
       }
 
