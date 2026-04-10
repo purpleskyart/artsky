@@ -1166,6 +1166,52 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
     setLikeUriOverride(undefined)
   }, [decodedUri])
 
+  // Update Open Graph meta tags for link previews when post data loads
+  useEffect(() => {
+    if (!thread || !isThreadViewPost(thread)) return
+
+    const post = thread.post
+    const text = (post.record as { text?: string })?.text ?? ''
+    const handle = post.author.handle ?? post.author.did
+    const authorDisplayName = post.author.displayName ?? handle
+    const allMedia = getPostAllMedia(post, POST_MEDIA_FULL)
+    const firstImage = allMedia.find(m => m.type === 'image')?.url || ''
+
+    // Create a description from the post text (truncated to ~200 characters)
+    const description = text ? text.slice(0, 200) + (text.length > 200 ? '...' : '') : `Post by @${handle}`
+
+    // Update document title
+    const title = text ? text.slice(0, 60) + (text.length > 60 ? '...' : '') : `Post by @${handle}`
+    document.title = `${title} · PurpleSky`
+
+    // Update Open Graph meta tags
+    const updateMetaTag = (property: string, content: string) => {
+      const meta = document.querySelector(`meta[property="${property}"]`) || document.querySelector(`meta[name="${property}"]`)
+      if (meta) meta.setAttribute('content', content)
+    }
+
+    updateMetaTag('og:title', `${authorDisplayName} on PurpleSky`)
+    updateMetaTag('og:description', description)
+    updateMetaTag('og:image', firstImage)
+    updateMetaTag('og:url', window.location.href)
+
+    updateMetaTag('twitter:title', `${authorDisplayName} on PurpleSky`)
+    updateMetaTag('twitter:description', description)
+    updateMetaTag('twitter:image', firstImage)
+
+    // Cleanup function to reset meta tags when component unmounts
+    return () => {
+      document.title = 'PurpleSky'
+      updateMetaTag('og:title', 'PurpleSky')
+      updateMetaTag('og:description', 'A Bluesky client focused on art')
+      updateMetaTag('og:image', '')
+      updateMetaTag('og:url', '')
+      updateMetaTag('twitter:title', 'PurpleSky')
+      updateMetaTag('twitter:description', 'A Bluesky client focused on art')
+      updateMetaTag('twitter:image', '')
+    }
+  }, [thread])
+
   const replyAs = replyAsProfile ?? (session ? { handle: (session as { handle?: string }).handle ?? session.did } : null)
   const isOwnPost = thread && isThreadViewPost(thread) && session?.did === thread.post.author.did
   const authorViewer = thread && isThreadViewPost(thread) ? (thread.post.author as { viewer?: { following?: string } }).viewer : undefined
