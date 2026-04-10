@@ -11,7 +11,7 @@ export default function SWUpdateToast() {
   const handleUpdate = async () => {
     try {
       await updateServiceWorker(true)
-      close()
+      window.location.reload()
     } catch (err) {
       console.error('Service worker update failed:', err)
       setUpdateError('Failed to update. Please try again.')

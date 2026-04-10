@@ -46,7 +46,7 @@ function preloadProfileOverlayChunks(): void {
 function preloadProfilePageChunk(): void {
   if (profilePagePreloaded) return
   profilePagePreloaded = true
-  void import('../pages/ProfilePage')
+  void import('../pages/ProfileContent')
 }
 
 /** Tag modal overlay (preload chunk for first open). */

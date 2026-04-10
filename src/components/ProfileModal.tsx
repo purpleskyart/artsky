@@ -1,8 +1,8 @@
 import { lazy, Suspense, useState } from 'react'
 import AppModal from './AppModal'
 
-// Lazy-load ProfileContent inline to avoid circular dependency with ProfilePage
-const ProfileContent = lazy(() => import('../pages/ProfilePage').then(m => ({ default: m.ProfileContent })))
+// Lazy-load ProfileContent to avoid circular dependency
+const ProfileContent = lazy(() => import('../pages/ProfileContent'))
 
 interface ProfileModalProps {
   handle: string
