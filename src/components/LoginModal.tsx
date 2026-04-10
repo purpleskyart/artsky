@@ -1,7 +1,6 @@
-import { useEffect, useSyncExternalStore } from 'react'
+import { useEffect } from 'react'
 import LoginCard from './LoginCard'
 import { useScrollLock } from '../context/ScrollLockContext'
-import { useProfileModal } from '../context/ProfileModalContext'
 import styles from './LoginModal.module.css'
 
 interface LoginModalProps {
@@ -10,21 +9,8 @@ interface LoginModalProps {
   onSuccess: () => void
 }
 
-const MOBILE_BREAKPOINT = 768
-function subscribeMobile(cb: () => void) {
-  if (typeof window === 'undefined') return () => {}
-  const mq = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`)
-  mq.addEventListener('change', cb)
-  return () => mq.removeEventListener('change', cb)
-}
-function getMobileSnapshot() {
-  return typeof window !== 'undefined' ? window.innerWidth < MOBILE_BREAKPOINT : false
-}
-
 export default function LoginModal({ isOpen, onClose, onSuccess }: LoginModalProps) {
   const scrollLock = useScrollLock()
-  const { closeAllModals } = useProfileModal()
-  const isMobile = useSyncExternalStore(subscribeMobile, getMobileSnapshot, () => false)
 
   useEffect(() => {
     if (!isOpen) return
@@ -46,7 +32,7 @@ export default function LoginModal({ isOpen, onClose, onSuccess }: LoginModalPro
     <>
       <div
         className={styles.backdrop}
-        onClick={isMobile ? onClose : closeAllModals}
+        onClick={onClose}
         aria-hidden
       />
       <div className={styles.center} role="dialog" aria-modal="true" aria-label="Log in">

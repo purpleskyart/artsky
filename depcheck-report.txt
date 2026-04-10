@@ -1,6 +1,0 @@
-Unused devDependencies
-* depcheck
-* knip
-* ts-prune
-Missing dependencies
-* virtual:pwa-register: ./src/hooks/useSWUpdate.ts

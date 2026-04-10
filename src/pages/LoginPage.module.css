@@ -238,6 +238,7 @@
 .signupLink:hover {
   background: var(--accent-subtle);
   text-decoration: none;
+  user-select: none;
 }
 
 .error {
