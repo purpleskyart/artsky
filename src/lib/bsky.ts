@@ -1064,10 +1064,11 @@ export async function getQuotes(
   }
 }
 
-/** Get suggested feeds for search dropdown. */
+/** Get suggested feeds for search dropdown. Uses public API when not logged in. */
 export async function getSuggestedFeeds(limit = 8) {
   try {
-    const res = await agent.app.bsky.feed.getSuggestedFeeds({ limit })
+    const api = getSession() ? agent : publicAgent
+    const res = await api.app.bsky.feed.getSuggestedFeeds({ limit })
     return res.data.feeds
   } catch {
     return []
