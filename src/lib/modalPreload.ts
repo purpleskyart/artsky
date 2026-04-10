@@ -38,8 +38,8 @@ function preloadPostDetailPageChunk(): void {
 function preloadProfileOverlayChunks(): void {
   if (profileOverlayPreloaded) return
   profileOverlayPreloaded = true
-  void import('../components/ProfileModalOverlay')
-  void import('../components/ProfileModal')
+  // Don't preload ProfileModal or ProfileModalOverlay to avoid circular dependency
+  // React's lazy loading will handle it when needed
 }
 
 /** Preload the ProfilePage route chunk for instant navigation on desktop. */
