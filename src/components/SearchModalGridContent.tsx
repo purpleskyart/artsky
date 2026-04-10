@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, memo } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { searchPostsByPhraseAndTags, getPostMediaInfo, isPostNsfw, likePostWithLifecycle, unlikePostWithLifecycle, followAccountWithLifecycle, unfollowAccountWithLifecycle } from '../lib/bsky'
 import type { TimelineItem } from '../lib/bsky'
@@ -73,7 +73,7 @@ export interface SearchModalGridContentProps {
 /**
  * Search results grid — mirrors TagContent so stacked post/profile modals behave like tag modal.
  */
-export function SearchModalGridContent({
+function SearchModalGridContentComponent({
   searchQuery,
   inModal = false,
   onRegisterRefresh,
@@ -400,3 +400,5 @@ export function SearchModalGridContent({
     </div>
   )
 }
+
+export const SearchModalGridContent = memo(SearchModalGridContent)

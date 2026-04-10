@@ -539,7 +539,10 @@ export default function Layout({ title, children, showNav }: Props) {
   /** True when we have a session or OAuth restore may still be in flight (avoid guest chrome / feed flash). */
   const showAccountFeedUi = Boolean(session) || !authResolved
   const currentAccountDid = session?.did ?? (did !== 'guest' ? did : undefined)
-  const currentAccountAvatar = currentAccountDid ? accountProfiles[currentAccountDid]?.avatar : null
+  const currentAccountAvatar = useMemo(
+    () => (currentAccountDid ? accountProfiles[currentAccountDid]?.avatar : null),
+    [currentAccountDid, accountProfiles]
+  )
   const prevFeedDidRef = useRef(did)
   const [hiddenPresetUris, setHiddenPresetUris] = useState<Set<string>>(() => loadHiddenPresetUris(did))
   const [feedOrder, setFeedOrder] = useState<string[]>(() => loadFeedOrder(did))

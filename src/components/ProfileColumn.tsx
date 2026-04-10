@@ -75,7 +75,7 @@ const VirtualizedCell = memo(function VirtualizedCell({ children }: { children: 
   )
 })
 
-export default function ProfileColumn(props: ProfileColumnProps) {
+function ProfileColumnComponent(props: ProfileColumnProps) {
   const {
     column,
     loadMoreSentinelRef,
@@ -172,3 +172,5 @@ export default function ProfileColumn(props: ProfileColumnProps) {
     </div>
   )
 }
+
+export default memo(ProfileColumnComponent)

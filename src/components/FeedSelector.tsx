@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useSyncExternalStore } from 'react'
+import { useState, useRef, useEffect, useSyncExternalStore, useMemo, memo } from 'react'
 import { createPortal } from 'react-dom'
 import type { FeedSource, FeedMixEntry } from '../types'
 import { getActorFeeds, getSuggestedFeeds } from '../lib/bsky'
@@ -47,7 +47,7 @@ interface Props {
 
 const LONG_PRESS_MS = 500
 
-export default function FeedSelector({
+function FeedSelectorComponent({
   sources,
   fallbackSource,
   mixEntries,
@@ -81,16 +81,19 @@ export default function FeedSelector({
 
   const searchQuery = customInput.trim().toLowerCase()
   const searchWords = searchQuery ? searchQuery.split(/\s+/).filter(Boolean) : []
-  const searchResults =
-    searchWords.length > 0
-      ? sources.filter((s) => {
-          const label = (s.label ?? '').toLowerCase()
-          const uri = (s.uri ?? '').toLowerCase()
-          return searchWords.every((w) => label.includes(w) || uri.includes(w))
-        })
-      : []
+  const searchResults = useMemo(
+    () =>
+      searchWords.length > 0
+        ? sources.filter((s) => {
+            const label = (s.label ?? '').toLowerCase()
+            const uri = (s.uri ?? '').toLowerCase()
+            return searchWords.every((w) => label.includes(w) || uri.includes(w))
+          })
+        : [],
+    [searchWords, sources]
+  )
   const maxSuggestions = 10
-  const suggestions = searchResults.slice(0, maxSuggestions)
+  const suggestions = useMemo(() => searchResults.slice(0, maxSuggestions), [searchResults])
 
   /* Search AT Protocol for feeds: by handle (feeds by @user), suggested when empty, or search suggested feeds by name/description when typing */
   useEffect(() => {
@@ -762,3 +765,5 @@ export default function FeedSelector({
     </div>
   )
 }
+
+export default memo(FeedSelectorComponent)
