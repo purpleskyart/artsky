@@ -2,8 +2,8 @@ import { lazy, Suspense, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import AppModal from './AppModal'
 
-// Lazy-load ProfileContent inline to avoid circular dependency
-const ProfileContent = lazy(() => import('../pages/ProfilePage').then(m => ({ default: m.ProfileContent })))
+// Lazy-load ProfileContent to avoid circular dependency
+const ProfileContent = lazy(() => import('../pages/ProfileContent'))
 
 /**
  * Profile opened from feed (or another page) via `/profile/:handle` with `state.backgroundLocation`.
