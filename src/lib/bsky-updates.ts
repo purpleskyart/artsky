@@ -9,7 +9,7 @@
  * - Timeout handling
  */
 
-import { AtpAgent, type AppBskyFeedDefs, type AppBskyActorDefs, type AppBskyNotificationDefs } from '@atproto/api'
+import { AtpAgent, type AppBskyFeedDefs, type AppBskyActorDefs } from '@atproto/api'
 import { responseCache } from './ResponseCache'
 import { RequestPriority } from './RequestQueue'
 import { apiRequestManager } from './apiRequestManager'
@@ -187,7 +187,7 @@ export async function getNotifications(
 ) {
   const cacheKey = `notifications:${limit}:${cursor ?? 'initial'}`
 
-  const cached = responseCache.get<{ notifications: AppBskyNotificationDefs.NotificationView[]; cursor?: string }>(cacheKey)
+  const cached = responseCache.get<{ notifications: any[]; cursor?: string }>(cacheKey)
   if (cached) return { data: { notifications: cached.notifications, cursor: cached.cursor } }
 
   const result = await apiRequestManager.execute(
