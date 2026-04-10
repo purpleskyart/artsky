@@ -50,13 +50,18 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     let cancelled = false
     const oauthCallbackTimeoutMs = 30_000
 
-    const finish = () => {
+    const finish = (resolvedSession?: ReturnType<typeof bsky.getSessionStateForReact>) => {
       if (cancelled) return
       try {
-        setSession(bsky.getSessionStateForReact())
+        const s = resolvedSession !== undefined ? resolvedSession : bsky.getSessionStateForReact()
+        setSession(s)
       } catch {
         setSession(null)
       }
+      // Clear loading in the same synchronous call so React batches session + loading together,
+      // preventing a render with session=null while loading=false (which causes the guest flash).
+      setAuthResolved(true)
+      setLoading(false)
     }
 
     async function init() {
@@ -108,6 +113,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         if (!cancelled) finish()
       })
       .finally(() => {
+        // finish() already handles setAuthResolved + setLoading atomically.
+        // This is a safety net in case any code path exits init() without calling finish().
         if (!cancelled) {
           setAuthResolved(true)
           setLoading(false)
