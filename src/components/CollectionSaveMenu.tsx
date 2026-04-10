@@ -387,7 +387,6 @@ export default function CollectionSaveMenu({ postUri, openSignal, variant = 'ico
             onClick={(e) => e.stopPropagation()}
             onTouchStart={(e) => e.stopPropagation()}
           >
-            <p className={styles.title}>Your collections</p>
             {loadingRows ? (
               <div className={styles.loading}>Loading…</div>
             ) : rows.length === 0 ? (
@@ -418,47 +417,49 @@ export default function CollectionSaveMenu({ postUri, openSignal, variant = 'ico
               </div>
             )}
             <div className={styles.newBlock}>
-              {editingNewTitle ? (
-                <input
-                  ref={newTitleInputRef}
-                  className={styles.input}
-                  type="text"
-                  data-collect-input="true"
-                  placeholder="New Collection"
-                  value={newTitle}
-                  onBlur={() => setEditingNewTitle(false)}
-                  onChange={(e) => setNewTitle(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault()
-                      e.stopPropagation()
-                      void onCreate()
-                    } else if (e.key === 'Escape') {
-                      e.preventDefault()
-                      e.stopPropagation()
-                      setEditingNewTitle(false)
-                    }
-                  }}
-                  maxLength={200}
-                  autoComplete="off"
-                />
-              ) : (
-                <button
-                  type="button"
-                  className={styles.inputProxy}
-                  data-collect-nav="item"
-                  data-collect-input-proxy="true"
-                  onClick={() => {
-                    setEditingNewTitle(true)
-                    requestAnimationFrame(() => newTitleInputRef.current?.focus())
-                  }}
-                >
-                  {newTitle.trim() ? newTitle : 'New Collection'}
+              <div className={styles.newCollectionRow}>
+                {editingNewTitle ? (
+                  <input
+                    ref={newTitleInputRef}
+                    className={styles.input}
+                    type="text"
+                    data-collect-input="true"
+                    placeholder="New Collection"
+                    value={newTitle}
+                    onBlur={() => setEditingNewTitle(false)}
+                    onChange={(e) => setNewTitle(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        void onCreate()
+                      } else if (e.key === 'Escape') {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        setEditingNewTitle(false)
+                      }
+                    }}
+                    maxLength={200}
+                    autoComplete="off"
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    className={styles.inputProxy}
+                    data-collect-nav="item"
+                    data-collect-input-proxy="true"
+                    onClick={() => {
+                      setEditingNewTitle(true)
+                      requestAnimationFrame(() => newTitleInputRef.current?.focus())
+                    }}
+                  >
+                    {newTitle.trim() ? newTitle : 'New Collection'}
+                  </button>
+                )}
+                <button type="button" className={styles.createInlineBtn} data-collect-nav="item" disabled={saving} onClick={() => void onCreate()}>
+                  Create
                 </button>
-              )}
-              <button type="button" className={styles.createBtn} data-collect-nav="item" disabled={saving} onClick={() => void onCreate()}>
-                Create and save here
-              </button>
+              </div>
               <label className={styles.metaRow}>
                 <input
                   type="checkbox"

@@ -79,6 +79,13 @@ export class ChunkLoadError extends Component<ChunkLoadErrorProps, ChunkLoadErro
     }, delay)
   }
 
+  handleGoBackAndRefresh = () => {
+    window.history.back()
+    setTimeout(() => {
+      window.location.reload()
+    }, 100)
+  }
+
   render() {
     if (this.state.hasError) {
       const { retryCount } = this.state
@@ -106,6 +113,23 @@ export class ChunkLoadError extends Component<ChunkLoadErrorProps, ChunkLoadErro
                 ? 'Unable to load the page after multiple attempts. This may be due to a network issue or outdated cached files.'
                 : 'The page failed to load. This might be a temporary network issue.'}
             </p>
+            <button
+              type="button"
+              onClick={this.handleGoBackAndRefresh}
+              style={{
+                padding: '0.5rem 1.5rem',
+                fontSize: '0.95rem',
+                cursor: 'pointer',
+                background: 'var(--accent)',
+                color: 'var(--bg)',
+                border: 'none',
+                borderRadius: 'var(--glass-radius-sm, 6px)',
+                fontWeight: 500,
+                marginBottom: '0.5rem',
+              }}
+            >
+              Go back and refresh
+            </button>
             <button
               type="button"
               onClick={this.handleRetry}
