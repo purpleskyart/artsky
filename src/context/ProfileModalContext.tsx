@@ -360,19 +360,29 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
   }, [location, navigate])
 
   const closeAllModals = useCallback(() => {
-    if (hasPathOverlayStack(location)) {
-      navigate(-1)
-      return
-    }
-    const preserve = overlayBackgroundNavigateState(location)
-    navigate(
-      { pathname: pathForModalNavigation(location.pathname), search: '' },
-      { replace: true, state: preserve },
-    )
-  }, [location, navigate])
+    navigate('/feed', { replace: true })
+  }, [navigate])
 
   const isModalOpen = modalStack.length > 0 || hasPathOverlayStack(location)
   const canGoBack = modalStack.length > 1
+
+  /* ESC closes all modals and returns to homescreen */
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      if (!isModalOpen) return
+      // If an input/textarea is focused, let Escape blur it first
+      const target = e.target as HTMLElement
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable) {
+        return
+      }
+      e.preventDefault()
+      // Close all modals and go to homescreen
+      navigate('/feed', { replace: true })
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [isModalOpen, navigate])
 
   const value: ProfileModalContextValue = useMemo(() => ({
     openProfileModal,

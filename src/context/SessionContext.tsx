@@ -38,8 +38,9 @@ function getInitialAuthResolved(): boolean {
 export function SessionProvider({ children }: { children: React.ReactNode }) {
   // Show the app immediately; never block on a loading screen so localhost always loads
   const [session, setSession] = useState<AtpSessionData | null>(getInitialSession)
-  const [loading] = useState(false)
   const [authResolved, setAuthResolved] = useState(getInitialAuthResolved)
+  // Block render until auth is resolved when there's a persisted login hint (prevents logged-out flash)
+  const [loading] = useState(() => !getInitialAuthResolved())
 
   useEffect(() => {
     // Removed requestPersistentStorage - modern browsers handle storage persistence automatically
