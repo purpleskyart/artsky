@@ -12,6 +12,10 @@ export default function CollectionBoardModalOverlay() {
     navigate(-1)
   }, [navigate])
 
+  const onDesktopBackdrop = useCallback(() => {
+    navigate('/feed', { replace: true })
+  }, [navigate])
+
   const h = handle?.trim()
   const s = boardSlug?.trim()
   if (!h || !s) return <Navigate to="/feed" replace />
@@ -25,6 +29,7 @@ export default function CollectionBoardModalOverlay() {
       onClose={onClose}
       onBack={onClose}
       canGoBack={false}
+      onDesktopBackdrop={onDesktopBackdrop}
       transparentTopBar
       isTopModal
       stackIndex={0}

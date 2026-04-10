@@ -10,12 +10,17 @@ export default function CollectionsIndexModalOverlay() {
     navigate(-1)
   }, [navigate])
 
+  const onDesktopBackdrop = useCallback(() => {
+    navigate('/feed', { replace: true })
+  }, [navigate])
+
   return (
     <AppModal
       ariaLabel="Collections"
       onClose={onClose}
       onBack={onClose}
       canGoBack={false}
+      onDesktopBackdrop={onDesktopBackdrop}
       transparentTopBar
       isTopModal
       stackIndex={0}

@@ -288,7 +288,11 @@ export default function AppModal({
       if (e.key === 'Escape') {
         e.preventDefault()
         e.stopImmediatePropagation()
-        onClose()
+        if (!isMobile && onDesktopBackdrop) {
+          onDesktopBackdrop()
+        } else {
+          onClose()
+        }
         return
       }
       if (e.key.toLowerCase() === 'q' || e.key === 'Backspace') {
@@ -299,7 +303,7 @@ export default function AppModal({
     }
     window.addEventListener('keydown', onKeyDown, true)
     return () => window.removeEventListener('keydown', onKeyDown, true)
-  }, [onClose, onBack])
+  }, [onClose, onBack, onDesktopBackdrop, isMobile])
 
   function handleBackdropClick(e: React.MouseEvent<HTMLDivElement>) {
     if (e.target !== e.currentTarget) return

@@ -34,6 +34,8 @@ import { useStandalonePwa } from '../hooks/useStandalonePwa'
 import { useColumnCount } from '../hooks/useViewportWidth'
 import { usePostCardGridPointerGate } from '../hooks/usePostCardGridPointerGate'
 import FeedColumn from '../components/FeedColumn'
+import FeedSelector from '../components/FeedSelector'
+import { GUEST_FEED_SOURCES, GUEST_MIX_ENTRIES } from '../config/feedSources'
 import { feedReducer, type FeedState } from './feedReducer'
 import { debounce } from '../lib/utils'
 import { asyncStorage } from '../lib/AsyncStorage'
@@ -1375,6 +1377,20 @@ export default function FeedPage() {
             document.body
           )}
         <div className={styles.pullRefreshContent}>
+        {!session && (
+          <div className={styles.guestFeedSelector}>
+            <FeedSelector
+              variant="page"
+              sources={GUEST_FEED_SOURCES}
+              fallbackSource={GUEST_FEED_SOURCES[0]}
+              mixEntries={GUEST_MIX_ENTRIES}
+              onToggle={() => openLoginModal()}
+              setEntryPercent={() => {}}
+              onAddCustom={() => openLoginModal()}
+              onToggleWhenGuest={openLoginModal}
+            />
+          </div>
+        )}
         <div
           key={mixEntries.length === 1 ? (mixEntries[0].source.uri ?? mixEntries[0].source.label) : 'mixed'}
           className={styles.feedContentTransition}

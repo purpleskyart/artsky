@@ -16,6 +16,10 @@ export default function ProfileModalOverlay() {
     navigate(-1)
   }, [navigate])
 
+  const onDesktopBackdrop = useCallback(() => {
+    navigate('/feed', { replace: true })
+  }, [navigate])
+
   const h = handle?.trim()
   if (!h) return null
 
@@ -26,6 +30,7 @@ export default function ProfileModalOverlay() {
         onClose={onClose}
         onBack={onClose}
         canGoBack={false}
+        onDesktopBackdrop={onDesktopBackdrop}
         transparentTopBar
         hideTopBar
         scrollKey={h}

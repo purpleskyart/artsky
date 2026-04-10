@@ -70,6 +70,10 @@ export default function PostModalOverlay() {
     navigate(-1)
   }, [navigate])
 
+  const onDesktopBackdrop = useCallback(() => {
+    navigate('/feed', { replace: true })
+  }, [navigate])
+
   if (resolving || (resolvedUri == null && (handle || rkey))) {
     return <div aria-hidden style={{ minHeight: 1 }} />
   }
@@ -85,6 +89,7 @@ export default function PostModalOverlay() {
       onClose={onClose}
       onBack={onClose}
       canGoBack={false}
+      onDesktopBackdrop={onDesktopBackdrop}
       isTopModal
       stackIndex={0}
       openProfileModal={openProfileModal}
