@@ -1,7 +1,7 @@
 import { memo, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { useProfileModal } from '../context/ProfileModalContext'
-import { preloadProfileOpen } from '../lib/modalPreload'
+import { preloadProfileOpen, preloadProfileFeed } from '../lib/modalPreload'
 
 interface ProfileLinkProps {
   handle: string
@@ -20,6 +20,7 @@ function ProfileLink({ handle, className, title, 'aria-label': ariaLabel, onClic
     e.preventDefault()
     e.stopPropagation()
     preloadProfileOpen(handle)
+    preloadProfileFeed(handle)
     openProfileModal(handle)
     onClick?.(e)
   }, [openProfileModal, handle, onClick])
@@ -36,7 +37,10 @@ function ProfileLink({ handle, className, title, 'aria-label': ariaLabel, onClic
       title={title}
       aria-label={ariaLabel}
       onMouseEnter={() => preloadProfileOpen(handle)}
-      onPointerDown={() => preloadProfileOpen(handle)}
+      onPointerDown={() => {
+        preloadProfileOpen(handle)
+        preloadProfileFeed(handle)
+      }}
       onClick={handleClick}
       onTouchStart={stopTouchBubble}
       onTouchEnd={stopTouchBubble}

@@ -6,7 +6,7 @@ import { useEditProfile } from '../context/EditProfileContext'
 import { useModalTopBarSlot } from '../context/ModalTopBarSlotContext'
 import { agent, publicAgent, isAgentAuthenticated, getPostMediaInfo, getPostMediaInfoForDisplay, getActorFeeds, listActivitySubscriptions, putActivitySubscription, isPostNsfw, getProfileCached, likePostWithLifecycle, unlikePostWithLifecycle, followAccountWithLifecycle, unfollowAccountWithLifecycle, type TimelineItem, type ProfileViewBasic } from '../lib/bsky'
 import { setInitialPostForUri } from '../lib/postCache'
-import { getPreloadedProfileSnapshot, preloadPostOpen } from '../lib/modalPreload'
+import { getPreloadedProfileSnapshot, getPreloadedFeedSnapshot, preloadPostOpen } from '../lib/modalPreload'
 import PostCard from '../components/PostCard'
 import ProfileColumn from '../components/ProfileColumn'
 import { useModalScroll } from '../context/ModalScrollContext'
@@ -305,6 +305,18 @@ export default function ProfileContent({
       if (nextCursor) setLoadingMore(true)
       else setLoading(true)
       setError(null)
+      
+      // Check for preloaded feed data on initial load
+      if (!nextCursor) {
+        const preloaded = getPreloadedFeedSnapshot(handle)
+        if (preloaded) {
+          setItems(preloaded.feed)
+          setCursor(preloaded.cursor)
+          setLoading(false)
+          return
+        }
+      }
+      
       const res = await readAgent.getAuthorFeed({ actor: handle, limit: 20, cursor: nextCursor, includePins: true })
       const feed = (res.data.feed ?? []) as TimelineItem[]
       setItems((prev) => (nextCursor ? [...prev, ...feed] : feed))

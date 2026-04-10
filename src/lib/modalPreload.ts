@@ -1,4 +1,4 @@
-import { getProfileCached, getPostsBatch } from './bsky'
+import { getProfileCached, getPostsBatch, agent, publicAgent, isAgentAuthenticated, type TimelineItem } from './bsky'
 
 let postOverlayPreloaded = false
 let postDetailPagePreloaded = false
@@ -8,6 +8,7 @@ let profilePagePreloaded = false
 let tagPagePreloaded = false
 const postPrefetchInFlight = new Set<string>()
 const profilePrefetchInFlight = new Set<string>()
+const feedPrefetchInFlight = new Set<string>()
 const preloadedProfileByHandle = new Map<string, {
   handle?: string
   displayName?: string
@@ -18,6 +19,10 @@ const preloadedProfileByHandle = new Map<string, {
   verification?: { verifiedStatus?: string }
   createdAt?: string
   indexedAt?: string
+}>()
+const preloadedFeedByHandle = new Map<string, {
+  feed: TimelineItem[]
+  cursor?: string
 }>()
 
 /** Post modal overlay pulls in PostDetailModal; no separate import needed. */
@@ -87,6 +92,8 @@ export function preloadProfileOpen(handle: string): void {
   preloadProfilePageChunk()
   if (profilePrefetchInFlight.has(normalized)) return
   profilePrefetchInFlight.add(normalized)
+  
+  // Prefetch profile metadata (lightweight, safe for hover)
   void getProfileCached(normalized)
     .then((data) => {
       preloadedProfileByHandle.set(normalized.toLowerCase(), data)
@@ -99,8 +106,34 @@ export function preloadProfileOpen(handle: string): void {
     })
 }
 
+/** Prefetch feed only on explicit user interaction (click/tap), not on hover to avoid excessive data loading */
+export function preloadProfileFeed(handle: string): void {
+  const normalized = handle.trim()
+  if (!normalized) return
+  if (feedPrefetchInFlight.has(normalized)) return
+  feedPrefetchInFlight.add(normalized)
+  const readAgent = isAgentAuthenticated() ? agent : publicAgent
+  void readAgent.getAuthorFeed({ actor: normalized, limit: 5, includePins: true })
+    .then((res) => {
+      preloadedFeedByHandle.set(normalized.toLowerCase(), {
+        feed: (res.data.feed ?? []) as TimelineItem[],
+        cursor: res.data.cursor ?? undefined,
+      })
+    })
+    .catch(() => {
+      // Best-effort prefetch only.
+    })
+    .finally(() => {
+      feedPrefetchInFlight.delete(normalized)
+    })
+}
+
 export function getPreloadedProfileSnapshot(handle: string) {
   return preloadedProfileByHandle.get(handle.trim().toLowerCase()) ?? null
+}
+
+export function getPreloadedFeedSnapshot(handle: string) {
+  return preloadedFeedByHandle.get(handle.trim().toLowerCase()) ?? null
 }
 
 export function preloadTagOpen(tag: string): void {
