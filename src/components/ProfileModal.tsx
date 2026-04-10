@@ -13,9 +13,11 @@ interface ProfileModalProps {
   isTopModal?: boolean
   stackIndex?: number
   openProfileModal: (handle: string) => void
+  openPostModal: (uri: string, openReply?: boolean, focusUri?: string, authorHandle?: string) => void
+  isModalOpen: boolean
 }
 
-export default function ProfileModal({ handle, onClose, onBack, canGoBack, onDesktopBackdrop, isTopModal, stackIndex, openProfileModal }: ProfileModalProps) {
+export default function ProfileModal({ handle, onClose, onBack, canGoBack, onDesktopBackdrop, isTopModal, stackIndex, openProfileModal, openPostModal, isModalOpen }: ProfileModalProps) {
   const [refreshFn, setRefreshFn] = useState<(() => void | Promise<void>) | null>(null)
 
   return (
@@ -37,6 +39,8 @@ export default function ProfileModal({ handle, onClose, onBack, canGoBack, onDes
         <ProfileContent
           handle={handle}
           openProfileModal={openProfileModal}
+          openPostModal={openPostModal}
+          isModalOpen={isModalOpen}
           inModal
           onRegisterRefresh={(fn) => setRefreshFn(() => fn)}
         />

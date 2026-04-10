@@ -6,7 +6,7 @@ import { getPostOverlayPath, postUriToQuotesParam, quotesParamToPostUri } from '
 import { getOverlayBackgroundLocation, hasPathOverlayStack } from '../lib/overlayNavigation'
 
 const PostDetailModal = lazy(() => import('../components/PostDetailModal'))
-const ProfileModal = lazy(() => import('../components/ProfileModal'))
+// ProfileModal imported inline to avoid circular dependency at module level
 const TagModal = lazy(() => import('../components/TagModal'))
 const SearchModal = lazy(() => import('../components/SearchModal'))
 const QuotesModal = lazy(() => import('../components/QuotesModal'))
@@ -438,10 +438,12 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
           canGoBack={canGoBackFromThis}
           isTopModal={isTop}
           stackIndex={index}
+          openProfileModal={openProfileModal}
         />,
       )
     }
     if (item.type === 'profile') {
+      const ProfileModal = lazy(() => import('../components/ProfileModal'))
       return wrap(
         <ProfileModal
           handle={item.handle}
@@ -452,6 +454,8 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
           isTopModal={isTop}
           stackIndex={index}
           openProfileModal={openProfileModal}
+          openPostModal={openPostModal}
+          isModalOpen={modalStack.length > 0}
         />,
       )
     }
