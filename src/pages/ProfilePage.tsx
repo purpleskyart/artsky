@@ -455,12 +455,6 @@ export function ProfileContent({
   const isFollowing = !!followingUri
   const isOwnProfile = !!session && !!profile && session.did === profile.did
   const showFollowButton = !!session && !!profile && !isOwnProfile
-  const showInitialPlaceholder =
-    loading &&
-    !profile &&
-    items.length === 0 &&
-    likedItems.length === 0 &&
-    feeds.length === 0
 
   const isRepost = (item: TimelineItem) => (item.reason as { $type?: string })?.$type === REASON_REPOST
   const isPinned = (item: TimelineItem) => (item.reason as { $type?: string })?.$type === REASON_PIN
@@ -470,14 +464,14 @@ export function ProfileContent({
   }
   const isRepostOrQuote = (item: TimelineItem) => isRepost(item) || isQuotePost(item)
   const itemsForPostsTab = profilePostsFilter === 'liked' ? likedItems : items
-  /* Posts tab + my posts: original posts + quote posts with media. Posts tab + liked: all liked posts (no filter). Reposts tab: reposts + quote posts. Text tab: text-only from same source as posts (includes quote posts with only text, per getPostMediaInfoForDisplay). */
+  /* Posts tab + my posts: original posts (no replies, no reposts) + quote posts with media. Posts tab + liked: all liked posts (no filter). Reposts tab: replies + reposts + quote posts. Text tab: text-only from same source as posts (includes quote posts with only text, per getPostMediaInfoForDisplay). */
   const authorFeedItemsRaw =
     tab === 'posts'
       ? profilePostsFilter === 'liked'
         ? likedItems
-        : itemsForPostsTab.filter((i) => !isRepost(i) && (!isQuotePost(i) || !!getPostMediaInfo(i.post)))
+        : itemsForPostsTab.filter((i) => !isRepost(i) && !isReply(i) && (!isQuotePost(i) || !!getPostMediaInfo(i.post)))
       : tab === 'reposts'
-        ? items.filter(isRepostOrQuote)
+        ? items.filter((i) => isRepostOrQuote(i) || isReply(i))
         : tab === 'text'
           ? itemsForPostsTab
           : items
@@ -508,10 +502,10 @@ export function ProfileContent({
   /* For modal: which tabs have content (hide empty categories) */
   const tabHasContent = useMemo(() => {
     const postsSource = profilePostsFilter === 'liked' ? likedItems : items
-    const postsMedia = profilePostsFilter === 'liked' ? postsSource : postsSource.filter((i) => !isRepost(i) && (!isQuotePost(i) || !!getPostMediaInfo(i.post)))
+    const postsMedia = profilePostsFilter === 'liked' ? postsSource : postsSource.filter((i) => !isRepost(i) && !isReply(i) && (!isQuotePost(i) || !!getPostMediaInfo(i.post)))
       .filter((i) => mediaByPostUri.get(i.post.uri))
       .filter((i) => nsfwPreference !== 'sfw' || !isPostNsfw(i.post))
-    const repostsMedia = items.filter(isRepostOrQuote)
+    const repostsMedia = items.filter((i) => isRepostOrQuote(i) || isReply(i))
       .filter((i) => mediaByPostUri.get(i.post.uri))
       .filter((i) => nsfwPreference !== 'sfw' || !isPostNsfw(i.post))
     /* Text tab: same source as posts (all or liked). Includes quote posts with only text (getPostMediaInfoForDisplay is null when outer and quoted have no media). */
@@ -717,12 +711,12 @@ export function ProfileContent({
   }, [beginKeyboardNavigation, tab, cols, isModalOpen, openPostModal, inModal, likeOverrides, actionsMenuOpenForIndex, setLikeOverride, session, setItems])
 
   const postText = (post: TimelineItem['post']) => (post.record as { text?: string })?.text?.trim() ?? ''
-  const isReply = (post: TimelineItem['post']) => !!(post.record as { reply?: unknown })?.reply
+  const isReply = (item: TimelineItem) => !!(item.post.record as { reply?: unknown })?.reply
   const textItems = authorFeedItems.filter(
     (item) =>
       postText(item.post).length > 0 &&
       !mediaByPostUri.get(item.post.uri) &&
-      !isReply(item.post),
+      !isReply(item),
   )
 
   async function handleFollow() {
@@ -1015,7 +1009,7 @@ export function ProfileContent({
                   className={`${styles.tab} ${tab === t ? styles.tabActive : ''}`}
                   onClick={() => setTab(t)}
                 >
-                  {t === 'posts' ? 'Posts' : t === 'reposts' ? 'Reposts' : t === 'text' ? 'Text' : 'Feeds'}
+                  {t === 'posts' ? 'Posts' : t === 'reposts' ? 'Replies and Reposts' : t === 'text' ? 'Text' : 'Feeds'}
                 </button>
               ))}
             </nav>
@@ -1031,7 +1025,7 @@ export function ProfileContent({
                 className={`${styles.tab} ${tab === t ? styles.tabActive : ''}`}
                 onClick={() => setTab(t)}
               >
-                {t === 'posts' ? 'Posts' : t === 'reposts' ? 'Reposts' : t === 'text' ? 'Text' : 'Feeds'}
+                {t === 'posts' ? 'Posts' : t === 'reposts' ? 'Replies and Reposts' : t === 'text' ? 'Text' : 'Feeds'}
               </button>
             ))}
             </nav>
@@ -1039,12 +1033,12 @@ export function ProfileContent({
         )}
         {error && <p className={styles.error}>{error}</p>}
         <div className={styles.profileContent}>
-        {showInitialPlaceholder ? null : tab === 'text' ? (
-          textItems.length === 0 ? (
-            <div className={styles.empty}>No text-only posts (no media, no replies).</div>
-          ) : (
-            <>
-              <div className={`${styles.grid} ${styles.gridView1}`} data-view-mode="1">
+          {tab === 'text' ? (
+            textItems.length === 0 ? (
+              <div className={styles.empty}>No text-only posts (no media, no replies).</div>
+            ) : (
+              <>
+                <div className={`${styles.grid} ${styles.gridView1}`} data-view-mode="1">
                 {textItems.map((item, index) => (
                   <div key={`${item.post.uri}-${index}`}>
                     <PostCard
@@ -1069,9 +1063,9 @@ export function ProfileContent({
               {cursor && <div ref={loadMoreSentinelRef} className={styles.loadMoreSentinel} aria-hidden />}
               {loadingMore && <div className={styles.loadingMore}>Loading…</div>}
             </>
-          )
-        ) : tab === 'feeds' ? (
-          feeds.length === 0 ? (
+            )
+          ) : tab === 'feeds' ? (
+            feeds.length === 0 ? (
             <div className={styles.empty}>No feeds.</div>
           ) : (
             <ul className={styles.feedsList}>
@@ -1102,7 +1096,7 @@ export function ProfileContent({
               ? profilePostsFilter === 'liked'
                 ? 'No liked posts with images or videos.'
                 : 'No posts with images or videos.'
-              : 'No reposts with images or videos.'}
+              : 'No replies or reposts with images or videos.'}
           </div>
         ) : (
           <>

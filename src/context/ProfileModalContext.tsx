@@ -197,8 +197,8 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
     }
 
     /**
-     * Query-based profile (`/feed?profile=…`, `/tag/x?profile=…`, …): push post onto the same pathname +
-     * search so browser back pops the post entry and leaves the profile modal mounted (feed-style history).
+     * Query-based profile (`/feed?profile=…`, `/tag/x?profile=…`, …): use pretty path-based URL
+     * `/profile/handle/post/rkey` instead of query parameters for cleaner, shareable URLs.
      */
     const profileInSearch = new URLSearchParams(location.search).get('profile')
     if (
@@ -206,17 +206,14 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
       !location.pathname.startsWith('/post/') &&
       !/^\/profile\/[^/]+\/post\//.test(location.pathname)
     ) {
-      const p = new URLSearchParams(location.search.replace(/^\?/, ''))
-      p.set('post', uri)
-      p.delete('forumPost')
-      if (openReply) p.set('reply', '1')
-      else p.delete('reply')
-      if (focusUri) p.set('focus', focusUri)
-      else p.delete('focus')
-      const qs = p.toString()
+      const path = getPostOverlayPath(uri, authorHandle ?? profileInSearch)
+      const q = new URLSearchParams()
+      if (openReply) q.set('reply', '1')
+      if (focusUri) q.set('focus', focusUri)
+      const qs = q.toString()
       const frozenBg = getOverlayBackgroundLocation(location)
       navigate(
-        { pathname: location.pathname, search: qs ? `?${qs}` : '', hash: location.hash },
+        { pathname: path, search: qs ? `?${qs}` : '' },
         { replace: false, state: { backgroundLocation: frozenBg } },
       )
       return

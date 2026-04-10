@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import { publicAgent, getFollowers, getFollowsList, type ProfileViewBasic } from '../lib/bsky'
 import type { AtpAgent } from '@atproto/api'
@@ -6,6 +6,16 @@ import { useProfileModal } from '../context/ProfileModalContext'
 import styles from './FollowListModal.module.css'
 
 const PAGE_SIZE = 25
+const MOBILE_BREAKPOINT = 768
+function subscribeMobile(cb: () => void) {
+  if (typeof window === 'undefined') return () => {}
+  const mq = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`)
+  mq.addEventListener('change', cb)
+  return () => mq.removeEventListener('change', cb)
+}
+function getMobileSnapshot() {
+  return typeof window !== 'undefined' ? window.innerWidth < MOBILE_BREAKPOINT : false
+}
 
 export type FollowListSortBy = 'handle' | 'displayName' | 'date'
 export type FollowListOrder = 'asc' | 'desc'
@@ -25,7 +35,8 @@ export function FollowListModal({
   /** Required when mode is 'followedByFollows': authenticated API client. */
   authenticatedClient?: AtpAgent
 }) {
-  const { openProfileModal } = useProfileModal()
+  const { openProfileModal, closeAllModals } = useProfileModal()
+  const isMobile = useSyncExternalStore(subscribeMobile, getMobileSnapshot, () => false)
   const [list, setList] = useState<ProfileViewBasic[]>([])
   const [cursor, setCursor] = useState<string | undefined>()
   const [loading, setLoading] = useState(false) // Changed to false - don't load on mount
@@ -102,9 +113,12 @@ export function FollowListModal({
 
   const handleBackdropClick = useCallback(
     (e: React.MouseEvent) => {
-      if (e.target === e.currentTarget) onClose()
+      if (e.target === e.currentTarget) {
+        if (isMobile) onClose()
+        else closeAllModals()
+      }
     },
-    [onClose]
+    [onClose, isMobile, closeAllModals]
   )
 
   return createPortal(
