@@ -20,7 +20,8 @@ export const GUEST_FEED_ACCOUNTS = [
   { handle: 'gaya20001026.bsky.social', label: 'Ga Ya' },
   { handle: 'bemmpo.bsky.social', label: 'Bemmpo' },
   { handle: 'onepiececolor.bsky.social', label: '𝐎𝐍𝐄 𝐏𝐈𝐄𝐂𝐄' },
- 
+  { handle: 'chronocrump.bsky.social', label: 'Chronocrump' },
+
 ] as const
 
 export type GuestFeedAccount = (typeof GUEST_FEED_ACCOUNTS)[number]
