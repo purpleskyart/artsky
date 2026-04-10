@@ -60,33 +60,29 @@ function LoadingSpinner() {
   )
 }
 
-class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null, recovering: boolean }> {
-  state = { error: null as Error | null, recovering: false }
+class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
+  state = { error: null as Error | null }
 
   static getDerivedStateFromError(error: Error) {
-    // Session/token errors: auto-recover by clearing state and redirecting to feed
+    // Session/token errors: auto-recover by redirecting to feed without showing error UI
     const isSessionError = /session was deleted by another process|TokenRefreshError/i.test(error.message)
     if (isSessionError) {
-      return { error, recovering: true }
+      // Immediately redirect without rendering error page
+      window.location.assign(appAbsoluteUrl('/feed'))
+      return { error: null }
     }
-    return { error, recovering: false }
+    return { error }
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     const isSessionError = /session was deleted by another process|TokenRefreshError/i.test(error.message)
-    if (isSessionError) {
-      // Auto-recover: clear error state and navigate to feed after a tick
-      setTimeout(() => {
-        this.setState({ error: null, recovering: false })
-        window.location.assign(appAbsoluteUrl('/feed'))
-      }, 0)
-    } else {
+    if (!isSessionError) {
       console.error('App error:', error, info.componentStack)
     }
   }
 
   render() {
-    if (this.state.error && !this.state.recovering) {
+    if (this.state.error) {
       return (
         <div
           style={{
@@ -142,7 +138,6 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
         </div>
       )
     }
-    // Recovering from session error or no error: render children normally
     return this.props.children
   }
 }
