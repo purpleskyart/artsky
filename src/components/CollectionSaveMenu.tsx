@@ -300,21 +300,33 @@ export default function CollectionSaveMenu({ postUri, openSignal, variant = 'ico
       if (saving) return
       const isSavedRow = row.title.trim().toLowerCase() === 'saved'
       const effectiveHasPost = row.hasPost || (isSavedRow && (optimisticSaved || forceSavedRowCheck))
+      const nextHasPost = !effectiveHasPost
+
+      // Optimistic UI: update local state immediately
+      setRows((prev) =>
+        prev.map((r) => (r.uri === row.uri ? { ...r, hasPost: nextHasPost } : r))
+      )
+      if (isSavedRow) {
+        setOptimisticSaved(nextHasPost)
+        setForceSavedRowCheck(nextHasPost)
+      }
+
+      // Sync with server in background
       try {
         if (effectiveHasPost) {
           await removePostFromCollectionUi(postUri, row.uri)
-          if (isSavedRow) {
-            setForceSavedRowCheck(false)
-            setOptimisticSaved(false)
-          }
         } else {
           await savePostToCollection(postUri, row.uri, { isPrivate: row.isPrivate })
         }
-        setRows((prev) =>
-          prev.map((r) => (r.uri === row.uri ? { ...r, hasPost: !effectiveHasPost } : r))
-        )
       } catch {
-        /* toast from context */
+        // Revert on error
+        setRows((prev) =>
+          prev.map((r) => (r.uri === row.uri ? { ...r, hasPost: effectiveHasPost } : r))
+        )
+        if (isSavedRow) {
+          setOptimisticSaved(effectiveHasPost)
+          setForceSavedRowCheck(effectiveHasPost)
+        }
       }
     },
     [postUri, saving, removePostFromCollectionUi, savePostToCollection, optimisticSaved, forceSavedRowCheck]
