@@ -5,7 +5,7 @@ import PostText from './PostText'
 import CharacterCountWithCircle from './CharacterCountWithCircle'
 import styles from './Layout.module.css'
 
-export type ComposeSegment = { id: string; text: string; images: File[]; imageAlts: string[] }
+export type ComposeSegment = { id: string; text: string; images: File[]; imageAlts: string[]; hasSpoiler?: boolean; mediaSensitive?: boolean }
 
 export interface LayoutComposerFormProps {
   composeSegments: ComposeSegment[]
@@ -29,6 +29,10 @@ export interface LayoutComposerFormProps {
   composeImageMax: number
   /** Optional callback to handle Add media button click (for mobile keyboard handling) */
   onAddMediaClick?: () => void
+  /** Toggle spoiler flag for text content */
+  onToggleSpoiler?: () => void
+  /** Toggle media sensitive flag for images */
+  onToggleMediaSensitive?: () => void
 }
 
 export default function LayoutComposerForm({
@@ -52,6 +56,8 @@ export default function LayoutComposerForm({
   postMaxLength,
   composeImageMax,
   onAddMediaClick,
+  onToggleSpoiler,
+  onToggleMediaSensitive,
 }: LayoutComposerFormProps) {
   return (
     <form id="compose-form" ref={composeFormRef} onSubmit={handleComposeSubmit}>
@@ -191,6 +197,32 @@ export default function LayoutComposerForm({
           >
             Add media
           </button>
+          {currentSegment.text.trim().length > 0 && (
+            <button
+              type="button"
+              className={`${styles.composeToggle} ${currentSegment.hasSpoiler ? styles.composeToggleActive : ''}`}
+              onClick={onToggleSpoiler}
+              disabled={composePosting}
+              title="Mark text as spoiler"
+              aria-label="Mark text as spoiler"
+              aria-pressed={currentSegment.hasSpoiler}
+            >
+              Spoiler
+            </button>
+          )}
+          {currentSegment.images.length > 0 && (
+            <button
+              type="button"
+              className={`${styles.composeToggle} ${currentSegment.mediaSensitive ? styles.composeToggleActive : ''}`}
+              onClick={onToggleMediaSensitive}
+              disabled={composePosting}
+              title="Mark media as sensitive (content warning)"
+              aria-label="Mark media as sensitive (content warning)"
+              aria-pressed={currentSegment.mediaSensitive}
+            >
+              Sensitive
+            </button>
+          )}
         </div>
         <div className={styles.composeActions}>
           <CharacterCountWithCircle used={currentSegment.text.length} max={postMaxLength} />

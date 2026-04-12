@@ -1302,7 +1302,7 @@ export default function Layout({ title, children, showNav }: Props) {
 
   function openCompose() {
     setComposeOpen(true)
-    setComposeSegments([{ id: Math.random().toString(36).slice(2), text: '', images: [], imageAlts: [] }])
+    setComposeSegments([{ id: Math.random().toString(36).slice(2), text: '', images: [], imageAlts: [], hasSpoiler: false, mediaSensitive: false }])
     setComposeSegmentIndex(0)
     setComposeError(null)
     composeKeyboardUsedRef.current = false
@@ -1359,8 +1359,26 @@ export default function Layout({ title, children, showNav }: Props) {
   }
 
   function addComposeThreadSegment() {
-    setComposeSegments((prev) => [...prev, { id: Math.random().toString(36).slice(2), text: '', images: [], imageAlts: [] }])
+    setComposeSegments((prev) => [...prev, { id: Math.random().toString(36).slice(2), text: '', images: [], imageAlts: [], hasSpoiler: false, mediaSensitive: false }])
     setComposeSegmentIndex((prev) => prev + 1)
+  }
+
+  function toggleSpoiler() {
+    setComposeSegments((prev) => {
+      const n = [...prev]
+      const s = n[composeSegmentIndex]
+      if (s) n[composeSegmentIndex] = { ...s, hasSpoiler: !s.hasSpoiler }
+      return n
+    })
+  }
+
+  function toggleMediaSensitive() {
+    setComposeSegments((prev) => {
+      const n = [...prev]
+      const s = n[composeSegmentIndex]
+      if (s) n[composeSegmentIndex] = { ...s, mediaSensitive: !s.mediaSensitive }
+      return n
+    })
   }
 
   async function handleComposeSubmit(e: React.FormEvent) {
@@ -1377,20 +1395,22 @@ export default function Layout({ title, children, showNav }: Props) {
       let parentCid: string | null = null
       for (let i = 0; i < toPost.length; i++) {
         const s = toPost[i]
+        // Wrap text with spoiler syntax if hasSpoiler is enabled
+        const postText = s.hasSpoiler && s.text.trim() ? `||${s.text.trim()}||` : s.text
         if (i === 0) {
-          const r = await createPost(s.text, s.images.length > 0 ? s.images : undefined, s.imageAlts.length > 0 ? s.imageAlts : undefined)
+          const r = await createPost(postText, s.images.length > 0 ? s.images : undefined, s.imageAlts.length > 0 ? s.imageAlts : undefined, s.mediaSensitive)
           rootUri = r.uri
           rootCid = r.cid
           parentUri = r.uri
           parentCid = r.cid
         } else {
-          if (!s.text.trim()) continue
-          const r = await postReply(rootUri!, rootCid!, parentUri!, parentCid!, s.text)
+          if (!postText.trim()) continue
+          const r = await postReply(rootUri!, rootCid!, parentUri!, parentCid!, postText)
           parentUri = r.uri
           parentCid = r.cid
         }
       }
-      setComposeSegments([{ id: Math.random().toString(36).slice(2), text: '', images: [], imageAlts: [] }])
+      setComposeSegments([{ id: Math.random().toString(36).slice(2), text: '', images: [], imageAlts: [], hasSpoiler: false, mediaSensitive: false }])
       setComposeSegmentIndex(0)
       closeCompose()
       navigate('/feed')
@@ -2483,6 +2503,8 @@ export default function Layout({ title, children, showNav }: Props) {
                         postMaxLength={POST_MAX_LENGTH}
                         composeImageMax={COMPOSE_IMAGE_MAX}
                         onAddMediaClick={handleAddMediaClick}
+                        onToggleSpoiler={toggleSpoiler}
+                        onToggleMediaSensitive={toggleMediaSensitive}
                       />
                     </Suspense>
                   )}

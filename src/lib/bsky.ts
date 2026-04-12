@@ -1731,11 +1731,12 @@ export async function removeSavedFeedByUri(uri: string): Promise<void> {
 const COMPOSE_IMAGE_MAX = 4
 const COMPOSE_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
 
-/** Create a new post (no reply). Optional image files (max 4, jpeg/png/gif/webp). Optional alt text per image (max 1000 chars each). */
+/** Create a new post (no reply). Optional image files (max 4, jpeg/png/gif/webp). Optional alt text per image (max 1000 chars each). Optional labels for content warnings. */
 export async function createPost(
   text: string,
   imageFiles?: File[],
   altTexts?: string[],
+  mediaSensitive?: boolean,
 ): Promise<{ uri: string; cid: string }> {
   const t = text.trim()
   const images = (imageFiles ?? []).filter((f) => COMPOSE_IMAGE_TYPES.includes(f.type)).slice(0, COMPOSE_IMAGE_MAX)
@@ -1758,17 +1759,19 @@ export async function createPost(
     facets: rt.facets,
     embed,
     createdAt: new Date().toISOString(),
+    labels: mediaSensitive ? { $type: 'com.atproto.label.defs#selfLabels', values: [{ val: 'graphic-media' }] } : undefined,
   })
   return { uri: res.uri, cid: res.cid }
 }
 
-/** Create a quote post: embeds the given post (uri/cid) with optional text and images. */
+/** Create a quote post: embeds the given post (uri/cid) with optional text and images. Optional labels for content warnings. */
 export async function createQuotePost(
   quotedUri: string,
   quotedCid: string,
   text: string,
   imageFiles?: File[],
   altTexts?: string[],
+  mediaSensitive?: boolean,
 ): Promise<{ uri: string; cid: string }> {
   const t = text.trim()
   const images = (imageFiles ?? []).filter((f) => COMPOSE_IMAGE_TYPES.includes(f.type)).slice(0, COMPOSE_IMAGE_MAX)
@@ -1798,6 +1801,7 @@ export async function createQuotePost(
     facets: rt.facets,
     embed,
     createdAt: new Date().toISOString(),
+    labels: mediaSensitive ? { $type: 'com.atproto.label.defs#selfLabels', values: [{ val: 'graphic-media' }] } : undefined,
   })
   return { uri: res.uri, cid: res.cid }
 }
