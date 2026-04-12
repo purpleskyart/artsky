@@ -2937,6 +2937,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
           onClose={closeLightbox}
         />
       )}
+    </div>
   )
 
   return onClose ? content : <Layout title="Post" showNav>{content}</Layout>
