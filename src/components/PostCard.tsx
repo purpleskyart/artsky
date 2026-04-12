@@ -217,6 +217,7 @@ function PostCardInner({
   const [mediaAspect, setMediaAspect] = useState<number | null>(() =>
     hasMedia && media?.aspectRatio != null ? media.aspectRatio : null
   )
+  const [videoPaused, setVideoPaused] = useState(true)
   const [actionsMenuOpen, setActionsMenuOpen] = useState(false)
   const actionsMenuDropdownRef = useRef<HTMLDivElement>(null)
   const cardRef = useRef<HTMLDivElement>(null)
@@ -1108,7 +1109,16 @@ function PostCardInner({
                   /* Set aspect once from video dimensions so vertical/landscape scale correctly; don't overwrite if already set (e.g. from API). */
                   setMediaAspect((prev) => (prev != null ? prev : v.videoWidth / v.videoHeight))
                 }}
+                onPause={() => setVideoPaused(true)}
+                onPlay={() => setVideoPaused(false)}
               />
+              {videoPaused && (
+                <span className={styles.videoIconOverlay} aria-hidden>
+                  <svg viewBox="0 0 24 24" fill="currentColor" width="48" height="48">
+                    <path d="M8 5v14l11-7z"/>
+                  </svg>
+                </span>
+              )}
             </div>
           ) : isMultipleImages && imageItems.length > 1 ? (
             <>
