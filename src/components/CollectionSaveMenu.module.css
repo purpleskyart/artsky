@@ -229,6 +229,7 @@
 }
 
 .createInlineBtn {
+  min-height: 2.2rem;
   padding: 0.4rem 0.75rem;
   font: inherit;
   font-size: 0.85rem;
@@ -254,6 +255,7 @@
 .inputProxy {
   box-sizing: border-box;
   width: 100%;
+  min-height: 2.2rem;
   padding: 0.4rem 0.5rem;
   border: 1px solid transparent;
   border-radius: 0.35rem;
@@ -278,6 +280,7 @@
 .input {
   width: 100%;
   box-sizing: border-box;
+  min-height: 2.2rem;
   padding: 0.4rem 0.5rem;
   font: inherit;
   font-size: 0.85rem;
