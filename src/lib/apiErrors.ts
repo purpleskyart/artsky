@@ -47,7 +47,7 @@ export function getApiErrorMessage(error: unknown, context?: string): string {
 
     // HTTP status code errors
     if (status !== undefined) {
-      return getStatusCodeMessage(status, context)
+      return getStatusCodeMessage(status, apiError, context)
     }
 
     // Rate limit messages (API may not always set status 429)
@@ -82,16 +82,68 @@ export function getApiErrorMessage(error: unknown, context?: string): string {
 }
 
 /**
+ * Extract user-friendly error message from API error response
+ */
+function extractServerMessage(error: ApiError): string | null {
+  // Check for error message in common API response formats
+  const err = error as unknown as {
+    message?: string
+    error?: string
+    description?: string
+    details?: string
+    response?: { message?: string; error?: string; description?: string }
+  }
+
+  // Priority: response object > direct properties
+  const candidate =
+    err.response?.message ??
+    err.response?.error ??
+    err.response?.description ??
+    err.message ??
+    err.error ??
+    err.description ??
+    err.details
+
+  if (typeof candidate !== 'string') return null
+
+  // Filter out unhelpful messages
+  if (
+    candidate.includes('undefined') ||
+    candidate.includes('null') ||
+    candidate.match(/^Error:?\s*$/i) ||
+    candidate.length > 200
+  ) {
+    return null
+  }
+
+  return candidate
+}
+
+/**
  * Get user-friendly message for HTTP status codes
  */
-function getStatusCodeMessage(status: number, context?: string): string {
+function getStatusCodeMessage(status: number, apiError: ApiError, context?: string): string {
   const operation = context ? ` ${context}` : ''
 
   // 4xx Client Errors
   if (status >= 400 && status < 500) {
     switch (status) {
-      case 400:
-        return `Invalid request${operation}. Please check your input and try again.`
+      case 400: {
+        // Include server error message if available and user-friendly
+        const serverMessage = extractServerMessage(apiError)
+        if (serverMessage) {
+          // Include context if different from server message
+          if (context && !serverMessage.toLowerCase().includes(context.toLowerCase())) {
+            return `${serverMessage} (${context})`
+          }
+          return serverMessage
+        }
+        // Context-specific messages for 400 errors (post may be deleted or URI invalid)
+        if (context?.includes('post')) {
+          return `This post may have been deleted or is temporarily unavailable. Please try again later.`
+        }
+        return `Unable to${operation}. The request could not be processed. Please try again.`
+      }
       case 401:
         return 'Your session has expired. Please log in again.'
       case 403:

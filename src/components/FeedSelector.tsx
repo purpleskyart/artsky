@@ -636,6 +636,7 @@ function FeedSelectorComponent({
         {helpModal}
         <header className={styles.header}>
           <span className={styles.headerTitle}>{editFeeds ? 'Edit feeds' : 'Feeds'}</span>
+          {addCustomBlock}
           <div className={styles.headerActions}>
             {editFeeds ? (
               <button
@@ -729,9 +730,6 @@ function FeedSelectorComponent({
               {hasMix && (
                 <p className={styles.ratioHint}>Use − and + on each side of a feed to set how many posts you see from it.</p>
               )}
-            </section>
-            <section className={styles.sectionAdd}>
-              {addCustomBlock}
             </section>
           </>
         )}

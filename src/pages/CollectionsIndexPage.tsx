@@ -68,6 +68,7 @@ export function CollectionsIndexContent() {
   const [items, setItems] = useState<CollectionSummary[]>([])
   const [postByUri, setPostByUri] = useState<Map<string, PostView>>(() => new Map())
   const [loading, setLoading] = useState(true)
+  const [loadingPreviews, setLoadingPreviews] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [editMode, setEditMode] = useState(false)
   const [editingUri, setEditingUri] = useState<string | null>(null)
@@ -81,7 +82,9 @@ export function CollectionsIndexContent() {
   const load = useCallback(async () => {
     if (!session?.did) return
     setLoading(true)
+    setLoadingPreviews(false)
     setError(null)
+    setPostByUri(new Map())
     try {
       const list = await listMyCollectionSummaries()
       setItems(list)
@@ -92,20 +95,37 @@ export function CollectionsIndexContent() {
       } catch {
         setPathActor(session.did)
       }
+      setLoading(false) // Show collections list immediately
+
+      // Load preview posts progressively in chunks for better perceived performance
       const allUris = [...new Set(list.flatMap((c) => c.previewPostUris))]
-      if (allUris.length === 0) {
-        setPostByUri(new Map())
-      } else {
-        const map = await getPostsBatch(allUris)
-        setPostByUri(map)
+      if (allUris.length > 0) {
+        setLoadingPreviews(true)
+        const chunkSize = 25 // Match API batch size
+        const loadedMap = new Map<string, PostView>()
+
+        for (let i = 0; i < allUris.length; i += chunkSize) {
+          const chunk = allUris.slice(i, i + chunkSize)
+          try {
+            const map = await getPostsBatch(chunk)
+            for (const [uri, post] of map) {
+              loadedMap.set(uri, post)
+            }
+            // Update UI after each chunk for progressive rendering
+            setPostByUri(new Map(loadedMap))
+          } catch (e) {
+            console.warn('Failed to load preview chunk:', e)
+          }
+        }
+        setLoadingPreviews(false)
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not load collections')
       setItems([])
       setPostByUri(new Map())
       setPathActor(null)
-    } finally {
       setLoading(false)
+      setLoadingPreviews(false)
     }
   }, [session?.did])
 
@@ -211,14 +231,17 @@ export function CollectionsIndexContent() {
           Open a collection to browse or share it. Use the bookmark on any post to save to a collection or create a new one.
         </p>
         {items.length > 0 && !loading ? (
-          <button
-            type="button"
-            className={styles.editBtn}
-            onClick={() => setEditMode((v) => !v)}
-            aria-pressed={editMode}
-          >
-            {editMode ? 'Done' : 'Edit'}
-          </button>
+          <div className={styles.headerActions}>
+            {loadingPreviews && <span className={styles.loadingHint}>Loading previews…</span>}
+            <button
+              type="button"
+              className={styles.editBtn}
+              onClick={() => setEditMode((v) => !v)}
+              aria-pressed={editMode}
+            >
+              {editMode ? 'Done' : 'Edit'}
+            </button>
+          </div>
         ) : null}
       </div>
       {error && <p className={styles.error}>{error}</p>}

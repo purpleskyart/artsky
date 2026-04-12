@@ -78,8 +78,8 @@
 }
 
 .triggerDetail:hover:not(:disabled) {
-  color: var(--text);
-  border-color: var(--text);
+  color: var(--accent);
+  border-color: var(--accent);
 }
 
 .triggerDetail:focus-visible {
@@ -124,7 +124,7 @@
 }
 
 .dropdown {
-  min-width: 220px;
+  min-width: 160px;
   max-width: min(320px, calc(100vw - 16px));
   max-height: min(240px, 42vh);
   padding: 0.35rem;

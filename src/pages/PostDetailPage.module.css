@@ -854,6 +854,59 @@
   }
 }
 
+/* Clickable image button with zoom indicator */
+.galleryImageBtnClickable {
+  cursor: zoom-in;
+  position: relative;
+}
+
+.galleryImageBtnClickable:hover {
+  filter: brightness(0.95);
+}
+
+.galleryImageZoomIcon {
+  position: absolute;
+  bottom: 0.75rem;
+  right: 0.75rem;
+  width: 2rem;
+  height: 2rem;
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  pointer-events: none;
+  backdrop-filter: blur(4px);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  opacity: 0;
+}
+
+.galleryImageBtnClickable:hover .galleryImageZoomIcon {
+  opacity: 1;
+}
+
+.galleryImageZoomIcon svg {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+/* Mobile: always show zoom icon on touch devices */
+@media (hover: none) {
+  .galleryImageZoomIcon {
+    opacity: 1;
+    width: 1.75rem;
+    height: 1.75rem;
+    bottom: 0.5rem;
+    right: 0.5rem;
+  }
+
+  .galleryImageZoomIcon svg {
+    width: 1rem;
+    height: 1rem;
+  }
+}
+
 .galleryVideoWrap {
   display: block;
   width: 100%;
@@ -1136,8 +1189,8 @@
 }
 
 .likeRepostBtn:hover:not(:disabled) {
-  color: var(--text);
-  border-color: var(--text);
+  color: var(--accent);
+  border-color: var(--accent);
 }
 
 .likeRepostBtnActive {
@@ -1146,6 +1199,9 @@
   background-clip: text;
   color: transparent;
   border-color: #ec4899;
+}
+.likeRepostBtnActive:hover:not(:disabled) {
+  filter: brightness(1.15);
 }
 .likeRepostBtnActive .likeRepostBtnIcon {
   color: #ec4899;

@@ -27,6 +27,8 @@ export interface LayoutComposerFormProps {
   isDesktop: boolean
   postMaxLength: number
   composeImageMax: number
+  /** Optional callback to handle Add media button click (for mobile keyboard handling) */
+  onAddMediaClick?: () => void
 }
 
 export default function LayoutComposerForm({
@@ -49,6 +51,7 @@ export default function LayoutComposerForm({
   isDesktop,
   postMaxLength,
   composeImageMax,
+  onAddMediaClick,
 }: LayoutComposerFormProps) {
   return (
     <form id="compose-form" ref={composeFormRef} onSubmit={handleComposeSubmit}>
@@ -174,7 +177,14 @@ export default function LayoutComposerForm({
           <button
             type="button"
             className={styles.composeAddMedia}
-            onClick={() => composeFileInputRef.current?.click()}
+            onClick={() => {
+              // Use provided handler if available (handles mobile keyboard position tracking)
+              if (onAddMediaClick) {
+                onAddMediaClick()
+              } else {
+                composeFileInputRef.current?.click()
+              }
+            }}
             disabled={composePosting || currentSegment.images.length >= composeImageMax}
             title="Add photo"
             aria-label="Add photo"

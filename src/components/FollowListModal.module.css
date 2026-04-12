@@ -9,6 +9,15 @@
   padding: 1rem;
 }
 
+/* Mobile: align backdrop to bottom so panel doesn't reach too high or low */
+@media (max-width: 767px) {
+  .backdrop {
+    align-items: flex-end;
+    padding: 0;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+}
+
 .panel {
   background: var(--bg, #fff);
   border-radius: 12px;
@@ -20,6 +29,22 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
+}
+
+/* Mobile: anchor panel to bottom with safe area inset to prevent reaching too high/low */
+.panelMobile {
+  max-height: min(85vh, calc(100% - 2rem));
+  border-radius: 12px 12px 0 0;
+  margin-top: auto;
+  margin-bottom: 0;
+  align-self: flex-end;
+  width: 100%;
+  max-width: 100%;
+}
+
+/* Swipe returning animation */
+.panelSwipeReturning {
+  transition: transform 0.22s ease-out;
 }
 
 .header {

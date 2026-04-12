@@ -836,19 +836,6 @@ export default function ProfileContent({
                     >
                       Blocked & muted
                     </button>
-                    <div className={styles.postsFilterRow} role="group" aria-label="Filter posts">
-                      <button
-                        type="button"
-                        className={`${styles.postsFilterBtn} ${styles.postsFilterBtnInHeader} ${profilePostsFilter === 'liked' ? styles.postsFilterBtnActive : ''}`}
-                        onClick={() => {
-                          setProfilePostsFilter((prev) => (prev === 'liked' ? 'all' : 'liked'))
-                          setTab('posts')
-                        }}
-                        title={profilePostsFilter === 'liked' ? 'Show my posts' : 'Show liked posts'}
-                      >
-                        Liked
-                      </button>
-                    </div>
                   </>
                 )}
                 <div className={styles.followNotifyRow}>
@@ -1038,6 +1025,19 @@ export default function ProfileContent({
                   {t === 'posts' ? 'Posts' : t === 'reposts' ? 'Replies and Reposts' : t === 'text' ? 'Text' : 'Feeds'}
                 </button>
               ))}
+              {isOwnProfile && (
+                <button
+                  type="button"
+                  className={`${styles.tab} ${profilePostsFilter === 'liked' ? styles.tabActive : ''}`}
+                  onClick={() => {
+                    setProfilePostsFilter((prev) => (prev === 'liked' ? 'all' : 'liked'))
+                    setTab('posts')
+                  }}
+                  title={profilePostsFilter === 'liked' ? 'Show my posts' : 'Show liked posts'}
+                >
+                  Liked
+                </button>
+              )}
             </nav>
           </div>
         )}
@@ -1054,6 +1054,19 @@ export default function ProfileContent({
                 {t === 'posts' ? 'Posts' : t === 'reposts' ? 'Replies and Reposts' : t === 'text' ? 'Text' : 'Feeds'}
               </button>
               ))}
+              {isOwnProfile && (
+                <button
+                  type="button"
+                  className={`${styles.tab} ${profilePostsFilter === 'liked' ? styles.tabActive : ''}`}
+                  onClick={() => {
+                    setProfilePostsFilter((prev) => (prev === 'liked' ? 'all' : 'liked'))
+                    setTab('posts')
+                  }}
+                  title={profilePostsFilter === 'liked' ? 'Show my posts' : 'Show liked posts'}
+                >
+                  Liked
+                </button>
+              )}
             </nav>
           </div>
         )}

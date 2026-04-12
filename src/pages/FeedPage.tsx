@@ -368,6 +368,7 @@ export default function FeedPage() {
       requestAnimationFrame(() => {
         const count = seenUrisRef.current.size
         dispatch({ type: 'RESET_SEEN_SNAPSHOT' })
+        window.scrollTo({ top: 0, behavior: 'instant' })
         showToast(count === 0 ? 'No read posts in feed' : `${count} read posts hidden`)
       })
     })

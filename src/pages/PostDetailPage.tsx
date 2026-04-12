@@ -20,6 +20,7 @@ import { useProfileModal } from '../context/ProfileModalContext'
 import { getPostAppPath } from '../lib/appUrl'
 import { useLoginModal } from '../context/LoginModalContext'
 import { useToast } from '../context/ToastContext'
+import ImageLightbox from '../components/ImageLightbox'
 import styles from './PostDetailPage.module.css'
 
 const ACTION_ICON_SIZE = 18
@@ -319,6 +320,8 @@ function MediaGallery({
   onDoubleTapLike,
   /** No per-item tab stops — use inside clickable preview cards (parent post / quote). */
   forEmbeddedPreview = false,
+  /** Called when user clicks on an image to open fullscreen viewer. */
+  onImageClick,
 }: {
   items: Array<{ url: string; type: 'image' | 'video'; videoPlaylist?: string; aspectRatio?: number }>
   autoPlayFirstVideo?: boolean
@@ -328,6 +331,7 @@ function MediaGallery({
   /** Called when user double-taps or double-clicks on media to like the post. */
   onDoubleTapLike?: () => void
   forEmbeddedPreview?: boolean
+  onImageClick?: (url: string, index: number) => void
 }) {
   const lastTapRef = useRef(0)
   const lastClickRef = useRef(0)
@@ -393,16 +397,33 @@ function MediaGallery({
             )
           }
           const aspect = m.type === 'image' && m.aspectRatio != null ? m.aspectRatio : 1
+          const handleImageClick = (_e: React.MouseEvent) => {
+            // Prevent triggering when double-clicking for like
+            if (lastClickRef.current && Date.now() - lastClickRef.current < 400) return
+            onImageClick?.(m.url, i)
+          }
           return (
             <div
               key={i}
-              className={styles.galleryImageBtn}
+              className={`${styles.galleryImageBtn} ${onImageClick ? styles.galleryImageBtnClickable : ''}`}
               style={{ aspectRatio: aspect, ['--media-aspect']: aspect } as React.CSSProperties}
               data-media-item={i}
               tabIndex={forEmbeddedPreview ? undefined : 0}
               onFocus={forEmbeddedPreview ? undefined : () => onFocusItem?.(i)}
+              onClick={handleImageClick}
+              role={onImageClick ? 'button' : undefined}
+              aria-label={onImageClick ? 'Open image fullscreen' : undefined}
             >
               <img src={m.url} alt="" className={styles.galleryMedia} loading="lazy" />
+              {onImageClick && (
+                <div className={styles.galleryImageZoomIcon} aria-hidden>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="11" cy="11" r="8" />
+                    <path d="m21 21-4.35-4.35" />
+                    <path d="M11 8v6M8 11h6" />
+                  </svg>
+                </div>
+              )}
             </div>
           )
         })}
@@ -443,6 +464,7 @@ function PostBlock({
   openActionsMenuCommentUri,
   onActionsMenuOpenChange,
   onViewQuotes,
+  onImageClick,
 }: {
   node: AppBskyFeedDefs.ThreadViewPost | AppBskyFeedDefs.NotFoundPost | AppBskyFeedDefs.BlockedPost | { $type: string }
   depth?: number
@@ -479,6 +501,8 @@ function PostBlock({
   onActionsMenuOpenChange?: (uri: string, open: boolean) => void
   /** When set, show "View Quotes" in the post actions menu and call this with post URI */
   onViewQuotes?: (postUri: string) => void
+  /** Called when user clicks on an image to open fullscreen viewer */
+  onImageClick?: (url: string, index: number) => void
 }) {
   const [commentRepostDropdownOpen, setCommentRepostDropdownOpen] = useState<string | null>(null)
   const commentRepostDropdownRef = useRef<HTMLDivElement>(null)
@@ -650,6 +674,7 @@ function PostBlock({
           items={allMedia}
           onFocusItem={(i) => onCommentMediaFocus?.(post.uri, i)}
           onDoubleTapLike={onLike ? () => onLike(post.uri, post.cid, likedUri ?? null) : undefined}
+          onImageClick={onImageClick}
         />
       )}
       {text && (
@@ -887,6 +912,7 @@ function PostBlock({
                     openActionsMenuCommentUri={openActionsMenuCommentUri}
                     onActionsMenuOpenChange={onActionsMenuOpenChange}
                     onViewQuotes={onViewQuotes}
+                    onImageClick={onImageClick}
                   />
                 )
               })}
@@ -1145,6 +1171,15 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
   const toast = useToast()
   const [replyAsProfile, setReplyAsProfile] = useState<{ handle: string; avatar?: string } | null>(null)
 
+  // Image lightbox state
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null)
+  const openLightbox = useCallback((url: string) => {
+    setLightboxImage(url)
+  }, [])
+  const closeLightbox = useCallback(() => {
+    setLightboxImage(null)
+  }, [])
+
   useEffect(() => {
     const s = sessionFromContext ?? session
     if (!s?.did) {
@@ -1165,6 +1200,52 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
   useEffect(() => {
     setLikeUriOverride(undefined)
   }, [decodedUri])
+
+  // Update Open Graph meta tags for link previews when post data loads
+  useEffect(() => {
+    if (!thread || !isThreadViewPost(thread)) return
+
+    const post = thread.post
+    const text = (post.record as { text?: string })?.text ?? ''
+    const handle = post.author.handle ?? post.author.did
+    const authorDisplayName = post.author.displayName ?? handle
+    const allMedia = getPostAllMedia(post, POST_MEDIA_FULL)
+    const firstImage = allMedia.find(m => m.type === 'image')?.url || ''
+
+    // Create a description from the post text (truncated to ~200 characters)
+    const description = text ? text.slice(0, 200) + (text.length > 200 ? '...' : '') : `Post by @${handle}`
+
+    // Update document title
+    const title = text ? text.slice(0, 60) + (text.length > 60 ? '...' : '') : `Post by @${handle}`
+    document.title = `${title} · PurpleSky`
+
+    // Update Open Graph meta tags
+    const updateMetaTag = (property: string, content: string) => {
+      const meta = document.querySelector(`meta[property="${property}"]`) || document.querySelector(`meta[name="${property}"]`)
+      if (meta) meta.setAttribute('content', content)
+    }
+
+    updateMetaTag('og:title', `${authorDisplayName} on PurpleSky`)
+    updateMetaTag('og:description', description)
+    updateMetaTag('og:image', firstImage)
+    updateMetaTag('og:url', window.location.href)
+
+    updateMetaTag('twitter:title', `${authorDisplayName} on PurpleSky`)
+    updateMetaTag('twitter:description', description)
+    updateMetaTag('twitter:image', firstImage)
+
+    // Cleanup function to reset meta tags when component unmounts
+    return () => {
+      document.title = 'PurpleSky'
+      updateMetaTag('og:title', 'PurpleSky')
+      updateMetaTag('og:description', 'A Bluesky client focused on art')
+      updateMetaTag('og:image', '')
+      updateMetaTag('og:url', '')
+      updateMetaTag('twitter:title', 'PurpleSky')
+      updateMetaTag('twitter:description', 'A Bluesky client focused on art')
+      updateMetaTag('twitter:image', '')
+    }
+  }, [thread])
 
   const replyAs = replyAsProfile ?? (session ? { handle: (session as { handle?: string }).handle ?? session.did } : null)
   const isOwnPost = thread && isThreadViewPost(thread) && session?.did === thread.post.author.did
@@ -2184,6 +2265,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                     hideVideoControlsUntilTap={!isDesktop}
                     onFocusItem={(i) => !onClose && setKeyboardFocusIndex(i)}
                     onDoubleTapLike={!onClose ? handleLike : undefined}
+                    onImageClick={openLightbox}
                   />
                 </div>
               )}
@@ -2608,6 +2690,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                         openActionsMenuCommentUri={openActionsMenuUri}
                         onActionsMenuOpenChange={(uri, open) => setOpenActionsMenuUri(open ? uri : null)}
                         onViewQuotes={openQuotesModal}
+                        onImageClick={openLightbox}
                       />
                     </div>
                   )
@@ -2847,7 +2930,13 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
             </div>
           </>
         )}
-      </div>
+      {lightboxImage && (
+        <ImageLightbox
+          imageUrl={lightboxImage}
+          onClose={closeLightbox}
+        />
+      )}
+    </div>
   )
 
   return onClose ? content : <Layout title="Post" showNav>{content}</Layout>

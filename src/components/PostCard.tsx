@@ -2,7 +2,7 @@ import { useRef, useEffect, useLayoutEffect, useState, useCallback, useMemo, mem
 import { useNavigate, useLocation } from 'react-router-dom'
 import type Hls from 'hls.js'
 import { loadHls } from '../lib/loadHls'
-import { getPostMediaInfoForDisplay, getPostAllMediaForDisplay, getPostExternalLink, getReplyParentPostView, POST_MEDIA_FEED_PREVIEW, likePostWithLifecycle, unlikePostWithLifecycle, followAccountWithLifecycle, type TimelineItem } from '../lib/bsky'
+import { getPostMediaInfoForDisplay, getPostAllMediaForDisplay, getPostExternalLink, getReplyParentPostView, getQuotedPostView, POST_MEDIA_FEED_PREVIEW, likePostWithLifecycle, unlikePostWithLifecycle, followAccountWithLifecycle, type TimelineItem } from '../lib/bsky'
 import { useSession } from '../context/SessionContext'
 import { useLoginModal } from '../context/LoginModalContext'
 import { useArtOnly } from '../context/ArtOnlyContext'
@@ -178,6 +178,12 @@ function PostCardInner({
   const text = (post.record as { text?: string })?.text ?? ''
   const externalLink = useMemo(() => getPostExternalLink(post), [post])
   const allMedia = useMemo(() => getPostAllMediaForDisplay(post, POST_MEDIA_FEED_PREVIEW), [post])
+  const quotedPost = useMemo(() => getQuotedPostView(post), [post])
+  // When outer post has no media but quoted post does, clicking media should open the quote post
+  const isDisplayingQuotedMedia = useMemo(() => {
+    const outerMedia = getPostAllMediaForDisplay(post, POST_MEDIA_FEED_PREVIEW)
+    return outerMedia.length === 0 && quotedPost !== null
+  }, [post, quotedPost])
   const handle = post.author.handle ?? post.author.did
   const repostedByHandle = reason?.by ? (reason.by.handle ?? reason.by.did) : null
   const isQuotePost = (() => {
@@ -712,6 +718,23 @@ function PostCardInner({
     }
   }, [replyParentPost, onPostClick, location, openPostModal, navigate])
 
+  const openQuotedPost = useCallback(() => {
+    if (!quotedPost) return
+    preloadPostOpen(quotedPost.uri)
+    if (onPostClick) {
+      onPostClick(quotedPost.uri, { initialItem: { post: quotedPost } })
+      return
+    }
+    if (location.pathname.startsWith('/profile/')) {
+      setInitialPostForUri(quotedPost.uri, { post: quotedPost })
+      openPostModal(quotedPost.uri, undefined, undefined, quotedPost.author.handle)
+    } else {
+      setInitialPostForUri(quotedPost.uri, { post: quotedPost })
+      const path = getPostOverlayPath(quotedPost.uri, quotedPost.author?.handle)
+      navigate(path, { state: { backgroundLocation: getOverlayBackgroundLocation(location) } })
+    }
+  }, [quotedPost, onPostClick, location, openPostModal, navigate])
+
   const handleMediaDoubleTapLike = useCallback(() => {
     if (!session?.did) {
       openLoginModal()
@@ -748,9 +771,11 @@ function PostCardInner({
       return
     }
     if (mediaClickFromTouchRef.current) return
+    // When displaying quoted media (outer post has no media), clicking should open the quote post
+    const openTargetPost = isDisplayingQuotedMedia ? openQuotedPost : openPost
     // Mouse users expect immediate open. Keep double-tap-like behavior touch-only.
     if (e.nativeEvent.detail <= 1) {
-      openPost()
+      openTargetPost()
       return
     }
     const now = Date.now()
@@ -766,10 +791,10 @@ function PostCardInner({
       if (mediaOpenDelayTimerRef.current) clearTimeout(mediaOpenDelayTimerRef.current)
       mediaOpenDelayTimerRef.current = setTimeout(() => {
         mediaOpenDelayTimerRef.current = null
-        openPost()
+        openTargetPost()
       }, TOUCH_OPEN_DELAY_MS)
     }
-  }, [mediaClickFromTouchRef, lastMediaClickRef, handleMediaDoubleTapLike, openPost, nsfwBlurred, onNsfwUnblur])
+  }, [mediaClickFromTouchRef, lastMediaClickRef, handleMediaDoubleTapLike, openPost, openQuotedPost, isDisplayingQuotedMedia, nsfwBlurred, onNsfwUnblur])
 
   const setCardRef = useCallback(
     (el: HTMLDivElement | null) => {

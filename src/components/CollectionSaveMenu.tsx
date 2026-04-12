@@ -75,7 +75,7 @@ export default function CollectionSaveMenu({ postUri, openSignal, variant = 'ico
     const rect = triggerRef.current.getBoundingClientRect()
     return {
       bottom: window.innerHeight - rect.top + 4,
-      left: Math.max(8, Math.min(rect.left, window.innerWidth - 8 - 220)),
+      left: Math.max(8, Math.min(rect.left, window.innerWidth - 8 - 160)),
     }
   }, [])
 
@@ -308,7 +308,7 @@ export default function CollectionSaveMenu({ postUri, openSignal, variant = 'ico
             setOptimisticSaved(false)
           }
         } else {
-          await savePostToCollection(postUri, row.uri)
+          await savePostToCollection(postUri, row.uri, { isPrivate: row.isPrivate })
         }
         setRows((prev) =>
           prev.map((r) => (r.uri === row.uri ? { ...r, hasPost: !effectiveHasPost } : r))

@@ -559,6 +559,8 @@ export default function Layout({ title, children, showNav }: Props) {
   const [composeOverlayBottom, setComposeOverlayBottom] = useState(0)
   /** Mobile compose: once the real keyboard has shown, use actual inset; before that, reserve a typical gap so first paint matches post-focus layout. */
   const composeKeyboardUsedRef = useRef(false)
+  /** Track when file picker is opening to prevent modal from jumping when keyboard hides */
+  const composeFilePickerOpeningRef = useRef(false)
   const [composeSegments, setComposeSegments] = useState<ComposeSegment[]>([{ id: Math.random().toString(36).slice(2), text: '', images: [], imageAlts: [] }])
   const [composeSegmentIndex, setComposeSegmentIndex] = useState(0)
   const [composePosting, setComposePosting] = useState(false)
@@ -1175,6 +1177,8 @@ export default function Layout({ title, children, showNav }: Props) {
       return Math.min(340, Math.max(200, Math.round(h * 0.35)))
     }
     function update() {
+      // Skip updates when file picker is opening to prevent modal jumping
+      if (composeFilePickerOpeningRef.current) return
       const inferred = Math.max(
         0,
         Math.round(window.innerHeight - (viewport.offsetTop + viewport.height))
@@ -1333,6 +1337,16 @@ export default function Layout({ title, children, showNav }: Props) {
       if (s) n[composeSegmentIndex] = { ...s, images: [...s.images, ...added], imageAlts: [...s.imageAlts, ...added.map(() => '')] }
       return n
     })
+  }
+
+  function handleAddMediaClick() {
+    // Set flag to prevent viewport updates that would move the modal when keyboard hides
+    composeFilePickerOpeningRef.current = true
+    composeFileInputRef.current?.click()
+    // Reset flag after file picker opens (longer delay for iOS file picker animation)
+    window.setTimeout(() => {
+      composeFilePickerOpeningRef.current = false
+    }, 500)
   }
 
   function removeComposeImage(index: number) {
@@ -1923,16 +1937,14 @@ export default function Layout({ title, children, showNav }: Props) {
                     <SearchBar inputRef={searchInputRef} compact={isDesktop} onSelectFeed={handleSelectFeedFromSearch} />
                   </div>
                   <div className={styles.headerSearchSide}>
-                    {showAccountFeedUi && (
-                      <button
-                        type="button"
-                        className={styles.headerForumLink}
-                        aria-label="Collections"
-                        onClick={() => openCollectionsModal()}
-                      >
-                        Collections
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      className={styles.headerForumLink}
+                      aria-label="Collections"
+                      onClick={handleCollectionsNavClick}
+                    >
+                      Collections
+                    </button>
                   </div>
                 </div>
               ) : (
@@ -2470,6 +2482,7 @@ export default function Layout({ title, children, showNav }: Props) {
                         isDesktop={isDesktop}
                         postMaxLength={POST_MAX_LENGTH}
                         composeImageMax={COMPOSE_IMAGE_MAX}
+                        onAddMediaClick={handleAddMediaClick}
                       />
                     </Suspense>
                   )}
