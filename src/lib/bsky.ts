@@ -1360,6 +1360,18 @@ export async function muteThread(rootUri: string): Promise<void> {
   await agent.app.bsky.graph.muteThread({ root: rootUri })
 }
 
+/**
+ * Send feed interaction feedback (e.g., "Show more like this" or "Show less like this").
+ * Requires session. Used for custom feeds like For You that support user feedback.
+ */
+export async function sendFeedInteractions(
+  interactions: Array<{ item: string; event: 'feedItemLike' | 'feedItemDislike' }>,
+): Promise<void> {
+  const session = getSession()
+  if (!session?.did) throw new Error('Not logged in')
+  await agent.app.bsky.feed.sendInteractions({ interactions })
+}
+
 /** List accounts the current user has blocked. Returns block record URI and profile info. Requires session. */
 export async function listBlockedAccounts(): Promise<{ blockUri: string; did: string; handle?: string; displayName?: string; avatar?: string }[]> {
   const session = getSession()

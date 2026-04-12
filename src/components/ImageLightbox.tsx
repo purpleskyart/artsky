@@ -2,6 +2,12 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import styles from './ImageLightbox.module.css'
 
+const MIN_SCALE = 1
+const MAX_SCALE = 5
+const WHEEL_SENSITIVITY = 0.002 // Lower = less sensitive
+const PINCH_SENSITIVITY = 0.005 // Lower = less sensitive for pinch
+const WHEEL_MIN_DELTA = 0.01 // Minimum zoom change per wheel tick
+
 interface ImageLightboxProps {
   imageUrl: string
   alt?: string
@@ -15,7 +21,15 @@ export default function ImageLightbox({ imageUrl, alt = '', onClose }: ImageLigh
   const dragStartRef = useRef({ x: 0, y: 0 })
   const positionStartRef = useRef({ x: 0, y: 0 })
   const containerRef = useRef<HTMLDivElement>(null)
+  const imageContainerRef = useRef<HTMLDivElement>(null)
   const imageRef = useRef<HTMLImageElement>(null)
+
+  // Pinch gesture refs
+  const pinchStartDistanceRef = useRef(0)
+  const pinchStartScaleRef = useRef(1)
+  const isPinchingRef = useRef(false)
+  const lastTouchEndTimeRef = useRef(0)
+  const pinchCenterRef = useRef({ x: 0, y: 0 })
 
   // Reset zoom when image changes
   useEffect(() => {
@@ -68,10 +82,22 @@ export default function ImageLightbox({ imageUrl, alt = '', onClose }: ImageLigh
 
   const handleWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault()
-    const delta = e.deltaY > 0 ? 0.9 : 1.1
+    
+    // Get normalized delta - handles different devices (trackpad vs mouse wheel)
+    const deltaY = e.deltaY
+    
+    // Calculate scale change based on delta with dampening
+    // Use additive scaling instead of multiplicative for finer control
+    const scaleDelta = -deltaY * WHEEL_SENSITIVITY
+    
+    // Clamp to minimum change to avoid tiny adjustments feeling stuck
+    const clampedDelta = Math.abs(scaleDelta) < WHEEL_MIN_DELTA 
+      ? (scaleDelta > 0 ? WHEEL_MIN_DELTA : -WHEEL_MIN_DELTA) 
+      : scaleDelta
+    
     setScale((prev) => {
-      const newScale = Math.min(Math.max(prev * delta, 1), 5)
-      if (newScale === 1) {
+      const newScale = Math.min(Math.max(prev + clampedDelta, MIN_SCALE), MAX_SCALE)
+      if (newScale <= MIN_SCALE) {
         setPosition({ x: 0, y: 0 })
       }
       return newScale
@@ -105,9 +131,28 @@ export default function ImageLightbox({ imageUrl, alt = '', onClose }: ImageLigh
     setIsDragging(false)
   }, [])
 
-  // Touch handlers for mobile pan
+  // Touch handlers for mobile pan and pinch
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    if (scale > 1 && e.touches.length === 1) {
+    if (e.touches.length === 2) {
+      // Start pinch gesture
+      isPinchingRef.current = true
+      const touch1 = e.touches[0]
+      const touch2 = e.touches[1]
+      
+      // Calculate initial distance and center
+      const distance = Math.hypot(
+        touch2.clientX - touch1.clientX,
+        touch2.clientY - touch1.clientY
+      )
+      pinchStartDistanceRef.current = distance
+      pinchStartScaleRef.current = scale
+      
+      // Calculate center point of pinch
+      pinchCenterRef.current = {
+        x: (touch1.clientX + touch2.clientX) / 2,
+        y: (touch1.clientY + touch2.clientY) / 2,
+      }
+    } else if (scale > 1 && e.touches.length === 1 && !isPinchingRef.current) {
       setIsDragging(true)
       dragStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
       positionStartRef.current = { ...position }
@@ -115,22 +160,67 @@ export default function ImageLightbox({ imageUrl, alt = '', onClose }: ImageLigh
   }, [scale, position])
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (!isDragging || scale <= 1 || e.touches.length !== 1) return
-    const deltaX = e.touches[0].clientX - dragStartRef.current.x
-    const deltaY = e.touches[0].clientY - dragStartRef.current.y
-    setPosition({
-      x: positionStartRef.current.x + deltaX,
-      y: positionStartRef.current.y + deltaY,
-    })
+    if (e.touches.length === 2 && isPinchingRef.current) {
+      // Handle pinch zoom
+      const touch1 = e.touches[0]
+      const touch2 = e.touches[1]
+      
+      const distance = Math.hypot(
+        touch2.clientX - touch1.clientX,
+        touch2.clientY - touch1.clientY
+      )
+      
+      // Calculate scale based on distance change with dampening
+      const scaleDelta = (distance - pinchStartDistanceRef.current) * PINCH_SENSITIVITY
+      const newScale = Math.min(
+        Math.max(pinchStartScaleRef.current + scaleDelta, MIN_SCALE),
+        MAX_SCALE
+      )
+      
+      setScale(newScale)
+      if (newScale <= MIN_SCALE) {
+        setPosition({ x: 0, y: 0 })
+      }
+    } else if (isDragging && scale > 1 && e.touches.length === 1 && !isPinchingRef.current) {
+      // Handle pan
+      const deltaX = e.touches[0].clientX - dragStartRef.current.x
+      const deltaY = e.touches[0].clientY - dragStartRef.current.y
+      setPosition({
+        x: positionStartRef.current.x + deltaX,
+        y: positionStartRef.current.y + deltaY,
+      })
+    }
   }, [isDragging, scale])
 
-  const handleTouchEnd = useCallback(() => {
+  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
+    // Detect if pinch ended (fewer than 2 touches)
+    if (e.touches.length < 2) {
+      isPinchingRef.current = false
+    }
+    
+    // Handle double tap to zoom
+    if (e.touches.length === 0 && !isPinchingRef.current) {
+      const now = Date.now()
+      const timeSinceLastTouch = now - lastTouchEndTimeRef.current
+      
+      if (timeSinceLastTouch < 300) {
+        // Double tap detected
+        if (scale > 1) {
+          setScale(1)
+          setPosition({ x: 0, y: 0 })
+        } else {
+          setScale(2.5)
+        }
+      }
+      lastTouchEndTimeRef.current = now
+    }
+    
     setIsDragging(false)
-  }, [])
+  }, [scale])
 
   // Handle click on backdrop to close (but not when clicking the image)
   const handleBackdropClick = useCallback((e: React.MouseEvent) => {
-    if (e.target === containerRef.current) {
+    if (e.target === containerRef.current || e.target === imageContainerRef.current) {
       onClose()
     }
   }, [onClose])
@@ -176,7 +266,11 @@ export default function ImageLightbox({ imageUrl, alt = '', onClose }: ImageLigh
         </div>
       </div>
 
-      <div className={styles.imageContainer}>
+      <div
+        ref={imageContainerRef}
+        className={styles.imageContainer}
+        onClick={handleBackdropClick}
+      >
         <img
           ref={imageRef}
           src={imageUrl}
@@ -197,7 +291,7 @@ export default function ImageLightbox({ imageUrl, alt = '', onClose }: ImageLigh
       </div>
 
       <div className={styles.hint}>
-        Double-click to zoom • Drag to pan • Scroll to zoom
+        Double-click to zoom • Drag to pan • Scroll to zoom • Pinch to zoom on mobile
       </div>
     </div>,
     document.body
