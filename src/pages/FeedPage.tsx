@@ -1398,7 +1398,7 @@ export default function FeedPage() {
           className={styles.feedContentTransition}
         >
         {feedState.error && <p className={styles.error}>{feedState.error}</p>}
-        {feedState.loading ? (
+        {!authResolved || feedState.loading ? (
           <div className={styles.loading}>Loading…</div>
         ) : displayEntries.length === 0 ? (
           <div className={styles.empty}>

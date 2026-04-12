@@ -124,7 +124,8 @@
 }
 
 .dropdown {
-  min-width: 160px;
+  width: 240px;
+  min-width: 240px;
   max-width: min(320px, calc(100vw - 16px));
   max-height: min(240px, 42vh);
   padding: 0.35rem;
