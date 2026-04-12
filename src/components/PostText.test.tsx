@@ -231,4 +231,43 @@ describe('PostText Event Handler Memoization', () => {
     const link = screen.getByRole('link')
     expect(link).toBeDefined()
   })
+
+  it('should render spoiler text with correct accessibility', () => {
+    render(
+      <BrowserRouter>
+        <PostText text="This is ||spoiler content|| hidden" />
+      </BrowserRouter>
+    )
+
+    // The spoiler button should be present
+    const spoiler = screen.getByRole('button', { name: /Spoiler hidden/i })
+    expect(spoiler).toBeInTheDocument()
+    expect(spoiler).toHaveAttribute('aria-pressed', 'false')
+  })
+
+  it('should render multiple spoilers in text', () => {
+    render(
+      <BrowserRouter>
+        <PostText text="First ||spoiler one|| and second ||spoiler two||" />
+      </BrowserRouter>
+    )
+
+    // Should have two spoiler buttons
+    const spoilers = screen.getAllByRole('button', { name: /Spoiler/i })
+    expect(spoilers.length).toBe(2)
+  })
+
+  it('should render regular text around spoilers', () => {
+    render(
+      <BrowserRouter>
+        <PostText text="Hello ||world|| there" />
+      </BrowserRouter>
+    )
+
+    // Should show the non-spoiler text
+    expect(screen.getByText(/Hello/)).toBeInTheDocument()
+    expect(screen.getByText(/there/)).toBeInTheDocument()
+    // The spoiler button should be present for "world"
+    expect(screen.getByRole('button', { name: /Spoiler hidden/i })).toBeInTheDocument()
+  })
 })

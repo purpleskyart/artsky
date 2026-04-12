@@ -1,0 +1,66 @@
+.spoiler {
+  position: relative;
+  display: inline;
+  cursor: pointer;
+  border-radius: 0.25rem;
+  transition: background-color 0.15s ease;
+}
+
+.spoilerContent {
+  filter: blur(4px);
+  user-select: none;
+  transition: filter 0.15s ease;
+}
+
+.revealed .spoilerContent {
+  filter: none;
+  user-select: auto;
+}
+
+.spoilerOverlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text);
+  background: color-mix(in srgb, var(--surface) 95%, var(--accent) 5%);
+  border: 1px dashed var(--border);
+  border-radius: 0.25rem;
+  backdrop-filter: blur(2px);
+  transition: opacity 0.15s ease, visibility 0.15s ease;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.revealed .spoilerOverlay {
+  opacity: 0;
+  visibility: hidden;
+}
+
+/* Focus styles for accessibility */
+.spoiler:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.spoiler:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Hover effect when not revealed */
+.spoiler:not(.revealed):hover .spoilerContent {
+  filter: blur(3px);
+}
+
+/* Reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  .spoiler,
+  .spoilerContent,
+  .spoilerOverlay {
+    transition: none;
+  }
+}

@@ -2,6 +2,7 @@ import { memo, useMemo } from 'react'
 import { RichText as AtpRichText } from '@atproto/api'
 import ProfileLink from './ProfileLink'
 import TagLink from './TagLink'
+import SpoilerText from './SpoilerText'
 import styles from './PostText.module.css'
 
 /** Bluesky facet from post record (optional). When present, links/mentions/tags render from facets. */
@@ -9,7 +10,10 @@ export type PostTextFacet = { index: { byteStart: number; byteEnd: number }; fea
 
 /** Matches: emails (first so domain-only part isn’t linked), explicit URLs, www., bare domains, hashtags, @mentions. */
 const LINKIFY_REGEX =
-  /([\w.%+-]+@(?:[\w-]+\.)+[a-zA-Z]{2,})|(https?:\/\/[^\s<>"']+)|(www\.[^\s<>"'\],;:)!?]+)|(?<![@\/])((?:[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}(?:\/[^\s<>"']*)?)|(#[\w]+)|(?<![a-zA-Z0-9])(@[\w.-]+)/gi
+  /([\w.%+-]+@(?:[\w-]+\.)+[a-zA-Z]{2,})|(https?:\/\/[^\s<>"']+)|(www\.[^\s<>"'\],;:)!?]+)|(?<![@\/])((?:[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}(?:\/[^\s<>"]*)?)|(#[\w]+)|(?<![a-zA-Z0-9])(@[\w.-]+)/gi
+
+/** Matches spoiler text wrapped in || || */
+const SPOILER_REGEX = /\|\|(.+?)\|\|/g
 
 function linkDisplayText(href: string, value: string, display: 'url' | 'domain'): string {
   if (display !== 'domain') return value
@@ -36,15 +40,39 @@ export interface PostTextProps {
   interactive?: boolean
 }
 
+function renderSpoilerText(text: string, key: number): React.ReactNode {
+  const parts: React.ReactNode[] = []
+  let lastIndex = 0
+  let match: RegExpExecArray | null
+  const re = new RegExp(SPOILER_REGEX.source, 'g')
+  while ((match = re.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(<span key={`${key}-text-${lastIndex}`}>{text.slice(lastIndex, match.index)}</span>)
+    }
+    parts.push(<SpoilerText key={`${key}-spoiler-${match.index}`}>{match[1]}</SpoilerText>)
+    lastIndex = re.lastIndex
+  }
+  if (lastIndex < text.length) {
+    parts.push(<span key={`${key}-text-${lastIndex}`}>{text.slice(lastIndex)}</span>)
+  }
+  return parts.length > 0 ? parts : text
+}
+
 function renderSegment(
-  seg: { type: 'text' | 'url' | 'bareUrl' | 'email' | 'hashtag' | 'mention'; value: string; href?: string; tag?: string; did?: string },
+  seg: { type: 'text' | 'url' | 'bareUrl' | 'email' | 'hashtag' | 'mention' | 'spoiler'; value: string; href?: string; tag?: string; did?: string },
   i: number,
   linkDisplay: 'url' | 'domain',
   onClick: ((e: React.MouseEvent) => void) | undefined,
   interactive: boolean
 ) {
   if (seg.type === 'text') {
+    if (SPOILER_REGEX.test(seg.value)) {
+      return <span key={i}>{renderSpoilerText(seg.value, i)}</span>
+    }
     return <span key={i}>{seg.value}</span>
+  }
+  if (seg.type === 'spoiler') {
+    return <SpoilerText key={i}>{seg.value}</SpoilerText>
   }
   if (!interactive) {
     return <span key={i} className={seg.type === 'hashtag' ? styles.hashtag : seg.type === 'mention' ? styles.mention : styles.link}>{seg.value}</span>

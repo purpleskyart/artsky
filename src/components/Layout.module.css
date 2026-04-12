@@ -3149,6 +3149,40 @@ button.logoLink {
   cursor: not-allowed;
 }
 
+.composeToggle {
+  padding: 0.35rem 0.6rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--glass-radius-sm);
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s ease;
+}
+
+.composeToggle:hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--muted);
+}
+
+.composeToggle:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.composeToggleActive {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.composeToggleActive:hover:not(:disabled) {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+}
+
 .composeFooter {
   display: flex;
   align-items: center;
