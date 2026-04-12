@@ -961,7 +961,11 @@ function PostCardInner({
                         ? m.aspectRatio ?? 16 / 9
                         : 1
                   return (
-                    <div key={i} className={styles.replyParentMediaSlide}>
+                    <div
+                      key={i}
+                      className={styles.replyParentMediaSlide}
+                      style={{ aspectRatio: String(ar) }}
+                    >
                       {m.type === 'image' ? (
                         <ProgressiveImage
                           src={m.url}
@@ -972,7 +976,7 @@ function PostCardInner({
                           preloadDistance={cardMediaPreloadDistance}
                         />
                       ) : m.videoPlaylist ? (
-                        <div className={styles.replyParentVideoWrap}>
+                        <div className={styles.replyParentVideoWrap} style={{ aspectRatio: String(ar) }}>
                           <VideoWithHls
                             playlistUrl={m.videoPlaylist}
                             poster={m.url || undefined}
