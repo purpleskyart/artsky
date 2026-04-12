@@ -629,12 +629,13 @@ export default function FeedPage() {
   }, [session?.did])
 
   useEffect(() => {
+    if (!authResolved) return
     const abortController = new AbortController()
     load(undefined, abortController.signal)
     return () => {
       abortController.abort()
     }
-  }, [load])
+  }, [load, authResolved])
 
   // Infinite scroll: load more when sentinel enters view. Cooldown prevents re-triggering while sentinel stays in view (stops infinite load loop).
   // Large rootMargin so we load before the user reaches the end. After each load we also schedule a
