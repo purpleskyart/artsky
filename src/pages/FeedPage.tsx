@@ -1379,7 +1379,7 @@ export default function FeedPage() {
             document.body
           )}
         <div className={styles.pullRefreshContent}>
-        {!session && (
+        {!session && authResolved && (
           <div className={styles.guestFeedSelector}>
             <FeedSelector
               variant="page"
@@ -1478,7 +1478,7 @@ export default function FeedPage() {
           </>
         )}
         </div>
-        {!session && (
+        {!session && authResolved && (
           <div className={styles.feedLoginHint}>
             <div className={styles.feedLoginHintBtnRow}>
               <button type="button" className={styles.feedLoginHintBtn} onClick={() => openLoginModal()}>

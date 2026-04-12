@@ -162,7 +162,7 @@ function AppRoutes() {
 
   return (
     <ChunkLoadError>
-      <Suspense fallback={<LoadingSpinner />}>
+      <Suspense fallback={null}>
         <Routes location={backgroundLocation ?? location}>
           <Route path="/feed" element={<FeedPage />} />
           <Route path="/collections" element={<ModalErrorBoundary><CollectionsIndexPage /></ModalErrorBoundary>} />

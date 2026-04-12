@@ -229,11 +229,14 @@
 }
 
 .createInlineBtn {
+  box-sizing: border-box;
+  height: 2.2rem;
   min-height: 2.2rem;
   padding: 0.4rem 0.75rem;
   font: inherit;
   font-size: 0.85rem;
   font-weight: 500;
+  line-height: 1;
   border: none;
   border-radius: 0.35rem;
   background: var(--accent-gradient);
@@ -255,14 +258,17 @@
 .inputProxy {
   box-sizing: border-box;
   width: 100%;
+  height: 2.2rem;
   min-height: 2.2rem;
   padding: 0.4rem 0.5rem;
+  margin: 0;
   border: 1px solid transparent;
   border-radius: 0.35rem;
   background: transparent;
   color: var(--muted);
   font: inherit;
   font-size: 0.85rem;
+  line-height: 1;
   text-align: left;
   cursor: pointer;
 }
@@ -278,12 +284,15 @@
 }
 
 .input {
-  width: 100%;
   box-sizing: border-box;
+  width: 100%;
+  height: 2.2rem;
   min-height: 2.2rem;
   padding: 0.4rem 0.5rem;
+  margin: 0;
   font: inherit;
   font-size: 0.85rem;
+  line-height: 1;
   border: 1px solid var(--border);
   border-radius: 0.35rem;
   background: var(--bg);
