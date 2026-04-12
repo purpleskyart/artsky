@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import { publicAgent, getFollowers, getFollowsList, type ProfileViewBasic } from '../lib/bsky'
 import type { AtpAgent } from '@atproto/api'
 import { useProfileModal } from '../context/ProfileModalContext'
+import { useSwipeToClose } from '../hooks/useSwipeToClose'
 import styles from './FollowListModal.module.css'
 
 const PAGE_SIZE = 25
@@ -46,6 +47,17 @@ export function FollowListModal({
   const [order, setOrder] = useState<FollowListOrder>('asc')
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false) // Track if we've loaded data
 
+  const panelRef = useRef<HTMLDivElement>(null)
+
+  const handleSwipeRight = useCallback(() => {
+    onClose()
+  }, [onClose])
+
+  const swipe = useSwipeToClose({
+    enabled: isMobile,
+    onSwipeRight: handleSwipeRight,
+  })
+
   const load = useCallback(
     async (nextCursor?: string) => {
       const isFirst = !nextCursor
@@ -75,13 +87,17 @@ export function FollowListModal({
     [actor, mode, viewerDid, authenticatedClient]
   )
 
+  // Auto-load on mount for followers/following modes
   useEffect(() => {
-    // Don't load on mount - wait for user to click "Load" button
-    if (mode === 'followedByFollows' && (!viewerDid || !authenticatedClient)) {
+    if (mode === 'mutuals' || mode === 'followedByFollows') {
+      // Don't auto-load for modes that require special handling
       setLoading(false)
       setList([])
+    } else {
+      // Auto-load followers/following immediately
+      load()
     }
-  }, [mode, viewerDid, authenticatedClient])
+  }, [mode, load])
 
   const filteredAndSorted = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -129,7 +145,15 @@ export function FollowListModal({
       aria-labelledby="follow-list-title"
       onClick={handleBackdropClick}
     >
-      <div className={styles.panel} onClick={(e) => e.stopPropagation()}>
+      <div
+        ref={panelRef}
+        className={`${styles.panel} ${swipe.isReturning ? styles.panelSwipeReturning : ''} ${isMobile ? styles.panelMobile : ''}`}
+        style={swipe.style}
+        onClick={(e) => e.stopPropagation()}
+        onTouchStart={swipe.onTouchStart}
+        onTouchMove={swipe.onTouchMove}
+        onTouchEnd={swipe.onTouchEnd}
+      >
         <div className={styles.header}>
           <h2 id="follow-list-title" className={styles.title}>
             {mode === 'followers'

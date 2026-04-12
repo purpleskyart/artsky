@@ -83,7 +83,9 @@ export function CollectionDetailContent({ uri: decodedUri }: CollectionDetailCon
   const [isPrivate, setIsPrivate] = useState(false)
   const [ownerDid, setOwnerDid] = useState<string | null>(null)
   const [items, setItems] = useState<TimelineItem[]>([])
+  const [totalPosts, setTotalPosts] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [loadingPosts, setLoadingPosts] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const { likeOverrides, setLikeOverride } = useLikeOverrides()
   const [keyboardFocusIndex, setKeyboardFocusIndex] = useState(0)
@@ -99,22 +101,26 @@ export function CollectionDetailContent({ uri: decodedUri }: CollectionDetailCon
     setShareHandle(null)
     setBoardSlug(null)
     setIsPrivate(false)
+    setTotalPosts(0)
   }, [decodedUri])
 
   const load = useCallback(async () => {
     if (!decodedUri) return
     setLoading(true)
+    setLoadingPosts(false)
     setError(null)
+    setItems([])
     try {
       const col = await getCollectionByAtUri(decodedUri)
       if (!col) {
         setError('Collection not found, or it is private.')
-        setItems([])
         setTitle('')
         setIsPrivate(false)
         setOwnerDid(null)
         setResolvedAtUri(null)
         setBoardSlug(null)
+        setTotalPosts(0)
+        setLoading(false)
         return
       }
       setTitle(col.title)
@@ -122,23 +128,42 @@ export function CollectionDetailContent({ uri: decodedUri }: CollectionDetailCon
       setOwnerDid(col.did)
       setResolvedAtUri(col.uri)
       setBoardSlug(col.slug)
-      const map = await getPostsBatch(col.items)
-      const next: TimelineItem[] = []
-      for (const u of col.items) {
-        const p = map.get(u)
-        if (p) next.push(toTimelineItem(p))
+      setTotalPosts(col.items.length)
+      setLoading(false) // Show collection header immediately
+
+      // Load posts progressively in chunks for better perceived performance
+      if (col.items.length > 0) {
+        setLoadingPosts(true)
+        const chunkSize = 25 // Match API batch size
+        const loadedItems: TimelineItem[] = []
+
+        for (let i = 0; i < col.items.length; i += chunkSize) {
+          const chunk = col.items.slice(i, i + chunkSize)
+          try {
+            const map = await getPostsBatch(chunk)
+            for (const u of chunk) {
+              const p = map.get(u)
+              if (p) loadedItems.push(toTimelineItem(p))
+            }
+            // Update UI after each chunk for progressive rendering
+            setItems([...loadedItems])
+          } catch (e) {
+            console.warn('Failed to load post chunk:', e)
+          }
+        }
+        setLoadingPosts(false)
       }
-      setItems(next)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load collection')
-      setItems([])
       setTitle('')
       setIsPrivate(false)
       setOwnerDid(null)
       setResolvedAtUri(null)
       setBoardSlug(null)
-    } finally {
+      setItems([])
+      setTotalPosts(0)
       setLoading(false)
+      setLoadingPosts(false)
     }
   }, [decodedUri])
 
@@ -278,7 +303,9 @@ export function CollectionDetailContent({ uri: decodedUri }: CollectionDetailCon
         <div className={styles.titleBlock}>
           <h1 className={styles.title}>{loading ? '…' : title || 'Collection'}</h1>
           <p className={styles.meta}>
-            {items.length} {items.length === 1 ? 'post' : 'posts'}
+            {loadingPosts && totalPosts > 0
+              ? `Loading ${items.length} of ${totalPosts} posts…`
+              : `${items.length} ${items.length === 1 ? 'post' : 'posts'}`}
             {isPrivate ? ' · Private collection' : !session ? ' · Anyone with the link can view this board' : ''}
           </p>
         </div>
@@ -298,46 +325,51 @@ export function CollectionDetailContent({ uri: decodedUri }: CollectionDetailCon
       {error && <p className={styles.error}>{error}</p>}
       {loading ? (
         <div className={styles.loading}>Loading…</div>
-      ) : displayItems.length === 0 ? (
+      ) : displayItems.length === 0 && !loadingPosts ? (
         <div className={styles.empty}>No posts to show (removed or unavailable).</div>
       ) : (
-        <div
-          className={`${feedGridStyles.gridColumns} ${viewMode === 'a' ? feedGridStyles.gridView3 : feedGridStyles[`gridView${viewMode}`]}`}
-          {...gridPointerGateProps}
-          data-view-mode={viewMode}
-        >
-          {distributeByHeight(displayItems, cols).map((column, colIndex) => (
-            <ProfileColumn
-              key={colIndex}
-              layout="feed"
-              column={column}
-              colIndex={colIndex}
-              scrollRef={modalScrollRef}
-              keyboardFocusIndex={keyboardFocusIndex}
-              actionsMenuOpenForIndex={null}
-              nsfwPreference={nsfwPreference}
-              unblurredUris={unblurredUris}
-              setUnblurred={setUnblurred}
-              likeOverrides={likeOverrides}
-              setLikeOverrides={setLikeOverride}
-              openPostModal={(uri, openReply, focusUri, authorHandle) =>
-                openPostModal(uri, openReply, focusUri, authorHandle)
-              }
-              cardRef={() => () => {}}
-              onActionsMenuOpenChange={() => {}}
-              onMouseEnter={(originalIndex) =>
-                tryHoverSelectCard(
-                  originalIndex,
-                  () => keyboardFocusIndexRef.current,
-                  (idx) => setKeyboardFocusIndex(idx),
-                )
-              }
-              isSelected={(index) => index === keyboardFocusIndex}
+        <>
+          <div
+            className={`${feedGridStyles.gridColumns} ${viewMode === 'a' ? feedGridStyles.gridView3 : feedGridStyles[`gridView${viewMode}`]}`}
+            {...gridPointerGateProps}
+            data-view-mode={viewMode}
+          >
+            {distributeByHeight(displayItems, cols).map((column, colIndex) => (
+              <ProfileColumn
+                key={colIndex}
+                layout="feed"
+                column={column}
+                colIndex={colIndex}
+                scrollRef={modalScrollRef}
+                keyboardFocusIndex={keyboardFocusIndex}
+                actionsMenuOpenForIndex={null}
+                nsfwPreference={nsfwPreference}
+                unblurredUris={unblurredUris}
+                setUnblurred={setUnblurred}
+                likeOverrides={likeOverrides}
+                setLikeOverrides={setLikeOverride}
+                openPostModal={(uri, openReply, focusUri, authorHandle) =>
+                  openPostModal(uri, openReply, focusUri, authorHandle)
+                }
+                cardRef={() => () => {}}
+                onActionsMenuOpenChange={() => {}}
+                onMouseEnter={(originalIndex) =>
+                  tryHoverSelectCard(
+                    originalIndex,
+                    () => keyboardFocusIndexRef.current,
+                    (idx) => setKeyboardFocusIndex(idx),
+                  )
+                }
+                isSelected={(index) => index === keyboardFocusIndex}
                 onRemovePostFromCollection={isOwner ? onRemovePostFromCollection : undefined}
                 feedPreviewActionRow
               />
             ))}
           </div>
+          {loadingPosts && (
+            <div className={styles.loadingMore}>Loading more posts…</div>
+          )}
+        </>
       )}
     </div>
   )

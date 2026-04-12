@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <!-- Apple-style soft gradient -->
+    <linearGradient id="ios-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#7c3aed"/>
+      <stop offset="50%" stop-color="#a855f7"/>
+      <stop offset="100%" stop-color="#c084fc"/>
+    </linearGradient>
+    <!-- Premium purple gradient for bee -->
+    <linearGradient id="ios-bee" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#f3e8ff"/>
+    </linearGradient>
+    <!-- Subtle shadow for depth -->
+    <filter id="ios-shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="4"/>
+      <feOffset dx="0" dy="2" result="offsetblur"/>
+      <feComponentTransfer>
+        <feFuncA type="linear" slope="0.2"/>
+      </feComponentTransfer>
+      <feMerge>
+        <feMergeNode/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <clipPath id="ios-abdomen">
+      <ellipse cx="256" cy="338" rx="68" ry="88"/>
+    </clipPath>
+  </defs>
+  
+  <!-- iOS-style rounded background (squircle approximation) -->
+  <rect width="512" height="512" rx="114" fill="url(#ios-bg)"/>
+  
+  <!-- Bee icon centered with subtle shadow -->
+  <g transform="translate(256 256) scale(0.78) translate(-256 -256)" filter="url(#ios-shadow)">
+    <g transform="translate(256 256) scale(1.12 1) translate(-256 -256)">
+      <!-- Wings -->
+      <g fill="url(#ios-bee)">
+        <path d="M 225 172 C 128 141 76 191 74 221 C 72 252 132 272 217 247 C 229 226 238 198 225 172 Z"/>
+        <path d="M 287 172 C 384 141 436 191 438 221 C 440 252 380 272 295 247 C 283 226 274 198 287 172 Z"/>
+      </g>
+      <!-- Body parts -->
+      <g fill="url(#ios-bee)">
+        <ellipse cx="256" cy="338" rx="68" ry="88"/>
+        <ellipse cx="256" cy="262" rx="28" ry="18"/>
+        <ellipse cx="256" cy="206" rx="50" ry="46"/>
+        <circle cx="256" cy="110" r="56"/>
+      </g>
+      <!-- Stripes (darker white/off-white) -->
+      <g clip-path="url(#ios-abdomen)">
+        <rect x="188" y="282" width="136" height="14" fill="#e9d5ff" opacity="0.4"/>
+        <rect x="188" y="312" width="136" height="14" fill="#e9d5ff" opacity="0.4"/>
+        <rect x="188" y="342" width="136" height="14" fill="#e9d5ff" opacity="0.4"/>
+        <rect x="188" y="372" width="136" height="14" fill="#e9d5ff" opacity="0.4"/>
+      </g>
+      <!-- Stinger -->
+      <path fill="url(#ios-bee)" d="M 242 418 L 256 474 L 270 418 Z"/>
+      <!-- Antennae -->
+      <g fill="none" stroke-width="14" stroke-linecap="round" stroke-linejoin="round">
+        <path stroke="url(#ios-bee)" d="M232 82 Q 205 52 188 38"/>
+        <path stroke="url(#ios-bee)" d="M280 82 Q 307 52 324 38"/>
+      </g>
+      <!-- Antennae tips -->
+      <g fill="url(#ios-bee)">
+        <circle cx="188" cy="38" r="9"/>
+        <circle cx="324" cy="38" r="9"/>
+      </g>
+    </g>
+  </g>
+</svg>

@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <!-- Material Design 3 style gradient -->
+    <linearGradient id="android-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6b21a8"/>
+      <stop offset="100%" stop-color="#9333ea"/>
+    </linearGradient>
+    <!-- Elevated surface color for bee -->
+    <linearGradient id="android-bee" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#f5f3ff"/>
+    </linearGradient>
+    <!-- Material elevation shadow -->
+    <filter id="android-shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-opacity="0.25"/>
+    </filter>
+    <clipPath id="android-abdomen">
+      <ellipse cx="256" cy="338" rx="68" ry="88"/>
+    </clipPath>
+  </defs>
+  
+  <!-- Android adaptive icon background - rounded rectangle with Material style -->
+  <rect width="512" height="512" rx="96" fill="url(#android-bg)"/>
+  
+  <!-- Bee icon centered with Material elevation -->
+  <g transform="translate(256 256) scale(0.82) translate(-256 -256)" filter="url(#android-shadow)">
+    <g transform="translate(256 256) scale(1.12 1) translate(-256 -256)">
+      <!-- Wings -->
+      <g fill="url(#android-bee)">
+        <path d="M 225 172 C 128 141 76 191 74 221 C 72 252 132 272 217 247 C 229 226 238 198 225 172 Z"/>
+        <path d="M 287 172 C 384 141 436 191 438 221 C 440 252 380 272 295 247 C 283 226 274 198 287 172 Z"/>
+      </g>
+      <!-- Body parts -->
+      <g fill="url(#android-bee)">
+        <ellipse cx="256" cy="338" rx="68" ry="88"/>
+        <ellipse cx="256" cy="262" rx="28" ry="18"/>
+        <ellipse cx="256" cy="206" rx="50" ry="46"/>
+        <circle cx="256" cy="110" r="56"/>
+      </g>
+      <!-- Stripes -->
+      <g clip-path="url(#android-abdomen)">
+        <rect x="188" y="282" width="136" height="14" fill="#ddd6fe" opacity="0.5"/>
+        <rect x="188" y="312" width="136" height="14" fill="#ddd6fe" opacity="0.5"/>
+        <rect x="188" y="342" width="136" height="14" fill="#ddd6fe" opacity="0.5"/>
+        <rect x="188" y="372" width="136" height="14" fill="#ddd6fe" opacity="0.5"/>
+      </g>
+      <!-- Stinger -->
+      <path fill="url(#android-bee)" d="M 242 418 L 256 474 L 270 418 Z"/>
+      <!-- Antennae -->
+      <g fill="none" stroke-width="14" stroke-linecap="round" stroke-linejoin="round">
+        <path stroke="url(#android-bee)" d="M232 82 Q 205 52 188 38"/>
+        <path stroke="url(#android-bee)" d="M280 82 Q 307 52 324 38"/>
+      </g>
+      <!-- Antennae tips -->
+      <g fill="url(#android-bee)">
+        <circle cx="188" cy="38" r="9"/>
+        <circle cx="324" cy="38" r="9"/>
+      </g>
+    </g>
+  </g>
+</svg>

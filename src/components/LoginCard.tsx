@@ -96,8 +96,22 @@ export default function LoginCard({ onSuccess, onClose }: LoginCardProps) {
     const el = wrapperRef.current
     if (!el) return
     const rect = el.getBoundingClientRect()
+    const dropdownHeight = Math.min(280, window.innerHeight * 0.5) // max-height from CSS
+    const spaceBelow = window.innerHeight - rect.bottom
+    const spaceAbove = rect.top
+    
+    // Position below if there's enough space, otherwise above
+    let top: number
+    if (spaceBelow >= dropdownHeight || spaceBelow >= spaceAbove) {
+      top = rect.bottom + 2
+    } else {
+      top = rect.top - dropdownHeight - 2
+      // Ensure it doesn't go above viewport
+      if (top < 0) top = 8
+    }
+    
     setDropdownPosition({
-      top: rect.bottom + 2,
+      top,
       left: rect.left,
       width: rect.width,
     })

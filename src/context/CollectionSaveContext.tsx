@@ -31,7 +31,7 @@ type Ctx = {
   /** Reload union of saved post URIs from the PDS (e.g. after edits on a collection page). */
   refreshUnionFromPds: () => Promise<void>
   quickSavePost: (postUri: string) => Promise<void>
-  savePostToCollection: (postUri: string, collectionAtUri: string) => Promise<void>
+  savePostToCollection: (postUri: string, collectionAtUri: string, opts?: { isPrivate?: boolean }) => Promise<void>
   removePostFromCollectionUi: (postUri: string, collectionAtUri: string) => Promise<void>
   createCollectionAndAddPost: (postUri: string, title: string, opts?: { isPrivate?: boolean }) => Promise<void>
 }
@@ -161,7 +161,7 @@ export function CollectionSaveProvider({ children }: { children: ReactNode }) {
   }, [session?.did, emitAll])
 
   const savePostToCollection = useCallback(
-    async (postUri: string, collectionAtUri: string) => {
+    async (postUri: string, collectionAtUri: string, opts?: { isPrivate?: boolean }) => {
       if (!session?.did) {
         openLoginModal()
         return
@@ -173,8 +173,11 @@ export function CollectionSaveProvider({ children }: { children: ReactNode }) {
         await addPostToCollection(collectionAtUri, postUri)
         rememberActiveCollectionAtUri(session.did, collectionAtUri)
         setActiveCollectionAtUri(collectionAtUri)
-        savedRef.current.add(postUri)
-        emitPost(postUri)
+        // Only add to savedRef (Saved collection union) if not a private collection
+        if (opts?.isPrivate !== true) {
+          savedRef.current.add(postUri)
+          emitPost(postUri)
+        }
       } catch (e) {
         toast?.showToast(e instanceof Error ? e.message : 'Could not save')
         await refreshUnionFromPds()
@@ -221,12 +224,16 @@ export function CollectionSaveProvider({ children }: { children: ReactNode }) {
       opLockRef.current = true
       setSavingUri(postUri)
       try {
-        const { uri } = await createCollection(title, { isPrivate: opts?.isPrivate === true })
+        const isPrivate = opts?.isPrivate === true
+        const { uri } = await createCollection(title, { isPrivate })
         await addPostToCollection(uri, postUri)
         rememberActiveCollectionAtUri(session.did, uri)
         setActiveCollectionAtUri(uri)
-        savedRef.current.add(postUri)
-        emitPost(postUri)
+        // Only add to savedRef (Saved collection union) if not a private collection
+        if (!isPrivate) {
+          savedRef.current.add(postUri)
+          emitPost(postUri)
+        }
       } catch (e) {
         toast?.showToast(e instanceof Error ? e.message : 'Could not create collection')
         await refreshUnionFromPds()
