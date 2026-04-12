@@ -397,7 +397,7 @@ function MediaGallery({
             )
           }
           const aspect = m.type === 'image' && m.aspectRatio != null ? m.aspectRatio : 1
-          const handleImageClick = (e: React.MouseEvent) => {
+          const handleImageClick = (_e: React.MouseEvent) => {
             // Prevent triggering when double-clicking for like
             if (lastClickRef.current && Date.now() - lastClickRef.current < 400) return
             onImageClick?.(m.url, i)
@@ -2930,7 +2930,6 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
             </div>
           </>
         )}
-      </div>
       {lightboxImage && (
         <ImageLightbox
           imageUrl={lightboxImage}

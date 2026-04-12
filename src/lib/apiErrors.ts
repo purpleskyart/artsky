@@ -138,7 +138,11 @@ function getStatusCodeMessage(status: number, apiError: ApiError, context?: stri
           }
           return serverMessage
         }
-        return `Invalid request${operation}. Please check your input and try again.`
+        // Context-specific messages for 400 errors (post may be deleted or URI invalid)
+        if (context?.includes('post')) {
+          return `This post may have been deleted or is temporarily unavailable. Please try again later.`
+        }
+        return `Unable to${operation}. The request could not be processed. Please try again.`
       }
       case 401:
         return 'Your session has expired. Please log in again.'
