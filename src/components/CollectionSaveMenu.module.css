@@ -204,6 +204,8 @@
   flex-shrink: 0;
   font-size: 0.75rem;
   color: var(--accent);
+  width: 1rem;
+  text-align: center;
 }
 
 .newBlock {
@@ -250,9 +252,10 @@
 }
 
 .inputProxy {
+  box-sizing: border-box;
   width: 100%;
   padding: 0.4rem 0.5rem;
-  border: none;
+  border: 1px solid transparent;
   border-radius: 0.35rem;
   background: transparent;
   color: var(--muted);

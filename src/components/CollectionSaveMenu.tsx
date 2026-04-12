@@ -407,11 +407,9 @@ export default function CollectionSaveMenu({ postUri, openSignal, variant = 'ico
                       {row.title}
                       {row.isPrivate ? ' (Private)' : ''}
                     </span>
-                    {row.hasPost || ((optimisticSaved || forceSavedRowCheck) && row.title.trim().toLowerCase() === 'saved') ? (
-                      <span className={styles.check} aria-hidden>
-                        ✓
-                      </span>
-                    ) : null}
+                    <span className={styles.check} aria-hidden>
+                      {row.hasPost || ((optimisticSaved || forceSavedRowCheck) && row.title.trim().toLowerCase() === 'saved') ? '✓' : ''}
+                    </span>
                   </button>
                 ))}
               </div>

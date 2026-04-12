@@ -265,8 +265,9 @@ html[data-theme="dark"] [data-view-mode="1"] .card:hover {
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: visible;
+  overflow: hidden;
   background: var(--bg);
+  /* aspect-ratio is set inline based on media's actual aspect ratio */
 }
 
 .replyParentMediaBlockMulti .replyParentMediaSlide {
@@ -280,17 +281,13 @@ html[data-theme="dark"] [data-view-mode="1"] .card:hover {
 
 .replyParentMediaImg {
   max-width: 100%;
-  max-height: var(--feed-card-media-max-height, 280px);
-  width: auto;
-  height: auto;
+  max-height: 100%;
+  width: 100%;
+  height: 100%;
   object-fit: contain;
   object-position: center;
   display: block;
   vertical-align: top;
-}
-
-.replyParentMediaBlockMulti .replyParentMediaImg {
-  max-height: min(11rem, var(--feed-card-media-max-height, 280px));
 }
 
 .replyParentMediaImgPlaceholder {
@@ -321,19 +318,16 @@ html[data-theme="dark"] [data-view-mode="1"] .card:hover {
   align-items: center;
   justify-content: center;
   overflow: hidden;
+  /* aspect-ratio is set inline based on media's actual aspect ratio */
 }
 
 .replyParentMediaVideo {
   max-width: 100%;
-  max-height: var(--feed-card-media-max-height, 280px);
+  max-height: 100%;
   width: 100%;
   height: 100%;
   object-fit: contain;
   object-position: center;
-}
-
-.replyParentMediaBlockMulti .replyParentMediaVideo {
-  max-height: min(11rem, var(--feed-card-media-max-height, 280px));
 }
 
 .replyParentBody {
