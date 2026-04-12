@@ -42,24 +42,6 @@ function GitLogo() {
   )
 }
 
-/** Loading spinner for lazy-loaded route components */
-function LoadingSpinner() {
-  return (
-    <div
-      style={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'var(--bg)',
-        color: 'var(--muted)',
-      }}
-    >
-      <div style={{ textAlign: 'center' }}>Loading…</div>
-    </div>
-  )
-}
-
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
   state = { error: null as Error | null }
 
@@ -162,7 +144,7 @@ function AppRoutes() {
 
   return (
     <ChunkLoadError>
-      <Suspense fallback={<LoadingSpinner />}>
+      <Suspense fallback={null}>
         <Routes location={backgroundLocation ?? location}>
           <Route path="/feed" element={<FeedPage />} />
           <Route path="/collections" element={<ModalErrorBoundary><CollectionsIndexPage /></ModalErrorBoundary>} />
