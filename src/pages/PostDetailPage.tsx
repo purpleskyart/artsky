@@ -415,15 +415,6 @@ function MediaGallery({
               aria-label={onImageClick ? 'Open image fullscreen' : undefined}
             >
               <img src={m.url} alt="" className={styles.galleryMedia} loading="lazy" />
-              {onImageClick && (
-                <div className={styles.galleryImageZoomIcon} aria-hidden>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <circle cx="11" cy="11" r="8" />
-                    <path d="m21 21-4.35-4.35" />
-                    <path d="M11 8v6M8 11h6" />
-                  </svg>
-                </div>
-              )}
             </div>
           )
         })}
@@ -965,7 +956,16 @@ function PostBlock({
                             {firstMedia.type === 'image' ? (
                               <img src={firstMedia.url} alt="" loading="lazy" className={styles.quotedPostThumb} />
                             ) : firstMedia.videoPlaylist ? (
-                              <div className={styles.quotedPostVideoThumb} style={{ backgroundImage: firstMedia.url ? `url(${firstMedia.url})` : undefined }} />
+                              <div className={styles.quotedPostVideoThumb}>
+                                <VideoWithHls
+                                  playlistUrl={firstMedia.videoPlaylist}
+                                  poster={firstMedia.url || undefined}
+                                  className={styles.quotedPostVideo}
+                                  loop
+                                  autoPlay
+                                  preload="metadata"
+                                />
+                              </div>
                             ) : null}
                           </div>
                         )}
@@ -2806,7 +2806,16 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                                 {firstMedia.type === 'image' ? (
                                   <img src={firstMedia.url} alt="" loading="lazy" className={styles.quotedPostThumb} />
                                 ) : firstMedia.videoPlaylist ? (
-                                  <div className={styles.quotedPostVideoThumb} style={{ backgroundImage: firstMedia.url ? `url(${firstMedia.url})` : undefined }} />
+                                  <div className={styles.quotedPostVideoThumb}>
+                                    <VideoWithHls
+                                      playlistUrl={firstMedia.videoPlaylist}
+                                      poster={firstMedia.url || undefined}
+                                      className={styles.quotedPostVideo}
+                                      loop
+                                      autoPlay
+                                      preload="metadata"
+                                    />
+                                  </div>
                                 ) : null}
                               </div>
                             )}

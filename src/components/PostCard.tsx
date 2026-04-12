@@ -21,6 +21,7 @@ import PostText from './PostText'
 import ProfileLink from './ProfileLink'
 import PostActionsMenu from './PostActionsMenu'
 import { ProgressiveImage } from './ProgressiveImage'
+import VideoWithHls from './VideoWithHls'
 import styles from './PostCard.module.css'
 
 function replyParentMemoKey(item: TimelineItem): string {
@@ -156,8 +157,9 @@ function PostCardInner({
   const videoPlayInViewRef = useRef(false)
   const [videoPreloadInRange, setVideoPreloadInRange] = useState(false)
   const { post, reason } = item as { post: typeof item.post; reason?: { $type?: string; by?: { handle?: string; did?: string } } }
-  const feedSource = (item as { _feedSource?: { kind?: string; label?: string } })._feedSource
+  const feedSource = (item as { _feedSource?: { kind?: string; label?: string; uri?: string } })._feedSource
   const feedLabel = feedSource?.label ?? (feedSource?.kind === 'timeline' ? 'Following' : undefined)
+  const feedUri = feedSource?.uri
   const replyParentPost = getReplyParentPostView(item)
   const replyParentHandle = replyParentPost
     ? (replyParentPost.author.handle ?? replyParentPost.author.did)
@@ -970,16 +972,16 @@ function PostCardInner({
                           preloadDistance={cardMediaPreloadDistance}
                         />
                       ) : m.videoPlaylist ? (
-                        <>
-                          {m.url ? (
-                            <img src={m.url} alt="" className={styles.replyParentMediaImg} loading="lazy" />
-                          ) : (
-                            <div className={styles.replyParentMediaImgPlaceholder} aria-hidden />
-                          )}
-                          <span className={styles.replyParentVideoPlay} aria-hidden>
-                            ▶
-                          </span>
-                        </>
+                        <div className={styles.replyParentVideoWrap}>
+                          <VideoWithHls
+                            playlistUrl={m.videoPlaylist}
+                            poster={m.url || undefined}
+                            className={styles.replyParentMediaVideo}
+                            loop
+                            autoPlay
+                            preload="metadata"
+                          />
+                        </div>
                       ) : null}
                     </div>
                   )
@@ -1240,6 +1242,7 @@ function PostCardInner({
               }}
               dropdownRef={actionsMenuDropdownRef}
               feedLabel={feedLabel}
+              feedUri={feedUri}
               postedAt={(post.record as { createdAt?: string })?.createdAt}
               onViewQuotes={openQuotesModal}
               onRemoveFromThisCollection={
@@ -1315,6 +1318,7 @@ function PostCardInner({
                 }}
                 dropdownRef={actionsMenuDropdownRef}
                 feedLabel={feedLabel}
+                feedUri={feedUri}
                 postedAt={(post.record as { createdAt?: string })?.createdAt}
                 onViewQuotes={openQuotesModal}
                 onRemoveFromThisCollection={

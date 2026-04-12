@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect, useLayoutEffect, memo, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { blockAccount, unblockAccount, reportPost, muteThread, deletePost, getProfileCached, getSession } from '../lib/bsky'
+import { blockAccount, unblockAccount, reportPost, muteThread, deletePost, getProfileCached, getSession, sendFeedInteractions } from '../lib/bsky'
 import { getShareablePostUrl } from '../lib/appUrl'
 import { formatRelativeTimeTitle, formatExactDateTime } from '../lib/date'
 import styles from './PostActionsMenu.module.css'
@@ -101,6 +101,22 @@ function RemoveFromCollectionIcon() {
   )
 }
 
+function ThumbsUpIcon() {
+  return (
+    <svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3" />
+    </svg>
+  )
+}
+
+function ThumbsDownIcon() {
+  return (
+    <svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3" />
+    </svg>
+  )
+}
+
 interface PostActionsMenuProps {
   /** Post/reply URI */
   postUri: string
@@ -121,6 +137,8 @@ interface PostActionsMenuProps {
   compact?: boolean
   /** When set, show "From: {feedLabel}" at top of menu (e.g. feed name) */
   feedLabel?: string
+  /** Feed URI for sending interaction feedback (e.g., at://did/app.bsky.feed.generator/...) */
+  feedUri?: string
   /** Post creation time (ISO string); when set, show relative time e.g. "Posted 2h ago" */
   postedAt?: string
   /** Controlled open state (when set, menu open is controlled by parent) */
@@ -154,6 +172,7 @@ function PostActionsMenu({
   className,
   compact,
   feedLabel,
+  feedUri,
   postedAt,
   open: openControlled,
   onOpenChange,
@@ -429,7 +448,24 @@ function PostActionsMenu({
     }
   }, [session?.did, isOwnPost, postUri, onHidden])
 
+  const handleFeedInteraction = useCallback(async (event: 'feedItemLike' | 'feedItemDislike') => {
+    if (!session?.did || !feedUri) return
+    setLoading(event)
+    setFeedback(null)
+    try {
+      await sendFeedInteractions([{ item: postUri, event }])
+      showSuccess(event === 'feedItemLike' ? 'More like this shown' : 'Less like this shown')
+    } catch {
+      showError('Could not send feedback. Try again.')
+    } finally {
+      setLoading(null)
+    }
+  }, [session?.did, feedUri, postUri, showSuccess, showError])
+
   const loggedIn = !!session?.did
+
+  // Show feed interaction buttons when feedUri is provided and user is logged in
+  const showFeedInteractions = loggedIn && !!feedUri
 
   return (
     <div
@@ -659,6 +695,30 @@ function PostActionsMenu({
                 <span className={styles.itemIcon}>{loading === 'mute' ? '…' : <MuteIcon />}</span>
                 {loading === 'mute' ? '' : 'Mute thread'}
               </button>
+              {showFeedInteractions && (
+                <>
+                  <button
+                    type="button"
+                    className={styles.item}
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleFeedInteraction('feedItemLike') }}
+                    disabled={loading === 'feedItemLike'}
+                    role="menuitem"
+                  >
+                    <span className={styles.itemIcon}>{loading === 'feedItemLike' ? '…' : <ThumbsUpIcon />}</span>
+                    {loading === 'feedItemLike' ? '' : 'Show more like this'}
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.item}
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleFeedInteraction('feedItemDislike') }}
+                    disabled={loading === 'feedItemDislike'}
+                    role="menuitem"
+                  >
+                    <span className={styles.itemIcon}>{loading === 'feedItemDislike' ? '…' : <ThumbsDownIcon />}</span>
+                    {loading === 'feedItemDislike' ? '' : 'Show less like this'}
+                  </button>
+                </>
+              )}
               {onDownload && downloadLabel && (
                 <button
                   type="button"

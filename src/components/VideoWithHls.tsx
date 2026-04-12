@@ -13,6 +13,7 @@ interface Props {
   playsInline?: boolean
   preload?: string
   autoPlay?: boolean
+  loop?: boolean
   /** When true, start with controls hidden; first tap on video shows native controls (for mobile post detail). */
   controlsHiddenUntilTap?: boolean
 }
@@ -25,6 +26,7 @@ export default function VideoWithHls({
   playsInline = true,
   preload = 'metadata',
   autoPlay = false,
+  loop = false,
   controlsHiddenUntilTap = false,
 }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -93,6 +95,7 @@ export default function VideoWithHls({
       preload={preload}
       autoPlay={autoPlay}
       muted={autoPlay}
+      loop={loop}
       onClick={controlsHiddenUntilTap && !showControls ? () => setShowControls(true) : undefined}
     />
   )

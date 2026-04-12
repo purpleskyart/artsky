@@ -312,6 +312,30 @@ html[data-theme="dark"] [data-view-mode="1"] .card:hover {
   pointer-events: none;
 }
 
+/* Reply parent video wrapper and video element */
+.replyParentVideoWrap {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.replyParentMediaVideo {
+  max-width: 100%;
+  max-height: var(--feed-card-media-max-height, 280px);
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
+}
+
+.replyParentMediaBlockMulti .replyParentMediaVideo {
+  max-height: min(11rem, var(--feed-card-media-max-height, 280px));
+}
+
 .replyParentBody {
   min-width: 0;
   padding: 0.35rem 0.5rem 0.45rem;
