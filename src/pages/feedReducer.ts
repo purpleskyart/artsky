@@ -24,6 +24,7 @@ export type FeedState = {
   actionsMenuOpenForIndex: number | null
   seenUris: Set<string>
   seenUrisAtReset: Set<string>
+  hasLoaded: boolean
 }
 
 export type FeedAction =
@@ -39,6 +40,7 @@ export type FeedAction =
   | { type: 'RESET_SEEN_SNAPSHOT' }
   | { type: 'CLEAR_SEEN_SNAPSHOT' }
   | { type: 'CLEAR_SEEN' }
+  | { type: 'SET_HAS_LOADED'; hasLoaded: boolean }
 
 export function feedReducer(state: FeedState, action: FeedAction): FeedState {
   switch (action.type) {
@@ -154,6 +156,12 @@ export function feedReducer(state: FeedState, action: FeedAction): FeedState {
         ...state,
         seenUris: new Set(),
         seenUrisAtReset: new Set(),
+      }
+
+    case 'SET_HAS_LOADED':
+      return {
+        ...state,
+        hasLoaded: action.hasLoaded,
       }
 
     default:

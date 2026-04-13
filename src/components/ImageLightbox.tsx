@@ -64,14 +64,16 @@ export default function ImageLightbox({ imageUrl, alt = '', onClose, onPrevious,
     }
   }, [])
 
-  const handleZoomIn = useCallback(() => {
-    setScale((prev) => Math.min(prev * 1.5, 5))
+  const handleZoomIn = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    setScale((prev) => Math.min(prev + 0.5, MAX_SCALE))
   }, [])
 
-  const handleZoomOut = useCallback(() => {
+  const handleZoomOut = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
     setScale((prev) => {
-      const newScale = Math.max(prev / 1.5, 1)
-      if (newScale === 1) {
+      const newScale = Math.max(prev - 0.5, MIN_SCALE)
+      if (newScale <= MIN_SCALE) {
         setPosition({ x: 0, y: 0 })
       }
       return newScale
@@ -290,10 +292,11 @@ export default function ImageLightbox({ imageUrl, alt = '', onClose, onPrevious,
 
   // Handle click on backdrop to close (but not when clicking the image)
   const handleBackdropClick = useCallback((e: React.MouseEvent) => {
-    // Don't close if clicking on the image or image container, or if we just double-tapped
+    // Don't close if clicking on the image or image container
     if (imageContainerRef.current?.contains(e.target as Node)) return
+    // Don't close if we just double-tapped
     if (justDoubleTappedRef.current) return
-    // Close when clicking anywhere else in the lightbox (backdrop, top bar, hint text, etc.)
+    // Close when clicking anywhere else (backdrop, top bar, hint text, etc.)
     onClose()
   }, [onClose])
 
