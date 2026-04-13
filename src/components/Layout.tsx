@@ -2539,6 +2539,9 @@ export default function Layout({ title, children, showNav }: Props) {
                   <p className={styles.aboutIntro}>
                     A Bluesky client focused on art.
                   </p>
+                  <p className={styles.aboutIntro}>
+                    Latest version: {new Date(__GIT_COMMIT_DATE__).toLocaleDateString()} {new Date(__GIT_COMMIT_DATE__).toLocaleTimeString()}
+                  </p>
                   {(() => {
                     const lastUpdateCheck = localStorage.getItem('artsky-last-update-check')
                     if (!lastUpdateCheck) return null

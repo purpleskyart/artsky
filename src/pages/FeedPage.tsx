@@ -291,7 +291,7 @@ export default function FeedPage() {
   const [feedState, dispatch] = useReducer(feedReducer, {
     items: [],
     cursor: undefined,
-    loading: false,
+    loading: true,
     loadingMore: false,
     error: null,
     keyboardFocusIndex: -1,
