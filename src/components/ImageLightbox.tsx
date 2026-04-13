@@ -293,10 +293,10 @@ export default function ImageLightbox({ imageUrl, alt = '', onClose, onPrevious,
   // Handle click on backdrop to close (but not when clicking the image)
   const handleBackdropClick = useCallback((e: React.MouseEvent) => {
     // Don't close if clicking on the image or image container
-    if (imageContainerRef.current?.contains(e.target as Node)) return
+    if (e.target === imageContainerRef.current || imageContainerRef.current?.contains(e.target as Node)) return
     // Don't close if we just double-tapped
     if (justDoubleTappedRef.current) return
-    // Close when clicking anywhere else (backdrop, top bar, hint text, etc.)
+    // Close when clicking anywhere else
     onClose()
   }, [onClose])
 
@@ -313,7 +313,10 @@ export default function ImageLightbox({ imageUrl, alt = '', onClose, onPrevious,
         <button
           type="button"
           className={styles.closeBtn}
-          onClick={onClose}
+          onClick={(e) => {
+            e.stopPropagation()
+            onClose()
+          }}
           aria-label="Close"
         >
           ×
