@@ -21,6 +21,7 @@ import { getPostAppPath } from '../lib/appUrl'
 import { usePostCardGridPointerGate } from '../hooks/usePostCardGridPointerGate'
 import { useLoginModal } from '../context/LoginModalContext'
 import { useFollowOverrides } from '../context/FollowOverridesContext'
+import { useToast } from '../context/ToastContext'
 import ImageLightbox from '../components/ImageLightbox'
 import styles from './PostDetailPage.module.css'
 
