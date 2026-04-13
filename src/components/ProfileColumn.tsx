@@ -132,8 +132,14 @@ function ProfileColumnComponent(props: ProfileColumnProps) {
               onMouseEnter(originalIndex)
               if (!suppressHoverNsfwUnblur && isNsfwBlurred) setUnblurred(item.post.uri, true)
             }}
+            onMouseLeave={() => {
+              if (!suppressHoverNsfwUnblur && unblurredUris.has(item.post.uri)) setUnblurred(item.post.uri, false)
+            }}
             onPointerEnter={() => {
               if (!suppressHoverNsfwUnblur && isNsfwBlurred) setUnblurred(item.post.uri, true)
+            }}
+            onPointerLeave={() => {
+              if (!suppressHoverNsfwUnblur && unblurredUris.has(item.post.uri)) setUnblurred(item.post.uri, false)
             }}
           >
             <VirtualizedCell>
