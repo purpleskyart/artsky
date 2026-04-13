@@ -12,9 +12,11 @@ interface ImageLightboxProps {
   imageUrl: string
   alt?: string
   onClose: () => void
+  onPrevious?: () => void
+  onNext?: () => void
 }
 
-export default function ImageLightbox({ imageUrl, alt = '', onClose }: ImageLightboxProps) {
+export default function ImageLightbox({ imageUrl, alt = '', onClose, onPrevious, onNext }: ImageLightboxProps) {
   const [scale, setScale] = useState(1)
   const [position, setPosition] = useState({ x: 0, y: 0 })
   const [isDragging, setIsDragging] = useState(false)
@@ -30,7 +32,11 @@ export default function ImageLightbox({ imageUrl, alt = '', onClose }: ImageLigh
   const isPinchingRef = useRef(false)
   const lastTouchEndTimeRef = useRef(0)
   const pinchCenterRef = useRef({ x: 0, y: 0 })
-  const recentTapRef = useRef(false)
+  const justDoubleTappedRef = useRef(false)
+  const verticalSwipeStartYRef = useRef(0)
+  const isVerticalSwipingRef = useRef(false)
+  const horizontalSwipeStartXRef = useRef(0)
+  const isHorizontalSwipingRef = useRef(false)
 
   // Reset zoom when image changes
   useEffect(() => {
@@ -140,7 +146,7 @@ export default function ImageLightbox({ imageUrl, alt = '', onClose }: ImageLigh
       isPinchingRef.current = true
       const touch1 = e.touches[0]
       const touch2 = e.touches[1]
-      
+
       // Calculate initial distance and center
       const distance = Math.hypot(
         touch2.clientX - touch1.clientX,
@@ -148,7 +154,7 @@ export default function ImageLightbox({ imageUrl, alt = '', onClose }: ImageLigh
       )
       pinchStartDistanceRef.current = distance
       pinchStartScaleRef.current = scale
-      
+
       // Calculate center point of pinch
       pinchCenterRef.current = {
         x: (touch1.clientX + touch2.clientX) / 2,
@@ -158,6 +164,12 @@ export default function ImageLightbox({ imageUrl, alt = '', onClose }: ImageLigh
       setIsDragging(true)
       dragStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
       positionStartRef.current = { ...position }
+    } else if (scale === 1 && e.touches.length === 1 && !isPinchingRef.current) {
+      // Start swipe detection when zoomed out
+      verticalSwipeStartYRef.current = e.touches[0].clientY
+      horizontalSwipeStartXRef.current = e.touches[0].clientX
+      isVerticalSwipingRef.current = false
+      isHorizontalSwipingRef.current = false
     }
   }, [scale, position])
 
@@ -167,19 +179,19 @@ export default function ImageLightbox({ imageUrl, alt = '', onClose }: ImageLigh
       e.stopPropagation()
       const touch1 = e.touches[0]
       const touch2 = e.touches[1]
-      
+
       const distance = Math.hypot(
         touch2.clientX - touch1.clientX,
         touch2.clientY - touch1.clientY
       )
-      
+
       // Calculate scale based on distance change with dampening
       const scaleDelta = (distance - pinchStartDistanceRef.current) * PINCH_SENSITIVITY
       const newScale = Math.min(
         Math.max(pinchStartScaleRef.current + scaleDelta, MIN_SCALE),
         MAX_SCALE
       )
-      
+
       setScale(newScale)
       if (newScale <= MIN_SCALE) {
         setPosition({ x: 0, y: 0 })
@@ -193,6 +205,20 @@ export default function ImageLightbox({ imageUrl, alt = '', onClose }: ImageLigh
         x: positionStartRef.current.x + deltaX,
         y: positionStartRef.current.y + deltaY,
       })
+    } else if (scale === 1 && e.touches.length === 1 && !isPinchingRef.current) {
+      // Detect swipe direction when zoomed out
+      const deltaX = e.touches[0].clientX - horizontalSwipeStartXRef.current
+      const deltaY = e.touches[0].clientY - verticalSwipeStartYRef.current
+      const SWIPE_THRESHOLD = 50
+
+      // Determine if horizontal or vertical swipe based on which moved more
+      if (!isVerticalSwipingRef.current && !isHorizontalSwipingRef.current) {
+        if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > SWIPE_THRESHOLD) {
+          isHorizontalSwipingRef.current = true
+        } else if (Math.abs(deltaY) > Math.abs(deltaX) && Math.abs(deltaY) > SWIPE_THRESHOLD) {
+          isVerticalSwipingRef.current = true
+        }
+      }
     }
   }, [isDragging, scale])
 
@@ -202,38 +228,67 @@ export default function ImageLightbox({ imageUrl, alt = '', onClose }: ImageLigh
     if (e.touches.length < 2) {
       isPinchingRef.current = false
     }
-    
+
+    // Handle horizontal swipe navigation when zoomed out
+    if (scale === 1 && e.touches.length === 0 && isHorizontalSwipingRef.current) {
+      const deltaX = e.changedTouches[0].clientX - horizontalSwipeStartXRef.current
+      const SWIPE_NAV_THRESHOLD = 100
+      if (Math.abs(deltaX) > SWIPE_NAV_THRESHOLD) {
+        if (deltaX < 0 && onNext) {
+          // Swipe left - next image
+          onNext()
+        } else if (deltaX > 0 && onPrevious) {
+          // Swipe right - previous image
+          onPrevious()
+        }
+      }
+      isHorizontalSwipingRef.current = false
+      isVerticalSwipingRef.current = false
+      return
+    }
+
+    // Handle vertical swipe to close when zoomed out
+    if (scale === 1 && e.touches.length === 0 && isVerticalSwipingRef.current) {
+      const deltaY = e.changedTouches[0].clientY - verticalSwipeStartYRef.current
+      const SWIPE_CLOSE_THRESHOLD = 100
+      if (Math.abs(deltaY) > SWIPE_CLOSE_THRESHOLD) {
+        onClose()
+        isVerticalSwipingRef.current = false
+        return
+      }
+      isVerticalSwipingRef.current = false
+    }
+
     // Handle double tap to zoom
     if (e.touches.length === 0 && !isPinchingRef.current) {
       const now = Date.now()
       const timeSinceLastTouch = now - lastTouchEndTimeRef.current
-      
+
       if (timeSinceLastTouch < 300) {
         // Double tap detected
+        justDoubleTappedRef.current = true
+        setTimeout(() => {
+          justDoubleTappedRef.current = false
+        }, 200)
         if (scale > 1) {
           setScale(1)
           setPosition({ x: 0, y: 0 })
         } else {
           setScale(2.5)
         }
-        recentTapRef.current = false
-      } else {
-        // Single tap - mark as recent to prevent backdrop click interference
-        recentTapRef.current = true
-        setTimeout(() => {
-          recentTapRef.current = false
-        }, 300)
       }
       lastTouchEndTimeRef.current = now
     }
-    
+
     setIsDragging(false)
-  }, [scale])
+  }, [scale, onClose, onNext, onPrevious])
 
   // Handle click on backdrop to close (but not when clicking the image)
   const handleBackdropClick = useCallback((e: React.MouseEvent) => {
-    if (recentTapRef.current) return
-    if (e.target === containerRef.current || e.target === imageContainerRef.current) {
+    // Don't close if clicking on the image or image container, or if we just double-tapped
+    if (imageContainerRef.current?.contains(e.target as Node)) return
+    if (justDoubleTappedRef.current) return
+    if (e.target === containerRef.current) {
       onClose()
     }
   }, [onClose])
@@ -282,7 +337,6 @@ export default function ImageLightbox({ imageUrl, alt = '', onClose }: ImageLigh
       <div
         ref={imageContainerRef}
         className={styles.imageContainer}
-        onClick={handleBackdropClick}
       >
         <img
           ref={imageRef}

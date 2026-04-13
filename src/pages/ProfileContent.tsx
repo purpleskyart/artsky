@@ -1182,7 +1182,6 @@ export default function ProfileContent({
                       { disabled: inModal },
                     )
                   }}
-                  suppressHoverNsfwUnblur={!!inModal}
                   isSelected={(index) => (tab === 'posts' || tab === 'reposts') && index === keyboardFocusIndex}
                   profileAuthorDid={profile?.did}
                   profileAuthorFollowingUri={profile != null ? followingUri ?? null : undefined}

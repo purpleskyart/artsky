@@ -21,7 +21,7 @@
 
 .topBar {
   position: absolute;
-  top: 0;
+  top: 2rem;
   left: 0;
   right: 0;
   display: flex;
@@ -114,7 +114,6 @@
   transition: transform 0.1s ease-out;
   user-select: none;
   -webkit-user-select: none;
-  touch-action: none;
 }
 
 .imageZoomed {
@@ -143,6 +142,7 @@
 /* Mobile adjustments */
 @media (max-width: 767px) {
   .topBar {
+    top: 1.5rem;
     padding: 0.75rem;
   }
 

@@ -1175,12 +1175,33 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
 
   // Image lightbox state
   const [lightboxImage, setLightboxImage] = useState<string | null>(null)
-  const openLightbox = useCallback((url: string) => {
+  const [lightboxIndex, setLightboxIndex] = useState(0)
+  const openLightbox = useCallback((url: string, index?: number) => {
     setLightboxImage(url)
+    if (index !== undefined) setLightboxIndex(index)
   }, [])
   const closeLightbox = useCallback(() => {
     setLightboxImage(null)
+    setLightboxIndex(0)
   }, [])
+  const handleLightboxNext = useCallback(() => {
+    if (thread && isThreadViewPost(thread)) {
+      const media = getPostAllMedia(thread.post, POST_MEDIA_FULL)
+      if (lightboxIndex < media.length - 1) {
+        setLightboxIndex(lightboxIndex + 1)
+        setLightboxImage(media[lightboxIndex + 1].url)
+      }
+    }
+  }, [lightboxIndex, thread])
+  const handleLightboxPrevious = useCallback(() => {
+    if (thread && isThreadViewPost(thread)) {
+      const media = getPostAllMedia(thread.post, POST_MEDIA_FULL)
+      if (lightboxIndex > 0) {
+        setLightboxIndex(lightboxIndex - 1)
+        setLightboxImage(media[lightboxIndex - 1].url)
+      }
+    }
+  }, [lightboxIndex, thread])
 
   useEffect(() => {
     const s = sessionFromContext ?? session
@@ -2948,6 +2969,8 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
         <ImageLightbox
           imageUrl={lightboxImage}
           onClose={closeLightbox}
+          onPrevious={rootMedia.length > 1 ? handleLightboxPrevious : undefined}
+          onNext={rootMedia.length > 1 ? handleLightboxNext : undefined}
         />
       )}
     </div>
