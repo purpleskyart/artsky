@@ -2539,6 +2539,16 @@ export default function Layout({ title, children, showNav }: Props) {
                   <p className={styles.aboutIntro}>
                     A Bluesky client focused on art.
                   </p>
+                  {(() => {
+                    const lastUpdateCheck = localStorage.getItem('artsky-last-update-check')
+                    if (!lastUpdateCheck) return null
+                    const date = new Date(lastUpdateCheck)
+                    return (
+                      <p className={styles.aboutIntro}>
+                        Last update check: {date.toLocaleDateString()} {date.toLocaleTimeString()}
+                      </p>
+                    )
+                  })()}
                   <h3 className={styles.aboutSubtitle}>Keyboard shortcuts</h3>
                   <dl className={styles.aboutShortcuts}>
                     <dt>W / ↑</dt><dd>Move up</dd>
