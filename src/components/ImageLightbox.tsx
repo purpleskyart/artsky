@@ -30,6 +30,7 @@ export default function ImageLightbox({ imageUrl, alt = '', onClose }: ImageLigh
   const isPinchingRef = useRef(false)
   const lastTouchEndTimeRef = useRef(0)
   const pinchCenterRef = useRef({ x: 0, y: 0 })
+  const recentTapRef = useRef(false)
 
   // Reset zoom when image changes
   useEffect(() => {
@@ -133,6 +134,7 @@ export default function ImageLightbox({ imageUrl, alt = '', onClose }: ImageLigh
 
   // Touch handlers for mobile pan and pinch
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    e.stopPropagation()
     if (e.touches.length === 2) {
       // Start pinch gesture
       isPinchingRef.current = true
@@ -162,6 +164,7 @@ export default function ImageLightbox({ imageUrl, alt = '', onClose }: ImageLigh
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
     if (e.touches.length === 2 && isPinchingRef.current) {
       // Handle pinch zoom
+      e.stopPropagation()
       const touch1 = e.touches[0]
       const touch2 = e.touches[1]
       
@@ -183,6 +186,7 @@ export default function ImageLightbox({ imageUrl, alt = '', onClose }: ImageLigh
       }
     } else if (isDragging && scale > 1 && e.touches.length === 1 && !isPinchingRef.current) {
       // Handle pan
+      e.stopPropagation()
       const deltaX = e.touches[0].clientX - dragStartRef.current.x
       const deltaY = e.touches[0].clientY - dragStartRef.current.y
       setPosition({
@@ -193,6 +197,7 @@ export default function ImageLightbox({ imageUrl, alt = '', onClose }: ImageLigh
   }, [isDragging, scale])
 
   const handleTouchEnd = useCallback((e: React.TouchEvent) => {
+    e.stopPropagation()
     // Detect if pinch ended (fewer than 2 touches)
     if (e.touches.length < 2) {
       isPinchingRef.current = false
@@ -211,6 +216,13 @@ export default function ImageLightbox({ imageUrl, alt = '', onClose }: ImageLigh
         } else {
           setScale(2.5)
         }
+        recentTapRef.current = false
+      } else {
+        // Single tap - mark as recent to prevent backdrop click interference
+        recentTapRef.current = true
+        setTimeout(() => {
+          recentTapRef.current = false
+        }, 300)
       }
       lastTouchEndTimeRef.current = now
     }
@@ -220,6 +232,7 @@ export default function ImageLightbox({ imageUrl, alt = '', onClose }: ImageLigh
 
   // Handle click on backdrop to close (but not when clicking the image)
   const handleBackdropClick = useCallback((e: React.MouseEvent) => {
+    if (recentTapRef.current) return
     if (e.target === containerRef.current || e.target === imageContainerRef.current) {
       onClose()
     }

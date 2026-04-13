@@ -8,6 +8,7 @@ import { useLoginModal } from '../context/LoginModalContext'
 import { useArtOnly } from '../context/ArtOnlyContext'
 import { useMediaOnly } from '../context/MediaOnlyContext'
 import { useModeration } from '../context/ModerationContext'
+import { useFollowOverrides } from '../context/FollowOverridesContext'
 import CollectionSaveMenu from './CollectionSaveMenu'
 import { useProfileModal } from '../context/ProfileModalContext'
 import { setInitialPostForUri } from '../lib/postCache'
@@ -149,6 +150,7 @@ function PostCardInner({
   const showArtOnlyCornerActions = artOnly && !minimalist && !feedPreviewActionRow
   const { mediaMode } = useMediaOnly()
   const { openQuotesModal, openPostModal, isModalOpen } = useProfileModal()
+  const { getFollowOverride, setFollowOverride } = useFollowOverrides()
   const location = useLocation()
   const modalScrollRef = useModalScroll()
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -194,6 +196,7 @@ function PostCardInner({
   })()
   const isPinned = reason?.$type === REASON_PIN
   const authorViewer = (post.author as { viewer?: { following?: string } }).viewer
+  const globalFollowOverride = getFollowOverride(post.author.did)
   const initialFollowingUri = useMemo(() => {
     if (
       profileAuthorDid != null &&
@@ -205,7 +208,7 @@ function PostCardInner({
     return authorViewer?.following
   }, [profileAuthorDid, post.author.did, profileAuthorFollowingUri, authorViewer?.following])
   const [followUriOverride, setFollowUriOverride] = useState<string | null>(initialFollowingUri ?? null)
-  const effectiveFollowingUri = followUriOverride ?? initialFollowingUri ?? null
+  const effectiveFollowingUri = globalFollowOverride !== undefined ? globalFollowOverride : (followUriOverride ?? initialFollowingUri ?? null)
   const isFollowingAuthor = !!effectiveFollowingUri
   const isOwnPost = session?.did === post.author.did
   const [followLoading, setFollowLoading] = useState(false)
@@ -302,21 +305,24 @@ function PostCardInner({
     e.preventDefault()
     e.stopPropagation()
     if (followLoading || isOwnPost || !session?.did || isFollowingAuthor) return
-    
+
     // Optimistic update: immediately update UI before API call completes
     setFollowLoading(true)
     const pendingUri = `pending:follow:${post.author.did}:${Date.now()}`
     setFollowUriOverride(pendingUri)
-    
+    setFollowOverride(post.author.did, pendingUri)
+
     try {
       const res = await followAccountWithLifecycle(post.author.did)
       setFollowUriOverride(res.uri)
+      setFollowOverride(post.author.did, res.uri)
       if (profileAuthorDid != null && post.author.did === profileAuthorDid) {
         onProfileAuthorFollowChange?.(res.uri)
       }
     } catch {
       // Revert optimistic update on failure
       setFollowUriOverride(null)
+      setFollowOverride(post.author.did, null)
     } finally {
       setFollowLoading(false)
     }
@@ -328,6 +334,7 @@ function PostCardInner({
     post.author.did,
     profileAuthorDid,
     onProfileAuthorFollowChange,
+    setFollowOverride,
   ])
 
   const handleLikeClick = useCallback(async (e: React.MouseEvent) => {

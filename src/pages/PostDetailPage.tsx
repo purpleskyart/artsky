@@ -20,6 +20,7 @@ import { useProfileModal } from '../context/ProfileModalContext'
 import { getPostAppPath } from '../lib/appUrl'
 import { useLoginModal } from '../context/LoginModalContext'
 import { useToast } from '../context/ToastContext'
+import { useFollowOverrides } from '../context/FollowOverridesContext'
 import ImageLightbox from '../components/ImageLightbox'
 import styles from './PostDetailPage.module.css'
 
@@ -1169,6 +1170,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
   const session = getSession()
   const { session: sessionFromContext, sessionsList, switchAccount } = useSession()
   const toast = useToast()
+  const { setFollowOverride } = useFollowOverrides()
   const [replyAsProfile, setReplyAsProfile] = useState<{ handle: string; avatar?: string } | null>(null)
 
   // Image lightbox state
@@ -1274,6 +1276,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
     try {
       const res = await followAccountWithLifecycle(thread.post.author.did)
       setFollowUriOverride(res.uri)
+      setFollowOverride(thread.post.author.did, res.uri)
       setAuthorFollowed(true)
     } catch {
       // leave button state unchanged so user can retry
@@ -1284,10 +1287,12 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
 
   async function handleUnfollowAuthor() {
     if (!followingUri || followLoading) return
+    if (!thread || !isThreadViewPost(thread)) return
     setFollowLoading(true)
     try {
       await unfollowAccountWithLifecycle(followingUri)
       setFollowUriOverride(null)
+      setFollowOverride(thread.post.author.did, null)
       setAuthorFollowed(false)
       setThread((prev) => {
         if (!prev || !isThreadViewPost(prev)) return prev
