@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "dev:artsky-dev": "VITE_BASE_PATH=/artsky-dev/ VITE_APP_ENV=dev vite --port 5174",
-    "build": "node scripts/generate-app-icons.mjs && node scripts/generate-oauth-metadata.js && tsc -b && vite build && cp dist/index.html dist/404.html",
+    "build": "node scripts/generate-app-icons.mjs > /dev/null && node scripts/generate-oauth-metadata.js > /dev/null && tsc -b && vite build && cp dist/index.html dist/404.html",
     "generate:icons": "node scripts/generate-app-icons.mjs",
     "lint": "eslint .",
     "preview": "vite preview",

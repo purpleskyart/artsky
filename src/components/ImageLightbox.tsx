@@ -12,13 +12,11 @@ interface ImageLightboxProps {
   imageUrl: string
   alt?: string
   onClose: () => void
-  currentIndex?: number
-  totalImages?: number
   onPrevious?: () => void
   onNext?: () => void
 }
 
-export default function ImageLightbox({ imageUrl, alt = '', onClose, currentIndex = 0, totalImages = 1, onPrevious, onNext }: ImageLightboxProps) {
+export default function ImageLightbox({ imageUrl, alt = '', onClose, onPrevious, onNext }: ImageLightboxProps) {
   const [scale, setScale] = useState(1)
   const [position, setPosition] = useState({ x: 0, y: 0 })
   const [isDragging, setIsDragging] = useState(false)
