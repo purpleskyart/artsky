@@ -18,6 +18,7 @@ import { useViewMode, type ViewMode } from '../context/ViewModeContext'
 import { useModeration, type NsfwPreference } from '../context/ModerationContext'
 import { useHideReposts } from '../context/HideRepostsContext'
 import { useLikeOverrides } from '../context/LikeOverridesContext'
+import { useFollowOverrides } from '../context/FollowOverridesContext'
 import { EyeOpenIcon, EyeHalfIcon, EyeClosedIcon } from '../components/Icons'
 import { useColumnCount } from '../hooks/useViewportWidth'
 import { usePostCardGridPointerGate } from '../hooks/usePostCardGridPointerGate'
@@ -230,6 +231,7 @@ export default function ProfileContent({
   const [followeesWhoFollowPreview, setFolloweesWhoFollowPreview] = useState<ProfileViewBasic[] | null>(null)
   const [, setFolloweesWhoFollowLoading] = useState(false)
   const { likeOverrides, setLikeOverride } = useLikeOverrides()
+  const { setFollowOverride } = useFollowOverrides()
   // openPostModal and isModalOpen are now passed as props to avoid circular dependency
   const modalScrollRef = useModalScroll()
   const gridRef = useRef<HTMLDivElement | null>(null)
@@ -752,6 +754,7 @@ export default function ProfileContent({
       const res = await followAccountWithLifecycle(profile.did)
       profileFetchGenRef.current += 1
       setFollowUriOverride(res.uri)
+      setFollowOverride(profile.did, res.uri)
     } catch {
       // leave state unchanged so user can retry
     } finally {
@@ -766,6 +769,7 @@ export default function ProfileContent({
       await unfollowAccountWithLifecycle(followingUri)
       profileFetchGenRef.current += 1
       setFollowUriOverride(null)
+      setFollowOverride(profile!.did, null)
       setProfile((prev) =>
         prev ? { ...prev, viewer: { ...prev.viewer, following: undefined } } : null,
       )
