@@ -298,6 +298,7 @@ export default function FeedPage() {
     actionsMenuOpenForIndex: null,
     seenUris: loadSeenUris(),
     seenUrisAtReset: new Set(),
+    hasLoaded: false,
   } as FeedState)
   
   /** One sentinel per column so we load more when the user nears the bottom of any column (avoids blank space in short columns). */
@@ -610,6 +611,7 @@ export default function FeedPage() {
       /* Only clear for the latest non-aborted initial load; stale aborted requests must not reset this flag. */
       if (!nextCursor && !signal?.aborted && feedMixChangedVersionRef.current === changeVersionAtStart) {
         feedMixChangedRef.current = false
+        dispatch({ type: 'SET_HAS_LOADED', hasLoaded: true })
       }
     }
   }, [source, session, authResolved, mixEntries, mixTotalPercent, cols])
@@ -1398,7 +1400,7 @@ export default function FeedPage() {
           className={styles.feedContentTransition}
         >
         {feedState.error && <p className={styles.error}>{feedState.error}</p>}
-        {!authResolved || feedState.loading ? (
+        {!authResolved || feedState.loading || !feedState.hasLoaded ? (
           <div className={styles.loading}>Loading…</div>
         ) : displayEntries.length === 0 ? (
           <div className={styles.empty}>
