@@ -2969,8 +2969,6 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
         <ImageLightbox
           imageUrl={lightboxImage}
           onClose={closeLightbox}
-          currentIndex={lightboxIndex}
-          totalImages={rootMedia.length}
           onPrevious={rootMedia.length > 1 ? handleLightboxPrevious : undefined}
           onNext={rootMedia.length > 1 ? handleLightboxNext : undefined}
         />
