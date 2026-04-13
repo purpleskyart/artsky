@@ -7,6 +7,7 @@ import { useProfileModal } from '../context/ProfileModalContext'
 import { useLikeOverrides } from '../context/LikeOverridesContext'
 import { useModeration } from '../context/ModerationContext'
 import { useModalScroll } from '../context/ModalScrollContext'
+import { usePostCardGridPointerGate } from '../hooks/usePostCardGridPointerGate'
 import styles from './QuotesModal.module.css'
 import profileGridStyles from '../pages/ProfilePage.module.css'
 
@@ -30,8 +31,12 @@ export default function QuotesModal({ postUri, onClose, onBack, canGoBack, onDes
   const [error, setError] = useState<string | null>(null)
   const [refreshFn, setRefreshFn] = useState<(() => void | Promise<void>) | null>(null)
   const { likeOverrides, setLikeOverride } = useLikeOverrides()
+  const [keyboardFocusIndex, setKeyboardFocusIndex] = useState(0)
+  const keyboardFocusIndexRef = useRef(0)
+  const cardRefsRef = useRef<(HTMLDivElement | null)[]>([])
   const loadMoreSentinelRef = useRef<HTMLDivElement>(null)
   const modalScrollRef = useModalScroll()
+  const { beginKeyboardNavigation, tryHoverSelectCard, gridPointerGateProps } = usePostCardGridPointerGate()
 
   const load = useCallback(
     async (nextCursor?: string) => {
@@ -78,6 +83,52 @@ export default function QuotesModal({ postUri, onClose, onBack, canGoBack, onDes
     return () => obs.disconnect()
   }, [cursor, loadingMore, load])
 
+  // Keyboard navigation for quotes grid
+  useEffect(() => {
+    keyboardFocusIndexRef.current = keyboardFocusIndex
+  }, [keyboardFocusIndex])
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable) {
+        if (e.key === 'Escape') {
+          e.preventDefault()
+          target.blur()
+        }
+        return
+      }
+      if (e.ctrlKey || e.metaKey) return
+      const key = e.key.toLowerCase()
+      const i = keyboardFocusIndexRef.current
+      const fromNone = i < 0
+
+      if (key === 'w' || e.key === 'ArrowUp') {
+        if (fromNone) return
+        e.preventDefault()
+        beginKeyboardNavigation()
+        setKeyboardFocusIndex((idx) => Math.max(0, idx - 1))
+        return
+      }
+      if (key === 's' || e.key === 'ArrowDown') {
+        if (fromNone) return
+        e.preventDefault()
+        beginKeyboardNavigation()
+        setKeyboardFocusIndex((idx) => Math.min(items.length - 1, idx + 1))
+        return
+      }
+      if (key === 'e' || key === 'enter') {
+        if (fromNone || i >= items.length) return
+        e.preventDefault()
+        const item = items[i]
+        if (item) openPostModal(item.post.uri)
+        return
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [beginKeyboardNavigation, items.length, openPostModal])
+
   return (
     <AppModal
       ariaLabel="Posts that quote this post"
@@ -90,7 +141,7 @@ export default function QuotesModal({ postUri, onClose, onBack, canGoBack, onDes
       isTopModal={isTopModal}
       stackIndex={stackIndex}
     >
-      <div className={styles.wrap}>
+      <div className={styles.wrap} {...gridPointerGateProps}>
         {error && <p className={styles.error}>{error}</p>}
         {loading ? (
           <div className={styles.loading}>Loading…</div>
@@ -105,7 +156,7 @@ export default function QuotesModal({ postUri, onClose, onBack, canGoBack, onDes
                 scrollRef={modalScrollRef}
                 loadMoreSentinelRef={cursor ? (el) => { (loadMoreSentinelRef as unknown as { current: HTMLDivElement | null }).current = el } : undefined}
                 hasCursor={!!cursor}
-                keyboardFocusIndex={0}
+                keyboardFocusIndex={keyboardFocusIndex}
                 actionsMenuOpenForIndex={null}
                 nsfwPreference={nsfwPreference}
                 unblurredUris={unblurredUris}
@@ -113,11 +164,18 @@ export default function QuotesModal({ postUri, onClose, onBack, canGoBack, onDes
                 likeOverrides={likeOverrides}
                 setLikeOverrides={setLikeOverride}
                 openPostModal={openPostModal}
-                cardRef={() => () => {}}
+                cardRef={(index) => (el) => { cardRefsRef.current[index] = el }}
                 onActionsMenuOpenChange={() => {}}
-                onMouseEnter={() => {}}
+                onMouseEnter={(originalIndex) =>
+                  tryHoverSelectCard(
+                    originalIndex,
+                    () => keyboardFocusIndexRef.current,
+                    (idx) => setKeyboardFocusIndex(idx),
+                    { disabled: true }
+                  )
+                }
                 suppressHoverNsfwUnblur
-                isSelected={() => false}
+                isSelected={(index) => index === keyboardFocusIndex}
               />
             </div>
             {loadingMore && <div className={styles.loadingMore}>Loading more…</div>}

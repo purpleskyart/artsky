@@ -18,9 +18,10 @@ import ComposerSuggestions from '../components/ComposerSuggestions'
 import CharacterCountWithCircle from '../components/CharacterCountWithCircle'
 import { useProfileModal } from '../context/ProfileModalContext'
 import { getPostAppPath } from '../lib/appUrl'
+import { usePostCardGridPointerGate } from '../hooks/usePostCardGridPointerGate'
 import { useLoginModal } from '../context/LoginModalContext'
-import { useToast } from '../context/ToastContext'
 import { useFollowOverrides } from '../context/FollowOverridesContext'
+import { useToast } from '../context/ToastContext'
 import ImageLightbox from '../components/ImageLightbox'
 import styles from './PostDetailPage.module.css'
 
@@ -1111,6 +1112,7 @@ export interface PostDetailContentProps {
 export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocusedCommentUri, onClose, onAuthorHandle, onRegisterRefresh }: PostDetailContentProps) {
   const navigate = useNavigate()
   const { openProfileModal, openPostModal, openQuotesModal } = useProfileModal()
+  const { beginKeyboardNavigation, tryHoverSelectCard, gridPointerGateProps } = usePostCardGridPointerGate()
   const isDesktop = useSyncExternalStore(subscribeDesktop, getDesktopSnapshot, () => false)
   const decodedUri = uriProp
   const [thread, setThread] = useState<
@@ -1872,15 +1874,29 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
   const handleParentPostHover = useCallback(() => {
     if (!onClose) {
       const idx = focusItems.findIndex((it) => it.type === 'parentPost')
-      if (idx >= 0) setKeyboardFocusIndex(idx)
+      tryHoverSelectCard(
+        idx,
+        () => keyboardFocusIndexRef.current,
+        (cardIndex) => {
+          if (cardIndex >= 0) setKeyboardFocusIndex(cardIndex)
+        },
+        { applyOnTouch: false },
+      )
     }
-  }, [focusItems, onClose])
+  }, [focusItems, onClose, tryHoverSelectCard])
   const handleQuotedPostHover = useCallback(() => {
     if (!onClose) {
       const idx = focusItems.findIndex((it) => it.type === 'quotedPost')
-      if (idx >= 0) setKeyboardFocusIndex(idx)
+      tryHoverSelectCard(
+        idx,
+        () => keyboardFocusIndexRef.current,
+        (cardIndex) => {
+          if (cardIndex >= 0) setKeyboardFocusIndex(cardIndex)
+        },
+        { applyOnTouch: false },
+      )
     }
-  }, [focusItems, onClose])
+  }, [focusItems, onClose, tryHoverSelectCard])
   const postUri = thread && isThreadViewPost(thread) ? thread.post.uri : null
   useEffect(() => {
     if (thread && isThreadViewPost(thread) && onAuthorHandle) {
@@ -2004,6 +2020,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
       const isTopLevelNext = key === 'd'
       if (!isStepPrev && !isStepNext && !isTopLevelPrev && !isTopLevelNext) return
       if (!thread || !isThreadViewPost(thread)) return
+      beginKeyboardNavigation()
 
       const totalItems = focusItems.length
       if (totalItems <= 0) return
@@ -2222,7 +2239,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
     thread && isThreadViewPost(thread) ? getPostAllMedia(thread.post, POST_MEDIA_FULL) : []
 
   const content = (
-      <div className={`${styles.wrap}${onClose ? ` ${styles.wrapInModal}` : ''}${loading ? ` ${styles.wrapLoading}` : ''}`}>
+      <div className={`${styles.wrap}${onClose ? ` ${styles.wrapInModal}` : ''}${loading ? ` ${styles.wrapLoading}` : ''}`} {...gridPointerGateProps}>
         {loading && !thread && <div className={styles.loading} aria-live="polite">Loading…</div>}
         {error && <p className={styles.error}>{error}</p>}
         {thread && isThreadViewPost(thread) && (

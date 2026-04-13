@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
   getTotalStorageUsage,
   clearImageCache,
@@ -6,19 +6,7 @@ import {
   formatBytes,
   type CacheUsage,
 } from '../lib/storageUtils'
-import { useProfileModal } from '../context/ProfileModalContext'
 import styles from './Layout.module.css'
-
-const MOBILE_BREAKPOINT = 768
-function subscribeMobile(cb: () => void) {
-  if (typeof window === 'undefined') return () => {}
-  const mq = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`)
-  mq.addEventListener('change', cb)
-  return () => mq.removeEventListener('change', cb)
-}
-function getMobileSnapshot() {
-  return typeof window !== 'undefined' ? window.innerWidth < MOBILE_BREAKPOINT : false
-}
 
 interface Props {
   onClose: () => void
@@ -27,8 +15,6 @@ interface Props {
 }
 
 export default function SettingsModal({ onClose, showToast, onLocalDataCleared }: Props) {
-  const { closeAllModals } = useProfileModal()
-  const isMobile = useSyncExternalStore(subscribeMobile, getMobileSnapshot, () => false)
   const [loading, setLoading] = useState(true)
   const [storage, setStorage] = useState<{
     localStorageBytes: number
@@ -96,6 +82,8 @@ export default function SettingsModal({ onClose, showToast, onLocalDataCleared }
         return
       }
       await reg.update()
+      // Store the last update check timestamp
+      localStorage.setItem('artsky-last-update-check', new Date().toISOString())
       if (reg.waiting) {
         showToast('Update available. Refresh to apply.')
       } else {
@@ -120,14 +108,14 @@ export default function SettingsModal({ onClose, showToast, onLocalDataCleared }
     <>
       <div
         className={styles.searchOverlayBackdrop}
-        onClick={isMobile ? onClose : closeAllModals}
+        onClick={onClose}
         aria-hidden
       />
       <div
         className={styles.settingsOverlay}
         role="dialog"
         aria-label="Storage & Cache"
-        onClick={isMobile ? onClose : closeAllModals}
+        onClick={onClose}
       >
         <div
           className={styles.settingsCard}
