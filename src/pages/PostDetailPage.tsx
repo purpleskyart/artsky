@@ -1112,7 +1112,7 @@ export interface PostDetailContentProps {
 export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocusedCommentUri, onClose, onAuthorHandle, onRegisterRefresh }: PostDetailContentProps) {
   const navigate = useNavigate()
   const { openProfileModal, openPostModal, openQuotesModal } = useProfileModal()
-  const { beginKeyboardNavigation, tryHoverSelectCard, gridPointerGateProps } = usePostCardGridPointerGate()
+  const { beginKeyboardNavigation, gridPointerGateProps } = usePostCardGridPointerGate()
   const isDesktop = useSyncExternalStore(subscribeDesktop, getDesktopSnapshot, () => false)
   const decodedUri = uriProp
   const [thread, setThread] = useState<
@@ -1874,29 +1874,25 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
   const handleParentPostHover = useCallback(() => {
     if (!onClose) {
       const idx = focusItems.findIndex((it) => it.type === 'parentPost')
-      tryHoverSelectCard(
-        idx,
-        () => keyboardFocusIndexRef.current,
-        (cardIndex) => {
-          if (cardIndex >= 0) setKeyboardFocusIndex(cardIndex)
-        },
-        { applyOnTouch: false },
-      )
+      if (idx >= 0) {
+        setKeyboardFocusIndex(idx)
+        requestAnimationFrame(() => {
+          parentPostCardRef.current?.focus()
+        })
+      }
     }
-  }, [focusItems, onClose, tryHoverSelectCard])
+  }, [focusItems, onClose])
   const handleQuotedPostHover = useCallback(() => {
     if (!onClose) {
       const idx = focusItems.findIndex((it) => it.type === 'quotedPost')
-      tryHoverSelectCard(
-        idx,
-        () => keyboardFocusIndexRef.current,
-        (cardIndex) => {
-          if (cardIndex >= 0) setKeyboardFocusIndex(cardIndex)
-        },
-        { applyOnTouch: false },
-      )
+      if (idx >= 0) {
+        setKeyboardFocusIndex(idx)
+        requestAnimationFrame(() => {
+          quotedPostCardRef.current?.focus()
+        })
+      }
     }
-  }, [focusItems, onClose, tryHoverSelectCard])
+  }, [focusItems, onClose])
   const postUri = thread && isThreadViewPost(thread) ? thread.post.uri : null
   useEffect(() => {
     if (thread && isThreadViewPost(thread) && onAuthorHandle) {
