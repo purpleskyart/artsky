@@ -1112,7 +1112,7 @@ export interface PostDetailContentProps {
 export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocusedCommentUri, onClose, onAuthorHandle, onRegisterRefresh }: PostDetailContentProps) {
   const navigate = useNavigate()
   const { openProfileModal, openPostModal, openQuotesModal } = useProfileModal()
-  const { beginKeyboardNavigation, tryHoverSelectCard, gridPointerGateProps } = usePostCardGridPointerGate()
+  const { beginKeyboardNavigation, gridPointerGateProps } = usePostCardGridPointerGate()
   const isDesktop = useSyncExternalStore(subscribeDesktop, getDesktopSnapshot, () => false)
   const decodedUri = uriProp
   const [thread, setThread] = useState<
