@@ -208,6 +208,15 @@
   border-color: var(--accent);
 }
 
+/* Desktop: purple border on focused preview cards (parent/quote posts) */
+@media (hover: hover) {
+  .quotedPostCard:focus {
+    outline: 2px solid #a855f7;
+    outline-offset: 2px;
+    border-color: var(--accent);
+  }
+}
+
 .quotedPostHead {
   display: flex;
   flex-wrap: wrap;
