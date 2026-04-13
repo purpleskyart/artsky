@@ -229,6 +229,32 @@ export default function ImageLightbox({ imageUrl, alt = '', onClose, onPrevious,
       isPinchingRef.current = false
     }
 
+    // Handle double tap to zoom (check before swipe handling)
+    if (e.touches.length === 0 && !isPinchingRef.current) {
+      const now = Date.now()
+      const timeSinceLastTouch = now - lastTouchEndTimeRef.current
+
+      if (timeSinceLastTouch < 300) {
+        // Double tap detected - reset swipe flags to prevent interference
+        isHorizontalSwipingRef.current = false
+        isVerticalSwipingRef.current = false
+        justDoubleTappedRef.current = true
+        setTimeout(() => {
+          justDoubleTappedRef.current = false
+        }, 200)
+        if (scale > 1) {
+          setScale(1)
+          setPosition({ x: 0, y: 0 })
+        } else {
+          setScale(2.5)
+        }
+        lastTouchEndTimeRef.current = now
+        setIsDragging(false)
+        return
+      }
+      lastTouchEndTimeRef.current = now
+    }
+
     // Handle horizontal swipe navigation when zoomed out
     if (scale === 1 && e.touches.length === 0 && isHorizontalSwipingRef.current) {
       const deltaX = e.changedTouches[0].clientX - horizontalSwipeStartXRef.current
@@ -259,27 +285,6 @@ export default function ImageLightbox({ imageUrl, alt = '', onClose, onPrevious,
       isVerticalSwipingRef.current = false
     }
 
-    // Handle double tap to zoom
-    if (e.touches.length === 0 && !isPinchingRef.current) {
-      const now = Date.now()
-      const timeSinceLastTouch = now - lastTouchEndTimeRef.current
-
-      if (timeSinceLastTouch < 300) {
-        // Double tap detected
-        justDoubleTappedRef.current = true
-        setTimeout(() => {
-          justDoubleTappedRef.current = false
-        }, 200)
-        if (scale > 1) {
-          setScale(1)
-          setPosition({ x: 0, y: 0 })
-        } else {
-          setScale(2.5)
-        }
-      }
-      lastTouchEndTimeRef.current = now
-    }
-
     setIsDragging(false)
   }, [scale, onClose, onNext, onPrevious])
 
@@ -288,9 +293,8 @@ export default function ImageLightbox({ imageUrl, alt = '', onClose, onPrevious,
     // Don't close if clicking on the image or image container, or if we just double-tapped
     if (imageContainerRef.current?.contains(e.target as Node)) return
     if (justDoubleTappedRef.current) return
-    if (e.target === containerRef.current) {
-      onClose()
-    }
+    // Close when clicking anywhere else in the lightbox (backdrop, top bar, hint text, etc.)
+    onClose()
   }, [onClose])
 
   return createPortal(

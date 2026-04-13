@@ -1133,6 +1133,8 @@ export default function ProfileContent({
               })}
             </ul>
           )
+        ) : loading ? (
+          <div className={styles.loading}>Loading…</div>
         ) : mediaItems.length === 0 ? (
           <div className={styles.empty}>
             {tab === 'posts'
