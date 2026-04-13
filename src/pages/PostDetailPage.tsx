@@ -1153,6 +1153,8 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
   const commentFormWrapRef = useRef<HTMLDivElement>(null)
   const mediaSectionRef = useRef<HTMLDivElement>(null)
   const descriptionSectionRef = useRef<HTMLDivElement>(null)
+  const parentPostCardRef = useRef<HTMLDivElement>(null)
+  const quotedPostCardRef = useRef<HTMLDivElement>(null)
   const commentsSectionRef = useRef<HTMLDivElement>(null)
   const downvoteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   /** Invalidates in-flight load() when URI changes or the effect cleans up — avoids wrong thread after rapid post switches. */
@@ -1825,11 +1827,19 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
   threadRepliesFlatRef.current = threadRepliesFlat
   keyboardFocusIndexRef.current = keyboardFocusIndex
 
-  type FocusItem = { type: 'rootMedia'; index: number } | { type: 'description' } | { type: 'commentMedia'; commentUri: string; mediaIndex: number } | { type: 'comment'; commentUri: string } | { type: 'replyForm' }
+  type FocusItem = { type: 'rootMedia'; index: number } | { type: 'description' } | { type: 'parentPost' } | { type: 'quotedPost' } | { type: 'commentMedia'; commentUri: string; mediaIndex: number } | { type: 'comment'; commentUri: string } | { type: 'replyForm' }
   const focusItems = useMemo((): FocusItem[] => {
     const items: FocusItem[] = []
     for (let i = 0; i < rootMediaForNav.length; i++) items.push({ type: 'rootMedia', index: i })
     items.push({ type: 'description' })
+    // Add parent post preview card if it exists
+    if (thread && 'parent' in thread && thread.parent && isThreadViewPost(thread.parent)) {
+      items.push({ type: 'parentPost' })
+    }
+    // Add quoted post preview card if it exists
+    if (thread && isThreadViewPost(thread) && getQuotedPostView(thread.post)) {
+      items.push({ type: 'quotedPost' })
+    }
     for (const flat of threadRepliesFlat) {
       const node = findReplyByUri(threadRepliesVisible, flat.uri)
       const media = node ? getPostAllMedia(node.post, POST_MEDIA_FULL) : []
@@ -1838,7 +1848,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
     }
     items.push({ type: 'replyForm' })
     return items
-  }, [rootMediaForNav.length, threadRepliesFlat, threadRepliesVisible])
+  }, [rootMediaForNav.length, threadRepliesFlat, threadRepliesVisible, thread])
 
   /** First keyboard focus index for each top-level comment (media slots, then body, per focusItems order). */
   const topLevelCommentFirstFocusIndices = useMemo(() => {
@@ -1859,6 +1869,18 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
       if (commentIdx >= 0) setFocusedCommentIndex(commentIdx)
     }
   }, [focusItems, threadRepliesFlat])
+  const handleParentPostHover = useCallback(() => {
+    if (!onClose) {
+      const idx = focusItems.findIndex((it) => it.type === 'parentPost')
+      if (idx >= 0) setKeyboardFocusIndex(idx)
+    }
+  }, [focusItems, onClose])
+  const handleQuotedPostHover = useCallback(() => {
+    if (!onClose) {
+      const idx = focusItems.findIndex((it) => it.type === 'quotedPost')
+      if (idx >= 0) setKeyboardFocusIndex(idx)
+    }
+  }, [focusItems, onClose])
   const postUri = thread && isThreadViewPost(thread) ? thread.post.uri : null
   useEffect(() => {
     if (thread && isThreadViewPost(thread) && onAuthorHandle) {
@@ -2007,6 +2029,20 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
           requestAnimationFrame(() => {
             descriptionSectionRef.current?.focus()
             descriptionSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          })
+        } else if (item.type === 'parentPost') {
+          setPostSectionIndex(hasMediaSection ? 1 : 0)
+          setFocusedCommentIndex(0)
+          requestAnimationFrame(() => {
+            parentPostCardRef.current?.focus()
+            parentPostCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          })
+        } else if (item.type === 'quotedPost') {
+          setPostSectionIndex(hasMediaSection ? 1 : 0)
+          setFocusedCommentIndex(0)
+          requestAnimationFrame(() => {
+            quotedPostCardRef.current?.focus()
+            quotedPostCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
           })
         } else if (item.type === 'commentMedia') {
           setPostSectionIndex(postSectionCount - 1)
@@ -2231,11 +2267,13 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                     <div className={styles.parentPostWrap}>
                       <p className={styles.quotedPostLabel}>Replying to</p>
                       <div
+                        ref={parentPostCardRef}
                         className={styles.quotedPostCard}
                         role="button"
                         tabIndex={0}
                         aria-label={`Open post by @${parentHandle}`}
                         onClick={openParentPost}
+                        onMouseEnter={handleParentPostHover}
                         onKeyDown={(e) => {
                           if (e.key !== 'Enter' && e.key !== ' ') return
                           e.preventDefault()
@@ -2395,6 +2433,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                     <div className={styles.quotedPostWrap}>
                       <p className={styles.quotedPostLabel}>Quoting</p>
                       <div
+                        ref={quotedPostCardRef}
                         className={styles.quotedPostCard}
                         role="button"
                         tabIndex={0}
@@ -2403,6 +2442,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                           e.stopPropagation()
                           openQuotedPost()
                         }}
+                        onMouseEnter={handleQuotedPostHover}
                         onKeyDown={(e) => {
                           if (e.key !== 'Enter' && e.key !== ' ') return
                           e.preventDefault()

@@ -7,7 +7,6 @@ import { useProfileModal } from '../context/ProfileModalContext'
 import { useLikeOverrides } from '../context/LikeOverridesContext'
 import { useModeration } from '../context/ModerationContext'
 import { useModalScroll } from '../context/ModalScrollContext'
-import { usePostCardGridPointerGate } from '../hooks/usePostCardGridPointerGate'
 import styles from './QuotesModal.module.css'
 import profileGridStyles from '../pages/ProfilePage.module.css'
 
@@ -31,14 +30,8 @@ export default function QuotesModal({ postUri, onClose, onBack, canGoBack, onDes
   const [error, setError] = useState<string | null>(null)
   const [refreshFn, setRefreshFn] = useState<(() => void | Promise<void>) | null>(null)
   const { likeOverrides, setLikeOverride } = useLikeOverrides()
-  const [keyboardFocusIndex, setKeyboardFocusIndex] = useState(0)
-  const cardRefsRef = useRef<(HTMLDivElement | null)[]>([])
-  const keyboardFocusIndexRef = useRef(0)
-  const itemsRef = useRef<TimelineItem[]>([])
-  const scrollIntoViewFromKeyboardRef = useRef(false)
   const loadMoreSentinelRef = useRef<HTMLDivElement>(null)
   const modalScrollRef = useModalScroll()
-  const { beginKeyboardNavigation, tryHoverSelectCard, gridPointerGateProps } = usePostCardGridPointerGate()
 
   const load = useCallback(
     async (nextCursor?: string) => {
@@ -69,63 +62,6 @@ export default function QuotesModal({ postUri, onClose, onBack, canGoBack, onDes
   useEffect(() => {
     setRefreshFn(() => () => load())
   }, [load])
-
-  itemsRef.current = items
-  keyboardFocusIndexRef.current = keyboardFocusIndex
-
-  useEffect(() => {
-    setKeyboardFocusIndex((i) => (items.length ? Math.min(i, items.length - 1) : 0))
-  }, [items.length])
-
-  useEffect(() => {
-    if (!scrollIntoViewFromKeyboardRef.current) return
-    scrollIntoViewFromKeyboardRef.current = false
-    const index = keyboardFocusIndex
-    const raf = requestAnimationFrame(() => {
-      const el = cardRefsRef.current[index]
-      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' })
-    })
-    return () => cancelAnimationFrame(raf)
-  }, [keyboardFocusIndex])
-
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable) {
-        if (e.key === 'Escape') {
-          e.preventDefault()
-          target.blur()
-        }
-        return
-      }
-      if (e.ctrlKey || e.metaKey) return
-      if (items.length === 0) return
-
-      const i = keyboardFocusIndexRef.current
-      const key = e.key.toLowerCase()
-      if (key === 'w' || key === 's' || key === 'e' || key === 'enter' || e.key === 'ArrowUp' || e.key === 'ArrowDown') e.preventDefault()
-
-      if (key === 'w' || e.key === 'ArrowUp') {
-        beginKeyboardNavigation()
-        scrollIntoViewFromKeyboardRef.current = true
-        setKeyboardFocusIndex((idx) => Math.max(0, idx - 1))
-        return
-      }
-      if (key === 's' || e.key === 'ArrowDown') {
-        beginKeyboardNavigation()
-        scrollIntoViewFromKeyboardRef.current = true
-        setKeyboardFocusIndex((idx) => Math.min(items.length - 1, idx + 1))
-        return
-      }
-      if (key === 'e' || key === 'enter') {
-        const item = itemsRef.current[i]
-        if (item) openPostModal(item.post.uri, undefined, undefined, item.post.author?.handle)
-        return
-      }
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [beginKeyboardNavigation, items.length, openPostModal])
 
   useEffect(() => {
     if (!cursor || loadingMore) return
@@ -162,17 +98,14 @@ export default function QuotesModal({ postUri, onClose, onBack, canGoBack, onDes
           <div className={styles.empty}>No one has quoted this post yet.</div>
         ) : (
           <>
-            <div
-              className={`${profileGridStyles.gridColumns} ${profileGridStyles.gridView1}`}
-              {...gridPointerGateProps}
-            >
+            <div className={`${profileGridStyles.gridColumns} ${profileGridStyles.gridView1}`}>
               <ProfileColumn
                 column={items.map((item, i) => ({ item, originalIndex: i }))}
                 colIndex={0}
                 scrollRef={modalScrollRef}
                 loadMoreSentinelRef={cursor ? (el) => { (loadMoreSentinelRef as unknown as { current: HTMLDivElement | null }).current = el } : undefined}
                 hasCursor={!!cursor}
-                keyboardFocusIndex={keyboardFocusIndex}
+                keyboardFocusIndex={0}
                 actionsMenuOpenForIndex={null}
                 nsfwPreference={nsfwPreference}
                 unblurredUris={unblurredUris}
@@ -180,17 +113,11 @@ export default function QuotesModal({ postUri, onClose, onBack, canGoBack, onDes
                 likeOverrides={likeOverrides}
                 setLikeOverrides={setLikeOverride}
                 openPostModal={openPostModal}
-                cardRef={(index) => (el) => { cardRefsRef.current[index] = el }}
+                cardRef={() => () => {}}
                 onActionsMenuOpenChange={() => {}}
-                onMouseEnter={(originalIndex) =>
-                  tryHoverSelectCard(
-                    originalIndex,
-                    () => keyboardFocusIndexRef.current,
-                    (idx) => setKeyboardFocusIndex(idx),
-                    { disabled: false }
-                  )
-                }
-                isSelected={(index) => index === keyboardFocusIndex}
+                onMouseEnter={() => {}}
+                suppressHoverNsfwUnblur
+                isSelected={() => false}
               />
             </div>
             {loadingMore && <div className={styles.loadingMore}>Loading more…</div>}
