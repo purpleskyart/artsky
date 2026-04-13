@@ -389,7 +389,6 @@ export function SearchModalGridContent({
                     { disabled: inModal }
                   )
                 }
-                suppressHoverNsfwUnblur={inModal}
                 isSelected={(index) => index === keyboardFocusIndex}
               />
             ))}
