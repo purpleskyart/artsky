@@ -1287,11 +1287,12 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
 
   async function handleUnfollowAuthor() {
     if (!followingUri || followLoading) return
+    if (!thread || !isThreadViewPost(thread)) return
     setFollowLoading(true)
     try {
       await unfollowAccountWithLifecycle(followingUri)
       setFollowUriOverride(null)
-      setFollowOverride(thread!.post.author.did, null)
+      setFollowOverride(thread.post.author.did, null)
       setAuthorFollowed(false)
       setThread((prev) => {
         if (!prev || !isThreadViewPost(prev)) return prev
