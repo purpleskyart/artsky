@@ -76,10 +76,10 @@ export function webpImageUrl(originalUrl: string | undefined | null, width?: num
 export function getProgressiveImageDefaults(): { sizes: number[]; preloadDistance: number } {
   const nav = typeof navigator !== 'undefined' ? navigator : undefined
   if (nav && (nav as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData) {
-    return { sizes: [320, 480, 640], preloadDistance: 400 }
+    return { sizes: [320, 480, 640], preloadDistance: 800 }
   }
   if (typeof window !== 'undefined' && window.innerWidth > 0 && window.innerWidth < 720) {
-    return { sizes: [320, 480, 640, 960], preloadDistance: 600 }
+    return { sizes: [320, 480, 640, 960], preloadDistance: 1200 }
   }
-  return { sizes: [320, 640, 960, 1280], preloadDistance: 900 }
+  return { sizes: [320, 640, 960, 1280], preloadDistance: 1600 }
 }

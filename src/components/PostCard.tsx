@@ -159,9 +159,10 @@ function PostCardInner({
   const videoPlayInViewRef = useRef(false)
   const [videoPreloadInRange, setVideoPreloadInRange] = useState(false)
   const { post, reason } = item as { post: typeof item.post; reason?: { $type?: string; by?: { handle?: string; did?: string } } }
-  const feedSource = (item as { _feedSource?: { kind?: string; label?: string; uri?: string } })._feedSource
+  const feedSource = (item as { _feedSource?: { kind?: string; label?: string; uri?: string; acceptsInteractions?: boolean } })._feedSource
   const feedLabel = feedSource?.label ?? (feedSource?.kind === 'timeline' ? 'Following' : undefined)
   const feedUri = feedSource?.uri
+  const feedAcceptsInteractions = feedSource?.acceptsInteractions
   const replyParentPost = getReplyParentPostView(item)
   const replyParentHandle = replyParentPost
     ? (replyParentPost.author.handle ?? replyParentPost.author.did)
@@ -702,6 +703,12 @@ function PostCardInner({
       e.stopPropagation()
       return
     }
+    /* Skip navigation if click originated from a ProfileLink */
+    if ((e.target as HTMLElement).closest('[data-profile-link="true"]')) {
+      e.preventDefault()
+      e.stopPropagation()
+      return
+    }
     e.preventDefault()
     e.stopPropagation()
     openPostInModalOrFeed()
@@ -952,13 +959,18 @@ function PostCardInner({
           >
             <div className={styles.replyParentStripHeader}>
               <p className={styles.replyParentLabel}>Replying to</p>
-              <ProfileLink handle={replyParentHandle} className={styles.replyParentHandle} title={`@${replyParentHandle}`}>
+              <ProfileLink handle={replyParentHandle} className={styles.replyParentHandle} title={`@${replyParentHandle}`} onClick={(e) => e.stopPropagation()}>
                 @{replyParentHandle}
               </ProfileLink>
             </div>
             {replyParentAllMedia.length > 0 ? (
               <div
                 className={`${styles.replyParentMediaBlock} ${replyParentAllMedia.length > 1 ? styles.replyParentMediaBlockMulti : ''}`}
+                onClick={(e) => {
+                  // Clicking media opens the reply post, not the parent
+                  e.stopPropagation()
+                  openPostInModalOrFeed()
+                }}
               >
                 {replyParentAllMedia.map((m, i) => {
                   const ar =
@@ -978,9 +990,9 @@ function PostCardInner({
                           src={m.url}
                           alt=""
                           aspectRatio={ar}
-                          objectFit="contain"
                           loading="lazy"
                           preloadDistance={cardMediaPreloadDistance}
+                          className={styles.replyParentMediaImg}
                         />
                       ) : m.videoPlaylist ? (
                         <div className={styles.replyParentVideoWrap} style={{ aspectRatio: String(ar) }}>
@@ -999,15 +1011,22 @@ function PostCardInner({
                 })}
               </div>
             ) : replyParentExternal?.thumb ? (
-              <div className={styles.replyParentMediaBlock}>
+              <div
+                className={styles.replyParentMediaBlock}
+                onClick={(e) => {
+                  // Clicking media opens the reply post, not the parent
+                  e.stopPropagation()
+                  openPostInModalOrFeed()
+                }}
+              >
                 <div className={styles.replyParentMediaSlide}>
                   <ProgressiveImage
                     src={replyParentExternal.thumb}
                     alt=""
                     aspectRatio={16 / 9}
-                    objectFit="contain"
                     loading="lazy"
                     preloadDistance={cardMediaPreloadDistance}
+                    className={styles.replyParentMediaImg}
                   />
                 </div>
               </div>
@@ -1254,6 +1273,7 @@ function PostCardInner({
               dropdownRef={actionsMenuDropdownRef}
               feedLabel={feedLabel}
               feedUri={feedUri}
+              feedAcceptsInteractions={feedAcceptsInteractions}
               postedAt={(post.record as { createdAt?: string })?.createdAt}
               onViewQuotes={openQuotesModal}
               onRemoveFromThisCollection={
@@ -1267,7 +1287,18 @@ function PostCardInner({
           <div className={styles.cardActionRow} onClick={(e) => e.stopPropagation()}>
             <div className={styles.cardActionRowSpacer} aria-hidden="true" />
             <div className={styles.cardActionRowCenter}>
-              <CollectionSaveMenu postUri={post.uri} openSignal={openCollectionMenuSignal} />
+              <button
+                type="button"
+                className={`${styles.cardLikeRepostBtn} ${isLiked ? styles.cardLikeRepostBtnActive : ''}`}
+                onTouchStart={(e) => e.stopPropagation()}
+                onTouchEnd={(e) => e.stopPropagation()}
+                onClick={handleLikeClick}
+                disabled={likeLoading}
+                title={isLiked ? 'Remove like' : 'Like'}
+                aria-label={isLiked ? 'Remove like' : 'Like'}
+              >
+                {isLiked ? '♥' : '♡'}
+              </button>
               {post.author.avatar && (
                 isOwnPost || !session || isFollowingAuthor ? (
                   <ProfileLink
@@ -1298,18 +1329,7 @@ function PostCardInner({
                   </button>
                 )
               )}
-              <button
-                type="button"
-                className={`${styles.cardLikeRepostBtn} ${isLiked ? styles.cardLikeRepostBtnActive : ''}`}
-                onTouchStart={(e) => e.stopPropagation()}
-                onTouchEnd={(e) => e.stopPropagation()}
-                onClick={handleLikeClick}
-                disabled={likeLoading}
-                title={isLiked ? 'Remove like' : 'Like'}
-                aria-label={isLiked ? 'Remove like' : 'Like'}
-              >
-                {isLiked ? '♥' : '♡'}
-              </button>
+              <CollectionSaveMenu postUri={post.uri} openSignal={openCollectionMenuSignal} />
             </div>
             <div className={styles.cardActionRowRight}>
               <PostActionsMenu
@@ -1330,6 +1350,7 @@ function PostCardInner({
                 dropdownRef={actionsMenuDropdownRef}
                 feedLabel={feedLabel}
                 feedUri={feedUri}
+                feedAcceptsInteractions={feedAcceptsInteractions}
                 postedAt={(post.record as { createdAt?: string })?.createdAt}
                 onViewQuotes={openQuotesModal}
                 onRemoveFromThisCollection={
@@ -1458,10 +1479,17 @@ export default memo(PostCard, (prevProps, nextProps) => {
   const prevLikeCount = prevProps.item.post.likeCount
   const nextLikeCount = nextProps.item.post.likeCount
   if (prevLikeCount !== nextLikeCount) return false
-  
+
   const prevRepostCount = prevProps.item.post.repostCount
   const nextRepostCount = nextProps.item.post.repostCount
   if (prevRepostCount !== nextRepostCount) return false
+
+  // Check if follow status changed (author.viewer.following)
+  const prevAuthor = prevProps.item.post.author as { viewer?: { following?: string } }
+  const nextAuthor = nextProps.item.post.author as { viewer?: { following?: string } }
+  const prevFollowingUri = prevAuthor?.viewer?.following
+  const nextFollowingUri = nextAuthor?.viewer?.following
+  if (prevFollowingUri !== nextFollowingUri) return false
   
   // All critical props are equal, skip re-render
   return true

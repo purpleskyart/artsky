@@ -22,7 +22,7 @@ export function usePostCardGridPointerGate() {
   const [keyboardNavActive, setKeyboardNavActive] = useState(false)
   const [hoverFocusEnabled, setHoverFocusEnabled] = useState(true)
   const hoverFocusEnabledRef = useRef(true)
-  const mouseMovedRef = useRef(false)
+  const mouseMovedRef = useRef(true)
   const lastMouseClientPosRef = useRef<{ x: number; y: number } | null>(null)
   const mouseRearmStartPosRef = useRef<{ x: number; y: number } | null>(null)
   const wheelSuppressUntilRef = useRef(0)

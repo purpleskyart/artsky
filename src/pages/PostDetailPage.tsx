@@ -170,10 +170,13 @@ export function ReplyAsRow({
   )
 }
 
-function isThreadViewPost(
-  node: AppBskyFeedDefs.ThreadViewPost | AppBskyFeedDefs.NotFoundPost | AppBskyFeedDefs.BlockedPost | { $type: string }
-): node is AppBskyFeedDefs.ThreadViewPost {
-  return node && typeof node === 'object' && 'post' in node && !!(node as AppBskyFeedDefs.ThreadViewPost).post
+function isThreadViewPost(node: unknown): node is AppBskyFeedDefs.ThreadViewPost {
+  return (
+    typeof node === 'object' &&
+    node !== null &&
+    'post' in node &&
+    !!(node as AppBskyFeedDefs.ThreadViewPost).post
+  )
 }
 
 /** Flatten visible comments in display order (expanded threads include nested replies). */
@@ -226,6 +229,21 @@ function filterThreadReplies(thread: AppBskyFeedDefs.ThreadViewPost): AppBskyFee
   return 'replies' in thread && Array.isArray(thread.replies)
     ? (thread.replies as unknown[]).filter((x): x is AppBskyFeedDefs.ThreadViewPost => isThreadViewPost(x as Parameters<typeof isThreadViewPost>[0]))
     : []
+}
+
+/** Collect ancestor chain from thread data (parents going up the reply chain). Returns oldest first. */
+function collectThreadAncestors(
+  thread: AppBskyFeedDefs.ThreadViewPost | AppBskyFeedDefs.NotFoundPost | AppBskyFeedDefs.BlockedPost | { $type: string }
+): AppBskyFeedDefs.ThreadViewPost[] {
+  const ancestors: AppBskyFeedDefs.ThreadViewPost[] = []
+  let current: unknown = thread
+  while (current && isThreadViewPost(current)) {
+    const parent = (current as AppBskyFeedDefs.ThreadViewPost).parent
+    if (!parent || !isThreadViewPost(parent)) break
+    ancestors.unshift(parent)
+    current = parent
+  }
+  return ancestors
 }
 
 /** Insert a new reply under `parentUri` (or at root replies if parent not found in subtree). */
@@ -1155,6 +1173,8 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
   const commentFormWrapRef = useRef<HTMLDivElement>(null)
   const mediaSectionRef = useRef<HTMLDivElement>(null)
   const descriptionSectionRef = useRef<HTMLDivElement>(null)
+  const rootPostRef = useRef<HTMLElement>(null)
+  const scrollIndicatorRef = useRef<HTMLDivElement>(null)
   const parentPostCardRef = useRef<HTMLDivElement>(null)
   const quotedPostCardRef = useRef<HTMLDivElement>(null)
   const commentsSectionRef = useRef<HTMLDivElement>(null)
@@ -1871,17 +1891,6 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
       if (commentIdx >= 0) setFocusedCommentIndex(commentIdx)
     }
   }, [focusItems, threadRepliesFlat])
-  const handleParentPostHover = useCallback(() => {
-    if (!onClose) {
-      const idx = focusItems.findIndex((it) => it.type === 'parentPost')
-      if (idx >= 0) {
-        setKeyboardFocusIndex(idx)
-        requestAnimationFrame(() => {
-          parentPostCardRef.current?.focus()
-        })
-      }
-    }
-  }, [focusItems, onClose])
   const handleQuotedPostHover = useCallback(() => {
     if (!onClose) {
       const idx = focusItems.findIndex((it) => it.type === 'quotedPost')
@@ -2218,6 +2227,22 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
     scrollIntoViewFromKeyboardRef.current = false
   }, [focusedCommentIndex, hasRepliesSection, postSectionIndex, postSectionCount])
 
+  /* When thread loads with ancestors, instantly scroll so indicator is visible */
+  const hasScrolledToRootRef = useRef(false)
+  useEffect(() => {
+    if (!thread || !isThreadViewPost(thread)) return
+    if (hasScrolledToRootRef.current) return
+    const threadView = thread as AppBskyFeedDefs.ThreadViewPost
+    const ancestors = collectThreadAncestors(threadView)
+    if (ancestors.length === 0) return
+    // Instant scroll - position scroll indicator at bottom of viewport so it's clearly visible
+    const timer = setTimeout(() => {
+      hasScrolledToRootRef.current = true
+      scrollIndicatorRef.current?.scrollIntoView({ behavior: 'instant', block: 'end' })
+    }, 50)
+    return () => clearTimeout(timer)
+  }, [thread])
+
   /* Scroll focused comment into view when focus changed by keyboard (W/S/A/D) – comment/commentMedia scroll is done in focusItemAtIndex so we only consume the ref here to avoid double-scroll */
   useEffect(() => {
     if (!scrollIntoViewFromKeyboardRef.current) return
@@ -2241,11 +2266,12 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
         {thread && isThreadViewPost(thread) && (
           <>
             {(() => {
-              // Check if this post is a reply
+              // Collect all ancestors from the thread data
+              const ancestors = thread ? collectThreadAncestors(thread) : []
               const isReply = (thread.post.record as { reply?: unknown })?.reply
-              const hasParent = 'parent' in thread && thread.parent && isThreadViewPost(thread.parent)
-              
-              // Show skeleton if loading and post is a reply but parent not loaded yet
+              const hasParent = ancestors.length > 0
+
+              // Show skeleton if loading and post is a reply but ancestors not loaded yet
               if (loading && isReply && !hasParent) {
                 return (
                   <div className={styles.parentPostWrap}>
@@ -2259,78 +2285,87 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                   </div>
                 )
               }
-              
-              // Show actual parent if loaded
-              if (hasParent) {
-                return (() => {
-                  const parentNode = thread.parent
-                  const parentPost = parentNode && 'post' in parentNode ? parentNode.post : undefined
-                  if (!parentPost) return null
-                  const parentHandle = parentPost.author?.handle ?? parentPost.author?.did ?? ''
-                  const parentText = (parentPost.record as { text?: string })?.text ?? ''
-                  const parentMediaFull = getPostAllMedia(parentPost, POST_MEDIA_FULL)
-                  const openParentPost = () => {
-                    if (onClose) {
-                      openPostModal(parentPost.uri, undefined, undefined, parentPost.author?.handle)
-                    } else {
-                      navigate(getPostAppPath(parentPost.uri, parentPost.author?.handle))
-                    }
-                  }
-                  return (
-                    <div className={styles.parentPostWrap}>
-                      <p className={styles.quotedPostLabel}>Replying to</p>
-                      <div
-                        ref={parentPostCardRef}
-                        className={styles.quotedPostCard}
-                        role="button"
-                        tabIndex={0}
-                        aria-label={`Open post by @${parentHandle}`}
-                        onClick={openParentPost}
-                        onMouseEnter={handleParentPostHover}
-                        onKeyDown={(e) => {
-                          if (e.key !== 'Enter' && e.key !== ' ') return
-                          e.preventDefault()
-                          openParentPost()
-                        }}
-                      >
-                        <div className={styles.quotedPostHead}>
-                          {parentPost.author?.avatar ? (
-                            <img src={parentPost.author.avatar} alt="" className={styles.quotedPostAvatar} loading="lazy" />
-                          ) : (
-                            <span className={styles.quotedPostAvatarPlaceholder} aria-hidden>{parentHandle.slice(0, 1).toUpperCase()}</span>
-                          )}
-                          <ProfileLink handle={parentHandle} className={styles.quotedPostHandle} onClick={(e) => e.stopPropagation()}>
-                            @{parentHandle}
-                          </ProfileLink>
-                          {(parentPost.record as { createdAt?: string })?.createdAt && (
-                            <span className={styles.quotedPostTime} title={formatExactDateTime((parentPost.record as { createdAt: string }).createdAt)}>
-                              {formatRelativeTime((parentPost.record as { createdAt: string }).createdAt)}
-                            </span>
-                          )}
-                        </div>
-                        {parentMediaFull.length > 0 && (
-                          <div className={styles.quotedPostGallery} onClick={(e) => e.stopPropagation()}>
-                            <MediaGallery
-                              items={parentMediaFull}
-                              forEmbeddedPreview
-                              hideVideoControlsUntilTap={!isDesktop}
-                            />
+
+              // Show all ancestors in the conversation thread
+              if (ancestors.length > 0) {
+                return (
+                  <div className={styles.ancestorsWrap}>
+                    {ancestors.map((ancestorNode, index) => {
+                      const ancestorPost = ancestorNode.post
+                      const ancestorHandle = ancestorPost.author?.handle ?? ancestorPost.author?.did ?? ''
+                      const ancestorText = (ancestorPost.record as { text?: string })?.text ?? ''
+                      const ancestorMediaFull = getPostAllMedia(ancestorPost, POST_MEDIA_FULL)
+                      const isLastAncestor = index === ancestors.length - 1
+                      const openAncestorPost = () => {
+                        if (onClose) {
+                          openPostModal(ancestorPost.uri, undefined, undefined, ancestorPost.author?.handle)
+                        } else {
+                          navigate(getPostAppPath(ancestorPost.uri, ancestorPost.author?.handle))
+                        }
+                      }
+                      return (
+                        <div
+                          key={ancestorPost.uri}
+                          className={`${styles.ancestorPostWrap} ${isLastAncestor ? styles.ancestorPostWrapLast : ''}`}
+                        >
+                          {index === 0 && <p className={styles.quotedPostLabel}>Conversation</p>}
+                          <div
+                            className={`${styles.quotedPostCard} ${styles.ancestorPostCard}`}
+                            role="button"
+                            tabIndex={0}
+                            aria-label={`Open post by @${ancestorHandle}`}
+                            onClick={openAncestorPost}
+                            onKeyDown={(e) => {
+                              if (e.key !== 'Enter' && e.key !== ' ') return
+                              e.preventDefault()
+                              openAncestorPost()
+                            }}
+                          >
+                            <div className={styles.quotedPostHead}>
+                              {ancestorPost.author?.avatar ? (
+                                <img src={ancestorPost.author.avatar} alt="" className={styles.quotedPostAvatar} loading="lazy" />
+                              ) : (
+                                <span className={styles.quotedPostAvatarPlaceholder} aria-hidden>{ancestorHandle.slice(0, 1).toUpperCase()}</span>
+                              )}
+                              <ProfileLink handle={ancestorHandle} className={styles.quotedPostHandle} onClick={(e) => e.stopPropagation()}>
+                                @{ancestorHandle}
+                              </ProfileLink>
+                              {(ancestorPost.record as { createdAt?: string })?.createdAt && (
+                                <span className={styles.quotedPostTime} title={formatExactDateTime((ancestorPost.record as { createdAt: string }).createdAt)}>
+                                  {formatRelativeTime((ancestorPost.record as { createdAt: string }).createdAt)}
+                                </span>
+                              )}
+                            </div>
+                            {ancestorMediaFull.length > 0 && (
+                              <div className={styles.quotedPostGallery} onClick={(e) => e.stopPropagation()}>
+                                <MediaGallery
+                                  items={ancestorMediaFull}
+                                  forEmbeddedPreview
+                                  hideVideoControlsUntilTap={!isDesktop}
+                                />
+                              </div>
+                            )}
+                            {ancestorText ? (
+                              <p className={styles.quotedPostText}>
+                                <PostText text={ancestorText} facets={(ancestorPost.record as { facets?: unknown[] })?.facets} maxLength={200} stopPropagation />
+                              </p>
+                            ) : null}
                           </div>
-                        )}
-                        {parentText ? (
-                          <p className={styles.quotedPostText}>
-                            <PostText text={parentText} facets={(parentPost.record as { facets?: unknown[] })?.facets} maxLength={200} stopPropagation />
-                          </p>
-                        ) : null}
-                      </div>
+                          {!isLastAncestor && <div className={styles.ancestorConnector} aria-hidden />}
+                        </div>
+                      )
+                    })}
+                    <div ref={scrollIndicatorRef} className={styles.scrollUpIndicator} aria-hidden>
+                      <span className={styles.scrollUpArrow}>↑</span>
+                      <span className={styles.scrollUpText}>Scroll up to see conversation</span>
                     </div>
-                  )
-                })()
+                  </div>
+                )
               }
-              
+
               return null
             })()}
-            <article className={`${styles.postBlock} ${styles.rootPostBlock}`}>
+            <article ref={rootPostRef} className={`${styles.postBlock} ${styles.rootPostBlock}`}>
               {rootMedia.length > 0 && (
                 <div
                   ref={mediaSectionRef}
@@ -2499,15 +2534,10 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
               </div>
             <section className={styles.actions} aria-label="Post actions">
               <div className={styles.actionRow}>
-                {onClose && thread && isThreadViewPost(thread) && (
-                  <span className={styles.actionRowCollectWrap}>
-                    <CollectionSaveMenu postUri={thread.post.uri} variant="detail" />
-                  </span>
-                )}
                 <button
                   type="button"
                   className={`${styles.likeRepostBtn} ${isLiked ? styles.likeRepostBtnActive : ''}`}
-                  style={{ order: onClose ? 3 : 1 }}
+                  style={{ order: 1 }}
                   onClick={handleLike}
                   disabled={likeLoading}
                   title={isLiked ? 'Remove like' : 'Like'}
@@ -2553,6 +2583,11 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                     </div>
                   )}
                 </div>
+                {onClose && thread && isThreadViewPost(thread) && (
+                  <span className={styles.actionRowCollectWrap} style={{ order: 3 }}>
+                    <CollectionSaveMenu postUri={thread.post.uri} variant="detail" />
+                  </span>
+                )}
                 {thread && isThreadViewPost(thread) && !onClose && (
                   <button
                     type="button"

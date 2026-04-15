@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { blockAccount, unblockAccount, reportPost, muteThread, deletePost, getProfileCached, getSession, sendFeedInteractions } from '../lib/bsky'
 import { getShareablePostUrl } from '../lib/appUrl'
 import { formatRelativeTimeTitle, formatExactDateTime } from '../lib/date'
+import { useSession } from '../context/SessionContext'
 import styles from './PostActionsMenu.module.css'
 
 const ICON_SIZE = 18
@@ -139,6 +140,8 @@ interface PostActionsMenuProps {
   feedLabel?: string
   /** Feed URI for sending interaction feedback (e.g., at://did/app.bsky.feed.generator/...) */
   feedUri?: string
+  /** Whether the feed generator accepts interaction feedback (show more/less like this) */
+  feedAcceptsInteractions?: boolean
   /** Post creation time (ISO string); when set, show relative time e.g. "Posted 2h ago" */
   postedAt?: string
   /** Controlled open state (when set, menu open is controlled by parent) */
@@ -173,6 +176,7 @@ function PostActionsMenu({
   compact,
   feedLabel,
   feedUri,
+  feedAcceptsInteractions,
   postedAt,
   open: openControlled,
   onOpenChange,
@@ -184,7 +188,7 @@ function PostActionsMenu({
   onViewQuotes,
   onRemoveFromThisCollection,
 }: PostActionsMenuProps) {
-  const session = getSession()
+  const { session, reportAuthError } = useSession()
   const [openUncontrolled, setOpenUncontrolled] = useState(false)
   const [loading, setLoading] = useState<string | null>(null)
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
@@ -193,6 +197,8 @@ function PostActionsMenu({
   const [authorBlockingUri, setAuthorBlockingUri] = useState<string | null>(null)
   const [authorHandle, setAuthorHandle] = useState<string | null>(null)
   const feedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Track feeds that don't support interactions (501 error) to hide buttons
+  const unsupportedFeedUris = useRef<Set<string>>(new Set())
   const menuRef = useRef<HTMLDivElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -293,7 +299,7 @@ function PostActionsMenu({
     if (!open) return
     const onKey = (e: KeyboardEvent) => {
       const key = e.key.toLowerCase()
-      if (key === 'escape' || key === 'q' || key === 'backspace') {
+      if (key === 'escape' || key === 'q' || key === 'u' || key === 'backspace') {
         e.preventDefault()
         if (blockStep === 'confirm') {
           setBlockStep('idle')
@@ -303,14 +309,14 @@ function PostActionsMenu({
         }
         return
       }
-      if (key === 'w' || key === 's' || key === 'e' || key === 'enter' || e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+      if (key === 'w' || key === 's' || key === 'e' || key === 'o' || key === 'enter' || e.key === 'ArrowUp' || e.key === 'ArrowDown') {
         const dropdown = dropdownRef.current
         if (!dropdown) return
         const items = Array.from(dropdown.querySelectorAll<HTMLButtonElement>('button[role="menuitem"]'))
         if (items.length === 0) return
         const current = document.activeElement as HTMLButtonElement | null
         const idx = current && items.includes(current) ? items.indexOf(current) : -1
-        if (key === 'e' || key === 'enter') {
+        if (key === 'e' || key === 'o' || key === 'enter') {
           e.preventDefault()
           e.stopPropagation()
           if (idx >= 0 && !items[idx].disabled) items[idx].click()
@@ -357,12 +363,18 @@ function PostActionsMenu({
       setAuthorBlockingUri(uri)
       setBlockStep('idle')
       showSuccess('Account blocked')
-    } catch {
-      showError('Could not block. Try again.')
+    } catch (err) {
+      const error = err as { status?: number }
+      if (error.status === 401) {
+        showError('Your session has expired. Please log in again.')
+        reportAuthError()
+      } else {
+        showError('Could not block. Try again.')
+      }
     } finally {
       setLoading(null)
     }
-  }, [session?.did, isOwnPost, authorDid, showSuccess, showError])
+  }, [session?.did, isOwnPost, authorDid, showSuccess, showError, reportAuthError])
 
   const handleUnblock = useCallback(async () => {
     if (!authorBlockingUri) return
@@ -372,12 +384,18 @@ function PostActionsMenu({
       await unblockAccount(authorBlockingUri)
       setAuthorBlockingUri(null)
       showSuccess('Account unblocked')
-    } catch {
-      showError('Could not unblock. Try again.')
+    } catch (err) {
+      const error = err as { status?: number }
+      if (error.status === 401) {
+        showError('Your session has expired. Please log in again.')
+        reportAuthError()
+      } else {
+        showError('Could not unblock. Try again.')
+      }
     } finally {
       setLoading(null)
     }
-  }, [authorBlockingUri, showSuccess, showError])
+  }, [authorBlockingUri, showSuccess, showError, reportAuthError])
 
   const REPORT_REASONS: { label: string; reasonType: string }[] = [
     { label: 'Spam', reasonType: 'com.atproto.moderation.defs#reasonSpam' },
@@ -393,26 +411,38 @@ function PostActionsMenu({
     try {
       await reportPost(postUri, postCid, reasonType)
       showSuccess('Report sent to Bluesky')
-    } catch {
-      showError('Could not send report. Try again.')
+    } catch (err) {
+      const error = err as { status?: number }
+      if (error.status === 401) {
+        showError('Your session has expired. Please log in again.')
+        reportAuthError()
+      } else {
+        showError('Could not send report. Try again.')
+      }
     } finally {
       setLoading(null)
     }
-  }, [session?.did, postUri, postCid, showSuccess, showError])
+  }, [session?.did, postUri, postCid, showSuccess, showError, reportAuthError])
 
   const handleMuteThread = useCallback(async () => {
-    if (!session?.did) return
     setLoading('mute')
     setFeedback(null)
     try {
       await muteThread(rootUri)
       showSuccess('Thread muted')
-    } catch {
-      showError('Could not mute thread. Try again.')
+      onHidden?.()
+    } catch (err) {
+      const error = err as { status?: number }
+      if (error.status === 401) {
+        showError('Your session has expired. Please log in again.')
+        reportAuthError()
+      } else {
+        showError('Could not mute thread. Try again.')
+      }
     } finally {
       setLoading(null)
     }
-  }, [session?.did, rootUri, showSuccess, showError])
+  }, [rootUri, onHidden, showSuccess, showError, reportAuthError])
 
   const handleForShare = shareAuthorHandle ?? authorHandle ?? undefined
 
@@ -448,24 +478,34 @@ function PostActionsMenu({
     }
   }, [session?.did, isOwnPost, postUri, onHidden])
 
-  const handleFeedInteraction = useCallback(async (event: 'feedItemLike' | 'feedItemDislike') => {
+  const handleFeedInteraction = useCallback(async (event: 'app.bsky.feed.defs#requestMore' | 'app.bsky.feed.defs#requestLess') => {
     if (!session?.did || !feedUri) return
     setLoading(event)
     setFeedback(null)
     try {
-      await sendFeedInteractions([{ item: postUri, event }])
-      showSuccess(event === 'feedItemLike' ? 'More like this shown' : 'Less like this shown')
-    } catch {
-      showError('Could not send feedback. Try again.')
+      await sendFeedInteractions([{ item: postUri, event }], feedUri)
+      showSuccess(event === 'app.bsky.feed.defs#requestMore' ? 'More like this shown' : 'Less like this shown')
+    } catch (err) {
+      const error = err as { status?: number }
+      if (error.status === 401) {
+        showError('Your session has expired. Please log in again.')
+        reportAuthError()
+      } else if (error.status === 501) {
+        // Mark this feed as unsupported so buttons won't be shown for it in the future
+        unsupportedFeedUris.current.add(feedUri)
+        showError('This feature is not supported by your server.')
+      } else {
+        showError('Could not send feedback. Try again.')
+      }
     } finally {
       setLoading(null)
     }
-  }, [session?.did, feedUri, postUri, showSuccess, showError])
+  }, [session?.did, feedUri, postUri, showSuccess, showError, reportAuthError])
 
   const loggedIn = !!session?.did
 
-  // Show feed interaction buttons when feedUri is provided and user is logged in
-  const showFeedInteractions = loggedIn && !!feedUri
+  // Show feed interaction buttons when feedUri is provided, user is logged in, feed accepts interactions, and feed hasn't been marked as unsupported
+  const showFeedInteractions = loggedIn && !!feedUri && feedAcceptsInteractions && !unsupportedFeedUris.current.has(feedUri)
 
   return (
     <div
@@ -700,22 +740,22 @@ function PostActionsMenu({
                   <button
                     type="button"
                     className={styles.item}
-                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleFeedInteraction('feedItemLike') }}
-                    disabled={loading === 'feedItemLike'}
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleFeedInteraction('app.bsky.feed.defs#requestMore') }}
+                    disabled={loading === 'app.bsky.feed.defs#requestMore'}
                     role="menuitem"
                   >
-                    <span className={styles.itemIcon}>{loading === 'feedItemLike' ? '…' : <ThumbsUpIcon />}</span>
-                    {loading === 'feedItemLike' ? '' : 'Show more like this'}
+                    <span className={styles.itemIcon}>{loading === 'app.bsky.feed.defs#requestMore' ? '…' : <ThumbsUpIcon />}</span>
+                    {loading === 'app.bsky.feed.defs#requestMore' ? '' : 'Show more like this'}
                   </button>
                   <button
                     type="button"
                     className={styles.item}
-                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleFeedInteraction('feedItemDislike') }}
-                    disabled={loading === 'feedItemDislike'}
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleFeedInteraction('app.bsky.feed.defs#requestLess') }}
+                    disabled={loading === 'app.bsky.feed.defs#requestLess'}
                     role="menuitem"
                   >
-                    <span className={styles.itemIcon}>{loading === 'feedItemDislike' ? '…' : <ThumbsDownIcon />}</span>
-                    {loading === 'feedItemDislike' ? '' : 'Show less like this'}
+                    <span className={styles.itemIcon}>{loading === 'app.bsky.feed.defs#requestLess' ? '…' : <ThumbsDownIcon />}</span>
+                    {loading === 'app.bsky.feed.defs#requestLess' ? '' : 'Show less like this'}
                   </button>
                 </>
               )}

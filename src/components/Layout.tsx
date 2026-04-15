@@ -600,8 +600,9 @@ export default function Layout({ title, children, showNav }: Props) {
   const HOME_HOLD_MS = 500
   const { entries: mixEntries, setEntryPercent, toggleSource, addEntry, setSingleFeed } = useFeedMix()
   const presetUris = new Set((PRESET_FEED_SOURCES.map((s) => s.uri).filter((uri): uri is string => !!uri)))
+  const guestFeedUris = new Set((GUEST_FEED_SOURCES.map((s) => s.uri).filter((uri): uri is string => !!uri)))
   const visiblePresets = PRESET_FEED_SOURCES.filter((s) => !s.uri || !hiddenPresetUris.has(s.uri))
-  const savedDeduped = savedFeedSources.filter((s) => !s.uri || !presetUris.has(s.uri))
+  const savedDeduped = savedFeedSources.filter((s) => !s.uri || (!presetUris.has(s.uri) && !guestFeedUris.has(s.uri)))
   const allFeedSources = useMemo(() => {
     const combined: FeedSource[] = [...visiblePresets, ...savedDeduped]
     if (feedOrder.length === 0) return combined
@@ -702,10 +703,10 @@ export default function Layout({ title, children, showNav }: Props) {
     document.title = title ? `${title} · PurpleSky` : 'PurpleSky'
   }, [title])
 
-  /* Global keyboard: Q / Backspace = back. Do not handle when a popup is open so the popup gets shortcuts and scroll. */
+  /* Global keyboard: Q / Backspace = back, N = notifications. Do not handle when a popup is open so the popup gets shortcuts and scroll. */
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (isModalOpen) return
+      if (isModalOpen || notificationsOpen) return
       const target = e.target as HTMLElement
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable) {
         if (e.key === 'Escape') {
@@ -716,6 +717,11 @@ export default function Layout({ title, children, showNav }: Props) {
       }
       if (e.ctrlKey || e.metaKey) return
       const key = e.key.toLowerCase()
+      if (key === 'n' && session) {
+        e.preventDefault()
+        setNotificationsOpen((prev) => !prev)
+        return
+      }
       if (key !== 'q' && e.key !== 'Backspace') return
       /* On feed, Q / Backspace are for chrome and menus; don't treat as browser back */
       if (loc.pathname === '/' || loc.pathname.startsWith('/feed')) return
@@ -724,7 +730,7 @@ export default function Layout({ title, children, showNav }: Props) {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [navigate, isModalOpen, setViewMode, loc.pathname])
+  }, [navigate, isModalOpen, setViewMode, loc.pathname, session, notificationsOpen])
 
   useEffect(() => {
     if (!accountMenuOpen) return
@@ -816,10 +822,59 @@ export default function Layout({ title, children, showNav }: Props) {
     document.addEventListener('pointerdown', onPointerDown)
     document.addEventListener('touchstart', onTouchStart)
     window.addEventListener('scroll', onScroll, true)
+
+    // Auto-focus first filter button when menu opens (after DOM is ready)
+    requestAnimationFrame(() => {
+      const firstButton = notificationsMenuRef.current?.querySelector<HTMLButtonElement>('button')
+      if (firstButton) {
+        firstButton.focus()
+      }
+    })
+
+    // Keyboard navigation for notifications
+    const onKeyDown = (e: KeyboardEvent) => {
+      const key = e.key.toLowerCase()
+      if (key === 'escape' || key === 'q' || key === 'u' || key === 'backspace') {
+        e.preventDefault()
+        setNotificationsOpen(false)
+        notificationsBtnRef.current?.focus()
+        return
+      }
+      const target = e.target as HTMLElement
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable) {
+        return
+      }
+      if (e.ctrlKey || e.metaKey) return
+
+      // Simple WASD navigation for now
+      if (key === 'w' || key === 'i' || e.key === 'ArrowUp' || key === 's' || key === 'k' || e.key === 'ArrowDown' || key === 'a' || key === 'j' || e.key === 'ArrowLeft' || key === 'd' || key === 'l' || e.key === 'ArrowRight') {
+        const allFocusable = notificationsMenuRef.current?.querySelectorAll<HTMLElement>('button, a')
+        if (!allFocusable || allFocusable.length === 0) return
+        const current = document.activeElement as HTMLElement | null
+        const currentIndex = current && Array.from(allFocusable).includes(current) ? Array.from(allFocusable).indexOf(current) : -1
+        const isUp = key === 'w' || key === 'i' || e.key === 'ArrowUp' || key === 'a' || key === 'j' || e.key === 'ArrowLeft'
+        const nextIndex = isUp
+          ? (currentIndex <= 0 ? allFocusable.length - 1 : currentIndex - 1)
+          : (currentIndex >= allFocusable.length - 1 ? 0 : currentIndex + 1)
+        allFocusable[nextIndex].focus()
+        e.preventDefault()
+        return
+      }
+
+      // E/O/Enter to activate
+      if ((key === 'e' || key === 'o' || key === 'enter') && document.activeElement instanceof HTMLAnchorElement) {
+        document.activeElement.click()
+        e.preventDefault()
+        return
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+
     return () => {
       document.removeEventListener('pointerdown', onPointerDown)
       document.removeEventListener('touchstart', onTouchStart)
       window.removeEventListener('scroll', onScroll, true)
+      window.removeEventListener('keydown', onKeyDown)
     }
   }, [notificationsOpen])
 

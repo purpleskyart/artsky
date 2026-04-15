@@ -255,6 +255,7 @@ html[data-theme="dark"] [data-view-mode="1"] .card:hover {
   width: 100%;
   background: var(--bg);
   border-top: 1px solid var(--border);
+  cursor: pointer;
 }
 
 .replyParentMediaSlide {

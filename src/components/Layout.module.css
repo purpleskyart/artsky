@@ -511,18 +511,19 @@
     padding: 0.3rem 0.5rem;
     font-size: 0.85rem;
     font-weight: 500;
-    color: var(--text);
-    background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 100%, white 12%), color-mix(in srgb, var(--surface) 100%, black 6%));
+    color: var(--text-on-accent);
+    background: var(--accent-gradient);
     border: none;
     border-radius: var(--glass-radius-sm);
     cursor: pointer;
     font: inherit;
     -webkit-tap-highlight-color: transparent;
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.14), 0 1px 0 rgba(255, 255, 255, 0.12) inset;
+    transition: filter 0.15s ease;
   }
   .headerCenterMobile .headerFeedsBtn:hover {
-    color: var(--accent);
-    background: linear-gradient(180deg, color-mix(in srgb, var(--accent-subtle) 100%, white 10%), color-mix(in srgb, var(--accent-subtle) 100%, black 4%));
+    filter: brightness(0.92);
+    color: var(--text-on-accent);
     box-shadow: 0 3px 8px rgba(0, 0, 0, 0.16), 0 1px 0 rgba(255, 255, 255, 0.1) inset;
   }
   .headerCenterMobile .headerFeedsBtnActive {
@@ -533,14 +534,19 @@
     padding: 0.3rem 0.5rem;
     font-size: 0.85rem;
     font-weight: 500;
-    color: var(--accent);
-    background: linear-gradient(180deg, color-mix(in srgb, var(--accent-muted) 100%, black 6%), color-mix(in srgb, var(--accent-muted) 100%, white 4%));
+    color: var(--text-on-accent);
+    background: var(--accent-gradient);
     border: none;
     border-radius: var(--glass-radius-sm);
     cursor: pointer;
     font: inherit;
     transform: translateY(1px);
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.12) inset;
+    transition: filter 0.15s ease;
+  }
+  .headerCenterMobile .headerFeedsBtnActive:hover {
+    filter: brightness(0.92);
+    color: var(--text-on-accent);
   }
   .headerCenterMobile .headerFeedsBtn svg,
   .headerCenterMobile .headerFeedsBtnActive svg {
@@ -722,22 +728,19 @@
     min-height: 36px;
     font-size: 0.9rem;
     font-weight: 500;
-    color: var(--text);
+    color: var(--text-on-accent);
     padding: 0.4rem 0.75rem;
     border-radius: var(--glass-radius-sm);
-    background: color-mix(in srgb, var(--glass-bg) 88%, var(--glass-highlight));
+    background: var(--accent-gradient);
     border: none;
     box-shadow: var(--shadow-card);
     cursor: pointer;
     font: inherit;
-    transition:
-      background var(--transition-fast),
-      color var(--transition-fast),
-      box-shadow var(--transition-fast);
+    transition: filter 0.15s ease;
   }
   .headerFeedsLink:hover {
-    color: var(--accent);
-    background: color-mix(in srgb, var(--glass-bg) 72%, var(--glass-highlight));
+    filter: brightness(0.92);
+    color: var(--text-on-accent);
     box-shadow: var(--shadow-card);
   }
   .headerFeedsLinkActive {
@@ -747,14 +750,19 @@
     min-height: 36px;
     font-size: 0.9rem;
     font-weight: 500;
-    color: var(--accent);
+    color: var(--text-on-accent);
     padding: 0.4rem 0.75rem;
     border-radius: var(--glass-radius-sm);
-    background: var(--accent-subtle);
+    background: var(--accent-gradient);
     border: none;
     box-shadow: var(--shadow-card);
     cursor: pointer;
     font: inherit;
+    transition: filter 0.15s ease;
+  }
+  .headerFeedsLinkActive:hover {
+    filter: brightness(0.92);
+    color: var(--text-on-accent);
   }
   .headerFeedsWrap .feedsDropdown {
     left: 0;
@@ -1091,15 +1099,19 @@ button.logoLink {
   font-family: inherit;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+  color: var(--text-on-accent);
+  background: var(--accent-gradient);
+  transition: filter 0.15s ease;
 }
 
 .feedsFloatBtn:hover {
   transform: scale(1.02);
+  filter: brightness(0.92);
 }
 
 .feedsFloatBtnActive {
-  color: var(--accent);
-  background: var(--accent-subtle) !important;
+  color: var(--text-on-accent);
+  background: var(--accent-gradient) !important;
 }
 
 .feedsFloatLabel {
@@ -2724,23 +2736,9 @@ button.logoLink {
   pointer-events: auto;
 }
 
-@media (max-width: 767px) {
-  .composeOverlayMobile {
-    /* Bottom-align so the sheet stays above the keyboard inset instead of
-     * vertically centering in a short band (which reads as “jumped too high”). */
-    align-items: flex-end;
-    justify-content: center;
-    padding: 1.5rem;
-    padding-left: max(1.5rem, env(safe-area-inset-left));
-    padding-right: max(1.5rem, env(safe-area-inset-right));
-    padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
-    padding-top: max(1.5rem, env(safe-area-inset-top));
-  }
-}
-
 .composeCard {
   width: 100%;
-  max-width: 420px;
+  max-width: min(900px, calc(100vw - 5rem));
   /* Cap height relative to the overlay (keyboard already shrinks the fixed overlay on mobile). */
   max-height: min(85vh, 100%);
   overflow-y: auto;
@@ -2752,6 +2750,28 @@ button.logoLink {
   box-shadow: var(--shadow-dropdown);
   pointer-events: auto;
   animation: popIn 0.2s ease;
+}
+
+/* Mobile: match post modal full-height behavior */
+@media (max-width: 767px) {
+  .composeOverlayMobile {
+    /* Match post modal: full height, minimal padding for safe areas */
+    align-items: flex-start;
+    justify-content: center;
+    padding: 0;
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .composeCard {
+    /* Match post modal paneExpanded: full height minus keyboard inset */
+    max-width: none;
+    max-height: calc(100% - var(--keyboard-inset, 0px));
+    height: 100%;
+    border-radius: 0;
+  }
 }
 
 /* Notifications popup – overlay and card styled like post modal for consistency */

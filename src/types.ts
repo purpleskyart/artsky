@@ -8,6 +8,8 @@ export interface FeedSource {
   label: string
   /** For custom: at://did/app.bsky.feed.generator/... */
   uri?: string
+  /** Whether the feed generator accepts interaction feedback (show more/less like this) */
+  acceptsInteractions?: boolean
 }
 
 /** One feed in the mix with its percentage (0–100). Sum of all entries should be 100. */

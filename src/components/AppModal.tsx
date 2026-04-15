@@ -20,6 +20,14 @@ function profileModalScrollStorageKey(handle: string): string {
   return `artsky-profile-modal-scroll-v1:${encodeURIComponent(handle)}`
 }
 
+function postModalScrollStorageKey(uri: string): string {
+  return `artsky-post-modal-scroll-v1:${encodeURIComponent(uri)}`
+}
+
+function collectionModalScrollStorageKey(uri: string): string {
+  return `artsky-collection-modal-scroll-v1:${encodeURIComponent(uri)}`
+}
+
 const MOBILE_BREAKPOINT = 768
 function subscribeMobile(cb: () => void) {
   if (typeof window === 'undefined') return () => {}
@@ -54,6 +62,10 @@ interface AppModalProps {
   scrollKey?: string
   /** Profile handle: persist modal scroll in sessionStorage across remounts (path overlay ↔ ?profile= stack). */
   profileScrollPersistenceHandle?: string
+  /** Post URI: persist modal scroll in sessionStorage across remounts. */
+  postScrollPersistenceHandle?: string
+  /** Collection URI: persist modal scroll in sessionStorage across remounts. */
+  collectionScrollPersistenceHandle?: string
   /** When false, this modal is under another; only the top modal should capture wheel to avoid scrolling the wrong pane */
   isTopModal?: boolean
   /** Index in the modal stack (0 = bottom). Sets z-index so layers paint correctly when portals mount out of order (e.g. lazy list loads after eager detail). */
@@ -76,6 +88,8 @@ export default function AppModal({
   onPullToRefresh,
   scrollKey,
   profileScrollPersistenceHandle,
+  postScrollPersistenceHandle,
+  collectionScrollPersistenceHandle,
   isTopModal = true,
   stackIndex,
   feedBackground = false,
@@ -87,6 +101,7 @@ export default function AppModal({
   const scrollEndTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isMobile = useSyncExternalStore(subscribeMobile, getMobileSnapshot, () => false)
   const isStandalonePwa = useStandalonePwa()
+  const [isRestoringScroll, setIsRestoringScroll] = useState(false)
   const pullRefresh = usePullToRefresh({
     scrollRef,
     touchTargetRef: scrollRef,
@@ -221,19 +236,29 @@ export default function AppModal({
     }
   }, [isMobile, setModalScrollHidden])
 
-  /* Mobile: open in expanded mode by default */
+  /* Mobile only: open in expanded mode by default */
   useEffect(() => {
     if (isMobile) setExpanded(true)
   }, [isMobile, setExpanded])
 
-  /* Reset scroll when scrollKey changes, or restore profile modal scroll after remount (overlay ↔ query stack). */
-  useEffect(() => {
+  /* Restore modal scroll position from sessionStorage */
+  const restoreScrollPosition = useCallback(() => {
     const scrollEl = scrollRef.current
     if (!scrollEl) return
+
+    let storageKey: string | null = null
     if (profileScrollPersistenceHandle) {
+      storageKey = profileModalScrollStorageKey(profileScrollPersistenceHandle)
+    } else if (postScrollPersistenceHandle) {
+      storageKey = postModalScrollStorageKey(postScrollPersistenceHandle)
+    } else if (collectionScrollPersistenceHandle) {
+      storageKey = collectionModalScrollStorageKey(collectionScrollPersistenceHandle)
+    }
+
+    if (storageKey) {
       let target = 0
       try {
-        const raw = sessionStorage.getItem(profileModalScrollStorageKey(profileScrollPersistenceHandle))
+        const raw = sessionStorage.getItem(storageKey)
         if (raw != null) {
           const n = Number(raw)
           if (Number.isFinite(n) && n >= 0) target = n
@@ -241,29 +266,70 @@ export default function AppModal({
       } catch {
         /* private mode / quota */
       }
+      setIsRestoringScroll(true)
       const maxAttempts = 12
       let attempts = 0
       const apply = () => {
         attempts += 1
-        scrollEl.scrollTop = target
-        const closeEnough = Math.abs(scrollEl.scrollTop - target) <= 2
-        if (closeEnough || attempts >= maxAttempts) return
+        // Only attempt to scroll if content has enough height to reach target
+        if (scrollEl.scrollHeight > target) {
+          scrollEl.scrollTop = target
+          const closeEnough = Math.abs(scrollEl.scrollTop - target) <= 2
+          if (closeEnough || attempts >= maxAttempts) {
+            setIsRestoringScroll(false)
+            return
+          }
+        }
         window.setTimeout(() => requestAnimationFrame(apply), 50)
       }
       requestAnimationFrame(() => requestAnimationFrame(apply))
       return
     }
     scrollEl.scrollTop = 0
-  }, [scrollKey, profileScrollPersistenceHandle])
+  }, [profileScrollPersistenceHandle, postScrollPersistenceHandle, collectionScrollPersistenceHandle])
+
+  /* Reset scroll when scrollKey changes, or restore modal scroll after remount (overlay ↔ query stack). */
+  useEffect(() => {
+    restoreScrollPosition()
+  }, [scrollKey, profileScrollPersistenceHandle, postScrollPersistenceHandle, collectionScrollPersistenceHandle, restoreScrollPosition])
+
+  /* Restore scroll when becoming top modal again (e.g., returning from post modal) */
+  const wasTopModalRef = useRef(isTopModal)
+  useEffect(() => {
+    const wasTop = wasTopModalRef.current
+    wasTopModalRef.current = isTopModal
+    // Only restore if we're becoming top modal again (was false, now true)
+    const hasScrollPersistence = profileScrollPersistenceHandle || postScrollPersistenceHandle || collectionScrollPersistenceHandle
+    if (!wasTop && isTopModal && hasScrollPersistence) {
+      // Delay restoration to allow content to load/render
+      const timer = setTimeout(() => {
+        restoreScrollPosition()
+      }, 300)
+      return () => clearTimeout(timer)
+    }
+  }, [isTopModal, profileScrollPersistenceHandle, postScrollPersistenceHandle, collectionScrollPersistenceHandle, restoreScrollPosition])
 
   useEffect(() => {
-    if (!profileScrollPersistenceHandle) return
+    let storageKey: string | null = null
+    if (profileScrollPersistenceHandle) {
+      storageKey = profileModalScrollStorageKey(profileScrollPersistenceHandle)
+    } else if (postScrollPersistenceHandle) {
+      storageKey = postModalScrollStorageKey(postScrollPersistenceHandle)
+    } else if (collectionScrollPersistenceHandle) {
+      storageKey = collectionModalScrollStorageKey(collectionScrollPersistenceHandle)
+    }
+
+    if (!storageKey) return
     const scrollEl = scrollRef.current
     if (!scrollEl) return
-    const key = profileModalScrollStorageKey(profileScrollPersistenceHandle)
     const save = () => {
       try {
-        sessionStorage.setItem(key, String(scrollEl.scrollTop))
+        // Don't overwrite a valid saved position with 0 (which happens when modal loses focus)
+        const currentPos = scrollEl.scrollTop
+        const savedPos = sessionStorage.getItem(storageKey)
+        if (currentPos > 0 || savedPos === null) {
+          sessionStorage.setItem(storageKey, String(currentPos))
+        }
       } catch {
         /* ignore */
       }
@@ -273,7 +339,7 @@ export default function AppModal({
       save()
       scrollEl.removeEventListener('scroll', save)
     }
-  }, [profileScrollPersistenceHandle])
+  }, [profileScrollPersistenceHandle, postScrollPersistenceHandle, collectionScrollPersistenceHandle])
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -390,6 +456,7 @@ export default function AppModal({
               onTouchStart={pullRefresh.onTouchStart}
               onTouchMove={pullRefresh.onTouchMove}
               onTouchEnd={pullRefresh.onTouchEnd}
+              style={{ visibility: isRestoringScroll ? 'hidden' : 'visible' }}
             >
               <ModalScrollProvider scrollRef={scrollRef}>
                 {children}

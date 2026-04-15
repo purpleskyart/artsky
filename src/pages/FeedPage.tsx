@@ -8,6 +8,7 @@ import {
   getMixedFeed,
   getTimelineWithLifecycle,
   getFeedWithLifecycle,
+  getFeedGenerator,
   isPostNsfw,
   likePostWithLifecycle,
   unlikePostWithLifecycle,
@@ -20,6 +21,7 @@ import Layout, { FeedPullRefreshContext } from '../components/Layout'
 import { useProfileModal } from '../context/ProfileModalContext'
 import { useLoginModal } from '../context/LoginModalContext'
 import { useSession } from '../context/SessionContext'
+import { useFollowOverrides } from '../context/FollowOverridesContext'
 import { useMediaOnly } from '../context/MediaOnlyContext'
 import { useFeedMix } from '../context/FeedMixContext'
 import { useFeedSwipe } from '../context/FeedSwipeContext'
@@ -286,6 +288,8 @@ export default function FeedPage() {
 
   // Use the normalized like overrides cache from context
   const { likeOverrides, setLikeOverride } = useLikeOverrides()
+  // Use the normalized follow overrides cache from context
+  const { setFollowOverride } = useFollowOverrides()
   
   // Consolidated feed state using useReducer
   const [feedState, dispatch] = useReducer(feedReducer, {
@@ -579,7 +583,18 @@ export default function FeedPage() {
           }
           apply()
         } else if (single.uri) {
-          const res = await withTimeout(getFeedWithLifecycle(single.uri, limit, nextCursor), FEED_LOAD_TIMEOUT_MS)
+          // Fetch feed generator info to check if it accepts interactions
+          let feedSourceWithAccepts = { ...single }
+          try {
+            const genRes = await getFeedGenerator(single.uri)
+            feedSourceWithAccepts = {
+              ...single,
+              acceptsInteractions: (genRes.data?.view as { acceptsInteractions?: boolean })?.acceptsInteractions
+            }
+          } catch {
+            // If fetch fails, proceed without acceptsInteractions info
+          }
+          const res = await withTimeout(getFeedWithLifecycle(single.uri, limit, nextCursor, feedSourceWithAccepts), FEED_LOAD_TIMEOUT_MS)
           const apply = () => {
             const merged = dedupeFeedByPostUri(nextCursor ? [...feedItemsRef.current, ...res.data.feed] : res.data.feed)
             dispatch({ type: 'SET_ITEMS', items: merged, cursor: res.data.cursor })
@@ -594,7 +609,18 @@ export default function FeedPage() {
         }
         apply()
       } else if (source.uri) {
-        const res = await withTimeout(getFeedWithLifecycle(source.uri, limit, nextCursor), FEED_LOAD_TIMEOUT_MS)
+        // Fetch feed generator info to check if it accepts interactions
+        let feedSourceWithAccepts = { ...source }
+        try {
+          const genRes = await getFeedGenerator(source.uri)
+          feedSourceWithAccepts = {
+            ...source,
+            acceptsInteractions: (genRes.data?.view as { acceptsInteractions?: boolean })?.acceptsInteractions
+          }
+        } catch {
+          // If fetch fails, proceed without acceptsInteractions info
+        }
+        const res = await withTimeout(getFeedWithLifecycle(source.uri, limit, nextCursor, feedSourceWithAccepts), FEED_LOAD_TIMEOUT_MS)
         const apply = () => {
           const merged = dedupeFeedByPostUri(nextCursor ? [...feedItemsRef.current, ...res.data.feed] : res.data.feed)
           dispatch({ type: 'SET_ITEMS', items: merged, cursor: res.data.cursor })
@@ -646,7 +672,7 @@ export default function FeedPage() {
   /** Debounce between automatic load-more triggers (sentinel can stay visible on short columns). Keep low so reaching another column’s bottom doesn’t feel stuck for seconds after a recent load. */
   const LOAD_MORE_COOLDOWN_MS = 900
   /** Start loading when sentinel is within this distance below the viewport (load before user reaches end). */
-  const LOAD_MORE_ROOT_MARGIN_PX = 600
+  const LOAD_MORE_ROOT_MARGIN_PX = 1200
   /** Min gap (px) between viewport bottom and a column sentinel to count as "short" (empty masonry below). Capped vs viewport so small phones still work. */
   const LOAD_MORE_SHORT_MARGIN_PX = 300
   useEffect(() => {
@@ -1036,7 +1062,7 @@ export default function FeedPage() {
       const currentLikeOverrides = likeOverridesRef.current
       const currentSession = sessionRef.current
       const currentBlockConfirm = blockConfirmRefState.current
-      if (currentEntries.length === 0 || currentFocusTargets.length === 0) return
+      const fromNone = i < 0
 
       setFocusSetByMouse(false)
       const focusTarget = currentFocusTargets[i]
@@ -1050,11 +1076,13 @@ export default function FeedPage() {
       const focusInCollectionMenu = (document.activeElement as HTMLElement)?.closest?.('[data-collection-menu="true"]')
       const collectionMenuOpen = document.querySelector('[data-collection-menu="true"]') != null
       const menuOpenForFocusedCard = actionsMenuOpenForIndexRef.current === currentCardIndex
-      if ((focusInActionsMenu || focusInCollectionMenu || collectionMenuOpen || menuOpenForFocusedCard) && (key === 'w' || key === 's' || key === 'e' || key === 'enter' || key === 'q' || key === 'backspace' || key === 'escape' || e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+      const focusInNotificationsMenu = (document.activeElement as HTMLElement)?.closest?.('[data-notifications-list]')
+      const notificationsMenuOpen = document.querySelector('[data-notifications-list]') != null
+      if ((focusInActionsMenu || focusInCollectionMenu || collectionMenuOpen || menuOpenForFocusedCard || focusInNotificationsMenu || notificationsMenuOpen) && (key === 'w' || key === 's' || key === 'e' || key === 'o' || key === 'enter' || key === 'q' || key === 'u' || key === 'backspace' || key === 'escape' || e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
         return
       }
-      /* Ignore key repeat for left/right only (so A/D don’t skip); allow repeat for W/S so holding moves up/down */
-      if (e.repeat && (key === 'a' || key === 'd' || e.key === 'ArrowLeft' || e.key === 'ArrowRight')) return
+      /* Ignore key repeat for left/right only (so A/D/J/L don't skip); allow repeat for W/S/I/K so holding moves up/down */
+      if (e.repeat && (key === 'a' || key === 'd' || key === 'j' || key === 'l' || e.key === 'ArrowLeft' || e.key === 'ArrowRight')) return
       if (currentBlockConfirm) {
         if (key === 'escape') {
           e.preventDefault()
@@ -1063,13 +1091,21 @@ export default function FeedPage() {
         }
         return // let Tab/Enter reach the dialog buttons
       }
-      if (key === 'w' || key === 's' || key === 'a' || key === 'd' || key === 'e' || key === 'enter' || key === 'r' || key === 'c' || e.code === 'Space' || key === 'h' || key === 'm' || key === '`' || key === 'f' || e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') e.preventDefault()
+      if (key === 'w' || key === 's' || key === 'a' || key === 'd' || key === 'i' || key === 'j' || key === 'k' || key === 'l' || key === 'e' || key === 'o' || key === 'enter' || key === 'r' || key === 'c' || e.code === 'Space' || key === 'h' || key === 'm' || key === '`' || key === 'f' || key === 'q' || key === 'u' || e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') e.preventDefault()
 
       /* Use ref + concrete value (not functional updater) so Strict Mode double-invoke doesn't move two steps */
-      const fromNone = i < 0
       const columns = currentCols >= 2 ? currentDistribution : null
-      if (key === 'w' || e.key === 'ArrowUp') {
-        if (fromNone) return // No focus yet, don't jump to top
+      if (key === 'w' || key === 'i' || e.key === 'ArrowUp') {
+        if (fromNone) {
+          // Initialize focus to first item when starting from no focus
+          // Use actual value instead of ref since refs might not be updated yet on initial render
+          if (focusTargets.length > 0) {
+            beginKeyboardNavigation()
+            scrollIntoViewFromKeyboardRef.current = true
+            dispatch({ type: 'SET_KEYBOARD_FOCUS', index: 0 })
+          }
+          return
+        }
         beginKeyboardNavigation()
         scrollIntoViewFromKeyboardRef.current = true
         const onFirstImageOfCard = i === currentFirstByCard[currentCardIndex]
@@ -1085,8 +1121,16 @@ export default function FeedPage() {
         dispatch({ type: 'SET_KEYBOARD_FOCUS', index: next })
         return
       }
-      if (key === 's' || e.key === 'ArrowDown') {
-        if (fromNone) return // No focus yet, don't jump to top
+      if (key === 's' || key === 'k' || e.key === 'ArrowDown') {
+        if (fromNone) {
+          // Initialize focus to first item when starting from no focus
+          if (focusTargets.length > 0) {
+            beginKeyboardNavigation()
+            scrollIntoViewFromKeyboardRef.current = true
+            dispatch({ type: 'SET_KEYBOARD_FOCUS', index: 0 })
+          }
+          return
+        }
         beginKeyboardNavigation()
         scrollIntoViewFromKeyboardRef.current = true
         const onLastImageOfCard = i === currentLastByCard[currentCardIndex]
@@ -1102,11 +1146,19 @@ export default function FeedPage() {
         dispatch({ type: 'SET_KEYBOARD_FOCUS', index: next })
         return
       }
-      if (key === 'a' || e.key === 'ArrowLeft' || key === 'd' || e.key === 'ArrowRight') {
-        if (fromNone) return // No focus yet, don't jump
+      if (key === 'a' || key === 'j' || e.key === 'ArrowLeft' || key === 'd' || key === 'l' || e.key === 'ArrowRight') {
+        if (fromNone) {
+          // Initialize focus to first item when starting from no focus
+          if (focusTargets.length > 0) {
+            beginKeyboardNavigation()
+            scrollIntoViewFromKeyboardRef.current = true
+            dispatch({ type: 'SET_KEYBOARD_FOCUS', index: 0 })
+          }
+          return
+        }
         beginKeyboardNavigation()
         scrollIntoViewFromKeyboardRef.current = true
-        const goLeft = key === 'a' || e.key === 'ArrowLeft'
+        const goLeft = key === 'a' || key === 'j' || e.key === 'ArrowLeft'
         const measureCardForHorizontal = (cardIdx: number) => {
           const n = currentLastByCard[cardIdx] - currentFirstByCard[cardIdx] + 1
           const m = Math.min(currentMediaIndex, Math.max(0, n - 1))
@@ -1144,7 +1196,7 @@ export default function FeedPage() {
         }
         return
       }
-      if (key === 'e' || key === 'enter') {
+      if (key === 'e' || key === 'o' || key === 'enter') {
         if (focusedItem) openPostModal(focusedItem.post.uri, undefined, undefined, focusedItem.post.author?.handle)
         return
       }
@@ -1179,11 +1231,13 @@ export default function FeedPage() {
         return
       }
       if (key === 'f') {
+        if (fromNone) return
         const author = focusedItem?.post?.author as { did: string; viewer?: { following?: string } } | undefined
         const postUri = focusedItem?.post?.uri
         if (author && currentSession?.did && currentSession.did !== author.did && postUri) {
           const followingUri = author.viewer?.following
           if (followingUri) {
+            setFollowOverride(author.did, null)
             unfollowAccountWithLifecycle(followingUri).then(() => {
               dispatch({
                 type: 'UPDATE_ITEMS',
@@ -1206,9 +1260,13 @@ export default function FeedPage() {
               })
             }).catch((err: unknown) => {
               console.error('Failed to unfollow:', err)
+              setFollowOverride(author.did, followingUri)
             })
           } else {
+            const pendingUri = `pending:follow:${author.did}:${Date.now()}`
+            setFollowOverride(author.did, pendingUri)
             followAccountWithLifecycle(author.did).then((res) => {
+              setFollowOverride(author.did, res.uri)
               dispatch({
                 type: 'UPDATE_ITEMS',
                 updater: (prev) =>
@@ -1230,14 +1288,18 @@ export default function FeedPage() {
               })
             }).catch((err: unknown) => {
               console.error('Failed to follow:', err)
+              setFollowOverride(author.did, null)
             })
           }
         }
+        return
       }
     }
     window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [beginKeyboardNavigation, isModalOpen, openPostModal, setLikeOverride])
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [beginKeyboardNavigation, isModalOpen, openPostModal, setLikeOverride, setFollowOverride, focusTargets])
 
   useEffect(() => {
     if (blockConfirm) blockCancelRef.current?.focus()
