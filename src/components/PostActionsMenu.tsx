@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect, useLayoutEffect, memo, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { blockAccount, unblockAccount, reportPost, muteThread, deletePost, getProfileCached, getSession, sendFeedInteractions } from '../lib/bsky'
+import { blockAccount, unblockAccount, reportPost, muteThread, deletePost, getProfileCached, sendFeedInteractions } from '../lib/bsky'
 import { getShareablePostUrl } from '../lib/appUrl'
 import { formatRelativeTimeTitle, formatExactDateTime } from '../lib/date'
 import { useSession } from '../context/SessionContext'
