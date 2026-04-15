@@ -31,6 +31,7 @@ export default function CollectionBoardModalOverlay() {
       canGoBack={false}
       onDesktopBackdrop={onDesktopBackdrop}
       transparentTopBar
+      collectionScrollPersistenceHandle={uri}
       isTopModal
       stackIndex={0}
     >

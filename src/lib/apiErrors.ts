@@ -3,6 +3,13 @@
  * Provides user-friendly error messages for different API failure scenarios
  */
 
+let reportAuthErrorFn: (() => void) | null = null
+
+/** Set the auth error reporter function (called when 401 errors occur) */
+export function setAuthErrorReporter(fn: (() => void) | null): void {
+  reportAuthErrorFn = fn
+}
+
 export interface ApiError extends Error {
   status?: number
   statusCode?: number
@@ -145,6 +152,10 @@ function getStatusCodeMessage(status: number, apiError: ApiError, context?: stri
         return `Unable to${operation}. The request could not be processed. Please try again.`
       }
       case 401:
+        // Report auth error to trigger session cleanup
+        if (reportAuthErrorFn) {
+          reportAuthErrorFn()
+        }
         return 'Your session has expired. Please log in again.'
       case 403:
         return `You don't have permission to${operation}.`

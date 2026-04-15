@@ -3,6 +3,7 @@ import { Agent } from '@atproto/api'
 import type { AtpSessionData } from '@atproto/api'
 import * as bsky from '../lib/bsky'
 import * as oauth from '../lib/oauth'
+import { setAuthErrorReporter } from '../lib/apiErrors'
 
 // Suppress background OAuth token-refresh errors from reaching React's error boundary.
 // The @atproto/oauth-client-browser fires these as unhandled promise rejections after
@@ -12,6 +13,7 @@ if (typeof window !== 'undefined') {
     const msg = e.reason instanceof Error ? e.reason.message : String(e.reason ?? '')
     if (/TokenRefreshError|session was deleted|token.*refresh|refresh.*token/i.test(msg)) {
       e.preventDefault()
+      console.warn('OAuth token refresh failed:', msg)
     }
   })
 }
@@ -25,6 +27,7 @@ interface SessionContextValue {
   logout: () => Promise<void>
   switchAccount: (did: string) => Promise<boolean>
   refreshSession: () => void
+  reportAuthError: () => void
 }
 
 const SessionContext = createContext<SessionContextValue | null>(null)
@@ -52,10 +55,49 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [authResolved, setAuthResolved] = useState(getInitialAuthResolved)
   // Block render until auth is resolved when there's a persisted login hint (prevents logged-out flash)
   const [loading, setLoading] = useState(() => !getInitialAuthResolved())
+  const [authErrorCount, setAuthErrorCount] = useState(0)
+
+  const reportAuthError = useCallback(() => {
+    setAuthErrorCount((prev) => prev + 1)
+  }, [])
+
+  const logout = useCallback(async () => {
+    const stillLoggedIn = await bsky.logoutCurrentAccount()
+    setSession(stillLoggedIn ? bsky.getSessionStateForReact() : null)
+  }, [])
+
+  const switchAccount = useCallback(async (did: string) => {
+    const ok = await bsky.switchAccount(did)
+    if (ok) setSession(bsky.getSessionStateForReact())
+    return ok
+  }, [])
+
+  const refreshSession = useCallback(() => {
+    setSession(bsky.getSessionStateForReact())
+  }, [])
 
   useEffect(() => {
     // Removed requestPersistentStorage - modern browsers handle storage persistence automatically
   }, [])
+
+  // Set up auth error reporter
+  useEffect(() => {
+    setAuthErrorReporter(reportAuthError)
+    return () => {
+      setAuthErrorReporter(null)
+    }
+  }, [reportAuthError])
+
+  // Monitor for authentication errors (401) and trigger logout if session is invalid
+  useEffect(() => {
+    if (authErrorCount >= 3 && session) {
+      console.warn('Multiple authentication errors detected, logging out')
+      logout().catch(() => {
+        setSession(null)
+      })
+      setAuthErrorCount(0)
+    }
+  }, [authErrorCount, session, logout])
 
   useEffect(() => {
     let cancelled = false
@@ -111,14 +153,30 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           bsky.addOAuthDid(oauthResult.session.did)
           const agent = new Agent(oauthResult.session)
           bsky.setOAuthAgent(agent, oauthResult.session)
+          // Reset failure count on successful restore
+          bsky.resetOAuthFailure(oauthResult.session.did)
           // Pass the session DID directly to finish to ensure session state is set
           finish({ did: oauthResult.session.did } as AtpSessionData)
           return
         }
-        // Restore returned no session — if we tried a specific DID and it failed, remove it
-        // so hasPersistedLoginHint() stops returning true for a dead session on next load.
+        // Restore returned no session — try localStorage fallback first
         if (!hasCallback && preferredRestoreDid && !oauthResult?.session) {
-          bsky.removeOAuthDid(preferredRestoreDid)
+          const mirroredSession = bsky.getStoredSession()
+          if (mirroredSession?.did === preferredRestoreDid) {
+            // Fallback to mirrored session from localStorage
+            finish(mirroredSession)
+            // Still increment failure count - if this keeps happening, eventually remove
+            const shouldRemove = bsky.incrementOAuthFailure(preferredRestoreDid)
+            if (shouldRemove) {
+              bsky.removeOAuthDid(preferredRestoreDid)
+            }
+            return
+          }
+          // No mirrored session available — increment failure count
+          const shouldRemove = bsky.incrementOAuthFailure(preferredRestoreDid)
+          if (shouldRemove) {
+            bsky.removeOAuthDid(preferredRestoreDid)
+          }
         }
       } catch {
         // Don't auto-logout on token refresh errors - keep session data so user can retry
@@ -143,21 +201,6 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
-  const logout = useCallback(async () => {
-    const stillLoggedIn = await bsky.logoutCurrentAccount()
-    setSession(stillLoggedIn ? bsky.getSessionStateForReact() : null)
-  }, [])
-
-  const switchAccount = useCallback(async (did: string) => {
-    const ok = await bsky.switchAccount(did)
-    if (ok) setSession(bsky.getSessionStateForReact())
-    return ok
-  }, [])
-
-  const refreshSession = useCallback(() => {
-    setSession(bsky.getSessionStateForReact())
-  }, [])
-
   const sessionsList = useMemo<AtpSessionData[]>(() => {
     try {
       return bsky.getSessionsList()
@@ -176,8 +219,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       logout,
       switchAccount,
       refreshSession,
+      reportAuthError,
     }),
-    [session, sessionsList, loading, authResolved, logout, switchAccount, refreshSession]
+    [session, sessionsList, loading, authResolved, logout, switchAccount, refreshSession, reportAuthError]
   )
 
   return (

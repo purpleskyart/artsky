@@ -103,21 +103,35 @@ export default function QuotesModal({ postUri, onClose, onBack, canGoBack, onDes
       const i = keyboardFocusIndexRef.current
       const fromNone = i < 0
 
-      if (key === 'w' || e.key === 'ArrowUp') {
-        if (fromNone) return
+      if (key === 'w' || key === 'i' || e.key === 'ArrowUp') {
+        if (fromNone) {
+          if (items.length > 0) {
+            e.preventDefault()
+            beginKeyboardNavigation()
+            setKeyboardFocusIndex(0)
+          }
+          return
+        }
         e.preventDefault()
         beginKeyboardNavigation()
         setKeyboardFocusIndex((idx) => Math.max(0, idx - 1))
         return
       }
-      if (key === 's' || e.key === 'ArrowDown') {
-        if (fromNone) return
+      if (key === 's' || key === 'k' || e.key === 'ArrowDown') {
+        if (fromNone) {
+          if (items.length > 0) {
+            e.preventDefault()
+            beginKeyboardNavigation()
+            setKeyboardFocusIndex(0)
+          }
+          return
+        }
         e.preventDefault()
         beginKeyboardNavigation()
         setKeyboardFocusIndex((idx) => Math.min(items.length - 1, idx + 1))
         return
       }
-      if (key === 'e' || key === 'enter') {
+      if (key === 'e' || key === 'o' || key === 'enter') {
         if (fromNone || i >= items.length) return
         e.preventDefault()
         const item = items[i]

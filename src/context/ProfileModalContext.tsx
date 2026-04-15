@@ -64,18 +64,16 @@ function parseSearchToModalStack(search: string): ModalItem[] {
   const resolvedPostUri =
     resolvedPostUriRaw && resolvedPostUriRaw.length > 0 ? resolvedPostUriRaw : null
 
-  const profileHandle = params.get('profile')
   const searchQueryParam = params.get('search')
   const tag = params.get('tag')
   const quotesUri = params.get('quotes')
 
   const stack: ModalItem[] = []
-  /* Bottom → top: search → tag → profile → post (must include tag/search before post or post-only wins and drops parents). */
+  /* Bottom → top: search → tag → post (must include tag/search before post or post-only wins and drops parents). */
   if (searchQueryParam && searchQueryParam.length > 0) {
     stack.push({ type: 'search', query: searchQueryParam })
   }
   if (tag) stack.push({ type: 'tag', tag })
-  if (profileHandle) stack.push({ type: 'profile', handle: profileHandle })
 
   if (resolvedPostUri) {
     const focusUri = params.get('focus') ?? undefined
@@ -101,10 +99,6 @@ function appendModalItemToSearchParams(p: URLSearchParams, item: ModalItem): voi
     p.set('post', item.uri)
     if (item.openReply) p.set('reply', '1')
     if (item.focusUri) p.set('focus', item.focusUri)
-    return
-  }
-  if (item.type === 'profile') {
-    p.set('profile', item.handle)
     return
   }
   if (item.type === 'tag') {
@@ -196,30 +190,7 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
     }
 
     /**
-     * Query-based profile (`/feed?profile=…`, `/tag/x?profile=…`, …): use pretty path-based URL
-     * `/profile/handle/post/rkey` instead of query parameters for cleaner, shareable URLs.
-     */
-    const profileInSearch = new URLSearchParams(location.search).get('profile')
-    if (
-      profileInSearch &&
-      !location.pathname.startsWith('/post/') &&
-      !/^\/profile\/[^/]+\/post\//.test(location.pathname)
-    ) {
-      const path = getPostOverlayPath(uri, authorHandle ?? profileInSearch)
-      const q = new URLSearchParams()
-      if (openReply) q.set('reply', '1')
-      if (focusUri) q.set('focus', focusUri)
-      const qs = q.toString()
-      const frozenBg = getOverlayBackgroundLocation(location)
-      navigate(
-        { pathname: path, search: qs ? `?${qs}` : '' },
-        { replace: false, state: { backgroundLocation: frozenBg } },
-      )
-      return
-    }
-
-    /**
-     * Query-based search (`?search=…`): push `post=` on the same pathname even when history state
+     * Query-based search (`?search=…): push `post=` on the same pathname even when history state
      * lost `backgroundLocation` (e.g. restore / edge cases). Path-based `/post/` would not match
      * these stacked query modals.
      */
@@ -284,9 +255,10 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
 
   const openProfileModal = useCallback((handle: string) => {
     const bg = getOverlayBackgroundLocation(location)
-    /* Merge from current query (modal stack) so e.g. ?search= stays when opening profile from search. */
+    /* Use path-based routing (/profile/:handle) to match modal overlay routes. */
+    /* Preserve other query params (search, tag) by merging them into the new location. */
     const p = new URLSearchParams(location.search.replace(/^\?/, ''))
-    p.set('profile', handle)
+    p.delete('profile')
     p.delete('post')
     p.delete('forumPost')
     p.delete('reply')
@@ -294,7 +266,7 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
     p.delete('quotes')
     const qs = p.toString()
     navigate(
-      { pathname: bg.pathname, search: qs ? `?${qs}` : '', hash: location.hash ?? bg.hash ?? '' },
+      { pathname: `/profile/${encodeURIComponent(handle)}`, search: qs ? `?${qs}` : '', hash: location.hash ?? bg.hash ?? '' },
       { replace: false, state: { backgroundLocation: bg } },
     )
   }, [navigate, location])

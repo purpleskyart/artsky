@@ -22,6 +22,7 @@ export const GUEST_FEED_ACCOUNTS = [
   { handle: 'onepiececolor.bsky.social', label: '𝐎𝐍𝐄 𝐏𝐈𝐄𝐂𝐄' },
   { handle: 'chronocrump.bsky.social', label: 'Chronocrump' },
   { handle: 'minbitt.bsky.social', label: 'Minbitt' },
+  { handle: 'pyawakit.bsky.social', label: 'Pyawakit' },
 
 ] as const
 

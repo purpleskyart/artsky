@@ -6,7 +6,7 @@ import { requestDeduplicator } from './RequestDeduplicator'
 import { responseCache } from './ResponseCache'
 import { retryWithBackoff, shouldRetryIncluding429 } from './retryWithBackoff'
 import { getApiErrorMessage, shouldRetryError } from './apiErrors'
-import { rateLimiter } from './RateLimiter'
+import { rateLimiter, RateLimiter } from './RateLimiter'
 import { apiRequestManager } from './apiRequestManager'
 import { RequestPriority } from './RequestQueue'
 import {
@@ -83,18 +83,56 @@ export function addOAuthDid(did: string, setActive = true): void {
   saveOAuthAccounts(store)
 }
 
-/** Remove an OAuth DID from the list. */
-export function removeOAuthDid(did: string): void {
-  const store = getOAuthAccounts()
-  store.dids = store.dids.filter((d) => d !== did)
-  if (store.activeDid === did) store.activeDid = store.dids[0] ?? null
-  saveOAuthAccounts(store)
-}
-
 /** Set which OAuth account is active (caller must then restore that session). */
 export function setActiveOAuthDid(did: string | null): void {
   const store = getOAuthAccounts()
   store.activeDid = did
+  saveOAuthAccounts(store)
+}
+
+const OAUTH_FAILURE_COUNT_KEY = 'artsky-oauth-failure-counts'
+const MAX_OAUTH_FAILURES_BEFORE_REMOVAL = 3
+
+/** Get the failure count for each OAuth DID */
+export function getOAuthFailureCounts(): Record<string, number> {
+  try {
+    const raw = localStorage.getItem(OAUTH_FAILURE_COUNT_KEY)
+    return raw ? (JSON.parse(raw) as Record<string, number>) : {}
+  } catch {
+    return {}
+  }
+}
+
+/** Save failure counts to localStorage */
+function saveOAuthFailureCounts(counts: Record<string, number>): void {
+  try {
+    localStorage.setItem(OAUTH_FAILURE_COUNT_KEY, JSON.stringify(counts))
+  } catch {
+    // ignore
+  }
+}
+
+/** Increment failure count for a DID, return true if should be removed (exceeded max) */
+export function incrementOAuthFailure(did: string): boolean {
+  const counts = getOAuthFailureCounts()
+  counts[did] = (counts[did] || 0) + 1
+  saveOAuthFailureCounts(counts)
+  return counts[did] >= MAX_OAUTH_FAILURES_BEFORE_REMOVAL
+}
+
+/** Reset failure count for a DID (on successful restore) */
+export function resetOAuthFailure(did: string): void {
+  const counts = getOAuthFailureCounts()
+  delete counts[did]
+  saveOAuthFailureCounts(counts)
+}
+
+/** Remove an OAuth DID from the list. */
+export function removeOAuthDid(did: string): void {
+  resetOAuthFailure(did)
+  const store = getOAuthAccounts()
+  store.dids = store.dids.filter((d) => d !== did)
+  if (store.activeDid === did) store.activeDid = store.dids[0] ?? null
   saveOAuthAccounts(store)
 }
 
@@ -205,7 +243,37 @@ function createRateLimitedFetch(agentId: string) {
 
 // Create separate fetch handlers for each agent
 const credentialAgentFetch = createRateLimitedFetch('credential')
-const publicAgentFetch = createRateLimitedFetch('public')
+
+// Separate rate limiter for public requests with more lenient limits
+// Public/guest API typically allows higher request rates than authenticated endpoints
+const publicRateLimiter = new RateLimiter({
+  maxRequestsPerWindow: 300,
+  windowMs: 60_000, // 1 minute
+  defaultBackoffMs: 30_000, // 30 seconds
+})
+
+function createPublicRateLimitedFetch() {
+  return async (input: URL | RequestInfo, init?: RequestInit): Promise<Response> => {
+    const limitCheck = publicRateLimiter.checkRateLimit('public')
+    if (!limitCheck.allowed) {
+      const error = Object.assign(
+        new Error(`Rate limited — backing off for ${Math.ceil(limitCheck.backoffMs / 1000)}s`),
+        { status: 429 }
+      )
+      throw error
+    }
+
+    const response = await fetch(input, init)
+
+    if (response.status === 429) {
+      publicRateLimiter.handle429Response('public', response)
+    }
+
+    return response
+  }
+}
+
+const publicAgentFetch = createPublicRateLimitedFetch()
 
 /** Rate-limited fetch for authenticated requests. Use when creating OAuth/credential agents so all API calls are throttled. */
 export function getCredentialRateLimitedFetch(): typeof credentialAgentFetch {
@@ -666,18 +734,41 @@ export async function getMixedFeed(
     const pct = entries[i]?.percent ?? 0
     return Math.round((limit * pct) / totalPercent)
   })
-  type FeedSourceTag = { kind: string; label?: string; uri?: string }
+  
+  // Fetch acceptsInteractions for each feed source in the mix
+  const feedAcceptsInfo = await Promise.all(
+    entries.map(async (entry) => {
+      if (!entry.source.uri) return { uri: entry.source.uri, acceptsInteractions: undefined }
+      try {
+        const genRes = await getFeedGenerator(entry.source.uri)
+        return { 
+          uri: entry.source.uri, 
+          acceptsInteractions: (genRes.data?.view as { acceptsInteractions?: boolean })?.acceptsInteractions 
+        }
+      } catch {
+        return { uri: entry.source.uri, acceptsInteractions: undefined }
+      }
+    })
+  )
+  
+  const acceptsMap = new Map(feedAcceptsInfo.map(info => [info.uri, info.acceptsInteractions]))
+  
+  type FeedSourceTag = { kind: string; label?: string; uri?: string; acceptsInteractions?: boolean }
   const combined: (TimelineItem & { _feedSource?: FeedSourceTag })[] = []
   const seen = new Set<string>()
   results.forEach((r, i) => {
     const take = takePerEntry[i] ?? 0
     const sourceTag = entries[i]?.source as FeedSourceTag | undefined
     const feed = r.feed ?? []
+    // Add acceptsInteractions to the source tag
+    const enrichedSourceTag = sourceTag && sourceTag.uri 
+      ? { ...sourceTag, acceptsInteractions: acceptsMap.get(sourceTag.uri) }
+      : sourceTag
     for (let j = 0; j < take && j < feed.length; j++) {
       const item = feed[j]
       if (item?.post?.uri && !seen.has(item.post.uri)) {
         seen.add(item.post.uri)
-        combined.push(sourceTag ? { ...item, _feedSource: sourceTag } : item)
+        combined.push(enrichedSourceTag ? { ...item, _feedSource: enrichedSourceTag } : item)
       }
     }
   })
@@ -696,7 +787,7 @@ export async function getMixedFeed(
 /** Cached + deduplicated getPostThread for fast repeat opens and low-bandwidth. */
 export async function getPostThreadCached(
   uri: string,
-  api: { app: { bsky: { feed: { getPostThread: (opts: { uri: string; depth: number }) => Promise<{ data: { thread: unknown } }> } } } },
+  api: { app: { bsky: { feed: { getPostThread: (opts: { uri: string; depth: number; parentHeight?: number }) => Promise<{ data: { thread: unknown } }> } } } },
 ): Promise<{ data: { thread: unknown } }> {
   const { getCachedThread, setCachedThread, dedupeFetch, getThreadFetchEpoch } = await import('./postCache')
   const MAX_STALE_RETRIES = 6
@@ -708,7 +799,7 @@ export async function getPostThreadCached(
     const epochBefore = getThreadFetchEpoch(uri)
     const res = await dedupeFetch(uri, () =>
       retryWithBackoff(
-        () => api.app.bsky.feed.getPostThread({ uri, depth: 10 }),
+        () => api.app.bsky.feed.getPostThread({ uri, depth: 10, parentHeight: 10 }),
         { shouldRetry: shouldRetryIncluding429, initialDelay: 3000, maxRetries: 2 },
       ),
     )
@@ -719,7 +810,7 @@ export async function getPostThreadCached(
     return res
   }
   const res = await retryWithBackoff(
-    () => api.app.bsky.feed.getPostThread({ uri, depth: 10 }),
+    () => api.app.bsky.feed.getPostThread({ uri, depth: 10, parentHeight: 10 }),
     { shouldRetry: shouldRetryIncluding429, initialDelay: 3000, maxRetries: 2 },
   )
   setCachedThread(uri, res.data.thread)
@@ -1365,11 +1456,12 @@ export async function muteThread(rootUri: string): Promise<void> {
  * Requires session. Used for custom feeds like For You that support user feedback.
  */
 export async function sendFeedInteractions(
-  interactions: Array<{ item: string; event: 'feedItemLike' | 'feedItemDislike' }>,
+  interactions: Array<{ item: string; event: 'app.bsky.feed.defs#requestMore' | 'app.bsky.feed.defs#requestLess' }>,
+  feedUri?: string,
 ): Promise<void> {
   const session = getSession()
   if (!session?.did) throw new Error('Not logged in')
-  await agent.app.bsky.feed.sendInteractions({ interactions })
+  await agent.app.bsky.feed.sendInteractions({ interactions, ...(feedUri && { feed: feedUri }) })
 }
 
 /** List accounts the current user has blocked. Returns block record URI and profile info. Requires session. */
@@ -1598,6 +1690,12 @@ export function parseBskyFeedUrl(url: string): { handle: string; feedSlug: strin
   )
   if (!m) return null
   return { handle: decodeURIComponent(m[1]), feedSlug: decodeURIComponent(m[2]) }
+}
+
+/** Get feed generator info by URI. Returns the full response including acceptsInteractions. */
+export async function getFeedGenerator(feedUri: string): Promise<Awaited<ReturnType<typeof agent.app.bsky.feed.getFeedGenerator>>> {
+  const a = getSession() ? agent : publicAgent
+  return await a.app.bsky.feed.getFeedGenerator({ feed: feedUri })
 }
 
 /** Resolve a bsky.app feed URL (or at:// URI) to a feed generator at:// URI. Throws if invalid. */
@@ -1964,7 +2062,8 @@ export async function getTimelineWithLifecycle(
 export async function getFeedWithLifecycle(
   feedUri: string,
   limit: number = 30,
-  cursor?: string
+  cursor?: string,
+  feedSource?: { kind: string; label?: string; uri?: string; acceptsInteractions?: boolean }
 ): Promise<Awaited<ReturnType<typeof agent.app.bsky.feed.getFeed>>> {
   if (!getSession()) {
     return { data: { feed: [], cursor: undefined } } as unknown as Awaited<ReturnType<typeof agent.app.bsky.feed.getFeed>>
@@ -1981,6 +2080,10 @@ export async function getFeedWithLifecycle(
     () => agent.app.bsky.feed.getFeed({ feed: feedUri, limit, cursor }),
     { priority: RequestPriority.MEDIUM, ttl: 300_000, staleWhileRevalidate: 300_000, cacheKey, timeout: 30000 }
   )
+  // Attach feed source to items for single feed scenarios
+  if (feedSource && result.data?.feed) {
+    result.data.feed = result.data.feed.map(item => ({ ...item, _feedSource: feedSource }))
+  }
   return result
 }
 
@@ -2078,8 +2181,11 @@ async function invalidatePostThreadCache(postUri: string): Promise<void> {
  */
 export async function likePostWithLifecycle(uri: string, cid: string): Promise<{ uri: string }> {
   const result = await apiRequestManager.execute(`like:${uri}`, () => agent.like(uri, cid), { priority: RequestPriority.HIGH, timeout: 30000 })
-  invalidateAfterPostLiked()
-  await invalidatePostThreadCache(uri)
+  // Invalidate cache in background to avoid blocking UI
+  setTimeout(() => {
+    invalidateAfterPostLiked()
+    invalidatePostThreadCache(uri)
+  }, 0)
   return result
 }
 
@@ -2089,8 +2195,11 @@ export async function likePostWithLifecycle(uri: string, cid: string): Promise<{
  */
 export async function unlikePostWithLifecycle(likeUri: string, subjectPostUri?: string): Promise<void> {
   await apiRequestManager.execute(`unlike:${likeUri}`, () => agent.deleteLike(likeUri), { priority: RequestPriority.HIGH, timeout: 30000 })
-  invalidateAfterPostUnliked()
-  if (subjectPostUri) await invalidatePostThreadCache(subjectPostUri)
+  // Invalidate cache in background to avoid blocking UI
+  setTimeout(() => {
+    invalidateAfterPostUnliked()
+    if (subjectPostUri) invalidatePostThreadCache(subjectPostUri)
+  }, 0)
 }
 
 /**
@@ -2098,7 +2207,8 @@ export async function unlikePostWithLifecycle(likeUri: string, subjectPostUri?: 
  */
 export async function repostPostWithLifecycle(uri: string, cid: string): Promise<{ uri: string }> {
   const result = await apiRequestManager.execute(`repost:${uri}`, () => agent.repost(uri, cid), { priority: RequestPriority.HIGH, timeout: 30000 })
-  invalidateAfterPostReposted()
+  // Invalidate cache in background to avoid blocking UI
+  setTimeout(() => invalidateAfterPostReposted(), 0)
   return result
 }
 
@@ -2107,7 +2217,8 @@ export async function repostPostWithLifecycle(uri: string, cid: string): Promise
  */
 export async function deleteRepostWithLifecycle(repostUri: string): Promise<void> {
   await apiRequestManager.execute(`unrepost:${repostUri}`, () => agent.deleteRepost(repostUri), { priority: RequestPriority.HIGH, timeout: 30000 })
-  invalidateAfterPostReposted()
+  // Invalidate cache in background to avoid blocking UI
+  setTimeout(() => invalidateAfterPostReposted(), 0)
 }
 
 /**
@@ -2115,7 +2226,8 @@ export async function deleteRepostWithLifecycle(repostUri: string): Promise<void
  */
 export async function followAccountWithLifecycle(did: string): Promise<{ uri: string }> {
   const result = await apiRequestManager.execute(`follow:${did}`, () => agent.follow(did), { priority: RequestPriority.HIGH, timeout: 30000 })
-  invalidateAfterFollowing()
+  // Invalidate cache in background to avoid blocking UI
+  setTimeout(() => invalidateAfterFollowing(), 0)
   return result
 }
 
@@ -2124,7 +2236,8 @@ export async function followAccountWithLifecycle(did: string): Promise<{ uri: st
  */
 export async function unfollowAccountWithLifecycle(followUri: string): Promise<void> {
   await apiRequestManager.execute(`unfollow:${followUri}`, () => agent.deleteFollow(followUri), { priority: RequestPriority.HIGH, timeout: 30000 })
-  invalidateAfterUnfollowing()
+  // Invalidate cache in background to avoid blocking UI
+  setTimeout(() => invalidateAfterUnfollowing(), 0)
 }
 
 /**
@@ -2132,7 +2245,8 @@ export async function unfollowAccountWithLifecycle(followUri: string): Promise<v
  */
 export async function blockAccountWithLifecycle(did: string): Promise<{ uri: string }> {
   const result = await apiRequestManager.execute(`block:${did}`, () => agent.app.bsky.graph.block.create({ repo: agent.did ?? '' }, { subject: did, createdAt: new Date().toISOString() }), { priority: RequestPriority.HIGH, timeout: 30000 })
-  invalidateAfterBlocking()
+  // Invalidate cache in background to avoid blocking UI
+  setTimeout(() => invalidateAfterBlocking(), 0)
   return result
 }
 
@@ -2141,7 +2255,8 @@ export async function blockAccountWithLifecycle(did: string): Promise<{ uri: str
  */
 export async function unblockAccountWithLifecycle(blockUri: string): Promise<void> {
   await apiRequestManager.execute(`unblock:${blockUri}`, () => agent.app.bsky.graph.block.delete({ repo: agent.did ?? '', rkey: blockUri.split('/').pop() ?? '' }), { priority: RequestPriority.HIGH, timeout: 30000 })
-  invalidateAfterUnblocking()
+  // Invalidate cache in background to avoid blocking UI
+  setTimeout(() => invalidateAfterUnblocking(), 0)
 }
 
 /**
@@ -2149,7 +2264,8 @@ export async function unblockAccountWithLifecycle(blockUri: string): Promise<voi
  */
 export async function muteAccountWithLifecycle(did: string): Promise<void> {
   await apiRequestManager.execute(`mute:${did}`, () => agent.app.bsky.graph.muteActor({ actor: did }), { priority: RequestPriority.HIGH, timeout: 30000 })
-  invalidateAfterMuting()
+  // Invalidate cache in background to avoid blocking UI
+  setTimeout(() => invalidateAfterMuting(), 0)
 }
 
 /**
@@ -2157,7 +2273,8 @@ export async function muteAccountWithLifecycle(did: string): Promise<void> {
  */
 export async function unmuteAccountWithLifecycle(did: string): Promise<void> {
   await apiRequestManager.execute(`unmute:${did}`, () => agent.app.bsky.graph.unmuteActor({ actor: did }), { priority: RequestPriority.HIGH, timeout: 30000 })
-  invalidateAfterUnmuting()
+  // Invalidate cache in background to avoid blocking UI
+  setTimeout(() => invalidateAfterUnmuting(), 0)
 }
 
 /**

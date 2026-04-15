@@ -116,14 +116,14 @@ function ProfileColumnComponent(props: ProfileColumnProps) {
 
   return (
     <div className={styles.gridColumn}>
-      {column.map(({ item, originalIndex }) => {
+      {column.map(({ item, originalIndex }, index) => {
         const isNsfwBlurred =
           nsfwPreference === 'blurred' &&
           isPostNsfw(item.post) &&
           !unblurredUris.has(item.post.uri)
         return (
           <div
-            key={item.post.uri}
+            key={`${item.post.uri}-${index}`}
             ref={cardRef(originalIndex)}
             className={styles.gridItem}
             data-post-uri={item.post.uri}

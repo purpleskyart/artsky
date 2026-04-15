@@ -166,6 +166,76 @@
   }
 }
 
+/* Ancestor thread display (conversation history above current post) */
+.ancestorsWrap {
+  margin-bottom: 1rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.ancestorPostWrap {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.ancestorPostWrapLast {
+  margin-bottom: 0.5rem;
+}
+
+.ancestorPostCard {
+  border: none;
+  border-left: 2px solid var(--border);
+  border-radius: 0 0.5rem 0.5rem 0;
+  padding-left: 0.6rem;
+  background: color-mix(in srgb, var(--surface) 50%, transparent);
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.ancestorPostCard:hover {
+  background: color-mix(in srgb, var(--surface) 80%, transparent);
+  border-left-color: var(--accent);
+}
+
+.ancestorConnector {
+  width: 2px;
+  height: 1.5rem;
+  background: var(--border);
+  margin-left: 0.6rem;
+  margin-top: 0.25rem;
+  margin-bottom: 0.25rem;
+}
+
+.ancestorsWrap .quotedPostLabel {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--muted);
+  margin: 0 0 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* Scroll up indicator shown when there are ancestors above */
+.scrollUpIndicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0;
+  margin-top: 0.25rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+  opacity: 0.8;
+}
+
+.scrollUpArrow {
+  font-size: 0.875rem;
+}
+
+.scrollUpText {
+  font-weight: 500;
+}
+
 /* Quoted post (quote post) block */
 .quotedPostWrap {
   margin-top: 1rem;
@@ -1171,6 +1241,15 @@
   background-clip: text;
   color: transparent;
   border-color: #ec4899;
+}
+/* Mobile: use solid pink color for better compatibility */
+@media (hover: none) {
+  .likeRepostBtnActive {
+    background: none;
+    color: #ec4899;
+    -webkit-background-clip: unset;
+    background-clip: unset;
+  }
 }
 .likeRepostBtnActive:hover:not(:disabled) {
   filter: brightness(1.15);

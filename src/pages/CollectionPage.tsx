@@ -219,30 +219,35 @@ export function CollectionDetailContent({ uri: decodedUri }: CollectionDetailCon
       const list = displayItemsRef.current
       const i = keyboardFocusIndexRef.current
       const key = e.key.toLowerCase()
-      if (key === 'w' || key === 's' || key === 'a' || key === 'd' || key === 'e' || key === 'enter' || e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      const focusInNotificationsMenu = (document.activeElement as HTMLElement)?.closest?.('[data-notifications-list]')
+      const notificationsMenuOpen = document.querySelector('[data-notifications-list]') != null
+      if ((focusInNotificationsMenu || notificationsMenuOpen) && (key === 'w' || key === 's' || key === 'e' || key === 'o' || key === 'enter' || key === 'q' || key === 'u' || key === 'backspace' || key === 'escape' || e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+        return
+      }
+      if (key === 'w' || key === 's' || key === 'a' || key === 'd' || key === 'i' || key === 'j' || key === 'k' || key === 'l' || key === 'e' || key === 'o' || key === 'enter' || e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
         e.preventDefault()
       }
-      if (key === 'w' || e.key === 'ArrowUp') {
+      if (key === 'w' || key === 'i' || e.key === 'ArrowUp') {
         beginKeyboardNavigation()
         setKeyboardFocusIndex((idx) => Math.max(0, idx - cols))
         return
       }
-      if (key === 's' || e.key === 'ArrowDown') {
+      if (key === 's' || key === 'k' || e.key === 'ArrowDown') {
         beginKeyboardNavigation()
         setKeyboardFocusIndex((idx) => Math.min(list.length - 1, idx + cols))
         return
       }
-      if (key === 'a' || e.key === 'ArrowLeft') {
+      if (key === 'a' || key === 'j' || e.key === 'ArrowLeft') {
         beginKeyboardNavigation()
         setKeyboardFocusIndex((idx) => Math.max(0, idx - 1))
         return
       }
-      if (key === 'd' || e.key === 'ArrowRight') {
+      if (key === 'd' || key === 'l' || e.key === 'ArrowRight') {
         beginKeyboardNavigation()
         setKeyboardFocusIndex((idx) => Math.min(list.length - 1, idx + 1))
         return
       }
-      if (key === 'e' || key === 'enter') {
+      if (key === 'e' || key === 'o' || key === 'enter') {
         const item = list[i]
         if (item) openPostModal(item.post.uri, undefined, undefined, item.post.author?.handle)
       }

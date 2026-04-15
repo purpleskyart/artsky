@@ -307,7 +307,7 @@ export default function ProfileContent({
       if (nextCursor) setLoadingMore(true)
       else setLoading(true)
       setError(null)
-      
+
       // Check for preloaded feed data on initial load
       if (!nextCursor) {
         const preloaded = getPreloadedFeedSnapshot(handle)
@@ -318,7 +318,7 @@ export default function ProfileContent({
           return
         }
       }
-      
+
       const res = await readAgent.getAuthorFeed({ actor: handle, limit: 20, cursor: nextCursor, includePins: true })
       const feed = (res.data.feed ?? []) as TimelineItem[]
       setItems((prev) => (nextCursor ? [...prev, ...feed] : feed))
@@ -605,9 +605,14 @@ export default function ProfileContent({
       if (items.length === 0) return
       const i = keyboardFocusIndexRef.current
       const key = e.key.toLowerCase()
-      if (key === 'w' || key === 's' || key === 'a' || key === 'd' || key === 'e' || key === 'enter' || key === 'f' || key === 'm' || key === '`' || e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') e.preventDefault()
+      const focusInNotificationsMenu = (document.activeElement as HTMLElement)?.closest?.('[data-notifications-list]')
+      const notificationsMenuOpen = document.querySelector('[data-notifications-list]') != null
+      if ((focusInNotificationsMenu || notificationsMenuOpen) && (key === 'w' || key === 's' || key === 'e' || key === 'o' || key === 'enter' || key === 'q' || key === 'u' || key === 'backspace' || key === 'escape' || e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+        return
+      }
+      if (key === 'w' || key === 's' || key === 'a' || key === 'd' || key === 'i' || key === 'j' || key === 'k' || key === 'l' || key === 'e' || key === 'o' || key === 'enter' || key === 'f' || key === 'm' || key === '`' || e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') e.preventDefault()
 
-      if (key === 'w' || e.key === 'ArrowUp') {
+      if (key === 'w' || key === 'i' || e.key === 'ArrowUp') {
         beginKeyboardNavigation()
         scrollIntoViewFromKeyboardRef.current = true
         if (cols >= 2) {
@@ -618,7 +623,7 @@ export default function ProfileContent({
         }
         return
       }
-      if (key === 's' || e.key === 'ArrowDown') {
+      if (key === 's' || key === 'k' || e.key === 'ArrowDown') {
         beginKeyboardNavigation()
         scrollIntoViewFromKeyboardRef.current = true
         if (cols >= 2) {
@@ -629,11 +634,11 @@ export default function ProfileContent({
         }
         return
       }
-      if (key === 'a' || e.key === 'ArrowLeft' || key === 'd' || e.key === 'ArrowRight') {
+      if (key === 'a' || key === 'j' || e.key === 'ArrowLeft' || key === 'd' || key === 'l' || e.key === 'ArrowRight') {
         beginKeyboardNavigation()
         scrollIntoViewFromKeyboardRef.current = true
         setActionsMenuOpenForIndex(null)
-        const goLeft = key === 'a' || e.key === 'ArrowLeft'
+        const goLeft = key === 'a' || key === 'j' || e.key === 'ArrowLeft'
         if (cols >= 2) {
           const columns = distributeByHeight(items, cols)
           const idx = keyboardFocusIndexRef.current
@@ -664,7 +669,7 @@ export default function ProfileContent({
         }
         return
       }
-      if (key === 'e' || key === 'enter') {
+      if (key === 'e' || key === 'o' || key === 'enter') {
         const item = items[i]
         if (item) openPostModal(item.post.uri, undefined, undefined, item.post.author?.handle)
         return
@@ -1181,7 +1186,6 @@ export default function ProfileContent({
                       originalIndex,
                       () => keyboardFocusIndexRef.current,
                       (idx) => setKeyboardFocusIndex(idx),
-                      { disabled: inModal },
                     )
                   }}
                   isSelected={(index) => (tab === 'posts' || tab === 'reposts') && index === keyboardFocusIndex}

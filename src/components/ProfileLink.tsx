@@ -1,5 +1,4 @@
 import { memo, useCallback } from 'react'
-import { Link } from 'react-router-dom'
 import { useProfileModal } from '../context/ProfileModalContext'
 import { preloadProfileOpen, preloadProfileFeed } from '../lib/modalPreload'
 
@@ -15,7 +14,7 @@ interface ProfileLinkProps {
 /** Link that opens profile in the modal lightbox instead of navigating. */
 function ProfileLink({ handle, className, title, 'aria-label': ariaLabel, onClick, children }: ProfileLinkProps) {
   const { openProfileModal } = useProfileModal()
-  
+
   const handleClick = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
@@ -25,17 +24,21 @@ function ProfileLink({ handle, className, title, 'aria-label': ariaLabel, onClic
     onClick?.(e)
   }, [openProfileModal, handle, onClick])
 
-  /* PostCard’s cardLink schedules openPost on touchEnd; without stopping touch propagation, the post modal opens on top of the profile. */
+  /* PostCard's cardLink schedules openPost on touchEnd; without stopping touch propagation, the post modal opens on top of the profile. */
   const stopTouchBubble = useCallback((e: React.TouchEvent) => {
+    e.preventDefault()
     e.stopPropagation()
   }, [])
 
   return (
-    <Link
-      to={`/profile/${encodeURIComponent(handle)}`}
+    <span
       className={className}
       title={title}
       aria-label={ariaLabel}
+      role="button"
+      tabIndex={0}
+      data-profile-link="true"
+      style={{ cursor: 'pointer' }}
       onMouseEnter={() => preloadProfileOpen(handle)}
       onPointerDown={() => {
         preloadProfileOpen(handle)
@@ -44,9 +47,15 @@ function ProfileLink({ handle, className, title, 'aria-label': ariaLabel, onClic
       onClick={handleClick}
       onTouchStart={stopTouchBubble}
       onTouchEnd={stopTouchBubble}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          handleClick(e as any)
+        }
+      }}
     >
       {children}
-    </Link>
+    </span>
   )
 }
 

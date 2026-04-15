@@ -177,7 +177,7 @@ export default function CollectionSaveMenu({ postUri, openSignal, variant = 'ico
     if (!open) return
     const onKey = (e: KeyboardEvent) => {
       const key = e.key.toLowerCase()
-      if (key === 'escape' || key === 'q') {
+      if (key === 'escape' || key === 'q' || key === 'u') {
         e.preventDefault()
         setOpen(false)
         triggerRef.current?.focus()

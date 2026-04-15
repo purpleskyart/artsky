@@ -91,7 +91,7 @@ export default function ProfileActionsMenu({
   useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' || e.key === 'q' || e.key === 'Backspace') {
+      if (e.key === 'Escape' || e.key === 'q' || e.key === 'u' || e.key === 'Backspace') {
         e.preventDefault()
         if (blockStep === 'confirm') setBlockStep('idle')
         else setOpen(false)

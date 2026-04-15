@@ -86,11 +86,10 @@ export default function ComposerSuggestions({
   const [open, setOpen] = useState(false)
   const [cursor, setCursor] = useState(0)
   /** When set, dropdown is positioned at caret (fixed); when null, fallback below textarea */
-  const [dropdownAtCaret, setDropdownAtCaret] = useState<{ top: number; left: number } | null>(null)
+  const [dropdownAtCaret, setDropdownAtCaret] = useState<{ top: number; left: number; placement?: 'above' | 'below' } | null>(null)
   const triggerRef = useRef<{ trigger: TriggerKind; query: string; startIndex: number } | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const keyboardScrollCleanupRef = useRef<(() => void) | null>(null)
-  const DROPDOWN_MAX_H = 280
 
   const triggerAtCursor = useMemo(
     () => getTriggerAtCursor(value, cursor),
@@ -266,6 +265,7 @@ export default function ComposerSuggestions({
   const showMirror = open && triggerStartIndex >= 0 && (suggestions.length > 0 || loading)
 
   const DROPDOWN_GAP = 8
+  const DROPDOWN_MAX_H = 280
 
   useLayoutEffect(() => {
     if (!showMirror || !caretRef.current || !inputRef.current || !mirrorRef.current) {
@@ -283,10 +283,26 @@ export default function ComposerSuggestions({
       mirror.style.transformOrigin = ''
     }
     const rect = caretRef.current.getBoundingClientRect()
-    setDropdownAtCaret({
-      left: rect.left,
-      top: rect.bottom + DROPDOWN_GAP,
-    })
+    const viewportHeight = window.innerHeight
+    const spaceBelow = viewportHeight - rect.bottom
+    const spaceAbove = rect.top
+
+    // Position below if there's enough space, otherwise above if there's more space there
+    const shouldShowAbove = spaceBelow < DROPDOWN_MAX_H && spaceAbove > spaceBelow
+
+    if (shouldShowAbove) {
+      setDropdownAtCaret({
+        left: rect.left,
+        top: rect.top - DROPDOWN_GAP,
+        placement: 'above',
+      })
+    } else {
+      setDropdownAtCaret({
+        left: rect.left,
+        top: rect.bottom + DROPDOWN_GAP,
+        placement: 'below',
+      })
+    }
   }, [showMirror, value, triggerStartIndex, suggestions.length, loading])
 
   useEffect(() => {
@@ -306,10 +322,26 @@ export default function ComposerSuggestions({
       mirror.style.transformOrigin = ''
     }
     const rect = caretRef.current.getBoundingClientRect()
-    setDropdownAtCaret({
-      left: rect.left,
-      top: rect.bottom + DROPDOWN_GAP,
-    })
+    const viewportHeight = window.innerHeight
+    const spaceBelow = viewportHeight - rect.bottom
+    const spaceAbove = rect.top
+
+    // Position below if there's enough space, otherwise above if there's more space there
+    const shouldShowAbove = spaceBelow < DROPDOWN_MAX_H && spaceAbove > spaceBelow
+
+    if (shouldShowAbove) {
+      setDropdownAtCaret({
+        left: rect.left,
+        top: rect.top - DROPDOWN_GAP,
+        placement: 'above',
+      })
+    } else {
+      setDropdownAtCaret({
+        left: rect.left,
+        top: rect.bottom + DROPDOWN_GAP,
+        placement: 'below',
+      })
+    }
   }, [showMirror])
 
   useEffect(() => {
@@ -373,6 +405,7 @@ export default function ComposerSuggestions({
                     width: 'max(200px, min(320px, 90vw))',
                     maxHeight: DROPDOWN_MAX_H,
                     zIndex: 1350,
+                    transform: dropdownAtCaret.placement === 'above' ? 'translateY(-100%)' : undefined,
                   }
                 : undefined
             }
