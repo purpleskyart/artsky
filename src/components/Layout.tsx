@@ -2658,7 +2658,7 @@ export default function Layout({ title, children, showNav }: Props) {
             }
             role="status"
             aria-live="polite"
-            onClick={toast.toastOnClick}
+            onClick={toast.toastOnClick ?? undefined}
           >
             {toast.toastMessage}
           </div>,
