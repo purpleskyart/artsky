@@ -80,6 +80,8 @@ interface Props {
   feedPreviewActionRow?: boolean
   /** Incrementing token from parent to open the collection picker menu programmatically. */
   openCollectionMenuSignal?: number
+  /** When true, do not auto-unblur on selection (for modal scroll where hover can fire from moving content under stationary cursor). */
+  suppressHoverNsfwUnblur?: boolean
 }
 
 const REASON_PIN = 'app.bsky.feed.defs#reasonPin'
@@ -135,6 +137,7 @@ function PostCardInner({
   onRemovePostFromCollection,
   feedPreviewActionRow = false,
   openCollectionMenuSignal,
+  suppressHoverNsfwUnblur = false,
 }: InnerProps) {
   /** Must stay > `TOUCH_DOUBLE_TAP_WINDOW_MS` so a second tap can cancel before we open. */
   const TOUCH_OPEN_DELAY_MS = 450
@@ -569,15 +572,15 @@ function PostCardInner({
     const wasSelected = prevSelectedRef.current
     prevSelectedRef.current = isSelected
     if (isSelected && nsfwBlurred && onNsfwUnblur) {
-      /* On touch devices, ignore selection from scroll (within 500ms of touch) */
-      if (Date.now() - recentTouchTimeRef.current >= 500) {
+      /* On touch devices, ignore selection from scroll (within 500ms of touch). Also respect suppressHoverNsfwUnblur to prevent scroll-induced unblur in modals. */
+      if (!suppressHoverNsfwUnblur && Date.now() - recentTouchTimeRef.current >= 500) {
         onNsfwUnblur()
       }
     }
     if (wasSelected && !isSelected && isRevealed) {
       setUnblurred(post.uri, false)
     }
-  }, [isSelected, post.uri, isRevealed, setUnblurred, nsfwBlurred, onNsfwUnblur])
+  }, [isSelected, post.uri, isRevealed, setUnblurred, nsfwBlurred, onNsfwUnblur, suppressHoverNsfwUnblur])
 
   /* Track recent touch interaction to prevent scroll-induced focus from auto-unblurring and tap focusout from reblurring */
   const recentTouchTimeRef = useRef(0)
