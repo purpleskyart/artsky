@@ -422,6 +422,18 @@ function MediaGallery({
             if (lastClickRef.current && Date.now() - lastClickRef.current < 400) return
             onImageClick?.(m.url, i)
           }
+          const handleImageTouchEnd = (e: React.TouchEvent) => {
+            if (!onDoubleTapLike || e.changedTouches.length !== 1) return
+            const now = Date.now()
+            if (now - lastTapRef.current < 400) {
+              lastTapRef.current = 0
+              e.preventDefault()
+              e.stopPropagation()
+              onDoubleTapLike()
+            } else {
+              lastTapRef.current = now
+            }
+          }
           return (
             <div
               key={i}
@@ -431,6 +443,7 @@ function MediaGallery({
               tabIndex={forEmbeddedPreview ? undefined : 0}
               onFocus={forEmbeddedPreview ? undefined : () => onFocusItem?.(i)}
               onClick={handleImageClick}
+              onTouchEnd={handleImageTouchEnd}
               role={onImageClick ? 'button' : undefined}
               aria-label={onImageClick ? 'Open image fullscreen' : undefined}
             >
