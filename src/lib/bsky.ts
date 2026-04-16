@@ -249,10 +249,10 @@ function createRateLimitedFetch(agentId: string) {
 // Create separate fetch handlers for each agent
 const credentialAgentFetch = createRateLimitedFetch('credential')
 
-// Separate rate limiter for public requests with more lenient limits
-// Public/guest API typically allows higher request rates than authenticated endpoints
+// Separate rate limiter for public requests with conservative limits
+// Bluesky's public API (api.bsky.app) has stricter IP-based rate limits for unauthenticated requests
 const publicRateLimiter = new RateLimiter({
-  maxRequestsPerWindow: 300,
+  maxRequestsPerWindow: 50,
   windowMs: 60_000, // 1 minute
   defaultBackoffMs: 30_000, // 30 seconds
 })

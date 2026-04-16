@@ -1091,26 +1091,27 @@ button.logoLink {
   align-items: center;
   gap: var(--space-sm);
   padding: 8px 14px 8px 18px;
-  border: none;
+  border: 1px solid var(--glass-border);
   border-radius: 100px;
   font-size: var(--font-sm);
   font-weight: 500;
   font-family: inherit;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-  color: var(--text-on-accent);
-  background: var(--accent-gradient);
+  color: var(--text);
+  background: var(--glass-bg);
   transition: filter 0.15s ease;
 }
 
 .feedsFloatBtn:hover {
   transform: scale(1.02);
-  filter: brightness(0.92);
+  background: var(--glass-highlight);
 }
 
 .feedsFloatBtnActive {
-  color: var(--text-on-accent);
-  background: var(--accent-gradient) !important;
+  color: var(--accent);
+  background: var(--accent-subtle) !important;
+  border-color: var(--accent);
 }
 
 .feedsFloatLabel {

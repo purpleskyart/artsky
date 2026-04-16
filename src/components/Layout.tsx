@@ -437,10 +437,20 @@ function MediaModeTextPostsIcon() {
   )
 }
 
+/** Video posts: play button / video frame */
+function MediaModeVideoPostsIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <polygon points="10,9 16,12 10,15" fill="currentColor" stroke="none" />
+    </svg>
+  )
+}
+
 function MediaModeGlyph({ mode }: { mode: MediaMode }) {
   return (
     <span className={styles.mediaModeIconWrap}>
-      {mode === 'mediaText' ? <MediaModeAllPostsIcon /> : mode === 'media' ? <MediaModeMediaPostsIcon /> : <MediaModeTextPostsIcon />}
+      {mode === 'mediaText' ? <MediaModeAllPostsIcon /> : mode === 'media' ? <MediaModeMediaPostsIcon /> : mode === 'video' ? <MediaModeVideoPostsIcon /> : <MediaModeTextPostsIcon />}
     </span>
   )
 }
@@ -1897,7 +1907,7 @@ export default function Layout({ title, children, showNav }: Props) {
                       type="button"
                       className={`${styles.feedFloatBtn} ${styles.gearExpandableBtn} float-btn`}
                       onClick={() => cycleMediaMode({ showToast: false })}
-                      title={`${MEDIA_MODE_LABELS[mediaMode]}. Click to cycle: All Posts → Media Posts → Text Posts.`}
+                      title={`${MEDIA_MODE_LABELS[mediaMode]}. Click to cycle: All Posts → Media Posts → Video Posts → Text Posts.`}
                       aria-label={MEDIA_MODE_LABELS[mediaMode]}
                     >
                       <MediaModeGlyph mode={mediaMode} />
@@ -2336,7 +2346,7 @@ export default function Layout({ title, children, showNav }: Props) {
               type="button"
               className={`${styles.feedFloatBtn} ${styles.gearExpandableBtn} float-btn`}
               onClick={() => cycleMediaMode({ showToast: false })}
-              title={`${MEDIA_MODE_LABELS[mediaMode]}. Click to cycle: All Posts → Media Posts → Text Posts.`}
+              title={`${MEDIA_MODE_LABELS[mediaMode]}. Click to cycle: All Posts → Media Posts → Video Posts → Text Posts.`}
               aria-label={MEDIA_MODE_LABELS[mediaMode]}
             >
               <MediaModeGlyph mode={mediaMode} />

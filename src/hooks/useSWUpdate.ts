@@ -27,6 +27,10 @@ export function useSWUpdate(): SWUpdateState {
       try {
         const registration = await navigator.serviceWorker.getRegistration()
         await registration?.update()
+        // If a service worker is waiting, show the toast again
+        if (registration?.waiting) {
+          setNeedRefresh(true)
+        }
       } catch {
         // Ignore transient update check failures.
       } finally {

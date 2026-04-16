@@ -6,6 +6,7 @@ import {
   formatBytes,
   type CacheUsage,
 } from '../lib/storageUtils'
+import { NotificationSettings } from './NotificationSettings'
 import styles from './Layout.module.css'
 
 interface Props {
@@ -204,6 +205,11 @@ export default function SettingsModal({ onClose, showToast, onLocalDataCleared }
             >
               {checkingUpdate ? 'Checking…' : 'Check for updates'}
             </button>
+          </section>
+
+          <section className={styles.settingsSection}>
+            <h3 className={styles.settingsSubtitle}>Notifications</h3>
+            <NotificationSettings />
           </section>
 
           <button

@@ -755,7 +755,11 @@ export default function FeedPage() {
   const { hideRepostsFromDids } = useHideReposts() ?? { hideRepostsFromDids: [] as string[] }
   const displayItems = useMemo(() =>
     (feedState.items ?? [])
-      .filter((item) => (mediaMode === 'media' ? getPostMediaInfoForDisplay(item.post) : true))
+      .filter((item) => {
+        if (mediaMode === 'media') return getPostMediaInfoForDisplay(item.post)
+        if (mediaMode === 'video') return getPostMediaInfoForDisplay(item.post)?.type === 'video'
+        return true
+      })
       .filter((item) => !feedState.seenUrisAtReset.has(item.post.uri))
       .filter((item) => nsfwPreference !== 'sfw' || !isPostNsfw(item.post))
       .filter((item) => {
@@ -788,7 +792,11 @@ export default function FeedPage() {
   }, [displayEntries])
   const itemsAfterOtherFilters = useMemo(() =>
     (feedState.items ?? [])
-      .filter((item) => (mediaMode === 'media' ? getPostMediaInfoForDisplay(item.post) : true))
+      .filter((item) => {
+        if (mediaMode === 'media') return getPostMediaInfoForDisplay(item.post)
+        if (mediaMode === 'video') return getPostMediaInfoForDisplay(item.post)?.type === 'video'
+        return true
+      })
       .filter((item) => nsfwPreference !== 'sfw' || !isPostNsfw(item.post)),
     [feedState.items, mediaMode, nsfwPreference]
   )
@@ -1486,6 +1494,8 @@ export default function FeedPage() {
               <>You've read all the posts in this feed.<br />New posts will appear as they're posted.</>
             ) : mediaMode === 'media' ? (
               'No posts with images or videos in this feed.'
+            ) : mediaMode === 'video' ? (
+              'No video posts in this feed.'
             ) : (
               'No posts in this feed.'
             )}

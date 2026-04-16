@@ -13,7 +13,8 @@ const LINKIFY_REGEX =
   /([\w.%+-]+@(?:[\w-]+\.)+[a-zA-Z]{2,})|(https?:\/\/[^\s<>"']+)|(www\.[^\s<>"'\],;:)!?]+)|(?<![@\/])((?:[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}(?:\/[^\s<>"]*)?)|(#[\w]+)|(?<![a-zA-Z0-9])(@[\w.-]+)/gi
 
 /** Matches spoiler text wrapped in || || */
-const SPOILER_REGEX = /\|\|(.+?)\|\|/g
+const SPOILER_REGEX = /\|\|(.+?)\|\|/
+const SPOILER_REGEX_GLOBAL = /\|\|(.+?)\|\|/g
 
 function linkDisplayText(href: string, value: string, display: 'url' | 'domain'): string {
   if (display !== 'domain') return value
@@ -44,7 +45,7 @@ function renderSpoilerText(text: string, key: number): React.ReactNode {
   const parts: React.ReactNode[] = []
   let lastIndex = 0
   let match: RegExpExecArray | null
-  const re = new RegExp(SPOILER_REGEX.source, 'g')
+  const re = new RegExp(SPOILER_REGEX_GLOBAL.source, 'g')
   while ((match = re.exec(text)) !== null) {
     if (match.index > lastIndex) {
       parts.push(<span key={`${key}-text-${lastIndex}`}>{text.slice(lastIndex, match.index)}</span>)

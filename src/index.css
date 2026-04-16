@@ -58,7 +58,7 @@
 /* Light theme – primary theme: clear contrast, visible borders, distinct surfaces */
 @media (prefers-color-scheme: light) {
   :root:not([data-theme]) {
-    --bg: #fdf6f9;
+    --bg: #faf0f4;
     --surface: #ffffff;
     --border: #c9c8c4;
     --text: #141414;
@@ -81,8 +81,6 @@
     --glass-border: rgba(0, 0, 0, 0.12);
     --glass-highlight: #feeef5;
     --glass-hover: #e0dfdd;
-    --glass-radius: 16px;
-    --glass-radius-sm: 12px;
     --shadow-subtle: 0 1px 2px rgba(0, 0, 0, 0.06);
     --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.05);
     --shadow-dropdown: 0 12px 40px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.08);
@@ -94,7 +92,7 @@
 
 /* Light theme: set variables on html when data-theme="light" (not :root – :root can't be a descendant of html) */
 html[data-theme="light"] {
-  --bg: #fdf6f9;
+  --bg: #faf0f4;
   --surface: #ffffff;
   --border: #c9c8c4;
   --text: #141414;

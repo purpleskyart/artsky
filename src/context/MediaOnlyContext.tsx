@@ -4,11 +4,12 @@ import { useSession } from './SessionContext'
 
 const STORAGE_KEY = 'artsky-feed-media-only'
 
-export type MediaMode = 'mediaText' | 'media' | 'text'
+export type MediaMode = 'mediaText' | 'media' | 'video' | 'text'
 
 export const MEDIA_MODE_LABELS: Record<MediaMode, string> = {
   mediaText: 'All Posts',
   media: 'Media Posts',
+  video: 'Video Posts',
   text: 'Text Posts',
 }
 
@@ -69,7 +70,7 @@ function MediaOnlyProviderInner({
 
   const cycleMediaMode = useCallback((options?: { showToast?: boolean }) => {
     setMediaModeState((m) => {
-      const next = m === 'mediaText' ? 'media' : m === 'media' ? 'text' : 'mediaText'
+      const next = m === 'mediaText' ? 'media' : m === 'media' ? 'video' : m === 'video' ? 'text' : 'mediaText'
       if (options?.showToast !== false) toast?.showToast(MEDIA_MODE_LABELS[next])
       return next
     })
