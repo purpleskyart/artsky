@@ -164,8 +164,8 @@ function NsfwEyeIcon({ mode }: { mode: NsfwPreference }) {
   return <EyeOpenIcon size={24} />
 }
 
-type ProfileTab = 'posts' | 'reposts' | 'text' | 'feeds'
-type ProfilePostsFilter = 'all' | 'liked'
+type ProfileTab = 'posts' | 'videos' | 'text' | 'replies' | 'reposts' | 'feeds'
+type ProfilePostsFilter = 'all' | 'liked' | 'videos'
 
 type ProfileState = {
   displayName?: string
@@ -420,7 +420,7 @@ export default function ProfileContent({
   const loadMoreCursor = tab === 'posts' && profilePostsFilter === 'liked' ? likedCursor : cursor
   const loadMore = tab === 'posts' && profilePostsFilter === 'liked' ? (c: string) => loadLiked(c) : load
   useEffect(() => {
-    if (tab !== 'posts' && tab !== 'reposts') return
+    if (tab !== 'posts' && tab !== 'videos' && tab !== 'replies' && tab !== 'reposts') return
     if (!loadMoreCursor) return
     const firstSentinel = cols >= 2 ? loadMoreSentinelRefs.current[0] : loadMoreSentinelRef.current
     const root = inModal ? firstSentinel?.closest('[data-modal-scroll]') ?? null : null
@@ -478,22 +478,34 @@ export default function ProfileContent({
     const embed = (item.post as { embed?: { $type?: string } })?.embed
     return !!embed && (embed.$type === 'app.bsky.embed.record#view' || embed.$type === 'app.bsky.embed.recordWithMedia#view')
   }
-  const isRepostOrQuote = (item: TimelineItem) => isRepost(item) || isQuotePost(item)
+  const isVideoPost = (item: TimelineItem) => {
+    const mediaInfo = getPostMediaInfoForDisplay(item.post)
+    return mediaInfo?.type === 'video'
+  }
   const isReply = (item: TimelineItem) => !!(item.post.record as { reply?: unknown })?.reply
-  const itemsForPostsTab = profilePostsFilter === 'liked' ? likedItems : items
-  /* Posts tab + my posts: original posts (no replies, no reposts) + quote posts with media. Posts tab + liked: all liked posts (no filter). Reposts tab: replies + reposts + quote posts. Text tab: text-only from same source as posts (includes quote posts with only text, per getPostMediaInfoForDisplay). */
+  /* Posts tab: original posts with media (no replies, no reposts) + quote posts with media.
+     Videos tab: video posts only (no replies, no reposts).
+     Text tab: text-only posts (no media, no replies, no reposts).
+     Replies tab: reply posts.
+     Reposts tab: reposts only.
+  */
+  const postsSource = profilePostsFilter === 'liked' ? likedItems : items
   const authorFeedItemsRaw =
     tab === 'posts'
       ? profilePostsFilter === 'liked'
         ? likedItems
-        : itemsForPostsTab.filter((i) => !isRepost(i) && !isReply(i) && (!isQuotePost(i) || !!getPostMediaInfo(i.post)))
-      : tab === 'reposts'
-        ? items.filter((i) => isRepostOrQuote(i) || isReply(i))
+        : postsSource.filter((i) => !isRepost(i) && !isReply(i) && (!isQuotePost(i) || !!getPostMediaInfo(i.post)))
+      : tab === 'videos'
+        ? postsSource.filter((i) => !isRepost(i) && !isReply(i) && isVideoPost(i))
         : tab === 'text'
-          ? itemsForPostsTab
-          : items
+          ? postsSource.filter((i) => !isRepost(i) && !isReply(i) && !getPostMediaInfoForDisplay(i.post))
+          : tab === 'replies'
+            ? items.filter((i) => isReply(i) && !isRepost(i))
+            : tab === 'reposts'
+              ? items.filter((i) => isRepost(i))
+              : items
   const authorFeedItems =
-    tab === 'posts'
+    tab === 'posts' || tab === 'videos'
       ? [...authorFeedItemsRaw].sort((a, b) => (isPinned(b) ? 1 : 0) - (isPinned(a) ? 1 : 0))
       : authorFeedItemsRaw
   const mediaByPostUri = useMemo(() => {
@@ -529,25 +541,31 @@ export default function ProfileContent({
   /* For modal: which tabs have content (hide empty categories) */
   const tabHasContent = useMemo(() => {
     const postsSource = profilePostsFilter === 'liked' ? likedItems : items
+    // Posts: all media posts (images + videos)
     const postsMedia = profilePostsFilter === 'liked'
       ? postsSource
       : postsSource.filter((i) => !isRepost(i) && !isReply(i) && (!isQuotePost(i) || !!getPostMediaInfo(i.post)))
         .filter((i) => mediaByPostUri.get(i.post.uri))
         .filter((i) => nsfwPreference !== 'sfw' || !isPostNsfw(i.post))
-    const repostsMedia = items.filter((i) => isRepostOrQuote(i) || isReply(i))
-      .filter((i) => mediaByPostUri.get(i.post.uri))
+    // Videos: video posts only
+    const videoPosts = postsSource.filter((i) => !isRepost(i) && !isReply(i) && isVideoPost(i))
       .filter((i) => nsfwPreference !== 'sfw' || !isPostNsfw(i.post))
-    /* Text tab: same source as posts (all or liked). Includes quote posts with only text (getPostMediaInfoForDisplay is null when outer and quoted have no media). */
-    const textOnly = postsSource.filter((i) => !isRepost(i)).filter((i) => {
-      const text = (i.post.record as { text?: string })?.text?.trim() ?? ''
-      const hasMedia = mediaByPostUri.get(i.post.uri)
-      const isReplyPost = !!(i.post.record as { reply?: unknown })?.reply
-      return text.length > 0 && !hasMedia && !isReplyPost
-    })
+    // Text: text-only posts (no media, no replies, no reposts)
+    const textOnly = postsSource.filter((i) => !isRepost(i) && !isReply(i) && !mediaByPostUri.get(i.post.uri))
+      .filter((i) => {
+        const text = (i.post.record as { text?: string })?.text?.trim() ?? ''
+        return text.length > 0
+      })
+    // Replies: reply posts (not reposts)
+    const repliesOnly = items.filter((i) => isReply(i) && !isRepost(i))
+    // Reposts: reposts only
+    const repostsOnly = items.filter((i) => isRepost(i))
     return {
       posts: postsMedia.length > 0,
-      reposts: repostsMedia.length > 0,
+      videos: videoPosts.length > 0,
       text: textOnly.length > 0,
+      replies: repliesOnly.length > 0,
+      reposts: repostsOnly.length > 0,
       feeds: feeds.length > 0,
     }
   }, [items, likedItems, profilePostsFilter, feeds, nsfwPreference, mediaByPostUri])
@@ -555,8 +573,10 @@ export default function ProfileContent({
   const visibleTabs = useMemo((): ProfileTab[] => {
     const t: ProfileTab[] = []
     if (tabHasContent.posts || isOwnProfile) t.push('posts')
-    if (tabHasContent.reposts) t.push('reposts')
+    if (tabHasContent.videos) t.push('videos')
     if (tabHasContent.text) t.push('text')
+    if (tabHasContent.replies) t.push('replies')
+    if (tabHasContent.reposts) t.push('reposts')
     if (tabHasContent.feeds) t.push('feeds')
     return t
   }, [tabHasContent, isOwnProfile])
@@ -598,7 +618,7 @@ export default function ProfileContent({
         return
       }
       if (e.ctrlKey || e.metaKey) return
-      const gridTab = tab === 'posts' || tab === 'reposts'
+      const gridTab = tab === 'posts' || tab === 'videos' || tab === 'replies' || tab === 'reposts'
       if (!gridTab) return
 
       const items = profileGridItemsRef.current
@@ -1031,7 +1051,7 @@ export default function ProfileContent({
                   className={`${styles.tab} ${tab === t ? styles.tabActive : ''}`}
                   onClick={() => setTab(t)}
                 >
-                  {t === 'posts' ? 'Posts' : t === 'reposts' ? 'Replies and Reposts' : t === 'text' ? 'Text' : 'Feeds'}
+                  {t === 'posts' ? 'Posts' : t === 'videos' ? 'Videos' : t === 'text' ? 'Text' : t === 'replies' ? 'Replies' : t === 'reposts' ? 'Reposts' : 'Feeds'}
                 </button>
               ))}
               {isOwnProfile && (
@@ -1060,7 +1080,7 @@ export default function ProfileContent({
                 className={`${styles.tab} ${tab === t ? styles.tabActive : ''}`}
                 onClick={() => setTab(t)}
               >
-                {t === 'posts' ? 'Posts' : t === 'reposts' ? 'Replies and Reposts' : t === 'text' ? 'Text' : 'Feeds'}
+                {t === 'posts' ? 'Posts' : t === 'videos' ? 'Videos' : t === 'text' ? 'Text' : t === 'replies' ? 'Replies' : t === 'reposts' ? 'Reposts' : 'Feeds'}
               </button>
               ))}
               {isOwnProfile && (
@@ -1146,7 +1166,13 @@ export default function ProfileContent({
               ? profilePostsFilter === 'liked'
                 ? 'No liked posts with images or videos.'
                 : 'No posts with images or videos.'
-              : 'No replies or reposts with images or videos.'}
+              : tab === 'videos'
+                ? 'No video posts.'
+                : tab === 'replies'
+                  ? 'No replies.'
+                  : tab === 'reposts'
+                    ? 'No reposts.'
+                    : 'No feeds.'}
           </div>
         ) : (
           <>
@@ -1188,7 +1214,7 @@ export default function ProfileContent({
                       (idx) => setKeyboardFocusIndex(idx),
                     )
                   }}
-                  isSelected={(index) => (tab === 'posts' || tab === 'reposts') && index === keyboardFocusIndex}
+                  isSelected={(index) => (tab === 'posts' || tab === 'videos' || tab === 'replies' || tab === 'reposts') && index === keyboardFocusIndex}
                   profileAuthorDid={profile?.did}
                   profileAuthorFollowingUri={profile != null ? followingUri ?? null : undefined}
                   onProfileAuthorFollowChange={onProfileAuthorFollowChange}

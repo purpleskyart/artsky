@@ -1,5 +1,6 @@
 import { lazy, Suspense, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { useProfileModal } from '../context/ProfileModalContext'
 import AppModal from './AppModal'
 
 // Lazy-load ProfileContent to avoid circular dependency
@@ -12,6 +13,7 @@ const ProfileContent = lazy(() => import('../pages/ProfileContent'))
 export default function ProfileModalOverlay() {
   const { handle } = useParams<{ handle: string }>()
   const navigate = useNavigate()
+  const { openProfileModal, openPostModal } = useProfileModal()
   const onClose = useCallback(() => {
     navigate(-1)
   }, [navigate])
@@ -40,8 +42,8 @@ export default function ProfileModalOverlay() {
       >
         <ProfileContent
           handle={h}
-          openProfileModal={() => {}}
-          openPostModal={() => {}}
+          openProfileModal={openProfileModal}
+          openPostModal={openPostModal}
           isModalOpen={false}
           inModal
         />

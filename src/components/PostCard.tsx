@@ -576,7 +576,9 @@ function PostCardInner({
     }
   }, [isSelected, post.uri, isRevealed, setUnblurred, nsfwBlurred, onNsfwUnblur])
 
-  /* Unblur NSFW when the card (or a child) receives DOM focus (tab/click). Use refs so handler always sees current values. */
+  /* Track recent touch interaction to prevent scroll-induced focus from auto-unblurring and tap focusout from reblurring */
+  const recentTouchTimeRef = useRef(0)
+  /* Unblur NSFW when the card (or a child) receives DOM focus (tab/click). Use refs so handler always sees current values. Skip on touch to prevent scroll-induced focus from unblurring. */
   const nsfwBlurredRef = useRef(nsfwBlurred)
   const onNsfwUnblurRef = useRef(onNsfwUnblur)
   nsfwBlurredRef.current = nsfwBlurred
@@ -585,19 +587,23 @@ function PostCardInner({
     const el = cardRef.current
     if (!el) return
     const onFocusIn = () => {
+      /* On touch devices, ignore focus from scroll (within 500ms of touch) */
+      if (Date.now() - recentTouchTimeRef.current < 500) return
       if (nsfwBlurredRef.current && onNsfwUnblurRef.current) onNsfwUnblurRef.current()
     }
     el.addEventListener('focusin', onFocusIn)
     return () => el.removeEventListener('focusin', onFocusIn)
   }, [])
 
-  /* Reblur NSFW when focus leaves the card (click/tab outside). focusout bubbles so we listen on the card root. */
+  /* Reblur NSFW when focus leaves the card (click/tab outside). focusout bubbles so we listen on the card root. Skip reblur on touch to prevent tap+lift from reblurring. */
   useEffect(() => {
     const el = cardRef.current
     if (!el || !isRevealed) return
     const onFocusOut = (e: FocusEvent) => {
       const next = e.relatedTarget as Node | null
       if (next != null && el.contains(next)) return
+      /* On touch devices, don't reblur immediately after touch (within 500ms) */
+      if (Date.now() - recentTouchTimeRef.current < 500) return
       setUnblurred(post.uri, false)
     }
     el.addEventListener('focusout', onFocusOut)
@@ -703,8 +709,9 @@ function PostCardInner({
       e.stopPropagation()
       return
     }
-    /* Skip navigation if click originated from a ProfileLink */
-    if ((e.target as HTMLElement).closest('[data-profile-link="true"]')) {
+    /* Skip navigation if click originated from a ProfileLink or button */
+    const clickTarget = e.target as HTMLElement
+    if (clickTarget.closest('[data-profile-link="true"]') || clickTarget.closest('button') || clickTarget.closest('[role="button"]')) {
       e.preventDefault()
       e.stopPropagation()
       return
@@ -856,11 +863,19 @@ function PostCardInner({
         onTouchStart={(e) => {
           touchSessionRef.current = true
           mediaClickFromTouchRef.current = true
+          recentTouchTimeRef.current = Date.now()
           preloadPostOpen(post.uri)
           const t = e.touches[0]
           touchStartRef.current = t ? { x: t.clientX, y: t.clientY } : null
         }}
         onTouchEnd={(e) => {
+          /* Skip if touch originated from profile link, follow button, or other interactive elements */
+          const target = e.target as HTMLElement
+          if (target.closest('[data-profile-link="true"]') || target.closest('button') || target.closest('[role="button"]')) {
+            touchSessionRef.current = false
+            mediaClickFromTouchRef.current = false
+            return
+          }
           const start = touchStartRef.current
           touchStartRef.current = null
           const end = e.changedTouches[0]

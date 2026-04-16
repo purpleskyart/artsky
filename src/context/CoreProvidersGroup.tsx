@@ -4,13 +4,14 @@ import { SessionProvider } from './SessionContext'
 import { ScrollLockProvider } from './ScrollLockContext'
 import { ToastProvider } from './ToastContext'
 import { FollowOverridesProvider } from './FollowOverridesContext'
+import { PushNotificationsProvider } from './PushNotificationsContext'
 
 interface CoreProvidersGroupProps {
   children: ReactNode
 }
 
 /**
- * CoreProvidersGroup combines core application providers (Theme, Session, ScrollLock, Toast, FollowOverrides)
+ * CoreProvidersGroup combines core application providers (Theme, Session, ScrollLock, Toast, FollowOverrides, PushNotifications)
  * into a single memoized component to reduce nesting depth and improve render performance.
  *
  * Each individual provider already memoizes its context values internally, and this wrapper
@@ -22,7 +23,9 @@ function CoreProvidersGroupComponent({ children }: CoreProvidersGroupProps) {
       <SessionProvider>
         <ScrollLockProvider>
           <ToastProvider>
-            <FollowOverridesProvider>{children}</FollowOverridesProvider>
+            <FollowOverridesProvider>
+              <PushNotificationsProvider>{children}</PushNotificationsProvider>
+            </FollowOverridesProvider>
           </ToastProvider>
         </ScrollLockProvider>
       </SessionProvider>

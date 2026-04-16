@@ -29,32 +29,10 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'prompt',
-      includeAssets: [
-        'favicon.ico',
-        'icon.svg',
-        'icon-pwa.svg',
-        'icon-app.svg',
-        'apple-touch-icon.png',
-        'icon-192.png',
-        'icon-512.png',
-      ],
-      manifest: {
-        name: 'PurpleSky',
-        short_name: 'PurpleSky',
-        description: 'Bluesky feed for art',
-        theme_color: '#5b21b6',
-        background_color: '#4c1d95',
-        display: 'standalone',
-        orientation: 'portrait',
-        scope: './',
-        start_url: './',
-        icons: [
-          { src: './icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
-          { src: './icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
-          { src: './icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
-        ],
-      },
-      workbox: {
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.ts',
+      injectManifest: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         globIgnores: [
           '**/video-*.js',
@@ -84,8 +62,34 @@ export default defineConfig({
           '**/CollectionsIndexModalOverlay-*.js',
           '**/CollectionBoardModalOverlay-*.js',
         ],
-        navigateFallback: './index.html',
         maximumFileSizeToCacheInBytes: 2 * 1024 * 1024,
+      },
+      includeAssets: [
+        'favicon.ico',
+        'icon.svg',
+        'icon-pwa.svg',
+        'icon-app.svg',
+        'apple-touch-icon.png',
+        'icon-192.png',
+        'icon-512.png',
+      ],
+      manifest: {
+        name: 'PurpleSky',
+        short_name: 'PurpleSky',
+        description: 'Bluesky feed for art',
+        theme_color: '#5b21b6',
+        background_color: '#4c1d95',
+        display: 'standalone',
+        orientation: 'portrait',
+        scope: './',
+        start_url: './',
+        icons: [
+          { src: './icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: './icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: './icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+        ],
+      },
+      workbox: {
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/(cdn\.bsky\.app|wsrv\.nl)\/.*/i,
