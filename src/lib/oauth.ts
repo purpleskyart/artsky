@@ -1,4 +1,5 @@
 import type { BrowserOAuthClient } from '@atproto/oauth-client-browser'
+import { AtprotoDohHandleResolver } from '@atproto-labs/handle-resolver'
 
 let clientPromise: Promise<BrowserOAuthClient> | null = null
 
@@ -57,10 +58,13 @@ export async function getOAuthClient(): Promise<BrowserOAuthClient> {
   if (clientPromise) return clientPromise
   const clientId = isLoopback() ? getLoopbackClientId() : `${getAppBaseUrl()}/client-metadata.json`
   // Use query so callback lands in ?code=...&state=... (standard OAuth redirect).
+  const handleResolver = new AtprotoDohHandleResolver({
+    dohEndpoint: 'https://dns.google/resolve',
+  })
   const { BrowserOAuthClient } = await import('@atproto/oauth-client-browser')
   clientPromise = BrowserOAuthClient.load({
     clientId,
-    handleResolver: 'https://bsky.social/',
+    handleResolver,
     responseMode: 'query',
   })
   return clientPromise

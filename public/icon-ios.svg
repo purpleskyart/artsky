@@ -28,8 +28,8 @@
     </clipPath>
   </defs>
   
-  <!-- iOS-style rounded background (squircle approximation) -->
-  <rect width="512" height="512" rx="114" fill="url(#ios-bg)"/>
+  <!-- Solid background without rounded corners -->
+  <rect width="512" height="512" fill="#5b21b6"/>
   
   <!-- Bee icon centered with subtle shadow -->
   <g transform="translate(256 256) scale(0.78) translate(-256 -256)" filter="url(#ios-shadow)">
