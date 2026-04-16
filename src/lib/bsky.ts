@@ -251,8 +251,9 @@ const credentialAgentFetch = createRateLimitedFetch('credential')
 
 // Separate rate limiter for public requests with conservative limits
 // Bluesky's public API (api.bsky.app) has stricter IP-based rate limits for unauthenticated requests
+// Using 60 req/min for logged-out users - allows ~30 profile views/min (2 API calls each)
 const publicRateLimiter = new RateLimiter({
-  maxRequestsPerWindow: 50,
+  maxRequestsPerWindow: 60,
   windowMs: 60_000, // 1 minute
   defaultBackoffMs: 30_000, // 30 seconds
 })

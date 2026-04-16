@@ -67,13 +67,15 @@ function parseSearchToModalStack(search: string): ModalItem[] {
   const searchQueryParam = params.get('search')
   const tag = params.get('tag')
   const quotesUri = params.get('quotes')
+  const profileParam = params.get('profile')
 
   const stack: ModalItem[] = []
-  /* Bottom → top: search → tag → post (must include tag/search before post or post-only wins and drops parents). */
+  /* Bottom → top: search → tag → profile → post (must include parents before post or post-only wins and drops parents). */
   if (searchQueryParam && searchQueryParam.length > 0) {
     stack.push({ type: 'search', query: searchQueryParam })
   }
   if (tag) stack.push({ type: 'tag', tag })
+  if (profileParam) stack.push({ type: 'profile', handle: profileParam })
 
   if (resolvedPostUri) {
     const focusUri = params.get('focus') ?? undefined
@@ -111,6 +113,10 @@ function appendModalItemToSearchParams(p: URLSearchParams, item: ModalItem): voi
   }
   if (item.type === 'quotes') {
     p.set('quotes', postUriToQuotesParam(item.uri))
+    return
+  }
+  if (item.type === 'profile') {
+    p.set('profile', item.handle)
     return
   }
 }
