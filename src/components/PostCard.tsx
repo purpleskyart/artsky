@@ -712,9 +712,11 @@ function PostCardInner({
       e.stopPropagation()
       return
     }
-    /* Skip navigation if click originated from a ProfileLink or button */
+    /* Skip navigation if click originated from a ProfileLink or button.
+       Note: exclude the cardLink itself which has role="button" but is the container. */
     const clickTarget = e.target as HTMLElement
-    if (clickTarget.closest('[data-profile-link="true"]') || clickTarget.closest('button') || clickTarget.closest('[role="button"]')) {
+    const roleButtonEl = clickTarget.closest('[role="button"]')
+    if (clickTarget.closest('[data-profile-link="true"]') || clickTarget.closest('button') || (roleButtonEl && roleButtonEl !== e.currentTarget)) {
       e.preventDefault()
       e.stopPropagation()
       return
@@ -872,9 +874,11 @@ function PostCardInner({
           touchStartRef.current = t ? { x: t.clientX, y: t.clientY } : null
         }}
         onTouchEnd={(e) => {
-          /* Skip if touch originated from profile link, follow button, or other interactive elements */
+          /* Skip if touch originated from profile link, follow button, or other interactive elements.
+             Note: exclude the cardLink itself (e.currentTarget) which has role="button" but is the container, not an interactive button. */
           const target = e.target as HTMLElement
-          if (target.closest('[data-profile-link="true"]') || target.closest('button') || target.closest('[role="button"]')) {
+          const roleButtonEl = target.closest('[role="button"]')
+          if (target.closest('[data-profile-link="true"]') || target.closest('button') || (roleButtonEl && roleButtonEl !== e.currentTarget)) {
             touchSessionRef.current = false
             mediaClickFromTouchRef.current = false
             return
