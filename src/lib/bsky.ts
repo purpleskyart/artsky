@@ -204,7 +204,11 @@ export async function switchAccount(did: string): Promise<boolean> {
   const oauthAccounts = getOAuthAccounts()
   if (!oauthAccounts.dids.includes(did)) return false
   const session = await oauth.restoreOAuthSession(did)
-  if (!session) return false
+  if (!session) {
+    // Session can't be restored - remove this DID from the list
+    removeOAuthDid(did)
+    return false
+  }
   try {
     const agent = new Agent(session)
     setOAuthAgent(agent, session)
@@ -212,6 +216,7 @@ export async function switchAccount(did: string): Promise<boolean> {
     invalidateSavedFeedsCache()
     return true
   } catch {
+    removeOAuthDid(did)
     return false
   }
 }

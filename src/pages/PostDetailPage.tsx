@@ -2228,19 +2228,12 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
   }, [focusedCommentIndex, hasRepliesSection, postSectionIndex, postSectionCount])
 
   /* When thread loads with ancestors, instantly scroll so indicator is visible */
-  const hasScrolledToRootRef = useRef(false)
   useEffect(() => {
     if (!thread || !isThreadViewPost(thread)) return
-    if (hasScrolledToRootRef.current) return
-    const threadView = thread as AppBskyFeedDefs.ThreadViewPost
+    const threadView = thread
     const ancestors = collectThreadAncestors(threadView)
     if (ancestors.length === 0) return
-    // Instant scroll - position scroll indicator at bottom of viewport so it's clearly visible
-    const timer = setTimeout(() => {
-      hasScrolledToRootRef.current = true
-      scrollIndicatorRef.current?.scrollIntoView({ behavior: 'instant', block: 'end' })
-    }, 50)
-    return () => clearTimeout(timer)
+    // Disable auto-scroll to ancestors on load to keep focus on reply media
   }, [thread])
 
   /* Scroll focused comment into view when focus changed by keyboard (W/S/A/D) – comment/commentMedia scroll is done in focusItemAtIndex so we only consume the ref here to avoid double-scroll */
@@ -2514,7 +2507,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                           )}
                         </div>
                         {quotedMediaFull.length > 0 && (
-                          <div className={styles.quotedPostGallery} onClick={(e) => e.stopPropagation()}>
+                          <div className={styles.quotedPostGallery} onClick={openQuotedPost}>
                             <MediaGallery
                               items={quotedMediaFull}
                               forEmbeddedPreview

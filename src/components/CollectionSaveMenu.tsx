@@ -73,9 +73,11 @@ export default function CollectionSaveMenu({ postUri, openSignal, variant = 'ico
   const updateDropdownPosition = useCallback(() => {
     if (!triggerRef.current) return null
     const rect = triggerRef.current.getBoundingClientRect()
+    const dropdownWidth = dropdownRef.current?.offsetWidth || 320
+    const maxLeft = window.innerWidth - 8 - dropdownWidth
     return {
       bottom: window.innerHeight - rect.top + 4,
-      left: Math.max(8, Math.min(rect.left, window.innerWidth - 8 - 160)),
+      left: Math.max(8, Math.min(rect.left, maxLeft)),
     }
   }, [])
 

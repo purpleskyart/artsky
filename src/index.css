@@ -349,6 +349,10 @@ html[data-theme="light"] main {
   cursor: default;
   pointer-events: none;
 }
+.app-toast.float-btn.app-toast--clickable {
+  cursor: pointer;
+  pointer-events: auto;
+}
 @keyframes app-toast-in {
   from {
     opacity: 0;

@@ -30,6 +30,15 @@ function ProfileLink({ handle, className, title, 'aria-label': ariaLabel, onClic
     e.stopPropagation()
   }, [])
 
+  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    preloadProfileOpen(handle)
+    preloadProfileFeed(handle)
+    openProfileModal(handle)
+    onClick?.(e as any)
+  }, [openProfileModal, handle, onClick])
+
   return (
     <span
       className={className}
@@ -46,7 +55,7 @@ function ProfileLink({ handle, className, title, 'aria-label': ariaLabel, onClic
       }}
       onClick={handleClick}
       onTouchStart={stopTouchBubble}
-      onTouchEnd={stopTouchBubble}
+      onTouchEnd={handleTouchEnd}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault()

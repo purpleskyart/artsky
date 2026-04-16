@@ -149,18 +149,33 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           : await oauth.initOAuth({ hasCallback: false, preferredRestoreDid })
 
         if (cancelled) return
-        if (oauthResult?.session) {
-          bsky.addOAuthDid(oauthResult.session.did)
-          const agent = new Agent(oauthResult.session)
-          bsky.setOAuthAgent(agent, oauthResult.session)
+
+        // Retry once after a short delay if restore failed (IndexedDB may need time after PWA update)
+        let finalOauthResult = oauthResult
+        if (!hasCallback && preferredRestoreDid && !oauthResult?.session) {
+          await new Promise((resolve) => setTimeout(resolve, 500))
+          if (!cancelled) {
+            try {
+              finalOauthResult = await oauth.initOAuth({ hasCallback: false, preferredRestoreDid })
+            } catch {
+              // Ignore retry error, will fall through to fallback
+            }
+          }
+        }
+
+        if (cancelled) return
+        if (finalOauthResult?.session) {
+          bsky.addOAuthDid(finalOauthResult.session.did)
+          const agent = new Agent(finalOauthResult.session)
+          bsky.setOAuthAgent(agent, finalOauthResult.session)
           // Reset failure count on successful restore
-          bsky.resetOAuthFailure(oauthResult.session.did)
+          bsky.resetOAuthFailure(finalOauthResult.session.did)
           // Pass the session DID directly to finish to ensure session state is set
-          finish({ did: oauthResult.session.did } as AtpSessionData)
+          finish({ did: finalOauthResult.session.did } as AtpSessionData)
           return
         }
         // Restore returned no session — try localStorage fallback first
-        if (!hasCallback && preferredRestoreDid && !oauthResult?.session) {
+        if (!hasCallback && preferredRestoreDid && !finalOauthResult?.session) {
           const mirroredSession = bsky.getStoredSession()
           if (mirroredSession?.did === preferredRestoreDid) {
             // Fallback to mirrored session from localStorage
@@ -173,6 +188,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
             return
           }
           // No mirrored session available — increment failure count
+          // This can happen during app updates when IndexedDB is temporarily unavailable
           const shouldRemove = bsky.incrementOAuthFailure(preferredRestoreDid)
           if (shouldRemove) {
             bsky.removeOAuthDid(preferredRestoreDid)

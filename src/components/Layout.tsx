@@ -1468,9 +1468,16 @@ export default function Layout({ title, children, showNav }: Props) {
       setComposeSegments([{ id: Math.random().toString(36).slice(2), text: '', images: [], imageAlts: [], hasSpoiler: false, mediaSensitive: false }])
       setComposeSegmentIndex(0)
       closeCompose()
+      // Show success toast with click handler to navigate to the post
+      if (rootUri) {
+        toast?.showToast('Post successfully created!', undefined, () => {
+          navigate(getPostAppPath(rootUri))
+        })
+      }
       navigate('/feed')
     } catch (err) {
       setComposeError(err instanceof Error ? err.message : 'Failed to post')
+      toast?.showToast('Failed to post. Please try again.')
     } finally {
       setComposePosting(false)
     }
@@ -2638,7 +2645,7 @@ export default function Layout({ title, children, showNav }: Props) {
       {toast?.toastMessage &&
         createPortal(
           <div
-            className={`app-toast float-btn${toast.toastPosition ? ' app-toast--anchored' : ''}`}
+            className={`app-toast float-btn${toast.toastPosition ? ' app-toast--anchored' : ''}${toast.toastOnClick ? ' app-toast--clickable' : ''}`}
             style={
               toast.toastPosition
                 ? {
@@ -2651,6 +2658,7 @@ export default function Layout({ title, children, showNav }: Props) {
             }
             role="status"
             aria-live="polite"
+            onClick={toast.toastOnClick}
           >
             {toast.toastMessage}
           </div>,

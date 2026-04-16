@@ -650,24 +650,41 @@
 }
 
 @media (max-width: 599px) {
-  .gridView1 { --card-media-height: 160px; }
-  .gridView2 { --card-media-height: 140px; }
-  .gridView3 { --card-media-height: 120px; }
-  .gridView4 { --card-media-height: 110px; }
-  .gridView5 { --card-media-height: 100px; }
+  .gridView1 { --feed-card-media-max-height: 160px; }
+  .gridView2 { --feed-card-media-max-height: 140px; }
+  .gridView3 { --feed-card-media-max-height: 120px; }
+  .gridView4 { --feed-card-media-max-height: 110px; }
+  .gridView5 { --feed-card-media-max-height: 100px; }
 }
 
 /* 1-column: same height behavior as multi-column — preview shows full media (no viewport cap on PostCard) */
 .gridView1 {
   grid-template-columns: repeat(1, minmax(0, 1fr));
   gap: 0.15rem;
-  --card-media-height: 280px;
+  --feed-card-media-max-height: 280px;
 }
 
-.gridView2 { --card-media-height: 260px; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.15rem; }
-.gridView3 { --card-media-height: 220px; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.15rem; }
-.gridView4 { --card-media-height: 200px; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.15rem; }
-.gridView5 { --card-media-height: 180px; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0.15rem; }
+/* Desktop single column: scale cards to fit window using max-width instead of max-height */
+@media (min-width: 768px) {
+  .gridView1 {
+    max-width: min(600px, calc(100vw - 2rem));
+    margin: 0 auto;
+    --feed-card-media-max-height: none;
+  }
+}
+
+.gridView2 { --feed-card-media-max-height: 260px; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.15rem; }
+.gridView3 { --feed-card-media-max-height: 220px; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.15rem; }
+.gridView4 { --feed-card-media-max-height: 200px; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.15rem; }
+.gridView5 { --feed-card-media-max-height: 180px; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0.15rem; }
+
+/* Desktop 2-column: constrain width to prevent cards from being too wide */
+@media (min-width: 768px) {
+  .gridView2 {
+    max-width: min(900px, calc(100vw - 2rem));
+    margin: 0 auto;
+  }
+}
 
 /* Column layout for 2/3 col: items flow top-to-bottom per column so columns stay balanced */
 .gridColumns {

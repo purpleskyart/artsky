@@ -261,7 +261,7 @@ html[data-theme="dark"] [data-view-mode="1"] .card:hover {
 .replyParentMediaSlide {
   position: relative;
   width: 100%;
-  max-height: var(--feed-card-media-max-height, 280px);
+  max-height: var(--feed-card-media-max-height, none);
   margin: 0;
   display: flex;
   align-items: center;
@@ -272,7 +272,7 @@ html[data-theme="dark"] [data-view-mode="1"] .card:hover {
 }
 
 .replyParentMediaBlockMulti .replyParentMediaSlide {
-  max-height: min(11rem, var(--feed-card-media-max-height, 280px));
+  max-height: min(11rem, var(--feed-card-media-max-height, none));
   border-bottom: 1px solid var(--border);
 }
 
@@ -806,6 +806,14 @@ html[data-theme="dark"] [data-view-mode="1"] .card:hover {
   justify-content: center;
   /* Round top to match card (same sm top as preview modes) */
   border-radius: var(--glass-radius-sm) var(--glass-radius-sm) 0 0;
+}
+
+/* Desktop single column: unset aspect-ratio so media scales without cropping when max-height is applied */
+@media (min-width: 768px) {
+  .gridView1 .mediaWrap {
+    aspect-ratio: unset;
+    max-height: none;
+  }
 }
 
 /* Art only: flatter top than 16px full glass; bottom keeps full radius */
