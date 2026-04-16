@@ -1215,6 +1215,7 @@ export default function ProfileContent({
                     )
                   }}
                   isSelected={(index) => (tab === 'posts' || tab === 'videos' || tab === 'replies' || tab === 'reposts') && index === keyboardFocusIndex}
+                  suppressHoverNsfwUnblur={inModal}
                   profileAuthorDid={profile?.did}
                   profileAuthorFollowingUri={profile != null ? followingUri ?? null : undefined}
                   onProfileAuthorFollowChange={onProfileAuthorFollowChange}
