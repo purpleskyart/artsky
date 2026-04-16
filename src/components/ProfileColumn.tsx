@@ -166,6 +166,7 @@ function ProfileColumnComponent(props: ProfileColumnProps) {
                 onProfileAuthorFollowChange={onProfileAuthorFollowChange}
                 onRemovePostFromCollection={onRemovePostFromCollection}
                 feedPreviewActionRow={feedPreviewActionRow}
+                suppressHoverNsfwUnblur={suppressHoverNsfwUnblur}
               />
             </VirtualizedCell>
           {belowCard ? belowCard({ item, originalIndex }) : null}
