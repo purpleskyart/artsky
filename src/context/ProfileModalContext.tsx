@@ -271,6 +271,13 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
     p.delete('focus')
     p.delete('quotes')
     const qs = p.toString()
+    /* Clear saved scroll position so the profile always starts at the top when clicked fresh.
+       Scroll restoration should only happen when navigating back via browser back button. */
+    try {
+      sessionStorage.removeItem(`artsky-profile-modal-scroll-v1:${encodeURIComponent(handle)}`)
+    } catch {
+      /* ignore storage errors */
+    }
     navigate(
       { pathname: `/profile/${encodeURIComponent(handle)}`, search: qs ? `?${qs}` : '', hash: location.hash ?? bg.hash ?? '' },
       { replace: false, state: { backgroundLocation: bg } },
