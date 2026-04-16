@@ -41,18 +41,35 @@
 }
 
 @media (max-width: 599px) {
-  .gridView1 { --card-media-height: 160px; }
-  .gridView2 { --card-media-height: 140px; }
-  .gridView3 { --card-media-height: 120px; }
-  .gridView4 { --card-media-height: 110px; }
-  .gridView5 { --card-media-height: 100px; }
+  .gridView1 { --feed-card-media-max-height: 160px; }
+  .gridView2 { --feed-card-media-max-height: 140px; }
+  .gridView3 { --feed-card-media-max-height: 120px; }
+  .gridView4 { --feed-card-media-max-height: 110px; }
+  .gridView5 { --feed-card-media-max-height: 100px; }
 }
 
-.gridView1 { --card-media-height: 280px; grid-template-columns: repeat(1, minmax(0, 1fr)); gap: 0.5rem; }
-.gridView2 { --card-media-height: 260px; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.5rem; }
-.gridView3 { --card-media-height: 220px; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.5rem; }
-.gridView4 { --card-media-height: 200px; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.4rem; }
-.gridView5 { --card-media-height: 180px; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0.4rem; }
+.gridView1 { --feed-card-media-max-height: 280px; grid-template-columns: repeat(1, minmax(0, 1fr)); gap: 0.5rem; }
+
+/* Desktop single column: scale cards to fit window using max-width instead of max-height */
+@media (min-width: 768px) {
+  .gridView1 {
+    max-width: min(600px, calc(100vw - 2rem));
+    margin: 0 auto;
+    --feed-card-media-max-height: none;
+  }
+}
+.gridView2 { --feed-card-media-max-height: 260px; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.5rem; }
+.gridView3 { --feed-card-media-max-height: 220px; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.5rem; }
+.gridView4 { --feed-card-media-max-height: 200px; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.4rem; }
+.gridView5 { --feed-card-media-max-height: 180px; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0.4rem; }
+
+/* Desktop 2-column: constrain width to prevent cards from being too wide */
+@media (min-width: 768px) {
+  .gridView2 {
+    max-width: min(900px, calc(100vw - 2rem));
+    margin: 0 auto;
+  }
+}
 
 .more {
   display: block;

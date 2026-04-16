@@ -511,19 +511,18 @@
     padding: 0.3rem 0.5rem;
     font-size: 0.85rem;
     font-weight: 500;
-    color: var(--text-on-accent);
-    background: var(--accent-gradient);
+    color: var(--text);
+    background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 100%, white 12%), color-mix(in srgb, var(--surface) 100%, black 6%));
     border: none;
     border-radius: var(--glass-radius-sm);
     cursor: pointer;
     font: inherit;
     -webkit-tap-highlight-color: transparent;
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.14), 0 1px 0 rgba(255, 255, 255, 0.12) inset;
-    transition: filter 0.15s ease;
   }
   .headerCenterMobile .headerFeedsBtn:hover {
-    filter: brightness(0.92);
-    color: var(--text-on-accent);
+    color: var(--accent);
+    background: linear-gradient(180deg, color-mix(in srgb, var(--accent-subtle) 100%, white 10%), color-mix(in srgb, var(--accent-subtle) 100%, black 4%));
     box-shadow: 0 3px 8px rgba(0, 0, 0, 0.16), 0 1px 0 rgba(255, 255, 255, 0.1) inset;
   }
   .headerCenterMobile .headerFeedsBtnActive {

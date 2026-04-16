@@ -13,7 +13,7 @@ import CollectionSaveMenu from './CollectionSaveMenu'
 import { useProfileModal } from '../context/ProfileModalContext'
 import { setInitialPostForUri } from '../lib/postCache'
 import { getPostOverlayPath } from '../lib/appUrl'
-import { getOverlayBackgroundLocation } from '../lib/overlayNavigation'
+import { getOverlayBackgroundLocation, hasPathOverlayStack } from '../lib/overlayNavigation'
 import { useModalScroll } from '../context/ModalScrollContext'
 import { useOffscreenOptimization } from '../hooks/useOffscreenOptimization'
 import { preloadPostOpen } from '../lib/modalPreload'
@@ -788,8 +788,10 @@ function PostCardInner({
       return
     }
     if (mediaClickFromTouchRef.current) return
-    // When displaying quoted media (outer post has no media), clicking should open the quote post
-    const openTargetPost = isDisplayingQuotedMedia ? openQuotedPost : openPost
+    // When displaying quoted media (outer post has no media), clicking should open the quote post in modal context, quoting post on feed
+    const openTargetPost = isDisplayingQuotedMedia
+      ? (hasPathOverlayStack(location) ? openQuotedPost : openPost)
+      : openPost
     // Mouse users expect immediate open. Keep double-tap-like behavior touch-only.
     if (e.nativeEvent.detail <= 1) {
       openTargetPost()
@@ -967,9 +969,14 @@ function PostCardInner({
               <div
                 className={`${styles.replyParentMediaBlock} ${replyParentAllMedia.length > 1 ? styles.replyParentMediaBlockMulti : ''}`}
                 onClick={(e) => {
-                  // Clicking media opens the reply post, not the parent
+                  // Clicking media opens the parent post in modal context, reply post on feed
                   e.stopPropagation()
-                  openPostInModalOrFeed()
+                  // In post detail modal, open parent post; on feed, open reply post
+                  if (isModalOpen) {
+                    openReplyParentPost()
+                  } else {
+                    openPostInModalOrFeed()
+                  }
                 }}
               >
                 {replyParentAllMedia.map((m, i) => {
@@ -1014,9 +1021,14 @@ function PostCardInner({
               <div
                 className={styles.replyParentMediaBlock}
                 onClick={(e) => {
-                  // Clicking media opens the reply post, not the parent
+                  // Clicking media opens the parent post in modal context, reply post on feed
                   e.stopPropagation()
-                  openPostInModalOrFeed()
+                  // In post detail modal, open parent post; on feed, open reply post
+                  if (hasPathOverlayStack(location)) {
+                    openReplyParentPost()
+                  } else {
+                    openPostInModalOrFeed()
+                  }
                 }}
               >
                 <div className={styles.replyParentMediaSlide}>

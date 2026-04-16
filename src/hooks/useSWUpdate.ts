@@ -13,6 +13,7 @@ export function useSWUpdate(): SWUpdateState {
   useEffect(() => {
     /** Avoid repeat `registration.update()` when tabbing in/out quickly; full check still runs on cold start. */
     const MIN_CHECK_GAP_MS = 5 * 60 * 1000
+    const POLL_INTERVAL_MS = 30 * 60 * 1000 // Check every 30 minutes in background
     let lastCheckAt = 0
     let checking = false
 
@@ -52,6 +53,15 @@ export function useSWUpdate(): SWUpdateState {
           setUpdateServiceWorkerFn(() => updateSW)
 
           void checkForUpdate({ bypassThrottle: true })
+
+          // Set up periodic polling for updates
+          const pollInterval = setInterval(() => {
+            void checkForUpdate()
+          }, POLL_INTERVAL_MS)
+
+          return () => {
+            clearInterval(pollInterval)
+          }
         })
         .catch((err) => {
           console.error('Service worker registration failed:', err)

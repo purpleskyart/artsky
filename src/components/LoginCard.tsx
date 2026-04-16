@@ -37,6 +37,9 @@ function toFriendlyLoginError(err: unknown): string {
   if (lower.includes('invalid') || lower.includes('unauthorized')) {
     return "We couldn't verify your account. Check your handle and try again."
   }
+  if (lower.includes('failed to resolve identity')) {
+    return "Account not found. Check your handle and try again."
+  }
   if (raw) return raw
   return 'Could not start sign-in. Check your handle and try again.'
 }

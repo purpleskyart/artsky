@@ -510,6 +510,14 @@
   gap: 0.4rem;
 }
 
+/* Desktop single column: scale cards to fit window height using max-width instead of max-height */
+@media (min-width: 768px) {
+  .gridView1 {
+    max-width: min(600px, calc(100vw - 2rem));
+    margin: 0 auto;
+  }
+}
+
 /* 2/3 col: row height follows card content so cards scale with media aspect ratio */
 .gridView2,
 .gridView3 {
@@ -523,6 +531,14 @@
 .gridView3 {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.4rem;
+}
+
+/* Desktop 2-column: constrain width to prevent cards from being too wide */
+@media (min-width: 768px) {
+  .gridView2 {
+    max-width: min(900px, calc(100vw - 2rem));
+    margin: 0 auto;
+  }
 }
 
 /* Wrapper so card can size naturally; min-width prevents overflow in grid */

@@ -20,6 +20,7 @@ export default function ImageLightbox({ imageUrl, alt = '', onClose, onPrevious,
   const [scale, setScale] = useState(1)
   const [position, setPosition] = useState({ x: 0, y: 0 })
   const [isDragging, setIsDragging] = useState(false)
+  const [verticalDragOffset, setVerticalDragOffset] = useState(0)
   const dragStartRef = useRef({ x: 0, y: 0 })
   const positionStartRef = useRef({ x: 0, y: 0 })
   const containerRef = useRef<HTMLDivElement>(null)
@@ -142,6 +143,7 @@ export default function ImageLightbox({ imageUrl, alt = '', onClose, onPrevious,
 
   // Touch handlers for mobile pan and pinch
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    e.preventDefault()
     e.stopPropagation()
     if (e.touches.length === 2) {
       // Start pinch gesture
@@ -221,10 +223,16 @@ export default function ImageLightbox({ imageUrl, alt = '', onClose, onPrevious,
           isVerticalSwipingRef.current = true
         }
       }
+
+      // Track vertical drag offset for visual feedback when swiping to close
+      if (isVerticalSwipingRef.current) {
+        setVerticalDragOffset(deltaY)
+      }
     }
   }, [isDragging, scale])
 
   const handleTouchEnd = useCallback((e: React.TouchEvent) => {
+    e.preventDefault()
     e.stopPropagation()
     // Detect if pinch ended (fewer than 2 touches)
     if (e.touches.length < 2) {
@@ -282,12 +290,15 @@ export default function ImageLightbox({ imageUrl, alt = '', onClose, onPrevious,
       if (Math.abs(deltaY) > SWIPE_CLOSE_THRESHOLD) {
         onClose()
         isVerticalSwipingRef.current = false
+        setVerticalDragOffset(0)
         return
       }
       isVerticalSwipingRef.current = false
+      setVerticalDragOffset(0)
     }
 
     setIsDragging(false)
+    setVerticalDragOffset(0)
   }, [scale, onClose, onNext, onPrevious])
 
   // Handle click on backdrop to close (but not when clicking the image)
@@ -358,7 +369,7 @@ export default function ImageLightbox({ imageUrl, alt = '', onClose, onPrevious,
           alt={alt}
           className={`${styles.image} ${scale > 1 ? styles.imageZoomed : ''} ${isDragging ? styles.imageDragging : ''}`}
           style={{
-            transform: `scale(${scale}) translate(${position.x / scale}px, ${position.y / scale}px)`,
+            transform: `scale(${scale}) translate(${position.x / scale}px, ${(position.y / scale) + verticalDragOffset}px)`,
             cursor: scale > 1 ? (isDragging ? 'grabbing' : 'grab') : 'zoom-in',
           }}
           onDoubleClick={handleDoubleClick}
