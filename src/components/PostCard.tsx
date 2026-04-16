@@ -564,12 +564,15 @@ function PostCardInner({
     if (!isCardNearViewport) videoRef.current.pause()
   }, [isVideo, isCardNearViewport])
 
-  /* Unblur NSFW when this card gains focus; reblur when it loses selection. Reused across feed, profile, tag, popups. useLayoutEffect so unblur runs before paint (fixes profile modal). */
+  /* Unblur NSFW when this card gains focus; reblur when it loses selection. Reused across feed, profile, tag, popups. useLayoutEffect so unblur runs before paint (fixes profile modal). Skip unblur on touch devices within 500ms of touch to prevent scroll-induced selection from unblurring. */
   useLayoutEffect(() => {
     const wasSelected = prevSelectedRef.current
     prevSelectedRef.current = isSelected
     if (isSelected && nsfwBlurred && onNsfwUnblur) {
-      onNsfwUnblur()
+      /* On touch devices, ignore selection from scroll (within 500ms of touch) */
+      if (Date.now() - recentTouchTimeRef.current >= 500) {
+        onNsfwUnblur()
+      }
     }
     if (wasSelected && !isSelected && isRevealed) {
       setUnblurred(post.uri, false)

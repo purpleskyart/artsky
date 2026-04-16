@@ -366,6 +366,7 @@ function MediaGallery({
     const now = Date.now()
     if (now - lastTapRef.current < 400) {
       lastTapRef.current = 0
+      lastClickRef.current = now // Block synthetic click from triggering handleMediaClick
       e.preventDefault()
       onDoubleTapLike()
     } else {
@@ -427,6 +428,7 @@ function MediaGallery({
             const now = Date.now()
             if (now - lastTapRef.current < 400) {
               lastTapRef.current = 0
+              lastClickRef.current = now // Block synthetic click from opening lightbox
               e.preventDefault()
               e.stopPropagation()
               onDoubleTapLike()
