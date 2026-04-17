@@ -917,7 +917,7 @@ export default function ProfileContent({
               </div>
               {profile?.description && (
                 <p className={styles.description}>
-                  <PostText text={profile.description} linkDisplay="domain" />
+                  <PostText text={profile.description} />
                 </p>
               )}
               {profile && (
