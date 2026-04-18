@@ -167,7 +167,7 @@ export default function QuotesModal({ postUri, onClose, onBack, canGoBack, onDes
               <ProfileColumn
                 column={items.map((item, i) => ({ item, originalIndex: i }))}
                 colIndex={0}
-                scrollRef={modalScrollRef}
+                scrollRef={null}
                 loadMoreSentinelRef={cursor ? (el) => { (loadMoreSentinelRef as unknown as { current: HTMLDivElement | null }).current = el } : undefined}
                 hasCursor={!!cursor}
                 keyboardFocusIndex={keyboardFocusIndex}

@@ -350,7 +350,7 @@ export function SearchModalGridContent({
                 key={colIndex}
                 column={column}
                 colIndex={colIndex}
-                scrollRef={inModal ? modalScrollRef : null}
+                scrollRef={null}
                 loadMoreSentinelRef={
                   cursor
                     ? (el) => {

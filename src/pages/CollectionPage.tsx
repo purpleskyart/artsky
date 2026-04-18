@@ -345,7 +345,7 @@ export function CollectionDetailContent({ uri: decodedUri }: CollectionDetailCon
                 layout="feed"
                 column={column}
                 colIndex={colIndex}
-                scrollRef={modalScrollRef}
+                scrollRef={null}
                 keyboardFocusIndex={keyboardFocusIndex}
                 actionsMenuOpenForIndex={null}
                 nsfwPreference={nsfwPreference}
