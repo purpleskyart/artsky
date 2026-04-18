@@ -224,7 +224,7 @@ export function ProgressiveImage({
     const container = containerRef.current
     if (!container) return
 
-    const pooled = getObserverPoolEntry(preloadDistance, root)
+    const pooled = getObserverPoolEntry(preloadDistance, root ?? null)
     if (!pooled) {
       setShouldPreload(true)
       return

@@ -227,8 +227,6 @@ function PostCardInner({
   const replyParentViewer = replyParentPost as { viewer?: { like?: string } } | undefined
   const initialReplyParentLikedUri = replyParentViewer?.viewer?.like
   const [replyParentLikedUri, setReplyParentLikedUri] = useState<string | undefined>(initialReplyParentLikedUri)
-  const [replyParentLikeLoading, setReplyParentLikeLoading] = useState(false)
-  const isReplyParentLiked = !!replyParentLikedUri
 
   const [mediaAspect, setMediaAspect] = useState<number | null>(() =>
     hasMedia && media?.aspectRatio != null ? media.aspectRatio : null
