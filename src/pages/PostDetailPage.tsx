@@ -138,7 +138,7 @@ export function ReplyAsRow({
                     onClick={async () => {
                       const ok = await switchAccount(s.did)
                       if (ok) setDropdownOpen(false)
-                      else toast?.showToast('Could not switch account. Try again or sign in again.')
+                      else toast?.showToast('Could not switch account. Sign in again.')
                     }}
                   >
                     {profile?.avatar ? (

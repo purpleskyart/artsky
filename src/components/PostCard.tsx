@@ -229,14 +229,14 @@ function PostCardInner({
   const [replyParentLikedUri, setReplyParentLikedUri] = useState<string | undefined>(initialReplyParentLikedUri)
 
   const [mediaAspect, setMediaAspect] = useState<number | null>(() =>
-    hasMedia && media?.aspectRatio != null ? media.aspectRatio : null
+    hasMedia && media?.aspectRatio != null ? media.aspectRatio : null,
   )
   const [videoPaused, setVideoPaused] = useState(true)
   const [actionsMenuOpen, setActionsMenuOpen] = useState(false)
   const actionsMenuDropdownRef = useRef<HTMLDivElement>(null)
   const cardRef = useRef<HTMLDivElement>(null)
   const [cardRootEl, setCardRootEl] = useState<HTMLDivElement | null>(null)
-  const modalScrollContainer = modalScrollRef?.current ?? null
+  const modalScrollContainer = modalScrollRef
   const isCardNearViewport = useOffscreenOptimization(cardRootEl, { rootMargin: '400px 0px 400px 0px', root: modalScrollContainer })
   const prevSelectedRef = useRef(isSelected)
   const lastTapRef = useRef(0)
@@ -255,6 +255,7 @@ function PostCardInner({
   const lastReplyParentMediaClickRef = useRef(0)
   const replyParentMediaClickFromTouchRef = useRef(false)
   const replyParentMediaOpenDelayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const replyParentTouchStartRef = useRef<{ x: number; y: number } | null>(null)
   /* Close ... menu when parent says focus moved to another card (e.g. A/D) */
   useEffect(() => {
     if (cardIndex == null) return
@@ -637,7 +638,7 @@ function PostCardInner({
     if (!hasMedia || !isRevealed || !mediaWrapRef.current) return
     nsfwHasBeenVisibleRef.current = false
     const el = mediaWrapRef.current
-    const root = modalScrollRef?.current ?? null
+    const root = modalScrollRef
     const observer = new IntersectionObserver(
       (entries) => {
         const entry = entries[0]
@@ -1053,8 +1054,24 @@ function PostCardInner({
               <div
                 className={`${styles.replyParentMediaBlock} ${replyParentAllMedia.length > 1 ? styles.replyParentMediaBlockMulti : ''}`}
                 onClick={handleReplyParentMediaClick}
+                onTouchStart={(e) => {
+                  const t = e.touches[0]
+                  replyParentTouchStartRef.current = t ? { x: t.clientX, y: t.clientY } : null
+                }}
                 onTouchEnd={(e) => {
                   if (e.changedTouches.length !== 1) return
+                  const start = replyParentTouchStartRef.current
+                  replyParentTouchStartRef.current = null
+                  const end = e.changedTouches[0]
+                  const moved = start && end ? Math.hypot(end.clientX - start.x, end.clientY - start.y) : 0
+                  const isScroll = moved > 12
+                  if (isScroll) {
+                    if (replyParentMediaOpenDelayTimerRef.current) {
+                      clearTimeout(replyParentMediaOpenDelayTimerRef.current)
+                      replyParentMediaOpenDelayTimerRef.current = null
+                    }
+                    return
+                  }
                   const now = Date.now()
                   if (now - lastReplyParentTapRef.current < TOUCH_DOUBLE_TAP_WINDOW_MS) {
                     lastReplyParentTapRef.current = 0
@@ -1064,6 +1081,7 @@ function PostCardInner({
                       clearTimeout(replyParentMediaOpenDelayTimerRef.current)
                       replyParentMediaOpenDelayTimerRef.current = null
                     }
+                    e.preventDefault()
                     handleReplyParentDoubleTapLike()
                   } else {
                     lastReplyParentTapRef.current = now

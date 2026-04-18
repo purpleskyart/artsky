@@ -96,6 +96,7 @@ export default function AppModal({
 }: AppModalProps) {
   const overlayRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null)
   const { modalScrollHidden, setModalScrollHidden } = useProfileModal()
   const lastScrollYRef = useRef(0)
   const scrollEndTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -450,7 +451,10 @@ export default function AppModal({
               </div>
             )}
             <div
-              ref={scrollRef}
+              ref={(el) => {
+                scrollRef.current = el
+                setScrollElement(el)
+              }}
               data-modal-scroll
               className={`${styles.scroll} ${transparentTopBar ? styles.scrollWithTransparentBar : ''} ${styles.scrollWithFloatingBack}`}
               onTouchStart={pullRefresh.onTouchStart}
@@ -458,7 +462,7 @@ export default function AppModal({
               onTouchEnd={pullRefresh.onTouchEnd}
               style={{ visibility: isRestoringScroll ? 'hidden' : 'visible' }}
             >
-              <ModalScrollProvider scrollRef={scrollRef}>
+              <ModalScrollProvider scrollElement={scrollElement}>
                 {children}
               </ModalScrollProvider>
             </div>

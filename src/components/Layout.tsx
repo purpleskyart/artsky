@@ -1342,7 +1342,7 @@ export default function Layout({ title, children, showNav }: Props) {
       setAccountSheetOpen(false)
       setAccountMenuOpen(false)
     } else {
-      toast?.showToast('Could not switch account. Try again or sign in again.')
+      toast?.showToast('Could not switch account. Sign in again.')
     }
   }
 
