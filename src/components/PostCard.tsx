@@ -223,6 +223,13 @@ function PostCardInner({
   const effectiveLikedUri = likedUriOverride !== undefined ? (likedUriOverride ?? undefined) : likedUri
   const isLiked = !!effectiveLikedUri
 
+  // Reply parent like state
+  const replyParentViewer = replyParentPost as { viewer?: { like?: string } } | undefined
+  const initialReplyParentLikedUri = replyParentViewer?.viewer?.like
+  const [replyParentLikedUri, setReplyParentLikedUri] = useState<string | undefined>(initialReplyParentLikedUri)
+  const [replyParentLikeLoading, setReplyParentLikeLoading] = useState(false)
+  const isReplyParentLiked = !!replyParentLikedUri
+
   const [mediaAspect, setMediaAspect] = useState<number | null>(() =>
     hasMedia && media?.aspectRatio != null ? media.aspectRatio : null
   )
@@ -231,7 +238,8 @@ function PostCardInner({
   const actionsMenuDropdownRef = useRef<HTMLDivElement>(null)
   const cardRef = useRef<HTMLDivElement>(null)
   const [cardRootEl, setCardRootEl] = useState<HTMLDivElement | null>(null)
-  const isCardNearViewport = useOffscreenOptimization(cardRootEl, { rootMargin: '400px 0px 400px 0px' })
+  const modalScrollContainer = modalScrollRef?.current ?? null
+  const isCardNearViewport = useOffscreenOptimization(cardRootEl, { rootMargin: '400px 0px 400px 0px', root: modalScrollContainer })
   const prevSelectedRef = useRef(isSelected)
   const lastTapRef = useRef(0)
   const lastMediaClickRef = useRef(0)
@@ -244,6 +252,11 @@ function PostCardInner({
   const nsfwOverlayHandledRef = useRef(false)
   /** On mobile, first tap on NSFW overlay only unblurs; set so synthetic click doesn't open. */
   const nsfwTouchUnblurOnlyRef = useRef(false)
+  // Reply parent double-tap detection
+  const lastReplyParentTapRef = useRef(0)
+  const lastReplyParentMediaClickRef = useRef(0)
+  const replyParentMediaClickFromTouchRef = useRef(false)
+  const replyParentMediaOpenDelayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   /* Close ... menu when parent says focus moved to another card (e.g. A/D) */
   useEffect(() => {
     if (cardIndex == null) return
@@ -383,6 +396,10 @@ function PostCardInner({
       if (mediaOpenDelayTimerRef.current) {
         clearTimeout(mediaOpenDelayTimerRef.current)
         mediaOpenDelayTimerRef.current = null
+      }
+      if (replyParentMediaOpenDelayTimerRef.current) {
+        clearTimeout(replyParentMediaOpenDelayTimerRef.current)
+        replyParentMediaOpenDelayTimerRef.current = null
       }
     }
   }, [])
@@ -786,6 +803,22 @@ function PostCardInner({
     }
   }, [session?.did, openLoginModal, effectiveLikedUri, post.uri, post.cid, onLikedChange])
 
+  const handleReplyParentDoubleTapLike = useCallback(() => {
+    if (!session?.did || !replyParentPost) {
+      openLoginModal()
+      return
+    }
+    if (replyParentLikedUri) {
+      setReplyParentLikedUri(undefined)
+      unlikePostWithLifecycle(replyParentLikedUri, replyParentPost.uri).catch(() => setReplyParentLikedUri(replyParentLikedUri))
+    } else {
+      setReplyParentLikedUri('pending')
+      likePostWithLifecycle(replyParentPost.uri, replyParentPost.cid).then((res) => {
+        setReplyParentLikedUri(res.uri)
+      }).catch(() => setReplyParentLikedUri(undefined))
+    }
+  }, [session?.did, openLoginModal, replyParentLikedUri, replyParentPost])
+
   const handleMediaClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
     /* Blurred + synthetic click before parent re-renders: unblur only, do not open post */
@@ -829,6 +862,34 @@ function PostCardInner({
       }, TOUCH_OPEN_DELAY_MS)
     }
   }, [mediaClickFromTouchRef, lastMediaClickRef, handleMediaDoubleTapLike, openPost, openQuotedPost, isDisplayingQuotedMedia, nsfwBlurred, onNsfwUnblur])
+
+  const handleReplyParentMediaClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (replyParentMediaClickFromTouchRef.current) return
+    // In post detail modal, open parent post; on feed, open reply post
+    const openTargetPost = isModalOpen ? openReplyParentPost : openPostInModalOrFeed
+    // Mouse users expect immediate open. Keep double-tap-like behavior touch-only.
+    if (e.nativeEvent.detail <= 1) {
+      openTargetPost()
+      return
+    }
+    const now = Date.now()
+    if (now - lastReplyParentMediaClickRef.current < MEDIA_CLICK_DOUBLE_TAP_WINDOW_MS) {
+      lastReplyParentMediaClickRef.current = 0
+      if (replyParentMediaOpenDelayTimerRef.current) {
+        clearTimeout(replyParentMediaOpenDelayTimerRef.current)
+        replyParentMediaOpenDelayTimerRef.current = null
+      }
+      handleReplyParentDoubleTapLike()
+    } else {
+      lastReplyParentMediaClickRef.current = now
+      if (replyParentMediaOpenDelayTimerRef.current) clearTimeout(replyParentMediaOpenDelayTimerRef.current)
+      replyParentMediaOpenDelayTimerRef.current = setTimeout(() => {
+        replyParentMediaOpenDelayTimerRef.current = null
+        openTargetPost()
+      }, TOUCH_OPEN_DELAY_MS)
+    }
+  }, [replyParentMediaClickFromTouchRef, handleReplyParentDoubleTapLike, openReplyParentPost, openPostInModalOrFeed, isModalOpen])
 
   const setCardRef = useCallback(
     (el: HTMLDivElement | null) => {
@@ -993,14 +1054,29 @@ function PostCardInner({
             {replyParentAllMedia.length > 0 ? (
               <div
                 className={`${styles.replyParentMediaBlock} ${replyParentAllMedia.length > 1 ? styles.replyParentMediaBlockMulti : ''}`}
-                onClick={(e) => {
-                  // Clicking media opens the parent post in modal context, reply post on feed
-                  e.stopPropagation()
-                  // In post detail modal, open parent post; on feed, open reply post
-                  if (isModalOpen) {
-                    openReplyParentPost()
+                onClick={handleReplyParentMediaClick}
+                onTouchEnd={(e) => {
+                  if (e.changedTouches.length !== 1) return
+                  const now = Date.now()
+                  if (now - lastReplyParentTapRef.current < TOUCH_DOUBLE_TAP_WINDOW_MS) {
+                    lastReplyParentTapRef.current = 0
+                    lastReplyParentMediaClickRef.current = now
+                    replyParentMediaClickFromTouchRef.current = true
+                    if (replyParentMediaOpenDelayTimerRef.current) {
+                      clearTimeout(replyParentMediaOpenDelayTimerRef.current)
+                      replyParentMediaOpenDelayTimerRef.current = null
+                    }
+                    handleReplyParentDoubleTapLike()
                   } else {
-                    openPostInModalOrFeed()
+                    lastReplyParentTapRef.current = now
+                    replyParentMediaClickFromTouchRef.current = false
+                    if (replyParentMediaOpenDelayTimerRef.current) clearTimeout(replyParentMediaOpenDelayTimerRef.current)
+                    replyParentMediaOpenDelayTimerRef.current = setTimeout(() => {
+                      replyParentMediaOpenDelayTimerRef.current = null
+                      replyParentMediaClickFromTouchRef.current = false
+                      const openTargetPost = isModalOpen ? openReplyParentPost : openPostInModalOrFeed
+                      openTargetPost()
+                    }, TOUCH_OPEN_DELAY_MS)
                   }
                 }}
               >
@@ -1024,6 +1100,7 @@ function PostCardInner({
                           aspectRatio={ar}
                           loading="lazy"
                           preloadDistance={cardMediaPreloadDistance}
+                          root={modalScrollContainer}
                           className={styles.replyParentMediaImg}
                         />
                       ) : m.videoPlaylist ? (
@@ -1035,6 +1112,7 @@ function PostCardInner({
                             loop
                             autoPlay
                             preload="metadata"
+                            controlsHiddenUntilTap
                           />
                         </div>
                       ) : null}
@@ -1063,6 +1141,7 @@ function PostCardInner({
                     aspectRatio={16 / 9}
                     loading="lazy"
                     preloadDistance={cardMediaPreloadDistance}
+                    root={modalScrollContainer}
                     className={styles.replyParentMediaImg}
                   />
                 </div>
@@ -1149,6 +1228,7 @@ function PostCardInner({
                       className={styles.textOnlyPreviewLinkThumb}
                       loading="lazy"
                       preloadDistance={cardMediaPreloadDistance}
+                      root={modalScrollContainer}
                     />
                   ) : null}
                   <span className={styles.textOnlyPreviewLinkTitle}>{externalLink.title}</span>
@@ -1217,6 +1297,7 @@ function PostCardInner({
                             className={styles.mediaGridImg}
                             loading="lazy"
                             preloadDistance={cardMediaPreloadDistance}
+                            root={modalScrollContainer}
                             onLoad={idx === 0 ? handleImageLoad : undefined}
                           />
                         </div>
@@ -1233,6 +1314,7 @@ function PostCardInner({
                 className={styles.media}
                 loading={isSelected ? 'eager' : 'lazy'}
                 preloadDistance={cardMediaPreloadDistance}
+                root={modalScrollContainer}
                 onLoad={handleImageLoad}
               />
             </>
@@ -1344,7 +1426,7 @@ function PostCardInner({
                     onClick={(e) => e.stopPropagation()}
                     aria-label={`View @${handle} profile`}
                   >
-                    <ProgressiveImage src={post.author.avatar} alt="" loading="lazy" />
+                    <ProgressiveImage src={post.author.avatar} alt="" loading="lazy" root={modalScrollContainer} />
                   </ProfileLink>
                 ) : (
                   <button
@@ -1357,7 +1439,7 @@ function PostCardInner({
                     aria-label={`Follow @${handle}`}
                     title={`Follow @${handle}`}
                   >
-                    <ProgressiveImage src={post.author.avatar} alt="" loading="lazy" />
+                    <ProgressiveImage src={post.author.avatar} alt="" loading="lazy" root={modalScrollContainer} />
                     <span className={styles.cardActionRowAvatarPlus} aria-hidden>
                       <svg viewBox="0 0 8 8" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
                         <path d="M4 2v4M2 4h4" />
@@ -1401,7 +1483,7 @@ function PostCardInner({
             <div className={styles.handleRow}>
               {!(showFeedStyleActionRow && post.author.avatar) &&
                 (post.author.avatar ? (
-                  <ProgressiveImage src={post.author.avatar} alt="" className={styles.authorAvatar} loading="lazy" />
+                  <ProgressiveImage src={post.author.avatar} alt="" className={styles.authorAvatar} loading="lazy" root={modalScrollContainer} />
                 ) : post.author.did ? (
                   <span className={styles.authorAvatarPlaceholder} aria-hidden>
                     {(handle || post.author.did).slice(0, 1).toUpperCase()}

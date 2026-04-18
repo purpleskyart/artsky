@@ -23,6 +23,7 @@ import { EyeOpenIcon, EyeHalfIcon, EyeClosedIcon } from '../components/Icons'
 import { useColumnCount } from '../hooks/useViewportWidth'
 import { usePostCardGridPointerGate } from '../hooks/usePostCardGridPointerGate'
 import { pickAdjacentCardIndexByViewport } from '../lib/masonryHorizontalNav'
+import { ProgressiveImage } from '../components/ProgressiveImage'
 import styles from './ProfilePage.module.css'
 
 const REASON_REPOST = 'app.bsky.feed.defs#reasonRepost'
@@ -837,7 +838,7 @@ export default function ProfileContent({
         <header className={styles.profileHeader}>
           <div className={styles.profileHeaderMain}>
             {profile?.avatar && (
-              <img src={profile.avatar} alt="" className={styles.avatar} loading="lazy" />
+              <ProgressiveImage src={profile.avatar} alt="" className={styles.avatar} loading="lazy" root={modalScrollRef?.current ?? null} />
             )}
             <div className={styles.profileMeta}>
               {profile?.displayName && (
@@ -956,12 +957,13 @@ export default function ProfileContent({
                       <span className={styles.followedByFollowsAvatars}>
                         {followeesWhoFollowPreview.slice(0, 2).map((p) =>
                           p.avatar ? (
-                            <img
+                            <ProgressiveImage
                               key={p.did}
                               src={p.avatar}
                               alt=""
                               className={styles.followedByFollowsAvatar}
                               loading="lazy"
+                              root={modalScrollRef?.current ?? null}
                             />
                           ) : (
                             <span

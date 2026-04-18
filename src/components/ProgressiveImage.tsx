@@ -34,6 +34,12 @@ interface ProgressiveImageProps {
    * Default `cover` fills the aspect-ratio box and may crop edges.
    */
   objectFit?: 'cover' | 'contain'
+  /**
+   * Custom scroll container element to use as IntersectionObserver root
+   * If not provided, defaults to viewport
+   * Useful for modal contexts where the scrollable area is within the modal
+   */
+  root?: Element | null
 }
 
 type ObserverPoolEntry = {
@@ -42,10 +48,11 @@ type ObserverPoolEntry = {
 }
 const observerPool = new Map<string, ObserverPoolEntry>()
 
-function getObserverPoolEntry(preloadDistance: number): ObserverPoolEntry | null {
+function getObserverPoolEntry(preloadDistance: number, root: Element | null): ObserverPoolEntry | null {
   if (typeof window === 'undefined' || typeof IntersectionObserver === 'undefined') return null
   const margin = `${preloadDistance}px`
-  const key = `${margin}|${margin}|${margin}|${margin}`
+  const rootId = root ? (root as any).__progressiveImageRootId ??= Math.random().toString(36).slice(2) : 'viewport'
+  const key = `${margin}|${margin}|${margin}|${margin}|${rootId}`
   const existing = observerPool.get(key)
   if (existing) return existing
   const callbacks = new WeakMap<Element, () => void>()
@@ -60,7 +67,7 @@ function getObserverPoolEntry(preloadDistance: number): ObserverPoolEntry | null
         cb()
       }
     },
-    { rootMargin: `${margin} ${margin} ${margin} ${margin}`, threshold: 0 }
+    { rootMargin: `${margin} ${margin} ${margin} ${margin}`, threshold: 0, root }
   )
   const created = { observer, callbacks }
   observerPool.set(key, created)
@@ -88,6 +95,7 @@ export function ProgressiveImage({
   maxRetries = 3,
   preloadDistance: preloadDistanceProp,
   objectFit = 'cover',
+  root,
 }: ProgressiveImageProps) {
   const LOAD_REVEAL_TIMEOUT_MS = 12_000
 
@@ -216,7 +224,7 @@ export function ProgressiveImage({
     const container = containerRef.current
     if (!container) return
 
-    const pooled = getObserverPoolEntry(preloadDistance)
+    const pooled = getObserverPoolEntry(preloadDistance, root)
     if (!pooled) {
       setShouldPreload(true)
       return
@@ -231,7 +239,7 @@ export function ProgressiveImage({
         pooled.observer.unobserve(container)
       }
     }
-  }, [loading, preloadDistance, isLoaded, src])
+  }, [loading, preloadDistance, root, isLoaded, src])
 
   const currentSrc = imageError ? src : webpSrc
   const canShowFullImage = shouldPreload && !permanentError
