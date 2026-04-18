@@ -81,12 +81,19 @@ export default function ImageLightbox({ imageUrl, alt = '', onClose, onPrevious,
     })
   }, [])
 
-  const handleDoubleClick = useCallback(() => {
+  const handleDoubleClick = useCallback((e: React.MouseEvent) => {
+    const rect = imageContainerRef.current?.getBoundingClientRect()
+    if (!rect) return
+
+    const tapX = e.clientX - rect.left - rect.width / 2
+    const tapY = e.clientY - rect.top - rect.height / 2
+
     if (scale > 1) {
       setScale(1)
       setPosition({ x: 0, y: 0 })
     } else {
       setScale(2.5)
+      setPosition({ x: -tapX * 1.5, y: -tapY * 1.5 })
     }
   }, [scale])
 
@@ -211,6 +218,7 @@ export default function ImageLightbox({ imageUrl, alt = '', onClose, onPrevious,
       })
     } else if (scale === 1 && e.touches.length === 1 && !isPinchingRef.current) {
       // Detect swipe direction when zoomed out
+      e.stopPropagation()
       const deltaX = e.touches[0].clientX - horizontalSwipeStartXRef.current
       const deltaY = e.touches[0].clientY - verticalSwipeStartYRef.current
       const SWIPE_THRESHOLD = 50
@@ -252,11 +260,19 @@ export default function ImageLightbox({ imageUrl, alt = '', onClose, onPrevious,
         setTimeout(() => {
           justDoubleTappedRef.current = false
         }, 200)
-        if (scale > 1) {
-          setScale(1)
-          setPosition({ x: 0, y: 0 })
-        } else {
-          setScale(2.5)
+
+        const rect = imageContainerRef.current?.getBoundingClientRect()
+        if (rect) {
+          const tapX = e.changedTouches[0].clientX - rect.left - rect.width / 2
+          const tapY = e.changedTouches[0].clientY - rect.top - rect.height / 2
+
+          if (scale > 1) {
+            setScale(1)
+            setPosition({ x: 0, y: 0 })
+          } else {
+            setScale(2.5)
+            setPosition({ x: -tapX * 1.5, y: -tapY * 1.5 })
+          }
         }
         lastTouchEndTimeRef.current = now
         setIsDragging(false)

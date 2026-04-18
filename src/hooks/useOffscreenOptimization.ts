@@ -9,7 +9,7 @@ import { useEffect, useState, useRef } from 'react'
  */
 export function useOffscreenOptimization(
   element: HTMLElement | null,
-  options?: IntersectionObserverInit
+  options?: IntersectionObserverInit & { root?: Element | null }
 ): boolean {
   const [isVisible, setIsVisible] = useState(true)
   const observerRef = useRef<IntersectionObserver | null>(null)
