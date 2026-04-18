@@ -29,6 +29,7 @@ import {
   getProfilesBatch,
   getPersistedActiveDid,
 } from '../lib/bsky'
+import { signInWithOAuthRedirect } from '../lib/oauth'
 import { requestDeduplicator } from '../lib/RequestDeduplicator'
 import type { FeedSource } from '../types'
 import { GUEST_FEED_SOURCES, GUEST_MIX_ENTRIES } from '../config/feedSources'
@@ -1342,7 +1343,11 @@ export default function Layout({ title, children, showNav }: Props) {
       setAccountSheetOpen(false)
       setAccountMenuOpen(false)
     } else {
-      toast?.showToast('Could not switch account. Sign in again.')
+      // Account no longer signed in - initiate OAuth sign-in with the handle
+      const profile = accountProfiles[did]
+      const handle = profile?.handle ?? did
+      toast?.showToast(`Signing in to @${handle}...`)
+      await signInWithOAuthRedirect(handle)
     }
   }
 
@@ -2045,7 +2050,7 @@ export default function Layout({ title, children, showNav }: Props) {
                     <button
                       ref={feedsBtnRef}
                       type="button"
-                      className={feedsDropdownOpen ? styles.headerFeedsBtnActive : styles.headerFeedsBtn}
+                      className={styles.headerFeedsBtn}
                       aria-label="Feeds"
                       aria-expanded={feedsDropdownOpen}
                       onClick={() => setFeedsDropdownOpen((o) => !o)}
@@ -2230,7 +2235,7 @@ export default function Layout({ title, children, showNav }: Props) {
               <button
                 ref={feedsBtnRef}
                 type="button"
-                className={`${styles.feedsFloatBtn} float-btn ${feedsDropdownOpen ? styles.feedsFloatBtnActive : ''}`}
+                className={`${styles.feedsFloatBtn} float-btn`}
                 onClick={() => setFeedsDropdownOpen((o) => !o)}
                 aria-label="Feeds"
                 aria-expanded={feedsDropdownOpen}
