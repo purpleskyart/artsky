@@ -1389,6 +1389,20 @@ function PostCardInner({
         </div>
         {showArtOnlyCornerActions && (
           <div className={styles.artOnlyActions} onClick={(e) => e.stopPropagation()}>
+            {!isOwnPost && session && !isFollowingAuthor && (
+              <button
+                type="button"
+                className={styles.artOnlyFollowBtn}
+                onClick={handleFollowClick}
+                disabled={followLoading}
+                aria-label={`Follow @${handle}`}
+                title={`Follow @${handle}`}
+              >
+                <svg viewBox="0 0 12 12" aria-hidden>
+                  <path d="M6 2v8M2 6h8" />
+                </svg>
+              </button>
+            )}
             <CollectionSaveMenu postUri={post.uri} openSignal={openCollectionMenuSignal} />
             <PostActionsMenu
               postUri={post.uri}

@@ -848,6 +848,43 @@ html[data-theme="dark"] [data-view-mode="1"] .card:hover {
   align-items: center;
   gap: 0.2rem;
 }
+
+/* Follow button in art-only mode - appears to the left of collect button */
+.artOnlyFollowBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.65rem;
+  height: 1.65rem;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #a855f7, #7c3aed);
+  color: white;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+.artOnlyFollowBtn:hover:not(:disabled) {
+  transform: scale(1.08);
+  opacity: 0.9;
+}
+.artOnlyFollowBtn:active:not(:disabled) {
+  transform: scale(0.95);
+}
+.artOnlyFollowBtn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.artOnlyFollowBtn svg {
+  width: 12px;
+  height: 12px;
+  stroke: currentColor;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+}
 .card:hover .artOnlyActions,
 .card:focus-within .artOnlyActions,
 .artOnlyActions:focus-within {

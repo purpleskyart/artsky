@@ -79,7 +79,7 @@ export function getProgressiveImageDefaults(): { sizes: number[]; preloadDistanc
     return { sizes: [320, 480, 640], preloadDistance: 800 }
   }
   if (typeof window !== 'undefined' && window.innerWidth > 0 && window.innerWidth < 720) {
-    return { sizes: [320, 480, 640, 960], preloadDistance: 1200 }
+    return { sizes: [320, 480, 640, 960], preloadDistance: 1800 }
   }
   return { sizes: [320, 640, 960, 1280], preloadDistance: 1600 }
 }
