@@ -10,7 +10,6 @@ import { useProfileModal } from '../context/ProfileModalContext'
 import { useLikeOverrides } from '../context/LikeOverridesContext'
 import { useViewMode } from '../context/ViewModeContext'
 import { useModeration } from '../context/ModerationContext'
-import { useModalScroll } from '../context/ModalScrollContext'
 import { useColumnCount } from '../hooks/useViewportWidth'
 import { usePostCardGridPointerGate } from '../hooks/usePostCardGridPointerGate'
 import styles from './TagPage.module.css'
@@ -84,7 +83,6 @@ export function TagContent({ tag, inModal = false, onRegisterRefresh }: { tag: s
   const mediaItemsRef = useRef<TimelineItem[]>([])
   const scrollIntoViewFromKeyboardRef = useRef(false)
   const lastScrollIntoViewIndexRef = useRef(-1)
-  const modalScrollRef = useModalScroll()
   const gridRef = useRef<HTMLDivElement | null>(null)
   const { beginKeyboardNavigation, tryHoverSelectCard, gridPointerGateProps } = usePostCardGridPointerGate()
 

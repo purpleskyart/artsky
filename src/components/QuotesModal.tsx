@@ -6,7 +6,6 @@ import AppModal from './AppModal'
 import { useProfileModal } from '../context/ProfileModalContext'
 import { useLikeOverrides } from '../context/LikeOverridesContext'
 import { useModeration } from '../context/ModerationContext'
-import { useModalScroll } from '../context/ModalScrollContext'
 import { usePostCardGridPointerGate } from '../hooks/usePostCardGridPointerGate'
 import styles from './QuotesModal.module.css'
 import profileGridStyles from '../pages/ProfilePage.module.css'
@@ -35,7 +34,6 @@ export default function QuotesModal({ postUri, onClose, onBack, canGoBack, onDes
   const keyboardFocusIndexRef = useRef(0)
   const cardRefsRef = useRef<(HTMLDivElement | null)[]>([])
   const loadMoreSentinelRef = useRef<HTMLDivElement>(null)
-  const modalScrollRef = useModalScroll()
   const { beginKeyboardNavigation, tryHoverSelectCard, gridPointerGateProps } = usePostCardGridPointerGate()
 
   const load = useCallback(
