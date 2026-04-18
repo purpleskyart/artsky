@@ -12,7 +12,7 @@ type ColumnItem = { item: TimelineItem; originalIndex: number }
 export interface ProfileColumnProps {
   column: ColumnItem[]
   colIndex: number
-  scrollRef: React.RefObject<HTMLDivElement | null> | null
+  scrollRef: HTMLDivElement | null
   loadMoreSentinelRef?: (el: HTMLDivElement | null) => void
   hasCursor?: boolean
   keyboardFocusIndex: number

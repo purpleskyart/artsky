@@ -19,6 +19,7 @@ import { useModeration, type NsfwPreference } from '../context/ModerationContext
 import { useHideReposts } from '../context/HideRepostsContext'
 import { useLikeOverrides } from '../context/LikeOverridesContext'
 import { useFollowOverrides } from '../context/FollowOverridesContext'
+import { useToast } from '../context/ToastContext'
 import { EyeOpenIcon, EyeHalfIcon, EyeClosedIcon } from '../components/Icons'
 import { useColumnCount } from '../hooks/useViewportWidth'
 import { usePostCardGridPointerGate } from '../hooks/usePostCardGridPointerGate'
@@ -215,7 +216,8 @@ export default function ProfileContent({
   const [followUriOverride, setFollowUriOverride] = useState<string | null>(null)
   const [notificationSubscribed, setNotificationSubscribed] = useState<boolean | null>(null)
   const [notificationLoading, setNotificationLoading] = useState(false)
-  const { session } = useSession()
+  const { session, sessionsList, switchAccount } = useSession()
+  const toast = useToast()
   const { viewMode, setViewMode } = useViewMode()
   /** Use the live API agent only when it is actually authenticated (JWT or OAuth), not when storage is ahead of the agent after refresh/deploy. */
   const hasLiveBskyAuth = isAgentAuthenticated()
@@ -472,6 +474,26 @@ export default function ProfileContent({
   const isFollowing = !!followingUri
   const isOwnProfile = !!session && !!profile && session.did === profile.did
   const showFollowButton = !!session && !!profile && !isOwnProfile
+
+  // Check if this profile's handle matches a saved account that can be switched to
+  const matchingSavedAccount = useMemo(() => {
+    if (!handle || !sessionsList.length) return null
+    const normalizedHandle = handle.toLowerCase().replace(/^@/, '')
+    return sessionsList.find(s => {
+      const sessionHandle = (s as { handle?: string }).handle?.toLowerCase()
+      return sessionHandle === normalizedHandle
+    })
+  }, [handle, sessionsList])
+
+  const canSwitchToAccount = matchingSavedAccount && !isOwnProfile
+
+  const handleSwitchToAccount = useCallback(async () => {
+    if (!matchingSavedAccount) return
+    const ok = await switchAccount(matchingSavedAccount.did)
+    if (!ok && toast) {
+      toast.showToast('Could not switch account. Sign in again.')
+    }
+  }, [matchingSavedAccount, switchAccount, toast])
 
   const isRepost = (item: TimelineItem) => (item.reason as { $type?: string })?.$type === REASON_REPOST
   const isPinned = (item: TimelineItem) => (item.reason as { $type?: string })?.$type === REASON_PIN
@@ -838,16 +860,27 @@ export default function ProfileContent({
         <header className={styles.profileHeader}>
           <div className={styles.profileHeaderMain}>
             {profile?.avatar && (
-              <ProgressiveImage src={profile.avatar} alt="" className={styles.avatar} loading="lazy" root={modalScrollRef?.current ?? null} />
+              <ProgressiveImage src={profile.avatar} alt="" className={styles.avatar} loading="lazy" root={modalScrollRef} />
             )}
             <div className={styles.profileMeta}>
               {profile?.displayName && (
                 <h2 className={styles.displayName}>{profile.displayName}</h2>
               )}
               <div className={styles.handleRow}>
-                <p className={styles.handle}>
-                  @{handle}
-                </p>
+                {canSwitchToAccount ? (
+                  <button
+                    type="button"
+                    className={`${styles.handle} ${styles.handleClickable}`}
+                    onClick={handleSwitchToAccount}
+                    title={`Switch to @${handle}`}
+                  >
+                    @{handle}
+                  </button>
+                ) : (
+                  <p className={styles.handle}>
+                    @{handle}
+                  </p>
+                )}
                 {isOwnProfile && (
                   <>
                     <button
@@ -963,7 +996,7 @@ export default function ProfileContent({
                               alt=""
                               className={styles.followedByFollowsAvatar}
                               loading="lazy"
-                              root={modalScrollRef?.current ?? null}
+                              root={modalScrollRef}
                             />
                           ) : (
                             <span
@@ -1189,7 +1222,7 @@ export default function ProfileContent({
                   key={colIndex}
                   column={column}
                   colIndex={colIndex}
-                  scrollRef={inModal ? modalScrollRef : null}
+                  scrollRef={null}
                   loadMoreSentinelRef={
                     cursor
                       ? (el) => {

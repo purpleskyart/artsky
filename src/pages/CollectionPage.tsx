@@ -10,7 +10,6 @@ import { getShareableCollectionUrl } from '../lib/appUrl'
 import { useSession } from '../context/SessionContext'
 import { useViewMode } from '../context/ViewModeContext'
 import { useModeration } from '../context/ModerationContext'
-import { useModalScroll } from '../context/ModalScrollContext'
 import { useToast } from '../context/ToastContext'
 import { useCollectionSaveActions } from '../context/CollectionSaveContext'
 import { useProfileModal } from '../context/ProfileModalContext'
@@ -75,7 +74,6 @@ export function CollectionDetailContent({ uri: decodedUri }: CollectionDetailCon
   const { viewMode } = useViewMode()
   const toast = useToast()
   const { nsfwPreference, unblurredUris, setUnblurred } = useModeration()
-  const modalScrollRef = useModalScroll()
   const { refreshUnionFromPds } = useCollectionSaveActions()
   const { beginKeyboardNavigation, tryHoverSelectCard, gridPointerGateProps } = usePostCardGridPointerGate()
 
@@ -345,7 +343,7 @@ export function CollectionDetailContent({ uri: decodedUri }: CollectionDetailCon
                 layout="feed"
                 column={column}
                 colIndex={colIndex}
-                scrollRef={modalScrollRef}
+                scrollRef={null}
                 keyboardFocusIndex={keyboardFocusIndex}
                 actionsMenuOpenForIndex={null}
                 nsfwPreference={nsfwPreference}

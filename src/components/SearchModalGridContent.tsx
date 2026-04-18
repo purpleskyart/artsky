@@ -9,7 +9,6 @@ import { useProfileModal } from '../context/ProfileModalContext'
 import { useLikeOverrides } from '../context/LikeOverridesContext'
 import { useViewMode } from '../context/ViewModeContext'
 import { useModeration } from '../context/ModerationContext'
-import { useModalScroll } from '../context/ModalScrollContext'
 import { useColumnCount } from '../hooks/useViewportWidth'
 import { usePostCardGridPointerGate } from '../hooks/usePostCardGridPointerGate'
 import styles from '../pages/TagPage.module.css'
@@ -99,7 +98,6 @@ export function SearchModalGridContent({
   const mediaItemsRef = useRef<TimelineItem[]>([])
   const scrollIntoViewFromKeyboardRef = useRef(false)
   const lastScrollIntoViewIndexRef = useRef(-1)
-  const modalScrollRef = useModalScroll()
   const gridRef = useRef<HTMLDivElement | null>(null)
   const { beginKeyboardNavigation, tryHoverSelectCard, gridPointerGateProps } = usePostCardGridPointerGate()
 
@@ -350,7 +348,7 @@ export function SearchModalGridContent({
                 key={colIndex}
                 column={column}
                 colIndex={colIndex}
-                scrollRef={inModal ? modalScrollRef : null}
+                scrollRef={null}
                 loadMoreSentinelRef={
                   cursor
                     ? (el) => {
