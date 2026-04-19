@@ -33,6 +33,68 @@ const PUBLIC_BSKY = 'https://api.bsky.app'
 const SESSION_KEY = 'artsky-bsky-session'
 const ACCOUNTS_KEY = 'artsky-accounts'
 const OAUTH_ACCOUNTS_KEY = 'artsky-oauth-accounts'
+const OAUTH_TOKENS_KEY = 'artsky-oauth-tokens'
+
+/** OAuth token data stored for re-authentication without IndexedDB */
+interface OAuthTokenData {
+  did: string
+  accessToken: string
+  refreshToken: string
+  expiresAt: number
+}
+
+function getStoredOAuthTokens(): OAuthTokenData | null {
+  try {
+    const raw = localStorage.getItem(OAUTH_TOKENS_KEY)
+    if (!raw) return null
+    return JSON.parse(raw) as OAuthTokenData
+  } catch {
+    return null
+  }
+}
+
+function saveOAuthTokens(tokens: OAuthTokenData | null): void {
+  try {
+    if (tokens) {
+      localStorage.setItem(OAUTH_TOKENS_KEY, JSON.stringify(tokens))
+    } else {
+      localStorage.removeItem(OAUTH_TOKENS_KEY)
+    }
+  } catch {
+    // ignore
+  }
+}
+
+/** Export for session restoration in SessionContext */
+export { getStoredOAuthTokens }
+
+/**
+ * Build a complete AtpSessionData from stored OAuth tokens.
+ * This enables creating a fully authenticated Agent without needing IndexedDB/OAuth library.
+ */
+export function buildSessionFromStoredTokens(did: string): AtpSessionData | null {
+  const tokens = getStoredOAuthTokens()
+  if (!tokens || tokens.did !== did) return null
+
+  // Check if tokens are expired
+  if (tokens.expiresAt < Date.now()) {
+    // Tokens are expired - we should try to refresh, but that's handled by the OAuth library
+    // For now, return null so we fall back to OAuth restore
+    return null
+  }
+
+  const stored = getStoredSession()
+  const handle = stored?.handle ?? ''
+
+  // Build a complete AtpSessionData with the OAuth tokens
+  return {
+    did: tokens.did,
+    handle,
+    accessJwt: tokens.accessToken,
+    refreshJwt: tokens.refreshToken,
+    active: true,
+  } as AtpSessionData
+}
 
 type AccountsStore = { activeDid: string | null; sessions: Record<string, AtpSessionData> }
 type OAuthAccountsStore = { activeDid: string | null; dids: string[] }
@@ -91,7 +153,7 @@ export function setActiveOAuthDid(did: string | null): void {
 }
 
 const OAUTH_FAILURE_COUNT_KEY = 'artsky-oauth-failure-counts'
-const MAX_OAUTH_FAILURES_BEFORE_REMOVAL = 3
+const MAX_OAUTH_FAILURES_BEFORE_REMOVAL = 20
 
 /** Get the failure count for each OAuth DID */
 export function getOAuthFailureCounts(): Record<string, number> {
@@ -296,7 +358,10 @@ let oauthAgentInstance: Agent | null = null
 let oauthSessionRef: { signOut(): Promise<void> } | null = null
 
 /** Set the current OAuth session agent (from initOAuth). Pass null to fall back to the base agent (guest). */
-export function setOAuthAgent(agent: Agent | null, session?: { signOut(): Promise<void> } | null): void {
+export function setOAuthAgent(
+  agent: Agent | null,
+  session?: { signOut(): Promise<void>; did: string; accessToken?: string; refreshToken?: string; expiresAt?: number } | null
+): void {
   oauthAgentInstance = agent
   oauthSessionRef = session ?? null
   // Mirror OAuth session to localStorage so PWA can restore after reopen when OAuth library storage (e.g. IndexedDB) was cleared
@@ -309,6 +374,15 @@ export function setOAuthAgent(agent: Agent | null, session?: { signOut(): Promis
         accounts.activeDid = data.did
         saveAccounts(accounts)
         localStorage.setItem(SESSION_KEY, JSON.stringify(data))
+        // Also store OAuth tokens for re-authentication without IndexedDB
+        if (session?.accessToken && session?.refreshToken) {
+          saveOAuthTokens({
+            did: data.did,
+            accessToken: session.accessToken,
+            refreshToken: session.refreshToken,
+            expiresAt: session.expiresAt ?? Date.now() + 2 * 60 * 60 * 1000, // Default 2 hours if not provided
+          })
+        }
       } catch {
         // ignore
       }

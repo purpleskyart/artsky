@@ -2050,7 +2050,7 @@ export default function Layout({ title, children, showNav }: Props) {
                     <button
                       ref={feedsBtnRef}
                       type="button"
-                      className={styles.headerFeedsBtn}
+                      className={feedsDropdownOpen ? styles.headerFeedsBtnActive : styles.headerFeedsBtn}
                       aria-label="Feeds"
                       aria-expanded={feedsDropdownOpen}
                       onClick={() => setFeedsDropdownOpen((o) => !o)}
