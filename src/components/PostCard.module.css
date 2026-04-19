@@ -859,8 +859,8 @@ html[data-theme="dark"] [data-view-mode="1"] .card:hover {
   padding: 0;
   border: none;
   border-radius: 50%;
-  background: linear-gradient(135deg, #a855f7, #7c3aed);
-  color: white;
+  background: transparent;
+  color: var(--text-primary);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   transition: transform 0.15s ease, opacity 0.15s ease;
