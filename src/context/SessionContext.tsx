@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
-import { Agent } from '@atproto/api'
+import { Agent, AtpAgent } from '@atproto/api'
 import type { AtpSessionData } from '@atproto/api'
 import * as bsky from '../lib/bsky'
 import * as oauth from '../lib/oauth'
@@ -132,12 +132,47 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         return
       }
 
-      try {
-        const preferredRestoreDid =
-          !hasCallback
-            ? oauthAccounts.activeDid ?? oauthAccounts.dids[0] ?? undefined
-            : undefined
+      const preferredRestoreDid =
+        !hasCallback
+          ? oauthAccounts.activeDid ?? oauthAccounts.dids[0] ?? undefined
+          : undefined
 
+      // Try localStorage FIRST before hitting IndexedDB/OAuth - localStorage is more reliable on mobile
+      // and survives PWA updates better than IndexedDB
+      if (!hasCallback && preferredRestoreDid) {
+        // Try to build a complete session from stored OAuth tokens first
+        const tokenSession = bsky.buildSessionFromStoredTokens(preferredRestoreDid)
+        // Also check basic stored session as fallback
+        const localSession = bsky.getStoredSession()
+        const sessionToUse = tokenSession ?? (localSession?.did === preferredRestoreDid ? localSession : null)
+
+        if (sessionToUse?.did === preferredRestoreDid) {
+          // Valid session in localStorage - use it immediately
+          // Create an agent from the stored session data (with tokens if available)
+          // Use AtpAgent for AtpSessionData compatibility
+          try {
+            const agent = new AtpAgent({ service: 'https://bsky.social' })
+            // @ts-expect-error - AtpAgent has internal session property that can be set
+            agent.session = sessionToUse
+            bsky.setOAuthAgent(agent as unknown as Agent, { did: sessionToUse.did, signOut: async () => {} } as unknown as import('@atproto/oauth-client').OAuthSession)
+            finish(sessionToUse)
+            // Silently try to restore OAuth in background to refresh tokens if needed
+            // Don't block on this - user already has working session
+            oauth.initOAuth({ hasCallback: false, preferredRestoreDid })
+              .then((oauthResult) => {
+                if (oauthResult?.session) {
+                  bsky.resetOAuthFailure(preferredRestoreDid)
+                }
+              })
+              .catch(() => { /* ignore background refresh errors */ })
+            return
+          } catch {
+            // Failed to create agent from localStorage - fall through to OAuth restore
+          }
+        }
+      }
+
+      try {
         // OAuth callback: keep a bounded wait so a broken redirect cannot hang boot forever.
         // Normal load (incl. after PWA update reload): await restore fully — a short race timeout
         // could fire while IndexedDB still opens, skip OAuth, and look "logged out" despite valid tokens.
@@ -174,16 +209,29 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           finish({ did: finalOauthResult.session.did } as AtpSessionData)
           return
         }
-        // Restore returned no session — try localStorage fallback first
+        // OAuth restore failed — try localStorage fallback
         if (!hasCallback && preferredRestoreDid && !finalOauthResult?.session) {
+          // Try OAuth tokens first, then basic stored session
+          const tokenSession = bsky.buildSessionFromStoredTokens(preferredRestoreDid)
           const mirroredSession = bsky.getStoredSession()
-          if (mirroredSession?.did === preferredRestoreDid) {
-            // Fallback to mirrored session from localStorage
-            finish(mirroredSession)
-            // Still increment failure count - if this keeps happening, eventually remove
-            const shouldRemove = bsky.incrementOAuthFailure(preferredRestoreDid)
-            if (shouldRemove) {
-              bsky.removeOAuthDid(preferredRestoreDid)
+          const sessionToUse = tokenSession ?? (mirroredSession?.did === preferredRestoreDid ? mirroredSession : null)
+
+          if (sessionToUse?.did === preferredRestoreDid) {
+            // Fallback to mirrored session from localStorage - this is a valid session
+            // Don't increment failure count here as localStorage session is legitimate
+            try {
+              const agent = new AtpAgent({ service: 'https://bsky.social' })
+              // @ts-expect-error - AtpAgent has internal session property that can be set
+              agent.session = sessionToUse
+              bsky.setOAuthAgent(agent as unknown as Agent, { did: sessionToUse.did, signOut: async () => {} } as unknown as import('@atproto/oauth-client').OAuthSession)
+              finish(sessionToUse)
+              return
+            } catch {
+              // Failed to create agent from localStorage - increment failure
+              const shouldRemove = bsky.incrementOAuthFailure(preferredRestoreDid)
+              if (shouldRemove) {
+                bsky.removeOAuthDid(preferredRestoreDid)
+              }
             }
             return
           }
