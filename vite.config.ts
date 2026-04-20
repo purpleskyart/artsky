@@ -11,7 +11,10 @@ const base = process.env.VITE_BASE_PATH ?? (isProd ? '/artsky/' : '/')
 // Get the last git commit date
 let gitCommitDate = 'Unknown'
 try {
-  gitCommitDate = execSync('git log -1 --format=%ci', { encoding: 'utf-8' }).trim()
+  const rawDate = execSync('git log -1 --format=%ci', { encoding: 'utf-8' }).trim()
+  // Convert git date format ("2026-04-18 21:17:40 -0400") to ISO 8601 format
+  // Replace space with T and add colon in timezone offset
+  gitCommitDate = rawDate.replace(' ', 'T').replace(/([+-]\d{2})(\d{2})$/, '$1:$2')
 } catch {
   // Fallback if not in a git repo or git not available
   gitCommitDate = new Date().toISOString()

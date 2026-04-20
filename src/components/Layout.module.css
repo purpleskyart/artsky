@@ -525,6 +525,11 @@
     background: linear-gradient(180deg, color-mix(in srgb, var(--accent-subtle) 100%, white 10%), color-mix(in srgb, var(--accent-subtle) 100%, black 4%));
     box-shadow: 0 3px 8px rgba(0, 0, 0, 0.16), 0 1px 0 rgba(255, 255, 255, 0.1) inset;
   }
+  .headerCenterMobile .headerFeedsBtn:active {
+    color: var(--text);
+    background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 100%, white 12%), color-mix(in srgb, var(--surface) 100%, black 6%));
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.14), 0 1px 0 rgba(255, 255, 255, 0.12) inset;
+  }
   .headerCenterMobile .headerFeedsBtnActive {
     display: inline-flex;
     align-items: center;
@@ -545,6 +550,11 @@
   }
   .headerCenterMobile .headerFeedsBtnActive:hover {
     filter: brightness(0.92);
+    color: var(--text-on-accent);
+  }
+  .headerCenterMobile .headerFeedsBtnActive:active {
+    filter: none;
+    background: var(--accent-gradient);
     color: var(--text-on-accent);
   }
   .headerCenterMobile .headerFeedsBtn svg,
