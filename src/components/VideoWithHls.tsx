@@ -89,6 +89,7 @@ export default function VideoWithHls({
     <video
       ref={videoRef}
       className={className}
+      data-controls-hidden={controlsHiddenUntilTap && !showControls ? true : undefined}
       poster={poster}
       controls={effectiveControls}
       playsInline={playsInline}
