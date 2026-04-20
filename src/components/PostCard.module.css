@@ -331,6 +331,19 @@ html[data-theme="dark"] [data-view-mode="1"] .card:hover {
   object-position: center;
 }
 
+/* Hide native media controls on WebKit browsers when controlsHiddenUntilTap is used */
+.replyParentMediaVideo[data-controls-hidden]::-webkit-media-controls {
+  display: none !important;
+}
+
+.replyParentMediaVideo[data-controls-hidden]::-webkit-media-controls-enclosure {
+  display: none !important;
+}
+
+.replyParentMediaVideo[data-controls-hidden]::-webkit-media-controls-panel {
+  display: none !important;
+}
+
 .replyParentBody {
   min-width: 0;
   padding: 0.35rem 0.5rem 0.45rem;
