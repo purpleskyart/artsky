@@ -21,13 +21,14 @@ import {
   updateSeenNotifications,
   getSavedFeedsFromPreferences,
   getFeedDisplayName,
-  getFeedDisplayNamesBatch,
+  getProfilesBatch,
+  getPersistedActiveDid,
   resolveFeedUri,
   addSavedFeed,
   removeSavedFeedByUri,
   getFeedShareUrl,
-  getProfilesBatch,
-  getPersistedActiveDid,
+  getFeedDisplayNamesBatch,
+  getSafeHandle,
 } from '../lib/bsky'
 import { signInWithOAuthRedirect } from '../lib/oauth'
 import { requestDeduplicator } from '../lib/RequestDeduplicator'
@@ -500,7 +501,10 @@ export default function Layout({ title, children, showNav }: Props) {
       if (cancelled) return
       const updated: Record<string, { avatar?: string; handle?: string }> = {}
       for (const [did, profile] of profiles.entries()) {
-        updated[did] = { avatar: profile.avatar, handle: profile.handle }
+        // Filter out invalid handles and DIDs
+        const handle = profile.handle
+        const isValidHandle = handle && handle !== 'handle.invalid' && !handle.includes('.invalid') && !handle.startsWith('did:')
+        updated[did] = { avatar: profile.avatar, handle: isValidHandle ? handle : undefined }
       }
       setAccountProfiles(updated)
     }).catch(() => {
@@ -1760,7 +1764,9 @@ export default function Layout({ title, children, showNav }: Props) {
               <div className={styles.menuAccountsBlock}>
                 {sessionsList.map((s) => {
             const profile = accountProfiles[s.did]
-            const handle = profile?.handle ?? (s as { handle?: string }).handle ?? s.did
+            const profileHandle = profile?.handle
+            const isValidProfileHandle = profileHandle && profileHandle !== 'handle.invalid' && !profileHandle.includes('.invalid') && !profileHandle.startsWith('did:')
+            const handle = isValidProfileHandle ? profileHandle : getSafeHandle(s)
             const isCurrent = currentAccountDid != null && s.did === currentAccountDid
             return (
               <button
@@ -1781,7 +1787,7 @@ export default function Layout({ title, children, showNav }: Props) {
                 {profile?.avatar ? (
                   <img src={profile.avatar} alt="" className={styles.accountMenuAvatar} loading="lazy" />
                 ) : (
-                  <span className={styles.accountMenuAvatarPlaceholder} aria-hidden>{(handle || s.did).slice(0, 1).toUpperCase()}</span>
+                  <span className={styles.accountMenuAvatarPlaceholder} aria-hidden>{(handle || getSafeHandle(s)).slice(0, 1).toUpperCase()}</span>
                 )}
                 {isCurrent ? (
                   <span className={styles.menuAccountLabel}>

@@ -85,7 +85,10 @@ export function buildSessionFromStoredTokens(did: string): AtpSessionData | null
   }
 
   const stored = getStoredSession()
-  const handle = stored?.handle ?? ''
+  const storedHandle = stored?.handle
+  // Filter out invalid handles and DIDs
+  const isValidHandle = storedHandle && storedHandle !== 'handle.invalid' && !storedHandle.includes('.invalid') && !storedHandle.startsWith('did:')
+  const handle = isValidHandle ? storedHandle : ''
 
   // Build a complete AtpSessionData with the OAuth tokens
   return {
@@ -101,7 +104,7 @@ export function buildSessionFromStoredTokens(did: string): AtpSessionData | null
 type AccountsStore = { activeDid: string | null; sessions: Record<string, AtpSessionData> }
 type OAuthAccountsStore = { activeDid: string | null; dids: string[] }
 
-function getAccounts(): AccountsStore {
+export function getAccounts(): AccountsStore {
   try {
     const raw = localStorage.getItem(ACCOUNTS_KEY)
     if (!raw) return { activeDid: null, sessions: {} }
@@ -112,7 +115,7 @@ function getAccounts(): AccountsStore {
   }
 }
 
-function saveAccounts(accounts: AccountsStore) {
+export function saveAccounts(accounts: AccountsStore) {
   try {
     localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts))
   } catch {
@@ -371,7 +374,12 @@ export function onSessionUpdated(callback: (() => void) | null): void {
 async function fetchHandleForDid(agent: Agent, did: string): Promise<string | null> {
   try {
     const profile = await agent.getProfile({ actor: did })
-    return profile.data.handle ?? null
+    const handle = profile.data.handle
+    // Don't return invalid handles or DIDs
+    if (!handle || handle === 'handle.invalid' || handle.includes('.invalid') || handle.startsWith('did:')) {
+      return null
+    }
+    return handle
   } catch {
     return null
   }
@@ -389,30 +397,36 @@ export function setOAuthAgent(
     const data = getSession()
     if (data?.did) {
       try {
+        // Filter out invalid handles before storing
+        const handle = (data as any).handle
+        const isValidHandle = handle && handle !== 'handle.invalid' && !handle.includes('.invalid') && !handle.startsWith('did:')
+        const dataToStore = isValidHandle ? data : { did: data.did } as AtpSessionData
+
         const accounts = getAccounts()
-        accounts.sessions[data.did] = data
-        accounts.activeDid = data.did
+        accounts.sessions[dataToStore.did] = dataToStore
+        accounts.activeDid = dataToStore.did
         saveAccounts(accounts)
-        localStorage.setItem(SESSION_KEY, JSON.stringify(data))
+        localStorage.setItem(SESSION_KEY, JSON.stringify(dataToStore))
         // Also store OAuth tokens for re-authentication without IndexedDB
         if (session?.accessToken && session?.refreshToken) {
           // Extract PDS URL from the agent if available (for external PDS accounts)
           const pdsUrl = (agent as any).serviceUrl?.toString() || (agent as any).service?.toString()
           saveOAuthTokens({
-            did: data.did,
+            did: dataToStore.did,
             accessToken: session.accessToken,
             refreshToken: session.refreshToken,
             expiresAt: session.expiresAt ?? Date.now() + 2 * 60 * 60 * 1000, // Default 2 hours if not provided
             pdsUrl,
           })
         }
-        // Fetch handle for external PDS accounts (handle may not be in session data)
-        if (!data.handle && agent.did === data.did) {
-          void fetchHandleForDid(agent, data.did).then((handle) => {
+        // Fetch handle for external PDS accounts (handle may not be in session data or is invalid)
+        // Always attempt to fetch if handle is invalid, not just if missing
+        if ((!isValidHandle || !dataToStore.handle) && agent.did === dataToStore.did) {
+          void fetchHandleForDid(agent, dataToStore.did).then((handle) => {
             if (handle) {
-              const updatedData = { ...data, handle } as AtpSessionData
+              const updatedData = { ...dataToStore, handle } as AtpSessionData
               try {
-                accounts.sessions[data.did] = updatedData
+                accounts.sessions[dataToStore.did] = updatedData
                 saveAccounts(accounts)
                 localStorage.setItem(SESSION_KEY, JSON.stringify(updatedData))
                 // Notify React context that session data was updated
@@ -611,9 +625,29 @@ export function getSessionStateForReact(): AtpSessionData | null {
   if (!live?.did) return null
   const stored = getStoredSession()
   if (stored?.did === live.did) {
-    return { ...stored, ...live } as AtpSessionData
+    // Filter out invalid handles from live session
+    const liveHandle = (live as any).handle
+    const isValidHandle = liveHandle && liveHandle !== 'handle.invalid' && !liveHandle.includes('.invalid') && !liveHandle.startsWith('did:')
+    return {
+      ...stored,
+      ...(isValidHandle ? live : { did: live.did })
+    } as AtpSessionData
   }
-  return live as AtpSessionData
+  // Filter out invalid handles from live session when no stored session
+  const liveHandle = (live as any).handle
+  const isValidHandle = liveHandle && liveHandle !== 'handle.invalid' && !liveHandle.includes('.invalid') && !liveHandle.startsWith('did:')
+  return isValidHandle ? live as AtpSessionData : { did: live.did } as AtpSessionData
+}
+
+/** Get the handle from session data, filtering out invalid values */
+export function getSafeHandle(session: AtpSessionData | null): string {
+  if (!session) return ''
+  const handle = (session as any).handle
+  // Filter out invalid handles and DIDs being used as handles
+  if (!handle || handle === 'handle.invalid' || handle.includes('.invalid') || handle.startsWith('did:')) {
+    return session.did
+  }
+  return handle
 }
 
 /** DID segment for feed/timeline caches so account switches never reuse another user's cached responses. */

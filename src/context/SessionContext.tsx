@@ -230,8 +230,29 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           bsky.setOAuthAgent(agent, finalOauthResult.session)
           // Reset failure count on successful restore
           bsky.resetOAuthFailure(finalOauthResult.session.did)
-          // Pass the session DID directly to finish to ensure session state is set
-          finish({ did: finalOauthResult.session.did } as AtpSessionData)
+          // Filter out invalid handles before passing to finish
+          const sessionHandle = (finalOauthResult.session as any).handle
+          const isValidHandle = sessionHandle && sessionHandle !== 'handle.invalid' && !sessionHandle.includes('.invalid') && !sessionHandle.startsWith('did:')
+          const sessionToFinish = isValidHandle
+            ? finalOauthResult.session as unknown as AtpSessionData
+            : { did: finalOauthResult.session.did } as AtpSessionData
+          finish(sessionToFinish)
+          // If handle was invalid, trigger a fetch to get the real handle
+          if (!isValidHandle) {
+            void agent.getProfile({ actor: finalOauthResult.session.did }).then((profile) => {
+              if (profile.data.handle && profile.data.handle !== 'handle.invalid' && !profile.data.handle.includes('.invalid') && !profile.data.handle.startsWith('did:')) {
+                const updatedSession = { ...sessionToFinish, handle: profile.data.handle } as AtpSessionData
+                const accounts = bsky.getAccounts()
+                accounts.sessions[finalOauthResult.session.did] = updatedSession
+                bsky.saveAccounts?.(accounts)
+                localStorage.setItem('artsky-bsky-session', JSON.stringify(updatedSession))
+                // Trigger session update to refresh UI
+                refreshSession()
+              }
+            }).catch(() => {
+              // Ignore fetch errors
+            })
+          }
           return
         }
         // OAuth restore failed — try localStorage fallback
