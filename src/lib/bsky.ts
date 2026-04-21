@@ -541,7 +541,16 @@ export async function logoutCurrentAccount(): Promise<boolean> {
       // ignore
     }
     setOAuthAgent(null, null)
-    if (currentDid) removeOAuthDid(currentDid)
+    if (currentDid) {
+      removeOAuthDid(currentDid)
+      // Also remove session from artsky-accounts localStorage
+      const accounts = getAccounts()
+      delete accounts.sessions[currentDid]
+      if (accounts.activeDid === currentDid) {
+        accounts.activeDid = null
+      }
+      saveAccounts(accounts)
+    }
     const next = getOAuthAccounts()
     if (next.activeDid) {
       const session = await oauth.restoreOAuthSession(next.activeDid)

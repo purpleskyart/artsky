@@ -123,7 +123,7 @@ describe('ProgressiveImage - WebP support', () => {
       expect(img.getAttribute('src')).toBe('https://example.com/image.jpg')
     })
     
-    // In a real browser with WebP support, it would use wsrv.nl with output=webp
+    // In a real browser with WebP support, it would use CDN's ?format=webp parameter
     // This is tested by the imageUtils tests
   })
 
