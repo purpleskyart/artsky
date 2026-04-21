@@ -1219,7 +1219,7 @@ function PostCardInner({
                     facets={(post.record as { facets?: unknown[] })?.facets}
                     maxLength={500}
                     stopPropagation
-                    interactive={false}
+                    interactive={true}
                   />
                 </div>
               ) : null}

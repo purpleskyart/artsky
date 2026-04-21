@@ -24,6 +24,7 @@ export const GUEST_FEED_ACCOUNTS = [
   { handle: 'goomyloid.bsky.social', label: 'Goomyloid' },
   { handle: 'saredd99.bsky.social', label: 'Saredd99' },
   { handle: 'kianamai.bsky.social', label: 'Kianamai' },
+  { handle: 'anatofinnstark.bsky.social', label: 'Anatofinnstark' },
 
 ] as const
 

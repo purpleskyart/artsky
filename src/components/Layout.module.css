@@ -2781,6 +2781,7 @@ button.logoLink {
     max-height: calc(100% - var(--keyboard-inset, 0px));
     height: 100%;
     border-radius: 0;
+    padding: 0.25rem;
   }
 }
 
@@ -2933,6 +2934,26 @@ button.logoLink {
 
 .composeTextarea::placeholder {
   color: var(--muted);
+}
+
+@media (max-width: 767px) {
+  .composeTextarea {
+    padding: 0.5rem;
+    margin-bottom: 0.25rem;
+    min-height: 120px;
+  }
+
+  .composeFooter {
+    gap: 0.25rem;
+  }
+
+  .composeFooterLeft {
+    gap: 0.25rem;
+  }
+
+  .composeMediaSection {
+    margin-bottom: 0.25rem;
+  }
 }
 
 .composeMediaSection {
