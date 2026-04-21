@@ -61,8 +61,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     setAuthErrorCount((prev) => prev + 1)
   }, [])
 
-  const logout = useCallback(async () => {
-    const stillLoggedIn = await bsky.logoutCurrentAccount()
+  const logout = useCallback(async (userInitiated = false) => {
+    const stillLoggedIn = await bsky.logoutCurrentAccount(userInitiated)
     setSession(stillLoggedIn ? bsky.getSessionStateForReact() : null)
   }, [])
 
@@ -115,7 +115,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (authErrorCount >= 3 && session) {
       console.warn('Multiple authentication errors detected, logging out')
-      logout().catch(() => {
+      logout(false).catch(() => {
         setSession(null)
       })
       setAuthErrorCount(0)

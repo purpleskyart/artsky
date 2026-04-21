@@ -541,7 +541,16 @@ export async function logoutCurrentAccount(): Promise<boolean> {
       // ignore
     }
     setOAuthAgent(null, null)
-    if (currentDid) removeOAuthDid(currentDid)
+    if (currentDid) {
+      removeOAuthDid(currentDid)
+      // Also remove session from artsky-accounts localStorage
+      const accounts = getAccounts()
+      delete accounts.sessions[currentDid]
+      if (accounts.activeDid === currentDid) {
+        accounts.activeDid = null
+      }
+      saveAccounts(accounts)
+    }
     const next = getOAuthAccounts()
     if (next.activeDid) {
       const session = await oauth.restoreOAuthSession(next.activeDid)
@@ -562,8 +571,8 @@ export async function logoutCurrentAccount(): Promise<boolean> {
   return false
 }
 
-export async function logout(): Promise<void> {
-  await logoutCurrentAccount()
+export async function logout(userInitiated = false): Promise<void> {
+  await logoutCurrentAccount(userInitiated)
 }
 
 export function getSession(): AtpSessionData | null {
@@ -2471,5 +2480,7 @@ export function resetRequestMetrics(): void {
  * Invalidate cache entries matching pattern
  */
 export function invalidateCache(pattern: string | RegExp): void {
+  apiRequestManager.invalidateCache(pattern)
+}
   apiRequestManager.invalidateCache(pattern)
 }
