@@ -572,7 +572,7 @@ export async function logoutCurrentAccount(): Promise<boolean> {
 }
 
 export async function logout(userInitiated = false): Promise<void> {
-  await logoutCurrentAccount(userInitiated)
+  await logoutCurrentAccount()
 }
 
 export function getSession(): AtpSessionData | null {
