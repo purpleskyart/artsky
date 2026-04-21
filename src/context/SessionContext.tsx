@@ -115,7 +115,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (authErrorCount >= 3 && session) {
       console.warn('Multiple authentication errors detected, logging out')
-      logout(false).catch(() => {
+      logout().catch(() => {
         setSession(null)
       })
       setAuthErrorCount(0)
