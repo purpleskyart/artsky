@@ -306,11 +306,6 @@ async function mintUniqueCollectionSlug(did: string, title: string): Promise<str
   return `${base}-${Date.now().toString(36)}`.slice(0, MAX_COLLECTION_SLUG_LENGTH).replace(/-+$/g, '')
 }
 
-async function findRkeyBySlug(did: string, slugLower: string): Promise<string | null> {
-  const result = await findCollectionBySlug(did, slugLower)
-  return result?.rkey ?? null
-}
-
 /** Find a collection by slug, returning full data to avoid duplicate API calls. */
 async function findCollectionBySlug(did: string, slugLower: string): Promise<CollectionView | null> {
   const cacheKey = `${did}::${slugLower}`
