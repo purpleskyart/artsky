@@ -41,6 +41,7 @@ interface OAuthTokenData {
   accessToken: string
   refreshToken: string
   expiresAt: number
+  pdsUrl?: string
 }
 
 function getStoredOAuthTokens(): OAuthTokenData | null {
@@ -93,6 +94,7 @@ export function buildSessionFromStoredTokens(did: string): AtpSessionData | null
     accessJwt: tokens.accessToken,
     refreshJwt: tokens.refreshToken,
     active: true,
+    pdsUrl: tokens.pdsUrl,
   } as AtpSessionData
 }
 
@@ -394,11 +396,14 @@ export function setOAuthAgent(
         localStorage.setItem(SESSION_KEY, JSON.stringify(data))
         // Also store OAuth tokens for re-authentication without IndexedDB
         if (session?.accessToken && session?.refreshToken) {
+          // Extract PDS URL from the agent if available (for external PDS accounts)
+          const pdsUrl = (agent as any).serviceUrl?.toString() || (agent as any).service?.toString()
           saveOAuthTokens({
             did: data.did,
             accessToken: session.accessToken,
             refreshToken: session.refreshToken,
             expiresAt: session.expiresAt ?? Date.now() + 2 * 60 * 60 * 1000, // Default 2 hours if not provided
+            pdsUrl,
           })
         }
         // Fetch handle for external PDS accounts (handle may not be in session data)
