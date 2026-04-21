@@ -15,26 +15,30 @@ const VIRTUALIZATION_MARGIN = '2000px 0px 2000px 0px'
 type VirtCallback = (isNearViewport: boolean) => void
 
 const virtCallbacks = new WeakMap<Element, VirtCallback>()
-let sharedObserver: IntersectionObserver | null = null
+const observerCache = new Map<Element | null, IntersectionObserver>()
 
-function getSharedObserver(): IntersectionObserver {
-  if (sharedObserver) return sharedObserver
-  sharedObserver = new IntersectionObserver(
+function getObserver(root: Element | null = null): IntersectionObserver {
+  const cached = observerCache.get(root)
+  if (cached) return cached
+
+  const observer = new IntersectionObserver(
     (entries) => {
       for (const entry of entries) {
         virtCallbacks.get(entry.target)?.(entry.isIntersecting)
       }
     },
-    { rootMargin: VIRTUALIZATION_MARGIN, threshold: 0 },
+    { rootMargin: VIRTUALIZATION_MARGIN, threshold: 0, root },
   )
-  return sharedObserver
+  observerCache.set(root, observer)
+  return observer
 }
 
 export function observeVirtualization(
   el: Element,
   callback: VirtCallback,
+  root?: Element | null,
 ): () => void {
-  const observer = getSharedObserver()
+  const observer = getObserver(root)
   virtCallbacks.set(el, callback)
   observer.observe(el)
   return () => {

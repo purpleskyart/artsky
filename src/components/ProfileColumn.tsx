@@ -48,7 +48,7 @@ export interface ProfileColumnProps {
  * Lightweight virtualization wrapper: replaces children with a fixed-height
  * placeholder when far off-screen, freeing images/video/observers from memory.
  */
-const VirtualizedCell = memo(function VirtualizedCell({ children }: { children: ReactNode }) {
+const VirtualizedCell = memo(function VirtualizedCell({ children, root }: { children: ReactNode; root?: Element | null }) {
   const ref = useRef<HTMLDivElement | null>(null)
   const heightRef = useRef(0)
   const showingRef = useRef(true)
@@ -62,8 +62,8 @@ const VirtualizedCell = memo(function VirtualizedCell({ children }: { children: 
         heightRef.current = el.offsetHeight
       }
       setIsNear(near)
-    })
-  }, [])
+    }, root)
+  }, [root])
 
   const virtualized = !isNear && heightRef.current > 0
   showingRef.current = !virtualized
@@ -80,6 +80,7 @@ function ProfileColumnComponent(props: ProfileColumnProps) {
     column,
     loadMoreSentinelRef,
     hasCursor,
+    scrollRef,
     actionsMenuOpenForIndex,
     nsfwPreference,
     unblurredUris,
@@ -142,7 +143,7 @@ function ProfileColumnComponent(props: ProfileColumnProps) {
               if (!suppressHoverNsfwUnblur && unblurredUris.has(item.post.uri)) setUnblurred(item.post.uri, false)
             }}
           >
-            <VirtualizedCell>
+            <VirtualizedCell root={scrollRef}>
               <PostCard
                 item={item}
                 isSelected={isSelected(originalIndex)}

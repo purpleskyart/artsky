@@ -1222,7 +1222,7 @@ export default function ProfileContent({
                   key={colIndex}
                   column={column}
                   colIndex={colIndex}
-                  scrollRef={null}
+                  scrollRef={modalScrollRef}
                   loadMoreSentinelRef={
                     cursor
                       ? (el) => {
