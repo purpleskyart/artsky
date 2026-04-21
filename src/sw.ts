@@ -151,6 +151,31 @@ self.addEventListener('message', (event) => {
       })
       break
 
+    case 'SHOW_NOTIFICATION':
+      // Show local notification from main thread (polling-based)
+      {
+        const { title, body, icon, data } = event.data
+        void self.registration.showNotification(title, {
+          body,
+          icon: icon ?? '/icon-192.png',
+          badge: '/icon-72.png',
+          tag: data?.url ?? 'default',
+          data,
+          actions: data?.type === 'mention' || data?.type === 'reply'
+            ? [
+                { action: 'open', title: 'View' },
+                { action: 'dismiss', title: 'Dismiss' },
+              ]
+            : data?.type === 'like' || data?.type === 'follow'
+              ? [
+                  { action: 'open', title: 'View Profile' },
+                  { action: 'dismiss', title: 'Dismiss' },
+                ]
+              : undefined,
+        })
+      }
+      break
+
     default:
       break
   }

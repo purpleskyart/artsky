@@ -18,12 +18,17 @@ interface PushNotificationsContextValue {
   quietHoursEnabled: boolean
   quietHoursStart: string
   quietHoursEnd: string
+  unreadCount: number
+  lastCheckedAt: Date | null
+  pollInterval: number
 
   // Actions
   enableNotifications: () => Promise<void>
-  disableNotifications: () => Promise<void>
+  disableNotifications: () => void
   toggleNotificationType: (type: NotificationType) => void
   setQuietHours: (enabled: boolean, start?: string, end?: string) => void
+  setPollInterval: (minutes: number) => void
+  checkNow: () => Promise<void>
   dismissError: () => void
 }
 
@@ -45,7 +50,7 @@ export function PushNotificationsProvider({ children }: PushNotificationsProvide
   const push = usePushNotifications()
 
   // Computed state
-  const isEnabled = push.preferences.enabled && push.permission === 'granted' && push.subscription !== null
+  const isEnabled = push.preferences.enabled && push.permission === 'granted'
   const enabledTypes = push.preferences.types
   const quietHoursEnabled = push.preferences.quietHours.enabled
   const quietHoursStart = push.preferences.quietHours.start
@@ -59,14 +64,14 @@ export function PushNotificationsProvider({ children }: PushNotificationsProvide
       return
     }
 
-    await push.subscribe()
+    await push.enableNotifications()
   }, [push])
 
   /**
    * Disable notifications
    */
-  const disableNotifications = useCallback(async (): Promise<void> => {
-    await push.unsubscribe()
+  const disableNotifications = useCallback((): void => {
+    push.disableNotifications()
   }, [push])
 
   /**
@@ -104,6 +109,13 @@ export function PushNotificationsProvider({ children }: PushNotificationsProvide
     })
   }, [push])
 
+  /**
+   * Set polling interval
+   */
+  const setPollInterval = useCallback((minutes: number): void => {
+    push.updatePreferences({ pollInterval: minutes })
+  }, [push])
+
   // Check if we should be in quiet hours
   useEffect(() => {
     if (!push.preferences.enabled || !push.preferences.quietHours.enabled) {
@@ -136,10 +148,15 @@ export function PushNotificationsProvider({ children }: PushNotificationsProvide
     quietHoursEnabled,
     quietHoursStart,
     quietHoursEnd,
+    unreadCount: push.unreadCount,
+    lastCheckedAt: push.lastCheckedAt,
+    pollInterval: push.preferences.pollInterval,
     enableNotifications,
     disableNotifications,
     toggleNotificationType,
     setQuietHours,
+    setPollInterval,
+    checkNow: push.checkNow,
     dismissError: push.dismissError,
   }
 
