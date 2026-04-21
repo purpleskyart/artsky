@@ -80,6 +80,19 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     // Removed requestPersistentStorage - modern browsers handle storage persistence automatically
   }, [])
 
+  // Listen for storage changes (e.g., when handle is fetched for external PDS accounts)
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'artsky-bsky-session' || e.key === 'artsky-accounts') {
+        // Session data changed in another tab or was updated asynchronously
+        // Refresh the React state to pick up new handle
+        refreshSession()
+      }
+    }
+    window.addEventListener('storage', handleStorageChange)
+    return () => window.removeEventListener('storage', handleStorageChange)
+  }, [refreshSession])
+
   // Set up auth error reporter
   useEffect(() => {
     setAuthErrorReporter(reportAuthError)
@@ -87,6 +100,16 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       setAuthErrorReporter(null)
     }
   }, [reportAuthError])
+
+  // Register callback for session updates (e.g., when handle is fetched for external PDS accounts)
+  useEffect(() => {
+    bsky.onSessionUpdated(() => {
+      refreshSession()
+    })
+    return () => {
+      bsky.onSessionUpdated(null)
+    }
+  }, [refreshSession])
 
   // Monitor for authentication errors (401) and trigger logout if session is invalid
   useEffect(() => {

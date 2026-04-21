@@ -51,7 +51,7 @@ export function ViewModeProvider({ children }: { children: React.ReactNode }) {
   const isDesktop = useSyncExternalStore(subscribeDesktop, getDesktopSnapshot, () => false)
   const innerKey = `${session?.did ?? '__guest__'}-${isDesktop ? 'd' : 'm'}`
   return (
-    <ViewModeProviderInner key={innerKey} isGuest={!session} isDesktop={isDesktop}>
+    <ViewModeProviderInner key={innerKey} isDesktop={isDesktop}>
       {children}
     </ViewModeProviderInner>
   )
@@ -59,16 +59,14 @@ export function ViewModeProvider({ children }: { children: React.ReactNode }) {
 
 function ViewModeProviderInner({
   children,
-  isGuest,
   isDesktop,
 }: {
   children: React.ReactNode
-  isGuest: boolean
   isDesktop: boolean
 }) {
   const toast = useToast()
   const stored = getStored()
-  const defaultMode: ViewMode = !isGuest ? '2' : isDesktop ? 'a' : '2'
+  const defaultMode: ViewMode = isDesktop ? '3' : '2'
   const [viewMode, setViewModeState] = useState<ViewMode>(() => {
     const v = stored ?? defaultMode
     return v === '1' || v === '2' || v === '3' || v === 'a' ? v : defaultMode

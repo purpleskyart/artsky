@@ -357,6 +357,24 @@ const credentialAgent = new AtpAgent({
 let oauthAgentInstance: Agent | null = null
 let oauthSessionRef: { signOut(): Promise<void> } | null = null
 
+/** Callback for session updates (e.g., when handle is fetched for external PDS accounts) */
+let onSessionUpdatedCallback: (() => void) | null = null
+
+/** Register a callback to be called when session data is updated */
+export function onSessionUpdated(callback: (() => void) | null): void {
+  onSessionUpdatedCallback = callback
+}
+
+/** Fetch handle for a DID using the agent. Needed for accounts on external PDSs. */
+async function fetchHandleForDid(agent: Agent, did: string): Promise<string | null> {
+  try {
+    const profile = await agent.getProfile({ actor: did })
+    return profile.data.handle ?? null
+  } catch {
+    return null
+  }
+}
+
 /** Set the current OAuth session agent (from initOAuth). Pass null to fall back to the base agent (guest). */
 export function setOAuthAgent(
   agent: Agent | null,
@@ -381,6 +399,23 @@ export function setOAuthAgent(
             accessToken: session.accessToken,
             refreshToken: session.refreshToken,
             expiresAt: session.expiresAt ?? Date.now() + 2 * 60 * 60 * 1000, // Default 2 hours if not provided
+          })
+        }
+        // Fetch handle for external PDS accounts (handle may not be in session data)
+        if (!data.handle && agent.did === data.did) {
+          void fetchHandleForDid(agent, data.did).then((handle) => {
+            if (handle) {
+              const updatedData = { ...data, handle } as AtpSessionData
+              try {
+                accounts.sessions[data.did] = updatedData
+                saveAccounts(accounts)
+                localStorage.setItem(SESSION_KEY, JSON.stringify(updatedData))
+                // Notify React context that session data was updated
+                onSessionUpdatedCallback?.()
+              } catch {
+                // ignore
+              }
+            }
           })
         }
       } catch {

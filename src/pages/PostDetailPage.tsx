@@ -401,8 +401,9 @@ function MediaGallery({
               <div
                 key={i}
                 className={styles.galleryVideoWrap}
-                style={{ aspectRatio: videoAspect }}
+                style={forEmbeddedPreview ? undefined : { aspectRatio: videoAspect }}
                 data-media-item={i}
+                data-embedded-preview={forEmbeddedPreview || undefined}
                 tabIndex={forEmbeddedPreview ? undefined : 0}
                 onFocus={forEmbeddedPreview ? undefined : () => onFocusItem?.(i)}
               >
@@ -440,8 +441,9 @@ function MediaGallery({
             <div
               key={i}
               className={`${styles.galleryImageBtn} ${onImageClick ? styles.galleryImageBtnClickable : ''}`}
-              style={{ aspectRatio: aspect, ['--media-aspect']: aspect } as React.CSSProperties}
+              style={forEmbeddedPreview ? undefined : { aspectRatio: aspect, ['--media-aspect']: aspect } as React.CSSProperties}
               data-media-item={i}
+              data-embedded-preview={forEmbeddedPreview || undefined}
               tabIndex={forEmbeddedPreview ? undefined : 0}
               onFocus={forEmbeddedPreview ? undefined : () => onFocusItem?.(i)}
               onClick={handleImageClick}

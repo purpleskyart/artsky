@@ -914,6 +914,13 @@
   outline: none;
 }
 
+/* Embedded preview (parent/quoted posts): show full media without cropping */
+.galleryImageBtn[data-embedded-preview] {
+  aspect-ratio: unset;
+  max-height: none;
+  max-width: 100%;
+}
+
 @media (hover: hover) {
   .galleryImageBtn:focus {
     outline: 2px solid var(--accent);
@@ -960,6 +967,15 @@
 
 .galleryVideoWrap:focus {
   outline: none;
+}
+
+/* Embedded preview (parent/quoted posts): show full video without cropping */
+.galleryVideoWrap[data-embedded-preview] {
+  max-height: none;
+}
+
+.galleryVideoWrap[data-embedded-preview] .galleryVideo {
+  max-height: none;
 }
 
 @media (hover: hover) {
