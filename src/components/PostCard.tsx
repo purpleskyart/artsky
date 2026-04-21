@@ -1332,6 +1332,7 @@ function PostCardInner({
                 preloadDistance={cardMediaPreloadDistance}
                 root={modalScrollContainer}
                 onLoad={handleImageLoad}
+                objectFit="contain"
               />
             </>
           )}

@@ -26,6 +26,7 @@ import { usePostCardGridPointerGate } from '../hooks/usePostCardGridPointerGate'
 import { pickAdjacentCardIndexByViewport } from '../lib/masonryHorizontalNav'
 import { ProgressiveImage } from '../components/ProgressiveImage'
 import styles from './ProfilePage.module.css'
+import feedStyles from './FeedPage.module.css'
 
 const REASON_REPOST = 'app.bsky.feed.defs#reasonRepost'
 const REASON_PIN = 'app.bsky.feed.defs#reasonPin'
@@ -1213,7 +1214,9 @@ export default function ProfileContent({
           <>
             <div
               ref={gridRef}
-              className={`${styles.gridColumns} ${viewMode === 'a' ? styles.gridView3 : styles[`gridView${viewMode}`]}`}
+              className={inModal
+                ? `${feedStyles.gridColumns} ${viewMode === 'a' ? feedStyles.gridView3 : feedStyles[`gridView${viewMode}`]}`
+                : `${styles.gridColumns} ${viewMode === 'a' ? styles.gridView3 : styles[`gridView${viewMode}`]}`}
               {...gridPointerGateProps}
               data-view-mode={viewMode}
             >
@@ -1223,6 +1226,8 @@ export default function ProfileContent({
                   column={column}
                   colIndex={colIndex}
                   scrollRef={modalScrollRef}
+                  feedPreviewActionRow
+                  layout="feed"
                   loadMoreSentinelRef={
                     cursor
                       ? (el) => {

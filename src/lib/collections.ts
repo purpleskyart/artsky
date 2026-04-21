@@ -33,6 +33,92 @@ const ownerDidCache = new Map<string, string | null>()
 const boardSegmentRkeyCache = new Map<string, string | null>()
 const plcPdsBaseCache = new Map<string, string | null>()
 
+/** Persistent cache keys for localStorage */
+const OWNER_DID_CACHE_KEY = 'purplesky:owner-did-cache'
+const BOARD_SEGMENT_CACHE_KEY = 'purplesky:board-segment-cache'
+const OWNER_DID_CACHE_TTL_MS = 24 * 60 * 60 * 1000 // 24 hours
+const BOARD_SEGMENT_CACHE_TTL_MS = 60 * 60 * 1000 // 1 hour
+
+interface PersistentCacheEntry<T> {
+  value: T
+  timestamp: number
+}
+
+function loadPersistentCache<T>(key: string): Map<string, T> {
+  try {
+    const raw = localStorage.getItem(key)
+    if (!raw) return new Map()
+    const entries = JSON.parse(raw) as Array<[string, PersistentCacheEntry<T>]>
+    return new Map(entries)
+  } catch {
+    return new Map()
+  }
+}
+
+function savePersistentCache<T>(key: string, cache: Map<string, T>): void {
+  try {
+    const entries = Array.from(cache.entries())
+    localStorage.setItem(key, JSON.stringify(entries))
+  } catch {
+    // Ignore storage errors (e.g., quota exceeded)
+  }
+}
+
+function getCachedWithTTL<T>(cache: Map<string, PersistentCacheEntry<T>>, key: string, ttlMs: number): T | undefined {
+  const entry = cache.get(key)
+  if (!entry) return undefined
+  if (Date.now() - entry.timestamp > ttlMs) {
+    cache.delete(key)
+    return undefined
+  }
+  return entry.value
+}
+
+function setCachedWithTTL<T>(cache: Map<string, PersistentCacheEntry<T>>, key: string, value: T): void {
+  cache.set(key, { value, timestamp: Date.now() })
+}
+
+/** Initialize persistent caches and merge into in-memory caches */
+function initPersistentCaches(): void {
+  // Load handle→DID cache
+  const ownerDidPersistent = loadPersistentCache<string | null>(OWNER_DID_CACHE_KEY)
+  for (const [key, entry] of ownerDidPersistent) {
+    const cached = getCachedWithTTL(ownerDidPersistent, key, OWNER_DID_CACHE_TTL_MS)
+    if (cached !== undefined && !ownerDidCache.has(key)) {
+      ownerDidCache.set(key, cached)
+    }
+  }
+
+  // Load slug→rkey cache
+  const boardSegmentPersistent = loadPersistentCache<string | null>(BOARD_SEGMENT_CACHE_KEY)
+  for (const [key, entry] of boardSegmentPersistent) {
+    const cached = getCachedWithTTL(boardSegmentPersistent, key, BOARD_SEGMENT_CACHE_TTL_MS)
+    if (cached !== undefined && !boardSegmentRkeyCache.has(key)) {
+      boardSegmentRkeyCache.set(key, cached)
+    }
+  }
+}
+
+/** Save current in-memory caches to localStorage */
+function saveOwnerDidCache(): void {
+  const persistent = loadPersistentCache<string | null>(OWNER_DID_CACHE_KEY)
+  for (const [key, value] of ownerDidCache) {
+    setCachedWithTTL(persistent, key, value)
+  }
+  savePersistentCache(OWNER_DID_CACHE_KEY, persistent)
+}
+
+function saveBoardSegmentCache(): void {
+  const persistent = loadPersistentCache<string | null>(BOARD_SEGMENT_CACHE_KEY)
+  for (const [key, value] of boardSegmentRkeyCache) {
+    setCachedWithTTL(persistent, key, value)
+  }
+  savePersistentCache(BOARD_SEGMENT_CACHE_KEY, persistent)
+}
+
+// Initialize caches on module load
+initPersistentCaches()
+
 export type CollectionRecordValue = {
   $type: typeof COLLECTION_LEXICON
   title: string
@@ -100,9 +186,11 @@ async function resolveCollectionOwnerToDid(owner: string): Promise<string | null
     const res = await publicAgent.getProfile({ actor: owner })
     const did = res.data.did ?? null
     ownerDidCache.set(key, did)
+    saveOwnerDidCache()
     return did
   } catch {
     ownerDidCache.set(key, null)
+    saveOwnerDidCache()
     return null
   }
 }
@@ -219,17 +307,58 @@ async function mintUniqueCollectionSlug(did: string, title: string): Promise<str
 }
 
 async function findRkeyBySlug(did: string, slugLower: string): Promise<string | null> {
+  const result = await findCollectionBySlug(did, slugLower)
+  return result?.rkey ?? null
+}
+
+/** Find a collection by slug, returning full data to avoid duplicate API calls. */
+async function findCollectionBySlug(did: string, slugLower: string): Promise<CollectionView | null> {
   const cacheKey = `${did}::${slugLower}`
-  if (boardSegmentRkeyCache.has(cacheKey)) return boardSegmentRkeyCache.get(cacheKey) ?? null
+  const cachedRkey = boardSegmentRkeyCache.get(cacheKey)
+  if (cachedRkey) {
+    // We have the rkey cached, but still need to load the view
+    return loadCollectionViewFromDidRkey(did, cachedRkey)
+  }
+  // List all collections to find by slug - we get full data here
   const rows = await listCollectionRecordsLoose(did)
   for (const row of rows) {
     const sl = normalizeStoredSlug((row.value as { slug?: string }).slug)
     if (sl === slugLower) {
       boardSegmentRkeyCache.set(cacheKey, row.rkey)
-      return row.rkey
+      saveBoardSegmentCache()
+      // Build CollectionView directly from the row data we already have
+      const v = row.value as {
+        title?: string
+        private?: boolean
+        slug?: string
+        items?: string[]
+        createdAt?: string
+      }
+      const cid = (row as unknown as { cid?: string }).cid
+      if (!cid) {
+        // Fallback to fetching if cid is missing
+        return loadCollectionViewFromDidRkey(did, row.rkey)
+      }
+      const title = (v.title ?? 'Collection').trim() || 'Collection'
+      const isPrivate = normalizePrivateFlag(v.private)
+      const slug = normalizeStoredSlug(v.slug)
+      const items = Array.isArray(v.items) ? v.items.filter((u) => typeof u === 'string' && isFeedPostUri(u)) : []
+      const createdAt = v.createdAt ?? new Date().toISOString()
+      return {
+        uri: row.uri,
+        cid,
+        did,
+        rkey: row.rkey,
+        title,
+        isPrivate,
+        slug,
+        items,
+        createdAt,
+      }
     }
   }
   boardSegmentRkeyCache.set(cacheKey, null)
+  saveBoardSegmentCache()
   return null
 }
 
@@ -244,10 +373,12 @@ async function resolveBoardSegmentToRkey(did: string, segment: string): Promise<
     const p = parseAtUri(direct.uri)
     const resolved = p?.rkey ?? seg
     boardSegmentRkeyCache.set(cacheKey, resolved)
+    saveBoardSegmentCache()
     return resolved
   }
   const resolved = await findRkeyBySlug(did, seg.toLowerCase())
   boardSegmentRkeyCache.set(cacheKey, resolved)
+  saveBoardSegmentCache()
   return resolved
 }
 
@@ -418,9 +549,17 @@ export async function getCollectionByAtUri(ref: string): Promise<CollectionView 
   if (!slash) return null
   const did = await resolveCollectionOwnerToDid(slash.owner)
   if (!did) return null
-  const rkey = await resolveBoardSegmentToRkey(did, slash.segment)
-  if (!rkey) return null
-  const view = await loadCollectionViewFromDidRkey(did, rkey)
+
+  // Try to load directly by rkey first (fast path)
+  const direct = await fetchCollectionRecordLoose(did, slash.segment)
+  if (direct?.cid && typeof direct.uri === 'string') {
+    const view = await loadCollectionViewFromDidRkey(did, slash.segment)
+    if (view?.isPrivate && sessionDid !== view.did) return null
+    return view
+  }
+
+  // Segment is a slug - look it up (this lists all collections but returns full data)
+  const view = await findCollectionBySlug(did, slash.segment.toLowerCase())
   if (view?.isPrivate && sessionDid !== view.did) return null
   return view
 }
