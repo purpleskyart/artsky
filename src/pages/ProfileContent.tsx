@@ -633,6 +633,13 @@ export default function ProfileContent({
     const onKeyDown = (e: KeyboardEvent) => {
       /* When on full page, don't steal keys if another modal (e.g. post) is open. When we are the profile popup (inModal), always handle. */
       if (!inModal && isModalOpen) return
+      /* Also check if any modal is open AND the event came from outside the modal (page behind).
+         This prevents shortcuts when Login, EditProfile, etc. are open, but allows shortcuts within modals. */
+      if (!inModal) {
+        const target = e.target as HTMLElement
+        const anyModal = typeof document !== 'undefined' ? document.querySelector('[role="dialog"][aria-modal="true"]') : null
+        if (anyModal && !anyModal.contains(target)) return
+      }
       const target = e.target as HTMLElement
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable) {
         if (e.key === 'Escape') {

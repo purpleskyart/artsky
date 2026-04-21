@@ -1936,6 +1936,12 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      /* When standalone (not in a modal), block shortcuts if any modal is open on top.
+         When in a modal (onClose exists), always allow shortcuts to work within the modal. */
+      if (!onClose) {
+        const anyModal = typeof document !== 'undefined' ? document.querySelector('[role="dialog"][aria-modal="true"]') : null
+        if (anyModal) return
+      }
       const target = e.target as HTMLElement
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable) {
         if (e.key === 'Escape') {
@@ -2184,7 +2190,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [postSectionCount, postSectionIndex, hasRepliesSection, threadRepliesFlat, focusedCommentIndex, commentFormFocused, thread, hasMediaSection, handleReplyTo, rootMediaForNav.length, openProfileModal, focusItems, handleLike, handleCommentLike, commentLikeOverrides, openActionsMenuUri, threadRepliesVisible, topLevelCommentFirstFocusIndices, threadReplies, findReplyByUri])
+  }, [postSectionCount, postSectionIndex, hasRepliesSection, threadRepliesFlat, focusedCommentIndex, commentFormFocused, thread, hasMediaSection, handleReplyTo, rootMediaForNav.length, openProfileModal, focusItems, handleLike, handleCommentLike, commentLikeOverrides, openActionsMenuUri, threadRepliesVisible, topLevelCommentFirstFocusIndices, threadReplies, findReplyByUri, onClose])
 
   useEffect(() => {
     if (postSectionCount <= 1) return

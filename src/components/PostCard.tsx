@@ -588,15 +588,16 @@ function PostCardInner({
     const wasSelected = prevSelectedRef.current
     prevSelectedRef.current = isSelected
     if (isSelected && nsfwBlurred && onNsfwUnblur) {
-      /* On touch devices, ignore selection from scroll (within 500ms of touch). Also respect suppressHoverNsfwUnblur to prevent scroll-induced unblur in modals. */
-      if (!suppressHoverNsfwUnblur && Date.now() - recentTouchTimeRef.current >= 500) {
+      /* On touch devices, ignore selection from scroll (within 500ms of touch).
+         Keyboard focus (isSelected) always unblurs, even in modals - only hover is suppressed. */
+      if (Date.now() - recentTouchTimeRef.current >= 500) {
         onNsfwUnblur()
       }
     }
     if (wasSelected && !isSelected && isRevealed) {
       setUnblurred(post.uri, false)
     }
-  }, [isSelected, post.uri, isRevealed, setUnblurred, nsfwBlurred, onNsfwUnblur, suppressHoverNsfwUnblur])
+  }, [isSelected, post.uri, isRevealed, setUnblurred, nsfwBlurred, onNsfwUnblur])
 
   /* Track recent touch interaction to prevent scroll-induced focus from auto-unblurring and tap focusout from reblurring */
   const recentTouchTimeRef = useRef(0)

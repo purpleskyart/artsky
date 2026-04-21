@@ -1049,6 +1049,13 @@ export default function FeedPage() {
     const onKeyDown = (e: KeyboardEvent) => {
       /* Never affect feed when a popup is open: check both context and URL (URL covers first render after open). */
       const hasContentModalInUrl = /[?&](post|profile|tag)=/.test(locationSearchRef.current)
+      /* Also check if any modal is open AND the event came from outside the modal (page behind).
+         This prevents feed shortcuts when Login, EditProfile, etc. are open, but allows shortcuts within modals. */
+      if (!isModalOpen && !hasContentModalInUrl) {
+        const target = e.target as HTMLElement
+        const anyModal = typeof document !== 'undefined' ? document.querySelector('[role="dialog"][aria-modal="true"]') : null
+        if (anyModal && !anyModal.contains(target)) return
+      }
       if (isModalOpen || hasContentModalInUrl) return
       const eventTarget = e.target as HTMLElement
       if (eventTarget.tagName === 'INPUT' || eventTarget.tagName === 'TEXTAREA' || eventTarget.tagName === 'SELECT' || eventTarget.isContentEditable) {
