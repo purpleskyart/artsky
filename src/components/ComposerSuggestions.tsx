@@ -362,6 +362,7 @@ export default function ComposerSuggestions({
         onBlur={handleBlur}
         onKeyUp={syncCursor}
         onKeyDown={handleKeyDown}
+        onClick={(e) => e.stopPropagation()}
         placeholder={placeholder}
         rows={rows}
         maxLength={maxLength}
