@@ -139,6 +139,7 @@ function PostCardInner({
   openCollectionMenuSignal,
   suppressHoverNsfwUnblur = false,
 }: InnerProps) {
+  void suppressHoverNsfwUnblur // Currently unused, reserved for future use
   /** Must stay > `TOUCH_DOUBLE_TAP_WINDOW_MS` so a second tap can cancel before we open. */
   const TOUCH_OPEN_DELAY_MS = 450
   /** Max ms between two taps to count as double-tap-like; matches PostDetailPage MediaGallery (400ms). */
@@ -588,15 +589,16 @@ function PostCardInner({
     const wasSelected = prevSelectedRef.current
     prevSelectedRef.current = isSelected
     if (isSelected && nsfwBlurred && onNsfwUnblur) {
-      /* On touch devices, ignore selection from scroll (within 500ms of touch). Also respect suppressHoverNsfwUnblur to prevent scroll-induced unblur in modals. */
-      if (!suppressHoverNsfwUnblur && Date.now() - recentTouchTimeRef.current >= 500) {
+      /* On touch devices, ignore selection from scroll (within 500ms of touch).
+         Keyboard focus (isSelected) always unblurs, even in modals - only hover is suppressed. */
+      if (Date.now() - recentTouchTimeRef.current >= 500) {
         onNsfwUnblur()
       }
     }
     if (wasSelected && !isSelected && isRevealed) {
       setUnblurred(post.uri, false)
     }
-  }, [isSelected, post.uri, isRevealed, setUnblurred, nsfwBlurred, onNsfwUnblur, suppressHoverNsfwUnblur])
+  }, [isSelected, post.uri, isRevealed, setUnblurred, nsfwBlurred, onNsfwUnblur])
 
   /* Track recent touch interaction to prevent scroll-induced focus from auto-unblurring and tap focusout from reblurring */
   const recentTouchTimeRef = useRef(0)
@@ -1332,6 +1334,7 @@ function PostCardInner({
                 preloadDistance={cardMediaPreloadDistance}
                 root={modalScrollContainer}
                 onLoad={handleImageLoad}
+                objectFit="contain"
               />
             </>
           )}

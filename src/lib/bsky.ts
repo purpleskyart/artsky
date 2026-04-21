@@ -634,7 +634,7 @@ export async function getProfileCached(
 ): Promise<{ handle?: string; displayName?: string; avatar?: string; did?: string; createdAt?: string; indexedAt?: string }> {
   const cacheKey = profileResponseCacheKey(actor, usePublic)
   const client = usePublic ? publicAgent : (getSession() ? agent : publicAgent)
-  
+
   // Try to get from cache with revalidation support
   const cached = responseCache.get<{ handle?: string; displayName?: string; avatar?: string; did?: string; createdAt?: string; indexedAt?: string }>(
     cacheKey,
@@ -643,14 +643,22 @@ export async function getProfileCached(
       return data
     })
   )
-  
+
   if (cached) return cached
-  
-  // Fetch and cache with 10 min TTL + 5 min stale-while-revalidate
-  const profile = await client.getProfile({ actor })
-  const data = profile.data as { handle?: string; displayName?: string; avatar?: string; did?: string; createdAt?: string; indexedAt?: string }
-  responseCache.set(cacheKey, data, 600_000, 300_000)
-  return data
+
+  // Deduplicate concurrent requests to prevent duplicate API calls
+  const dedupeKey = `getProfileCached:${cacheKey}`
+  return requestDeduplicator.dedupe(dedupeKey, async () => {
+    // Double-check cache after getting the dedupe lock (another request may have filled it)
+    const doubleCheck = responseCache.get<{ handle?: string; displayName?: string; avatar?: string; did?: string; createdAt?: string; indexedAt?: string }>(cacheKey)
+    if (doubleCheck) return doubleCheck
+
+    // Fetch and cache with 10 min TTL + 5 min stale-while-revalidate
+    const profile = await client.getProfile({ actor })
+    const data = profile.data as { handle?: string; displayName?: string; avatar?: string; did?: string; createdAt?: string; indexedAt?: string }
+    responseCache.set(cacheKey, data, 600_000, 300_000)
+    return data
+  })
 }
 
 /**

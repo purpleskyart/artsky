@@ -208,7 +208,11 @@ export function CollectionDetailContent({ uri: decodedUri }: CollectionDetailCon
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      /* Don't steal keys if any modal is open AND the event came from outside the modal (page behind).
+         This prevents shortcuts when Login, EditProfile, etc. are open, but allows shortcuts within modals. */
       const target = e.target as HTMLElement
+      const anyModal = typeof document !== 'undefined' ? document.querySelector('[role="dialog"][aria-modal="true"]') : null
+      if (anyModal && !anyModal.contains(target)) return
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable) {
         return
       }

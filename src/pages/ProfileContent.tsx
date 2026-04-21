@@ -26,6 +26,7 @@ import { usePostCardGridPointerGate } from '../hooks/usePostCardGridPointerGate'
 import { pickAdjacentCardIndexByViewport } from '../lib/masonryHorizontalNav'
 import { ProgressiveImage } from '../components/ProgressiveImage'
 import styles from './ProfilePage.module.css'
+import feedStyles from './FeedPage.module.css'
 
 const REASON_REPOST = 'app.bsky.feed.defs#reasonRepost'
 const REASON_PIN = 'app.bsky.feed.defs#reasonPin'
@@ -632,6 +633,13 @@ export default function ProfileContent({
     const onKeyDown = (e: KeyboardEvent) => {
       /* When on full page, don't steal keys if another modal (e.g. post) is open. When we are the profile popup (inModal), always handle. */
       if (!inModal && isModalOpen) return
+      /* Also check if any modal is open AND the event came from outside the modal (page behind).
+         This prevents shortcuts when Login, EditProfile, etc. are open, but allows shortcuts within modals. */
+      if (!inModal) {
+        const target = e.target as HTMLElement
+        const anyModal = typeof document !== 'undefined' ? document.querySelector('[role="dialog"][aria-modal="true"]') : null
+        if (anyModal && !anyModal.contains(target)) return
+      }
       const target = e.target as HTMLElement
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable) {
         if (e.key === 'Escape') {
@@ -1213,7 +1221,9 @@ export default function ProfileContent({
           <>
             <div
               ref={gridRef}
-              className={`${styles.gridColumns} ${viewMode === 'a' ? styles.gridView3 : styles[`gridView${viewMode}`]}`}
+              className={inModal
+                ? `${feedStyles.gridColumns} ${viewMode === 'a' ? feedStyles.gridView3 : feedStyles[`gridView${viewMode}`]}`
+                : `${styles.gridColumns} ${viewMode === 'a' ? styles.gridView3 : styles[`gridView${viewMode}`]}`}
               {...gridPointerGateProps}
               data-view-mode={viewMode}
             >
@@ -1222,7 +1232,9 @@ export default function ProfileContent({
                   key={colIndex}
                   column={column}
                   colIndex={colIndex}
-                  scrollRef={null}
+                  scrollRef={modalScrollRef}
+                  feedPreviewActionRow
+                  layout="feed"
                   loadMoreSentinelRef={
                     cursor
                       ? (el) => {
