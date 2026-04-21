@@ -1371,7 +1371,8 @@ export default function Layout({ title, children, showNav }: Props) {
 
   const POST_MAX_LENGTH = 300
 
-  function openCompose() {
+  function openCompose(e?: React.MouseEvent | React.PointerEvent) {
+    e?.stopPropagation()
     setComposeOpen(true)
     setComposeSegments([{ id: Math.random().toString(36).slice(2), text: '', images: [], imageAlts: [], hasSpoiler: false, mediaSensitive: false }])
     setComposeSegmentIndex(0)
