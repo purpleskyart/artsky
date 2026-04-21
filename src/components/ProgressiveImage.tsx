@@ -129,8 +129,8 @@ export function ProgressiveImage({
 
     return sizes
       .map((width) => {
-        const resizedUrl = src.includes('?') ? `${src}&width=${width}` : `${src}?width=${width}`
-        const webpUrl = webpImageUrl(resizedUrl)
+        const separator = src.includes('?') ? '&' : '?'
+        const webpUrl = `${src}${separator}format=webp&width=${width}`
         return `${webpUrl} ${width}w`
       })
       .join(', ')

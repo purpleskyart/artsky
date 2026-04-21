@@ -2,6 +2,11 @@
  * Image URL helpers for performance on low-end devices and poor connections.
  * - Resized avatars: avoid loading full-size images when displaying small
  * - WebP format preference for better compression
+ *
+ * Uses Bluesky CDN's native capabilities (cdn.bsky.app) instead of external proxies.
+ * The CDN supports:
+ * - ?format=webp for WebP conversion
+ * - ?width=N for image resizing
  */
 
 /**
@@ -43,8 +48,10 @@ export function resetWebPSupport() {
 export function resizedImageUrl(originalUrl: string | undefined | null, displaySizePx: number): string {
   if (!originalUrl || !originalUrl.startsWith('http')) return originalUrl ?? ''
   const size = Math.min(256, Math.max(displaySizePx * 2, 40))
-  const encoded = encodeURIComponent(originalUrl)
-  return `https://wsrv.nl/?url=${encoded}&w=${size}&h=${size}&fit=cover`
+  
+  // Use Bluesky CDN's native width parameter
+  const separator = originalUrl.includes('?') ? '&' : '?'
+  return `${originalUrl}${separator}width=${size}`
 }
 
 /** For avatars - alias for clarity. */
@@ -54,7 +61,7 @@ export function resizedAvatarUrl(originalUrl: string | undefined | null, display
 
 /**
  * Convert an image URL to prefer WebP format with fallback
- * Uses wsrv.nl image transformation service which supports WebP output
+ * Uses Bluesky CDN's native format parameter for WebP conversion
  * 
  * Requirements: 5.4
  */
@@ -64,12 +71,11 @@ export function webpImageUrl(originalUrl: string | undefined | null, width?: num
   // Only apply WebP transformation if browser supports it
   if (!supportsWebP()) return originalUrl
   
-  const encoded = encodeURIComponent(originalUrl)
-  const widthParam = width ? `&w=${width}` : ''
+  // Use Bluesky CDN's native format parameter
+  const separator = originalUrl.includes('?') ? '&' : '?'
+  const widthParam = width ? `&width=${width}` : ''
   
-  // Use wsrv.nl to serve WebP format
-  // The service automatically converts images to WebP when output=webp is specified
-  return `https://wsrv.nl/?url=${encoded}${widthParam}&output=webp`
+  return `${originalUrl}${separator}format=webp${widthParam}`
 }
 
 /** Tighter srcset / preload margins on small or save-data connections. */

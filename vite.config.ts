@@ -83,7 +83,7 @@ export default defineConfig({
       workbox: {
         runtimeCaching: [
           {
-            urlPattern: /^https:\/\/(cdn\.bsky\.app|wsrv\.nl)\/.*/i,
+            urlPattern: /^https:\/\/cdn\.bsky\.app\/.*/i,
             handler: 'CacheFirst',
             options: {
               cacheName: 'artsky-images',

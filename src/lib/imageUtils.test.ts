@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
-import { supportsWebP, webpImageUrl, resetWebPSupport } from './imageUtils'
+import { supportsWebP, webpImageUrl, resizedImageUrl, resetWebPSupport } from './imageUtils'
 
 describe('imageUtils - WebP support', () => {
   beforeEach(() => {
@@ -52,16 +52,14 @@ describe('imageUtils - WebP support', () => {
 
     it('converts URL to WebP format when supported', () => {
       // This test verifies the URL construction logic
-      // In a real browser with WebP support, the function would return a wsrv.nl URL
+      // Uses Bluesky CDN's native format parameter instead of wsrv.nl
       
-      const originalUrl = 'https://example.com/image.jpg'
-      const encoded = encodeURIComponent(originalUrl)
-      const expectedWebPUrl = `https://wsrv.nl/?url=${encoded}&output=webp`
+      const originalUrl = 'https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:123/abc@jpeg'
+      const expectedWebPUrl = `${originalUrl}?format=webp`
       
       // Verify the expected URL structure
-      expect(expectedWebPUrl).toContain('wsrv.nl')
-      expect(expectedWebPUrl).toContain('output=webp')
-      expect(expectedWebPUrl).toContain(encodeURIComponent(originalUrl))
+      expect(expectedWebPUrl).toContain('format=webp')
+      expect(expectedWebPUrl).not.toContain('wsrv.nl')
       
       // In test environment (no WebP support), the function returns original URL
       const result = webpImageUrl(originalUrl)
@@ -71,24 +69,24 @@ describe('imageUtils - WebP support', () => {
     it('includes width parameter when provided', () => {
       resetWebPSupport()
       
-      const originalUrl = 'https://example.com/image.jpg'
+      const originalUrl = 'https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:123/abc@jpeg'
       const width = 800
       
-      // Test the URL construction logic
-      const encoded = encodeURIComponent(originalUrl)
-      const expectedUrl = `https://wsrv.nl/?url=${encoded}&w=${width}&output=webp`
+      // Test the URL construction logic - uses CDN's native parameters
+      const expectedUrl = `${originalUrl}?format=webp&width=${width}`
       
-      expect(expectedUrl).toContain(`w=${width}`)
-      expect(expectedUrl).toContain('output=webp')
+      expect(expectedUrl).toContain(`width=${width}`)
+      expect(expectedUrl).toContain('format=webp')
+      expect(expectedUrl).not.toContain('wsrv.nl')
     })
 
-    it('handles URLs with special characters', () => {
-      const originalUrl = 'https://example.com/image with spaces.jpg?param=value'
-      const encoded = encodeURIComponent(originalUrl)
+    it('handles URLs with existing query parameters', () => {
+      const originalUrl = 'https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:123/abc@jpeg?format=jpeg'
+      const expectedUrl = `${originalUrl}&format=webp`
       
-      // Verify encoding works correctly
-      expect(encoded).not.toContain(' ')
-      expect(encoded).toContain('%20')
+      // Should use & separator when URL already has query params
+      expect(expectedUrl).toContain('&format=webp')
+      expect(expectedUrl).not.toContain('?format=webp')
     })
 
     it('preserves original URL structure in encoded form', () => {
@@ -97,6 +95,31 @@ describe('imageUtils - WebP support', () => {
       
       // In test environment (no WebP support), should return original
       expect(result).toBe(originalUrl)
+    })
+  })
+
+  describe('resizedImageUrl', () => {
+    it('returns original URL for non-http URLs', () => {
+      expect(resizedImageUrl('', 100)).toBe('')
+      expect(resizedImageUrl(null, 100)).toBe('')
+      expect(resizedImageUrl(undefined, 100)).toBe('')
+      expect(resizedImageUrl('data:image/png;base64,abc', 100)).toBe('data:image/png;base64,abc')
+    })
+
+    it('adds width parameter to CDN URLs', () => {
+      const originalUrl = 'https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:123/abc@jpeg'
+      const result = resizedImageUrl(originalUrl, 100)
+      
+      expect(result).toContain('width=')
+      expect(result).not.toContain('wsrv.nl')
+    })
+
+    it('handles URLs with existing query parameters', () => {
+      const originalUrl = 'https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:123/abc@jpeg?format=jpeg'
+      const result = resizedImageUrl(originalUrl, 100)
+      
+      expect(result).toContain('&width=')
+      expect(result).not.toContain('?width=')
     })
   })
 })
