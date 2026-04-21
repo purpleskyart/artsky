@@ -579,6 +579,10 @@ export default function Layout({ title, children, showNav }: Props) {
   const [composeError, setComposeError] = useState<string | null>(null)
   const composeFileInputRef = useRef<HTMLInputElement>(null)
   const composeFormRef = useRef<HTMLFormElement>(null)
+  const composeOverlayRef = useRef<HTMLDivElement>(null)
+  const composeCardRef = useRef<HTMLDivElement>(null)
+  const composeOpenTimestampRef = useRef<number>(0)
+  const [_composeBackdropClickable, setComposeBackdropClickable] = useState(false)
   const currentSegment = composeSegments[composeSegmentIndex] ?? { text: '', images: [], imageAlts: [] }
   const navVisible = true
   const [mobileNavScrollHidden, setMobileNavScrollHidden] = useState(false)
@@ -1373,14 +1377,19 @@ export default function Layout({ title, children, showNav }: Props) {
 
   function openCompose(e?: React.MouseEvent | React.PointerEvent) {
     e?.stopPropagation()
+    composeOpenTimestampRef.current = Date.now()
+    setComposeBackdropClickable(false)
     setComposeOpen(true)
     setComposeSegments([{ id: Math.random().toString(36).slice(2), text: '', images: [], imageAlts: [], hasSpoiler: false, mediaSensitive: false }])
     setComposeSegmentIndex(0)
     setComposeError(null)
     composeKeyboardUsedRef.current = false
+    // Allow backdrop to be clickable after 300ms to prevent immediate closure
+    setTimeout(() => setComposeBackdropClickable(true), 300)
   }
 
   function closeCompose() {
+    setComposeBackdropClickable(false)
     setComposeOpen(false)
     setComposeError(null)
   }
@@ -2517,20 +2526,31 @@ export default function Layout({ title, children, showNav }: Props) {
             <>
               <div
                 className={styles.searchOverlayBackdrop}
-                onClick={closeCompose}
+                onClick={(e) => {
+                  // On mobile, disable backdrop click to prevent accidental closure when tapping inside compose
+                  if (!isDesktop) return
+                  // Only close if click is not on or within the compose overlay or card
+                  if (composeOverlayRef.current?.contains(e.target as Node) || composeCardRef.current?.contains(e.target as Node)) {
+                    return
+                  }
+                  closeCompose()
+                }}
                 aria-hidden
               />
               <div
+                ref={composeOverlayRef}
                 className={`${styles.composeOverlay} ${!isDesktop ? (composeFieldFocused ? styles.composeOverlayMobileFocused : styles.composeOverlayMobile) : ''}`}
                 role="dialog"
                 aria-label="New post"
                 onClick={(e) => { if (e.target === e.currentTarget) closeCompose() }}
+                onTouchStart={(e) => e.stopPropagation()}
+                onTouchEnd={(e) => e.stopPropagation()}
                 onKeyDown={(e) => { if (e.key === 'Escape') closeCompose() }}
                 onDragOver={handleComposeDragOver}
                 onDrop={handleComposeDrop}
                 style={!isDesktop ? { bottom: composeOverlayBottom } : undefined}
               >
-                <div className={styles.composeCard} data-compose-sheet>
+                <div ref={composeCardRef} className={styles.composeCard} data-compose-sheet onClick={(e) => e.stopPropagation()} onTouchStart={(e) => e.stopPropagation()} onTouchEnd={(e) => e.stopPropagation()}>
                   <header className={styles.composeHeader}>
                     <button type="button" className={styles.composeCancel} onClick={closeCompose} disabled={composePosting}>
                       Cancel
