@@ -2482,5 +2482,3 @@ export function resetRequestMetrics(): void {
 export function invalidateCache(pattern: string | RegExp): void {
   apiRequestManager.invalidateCache(pattern)
 }
-  apiRequestManager.invalidateCache(pattern)
-}
