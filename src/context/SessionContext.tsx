@@ -61,7 +61,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     setAuthErrorCount((prev) => prev + 1)
   }, [])
 
-  const logout = useCallback(async (userInitiated = false) => {
+  const logout = useCallback(async () => {
     const stillLoggedIn = await bsky.logoutCurrentAccount()
     setSession(stillLoggedIn ? bsky.getSessionStateForReact() : null)
   }, [])

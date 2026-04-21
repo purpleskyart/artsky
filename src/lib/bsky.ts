@@ -571,7 +571,7 @@ export async function logoutCurrentAccount(): Promise<boolean> {
   return false
 }
 
-export async function logout(userInitiated = false): Promise<void> {
+export async function logout(): Promise<void> {
   await logoutCurrentAccount()
 }
 

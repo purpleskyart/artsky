@@ -1370,7 +1370,7 @@ export default function Layout({ title, children, showNav }: Props) {
     userInitiatedLogoutRef.current = true
     setAccountSheetOpen(false)
     setAccountMenuOpen(false)
-    void logout(true)
+    void logout()
   }
 
   const POST_MAX_LENGTH = 300
