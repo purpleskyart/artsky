@@ -137,8 +137,9 @@ function PostCardInner({
   onRemovePostFromCollection,
   feedPreviewActionRow = false,
   openCollectionMenuSignal,
-  _suppressHoverNsfwUnblur = false,
+  suppressHoverNsfwUnblur = false,
 }: InnerProps) {
+  void suppressHoverNsfwUnblur // Currently unused, reserved for future use
   /** Must stay > `TOUCH_DOUBLE_TAP_WINDOW_MS` so a second tap can cancel before we open. */
   const TOUCH_OPEN_DELAY_MS = 450
   /** Max ms between two taps to count as double-tap-like; matches PostDetailPage MediaGallery (400ms). */

@@ -362,26 +362,6 @@ async function findCollectionBySlug(did: string, slugLower: string): Promise<Col
   return null
 }
 
-/** Resolve URL segment: record rkey (getRecord) or stored `slug` (list + match). */
-async function _resolveBoardSegmentToRkey(did: string, segment: string): Promise<string | null> {
-  const seg = segment.trim()
-  if (!seg) return null
-  const cacheKey = `${did}::${seg.toLowerCase()}`
-  if (boardSegmentRkeyCache.has(cacheKey)) return boardSegmentRkeyCache.get(cacheKey) ?? null
-  const direct = await fetchCollectionRecordLoose(did, seg)
-  if (direct?.cid && typeof direct.uri === 'string') {
-    const p = parseAtUri(direct.uri)
-    const resolved = p?.rkey ?? seg
-    boardSegmentRkeyCache.set(cacheKey, resolved)
-    saveBoardSegmentCache()
-    return resolved
-  }
-  const resolved = await findRkeyBySlug(did, seg.toLowerCase())
-  boardSegmentRkeyCache.set(cacheKey, resolved)
-  saveBoardSegmentCache()
-  return resolved
-}
-
 /** True if the value looks like a collection AT-URI or compact `owner/rkey`. */
 export function isLikelyCollectionRefParam(ref: string): boolean {
   const n = normalizeAtUriParam(ref.trim())
