@@ -582,6 +582,7 @@ export default function Layout({ title, children, showNav }: Props) {
   const composeOverlayRef = useRef<HTMLDivElement>(null)
   const composeCardRef = useRef<HTMLDivElement>(null)
   const composeOpenTimestampRef = useRef<number>(0)
+  const [_composeBackdropClickable, setComposeBackdropClickable] = useState(false)
   const currentSegment = composeSegments[composeSegmentIndex] ?? { text: '', images: [], imageAlts: [] }
   const navVisible = true
   const [mobileNavScrollHidden, setMobileNavScrollHidden] = useState(false)
