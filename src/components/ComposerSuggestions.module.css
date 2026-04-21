@@ -20,6 +20,8 @@
   visibility: hidden;
   pointer-events: none;
   box-sizing: border-box;
+  border: 1px solid transparent;
+  border-radius: 0.5rem;
 }
 
 .textarea {

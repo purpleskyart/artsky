@@ -53,6 +53,10 @@ export type ComposerSuggestionsProps = {
   'aria-label'?: string
   /** Ref forwarded to the underlying textarea */
   inputRef?: React.RefObject<HTMLTextAreaElement | null>
+  /** Callback when the textarea is focused */
+  onFocus?: () => void
+  /** Callback when the textarea is blurred */
+  onBlur?: () => void
 }
 
 type SuggestionUser = { type: 'user'; handle: string; displayName?: string; avatar?: string }
@@ -72,6 +76,8 @@ export default function ComposerSuggestions({
   id,
   'aria-label': ariaLabel,
   inputRef: externalInputRef,
+  onFocus: onFocusProp,
+  onBlur: onBlurProp,
 }: ComposerSuggestionsProps) {
   const internalRef = useRef<HTMLTextAreaElement>(null)
   const inputRef = externalInputRef ?? internalRef
@@ -244,14 +250,16 @@ export default function ComposerSuggestions({
   const handleFocus = useCallback((e: React.FocusEvent<HTMLTextAreaElement>) => {
     keyboardScrollCleanupRef.current?.()
     keyboardScrollCleanupRef.current = scrollFieldAboveKeyboard(e.currentTarget)
-  }, [])
+    onFocusProp?.()
+  }, [onFocusProp])
 
   const handleBlur = useCallback(() => {
     keyboardScrollCleanupRef.current?.()
     keyboardScrollCleanupRef.current = null
     setOpen(false)
     setSuggestions([])
-  }, [])
+    onBlurProp?.()
+  }, [onBlurProp])
 
   useEffect(() => () => keyboardScrollCleanupRef.current?.(), [])
 
@@ -262,9 +270,9 @@ export default function ComposerSuggestions({
   }, [activeIndex, open])
 
   const triggerStartIndex = triggerAtCursor?.startIndex ?? -1
-  const showMirror = open && triggerStartIndex >= 0 && (suggestions.length > 0 || loading)
+  const showMirror = open && triggerStartIndex >= 0
 
-  const DROPDOWN_GAP = 8
+  const DROPDOWN_GAP = 35
   const DROPDOWN_MAX_H = 280
 
   useLayoutEffect(() => {
@@ -283,26 +291,13 @@ export default function ComposerSuggestions({
       mirror.style.transformOrigin = ''
     }
     const rect = caretRef.current.getBoundingClientRect()
-    const viewportHeight = window.innerHeight
-    const spaceBelow = viewportHeight - rect.bottom
-    const spaceAbove = rect.top
 
-    // Position below if there's enough space, otherwise above if there's more space there
-    const shouldShowAbove = spaceBelow < DROPDOWN_MAX_H && spaceAbove > spaceBelow
-
-    if (shouldShowAbove) {
-      setDropdownAtCaret({
-        left: rect.left,
-        top: rect.top - DROPDOWN_GAP,
-        placement: 'above',
-      })
-    } else {
-      setDropdownAtCaret({
-        left: rect.left,
-        top: rect.bottom + DROPDOWN_GAP,
-        placement: 'below',
-      })
-    }
+    // Always show below the caret
+    setDropdownAtCaret({
+      left: rect.left,
+      top: rect.bottom + DROPDOWN_GAP,
+      placement: 'below',
+    })
   }, [showMirror, value, triggerStartIndex, suggestions.length, loading])
 
   useEffect(() => {
@@ -322,26 +317,12 @@ export default function ComposerSuggestions({
       mirror.style.transformOrigin = ''
     }
     const rect = caretRef.current.getBoundingClientRect()
-    const viewportHeight = window.innerHeight
-    const spaceBelow = viewportHeight - rect.bottom
-    const spaceAbove = rect.top
 
-    // Position below if there's enough space, otherwise above if there's more space there
-    const shouldShowAbove = spaceBelow < DROPDOWN_MAX_H && spaceAbove > spaceBelow
-
-    if (shouldShowAbove) {
-      setDropdownAtCaret({
-        left: rect.left,
-        top: rect.top - DROPDOWN_GAP,
-        placement: 'above',
-      })
-    } else {
-      setDropdownAtCaret({
-        left: rect.left,
-        top: rect.bottom + DROPDOWN_GAP,
-        placement: 'below',
-      })
-    }
+    setDropdownAtCaret({
+      left: rect.left,
+      top: rect.bottom + DROPDOWN_GAP,
+      placement: 'below',
+    })
   }, [showMirror])
 
   useEffect(() => {
@@ -405,7 +386,6 @@ export default function ComposerSuggestions({
                     width: 'max(200px, min(320px, 90vw))',
                     maxHeight: DROPDOWN_MAX_H,
                     zIndex: 1350,
-                    transform: dropdownAtCaret.placement === 'above' ? 'translateY(-100%)' : undefined,
                   }
                 : undefined
             }

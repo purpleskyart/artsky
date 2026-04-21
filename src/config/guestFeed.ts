@@ -25,6 +25,9 @@ export const GUEST_FEED_ACCOUNTS = [
   { handle: 'saredd99.bsky.social', label: 'Saredd99' },
   { handle: 'kianamai.bsky.social', label: 'Kianamai' },
   { handle: 'anatofinnstark.bsky.social', label: 'Anatofinnstark' },
+  { handle: 'cardbordtoaster.bsky.social', label: 'Toaster' },
+  { handle: 'lacruzo.bsky.social', label: 'lacruzo' },
+  { handle: 'sarenstone.com', label: 'SAREN' },
 
 ] as const
 
