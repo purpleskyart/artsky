@@ -137,7 +137,7 @@ function PostCardInner({
   onRemovePostFromCollection,
   feedPreviewActionRow = false,
   openCollectionMenuSignal,
-  suppressHoverNsfwUnblur = false,
+  _suppressHoverNsfwUnblur = false,
 }: InnerProps) {
   /** Must stay > `TOUCH_DOUBLE_TAP_WINDOW_MS` so a second tap can cancel before we open. */
   const TOUCH_OPEN_DELAY_MS = 450

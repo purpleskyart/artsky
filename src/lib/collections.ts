@@ -44,7 +44,7 @@ interface PersistentCacheEntry<T> {
   timestamp: number
 }
 
-function loadPersistentCache<T>(key: string): Map<string, T> {
+function loadPersistentCache<T>(key: string): Map<string, PersistentCacheEntry<T>> {
   try {
     const raw = localStorage.getItem(key)
     if (!raw) return new Map()
@@ -55,7 +55,7 @@ function loadPersistentCache<T>(key: string): Map<string, T> {
   }
 }
 
-function savePersistentCache<T>(key: string, cache: Map<string, T>): void {
+function savePersistentCache<T>(key: string, cache: Map<string, PersistentCacheEntry<T>>): void {
   try {
     const entries = Array.from(cache.entries())
     localStorage.setItem(key, JSON.stringify(entries))
@@ -82,7 +82,7 @@ function setCachedWithTTL<T>(cache: Map<string, PersistentCacheEntry<T>>, key: s
 function initPersistentCaches(): void {
   // Load handle→DID cache
   const ownerDidPersistent = loadPersistentCache<string | null>(OWNER_DID_CACHE_KEY)
-  for (const [key, entry] of ownerDidPersistent) {
+  for (const [key] of ownerDidPersistent) {
     const cached = getCachedWithTTL(ownerDidPersistent, key, OWNER_DID_CACHE_TTL_MS)
     if (cached !== undefined && !ownerDidCache.has(key)) {
       ownerDidCache.set(key, cached)
@@ -91,7 +91,7 @@ function initPersistentCaches(): void {
 
   // Load slug→rkey cache
   const boardSegmentPersistent = loadPersistentCache<string | null>(BOARD_SEGMENT_CACHE_KEY)
-  for (const [key, entry] of boardSegmentPersistent) {
+  for (const [key] of boardSegmentPersistent) {
     const cached = getCachedWithTTL(boardSegmentPersistent, key, BOARD_SEGMENT_CACHE_TTL_MS)
     if (cached !== undefined && !boardSegmentRkeyCache.has(key)) {
       boardSegmentRkeyCache.set(key, cached)
@@ -363,7 +363,7 @@ async function findCollectionBySlug(did: string, slugLower: string): Promise<Col
 }
 
 /** Resolve URL segment: record rkey (getRecord) or stored `slug` (list + match). */
-async function resolveBoardSegmentToRkey(did: string, segment: string): Promise<string | null> {
+async function _resolveBoardSegmentToRkey(did: string, segment: string): Promise<string | null> {
   const seg = segment.trim()
   if (!seg) return null
   const cacheKey = `${did}::${seg.toLowerCase()}`
