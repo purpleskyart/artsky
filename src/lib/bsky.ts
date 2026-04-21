@@ -104,7 +104,7 @@ export function buildSessionFromStoredTokens(did: string): AtpSessionData | null
 type AccountsStore = { activeDid: string | null; sessions: Record<string, AtpSessionData> }
 type OAuthAccountsStore = { activeDid: string | null; dids: string[] }
 
-function getAccounts(): AccountsStore {
+export function getAccounts(): AccountsStore {
   try {
     const raw = localStorage.getItem(ACCOUNTS_KEY)
     if (!raw) return { activeDid: null, sessions: {} }
@@ -115,7 +115,7 @@ function getAccounts(): AccountsStore {
   }
 }
 
-function saveAccounts(accounts: AccountsStore) {
+export function saveAccounts(accounts: AccountsStore) {
   try {
     localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts))
   } catch {

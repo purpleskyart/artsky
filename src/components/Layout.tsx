@@ -21,6 +21,14 @@ import {
   updateSeenNotifications,
   getSavedFeedsFromPreferences,
   getFeedDisplayName,
+  getProfilesBatch,
+  getPersistedActiveDid,
+  resolveFeedUri,
+  addSavedFeed,
+  removeSavedFeedByUri,
+  getFeedShareUrl,
+  getFeedDisplayNamesBatch,
+  getSafeHandle,
 } from '../lib/bsky'
 import { signInWithOAuthRedirect } from '../lib/oauth'
 import { requestDeduplicator } from '../lib/RequestDeduplicator'
@@ -1758,7 +1766,7 @@ export default function Layout({ title, children, showNav }: Props) {
             const profile = accountProfiles[s.did]
             const profileHandle = profile?.handle
             const isValidProfileHandle = profileHandle && profileHandle !== 'handle.invalid' && !profileHandle.includes('.invalid') && !profileHandle.startsWith('did:')
-            const handle = isValidProfileHandle ? profileHandle : bsky.getSafeHandle(s)
+            const handle = isValidProfileHandle ? profileHandle : getSafeHandle(s)
             const isCurrent = currentAccountDid != null && s.did === currentAccountDid
             return (
               <button
@@ -1779,7 +1787,7 @@ export default function Layout({ title, children, showNav }: Props) {
                 {profile?.avatar ? (
                   <img src={profile.avatar} alt="" className={styles.accountMenuAvatar} loading="lazy" />
                 ) : (
-                  <span className={styles.accountMenuAvatarPlaceholder} aria-hidden>{(handle || bsky.getSafeHandle(s)).slice(0, 1).toUpperCase()}</span>
+                  <span className={styles.accountMenuAvatarPlaceholder} aria-hidden>{(handle || getSafeHandle(s)).slice(0, 1).toUpperCase()}</span>
                 )}
                 {isCurrent ? (
                   <span className={styles.menuAccountLabel}>
