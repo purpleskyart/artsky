@@ -2642,9 +2642,9 @@ export default function Layout({ title, children, showNav }: Props) {
                   </p>
                   <p className={styles.aboutIntro}>
                     Latest version: {(() => {
-                      const date = new Date(__GIT_COMMIT_DATE__);
-                      if (isNaN(date.getTime())) return 'Unknown';
-                      return `${date.toLocaleDateString()} ${date.toLocaleTimeString()}`;
+                      const buildTimestamp = import.meta.env.VITE_BUILD_TIMESTAMP || new Date().toISOString();
+                      const buildDate = new Date(buildTimestamp);
+                      return `${buildDate.toLocaleDateString()} ${buildDate.toLocaleTimeString()}`;
                     })()}
                   </p>
                   {(() => {

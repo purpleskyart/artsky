@@ -1,29 +1,17 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
-import { execSync } from 'child_process'
 
 // https://vite.dev/config/
 // GitHub project pages: main → /artsky/, dev → /artsky-dev/ (set VITE_BASE_PATH in CI)
 const isProd = process.env.NODE_ENV === 'production'
 const base = process.env.VITE_BASE_PATH ?? (isProd ? '/artsky/' : '/')
 
-// Get the last git commit date
-let gitCommitDate = 'Unknown'
-try {
-  const rawDate = execSync('git log -1 --format=%ci', { encoding: 'utf-8' }).trim()
-  // Convert git date format ("2026-04-18 21:17:40 -0400") to ISO 8601 format
-  // Replace space with T and add colon in timezone offset
-  gitCommitDate = rawDate.replace(' ', 'T').replace(/([+-]\d{2})(\d{2})$/, '$1:$2')
-} catch {
-  // Fallback if not in a git repo or git not available
-  gitCommitDate = new Date().toISOString()
-}
-
 export default defineConfig({
   base,
   define: {
-    __GIT_COMMIT_DATE__: JSON.stringify(gitCommitDate),
+    // Automatically inject build timestamp for version tracking
+    'import.meta.env.VITE_BUILD_TIMESTAMP': JSON.stringify(new Date().toISOString()),
   },
   server: {
     host: '0.0.0.0', // Listen on all interfaces (IPv4 and IPv6)
