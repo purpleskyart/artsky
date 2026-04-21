@@ -72,7 +72,7 @@ export function usePushNotifications(): UsePushNotificationsReturn {
 
   // Refs
   const isInitializing = useRef(false)
-  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const pollIntervalRef = useRef<number | null>(null)
   const lastNotificationTimeRef = useRef<string | null>(null)
 
   // Load saved preferences on mount
