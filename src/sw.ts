@@ -11,6 +11,10 @@ interface NotificationAction {
   icon?: string
 }
 
+interface ExtendedNotificationOptions extends NotificationOptions {
+  actions?: NotificationAction[]
+}
+
 interface SyncEvent extends Event {
   tag: string
   waitUntil(promise: Promise<void>): void
@@ -49,11 +53,6 @@ self.addEventListener('push', (event: PushEvent) => {
 
   try {
     const data: PushPayload = event.data.json()
-
-    // Extended notification options with actions support
-    interface ExtendedNotificationOptions extends NotificationOptions {
-      actions?: NotificationAction[]
-    }
 
     const notificationOptions: ExtendedNotificationOptions = {
       body: data.body,
@@ -149,6 +148,32 @@ self.addEventListener('message', (event) => {
         type: 'VERSION',
         version: '1.0.0', // Could be dynamic based on build
       })
+      break
+
+    case 'SHOW_NOTIFICATION':
+      // Show local notification from main thread (polling-based)
+      {
+        const { title, body, icon, data } = event.data
+        const notificationOptions: ExtendedNotificationOptions = {
+          body,
+          icon: icon ?? '/icon-192.png',
+          badge: '/icon-72.png',
+          tag: data?.url ?? 'default',
+          data,
+          actions: data?.type === 'mention' || data?.type === 'reply'
+            ? [
+                { action: 'open', title: 'View' },
+                { action: 'dismiss', title: 'Dismiss' },
+              ]
+            : data?.type === 'like' || data?.type === 'follow'
+              ? [
+                  { action: 'open', title: 'View Profile' },
+                  { action: 'dismiss', title: 'Dismiss' },
+                ]
+              : undefined,
+        }
+        void self.registration.showNotification(title, notificationOptions)
+      }
       break
 
     default:

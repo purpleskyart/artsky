@@ -1,19 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-
-// VAPID public key from your backend
-// This should be replaced with your actual VAPID public key
-const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY || ''
+import { getUnreadNotificationCount, getNotifications } from '../lib/bsky'
 
 export type NotificationType = 'mention' | 'reply' | 'like' | 'follow' | 'repost' | 'quote' | 'all'
-
-export interface PushSubscriptionData {
-  endpoint: string
-  expirationTime: number | null
-  keys: {
-    p256dh: string
-    auth: string
-  }
-}
 
 export interface NotificationPreferences {
   enabled: boolean
@@ -23,38 +11,49 @@ export interface NotificationPreferences {
     start: string // 24h format "22:00"
     end: string   // 24h format "08:00"
   }
+  // Polling interval in minutes (minimum 1)
+  pollInterval: number
 }
 
 interface UsePushNotificationsReturn {
   // State
   isSupported: boolean
   permission: NotificationPermission
-  subscription: PushSubscription | null
   preferences: NotificationPreferences
   isLoading: boolean
   error: string | null
+  unreadCount: number
+  lastCheckedAt: Date | null
 
   // Actions
   requestPermission: () => Promise<boolean>
-  subscribe: () => Promise<void>
-  unsubscribe: () => Promise<void>
+  enableNotifications: () => Promise<void>
+  disableNotifications: () => void
   updatePreferences: (prefs: Partial<NotificationPreferences>) => void
   dismissError: () => void
+  checkNow: () => Promise<void>
 }
 
 // Storage keys
 const STORAGE_KEY = 'artsky-push-prefs'
+const LAST_NOTIFICATION_KEY = 'artsky-last-notification-time'
 
 // Default preferences
 const defaultPreferences: NotificationPreferences = {
   enabled: false,
-  types: ['mention', 'reply'],
+  types: ['mention', 'reply', 'like', 'follow', 'repost', 'quote'],
   quietHours: {
     enabled: false,
     start: '22:00',
     end: '08:00',
   },
+  pollInterval: 2, // Check every 2 minutes
 }
+
+// Minimum poll interval in ms (1 minute)
+const MIN_POLL_INTERVAL = 60_000
+// Maximum poll interval in ms (10 minutes)
+const MAX_POLL_INTERVAL = 600_000
 
 export function usePushNotifications(): UsePushNotificationsReturn {
   // Feature detection
@@ -65,14 +64,16 @@ export function usePushNotifications(): UsePushNotificationsReturn {
 
   // State
   const [permission, setPermission] = useState<NotificationPermission>('default')
-  const [subscription, setSubscription] = useState<PushSubscription | null>(null)
   const [preferences, setPreferences] = useState<NotificationPreferences>(defaultPreferences)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [unreadCount, setUnreadCount] = useState(0)
+  const [lastCheckedAt, setLastCheckedAt] = useState<Date | null>(null)
 
-  // Refs to prevent duplicate operations
+  // Refs
   const isInitializing = useRef(false)
-  const serviceWorkerRef = useRef<ServiceWorkerRegistration | null>(null)
+  const pollIntervalRef = useRef<number | null>(null)
+  const lastNotificationTimeRef = useRef<string | null>(null)
 
   // Load saved preferences on mount
   useEffect(() => {
@@ -84,9 +85,18 @@ export function usePushNotifications(): UsePushNotificationsReturn {
         const parsed = JSON.parse(saved) as NotificationPreferences
         setPreferences(prev => ({ ...prev, ...parsed }))
       }
+      const lastNotif = localStorage.getItem(LAST_NOTIFICATION_KEY)
+      if (lastNotif) {
+        lastNotificationTimeRef.current = lastNotif
+      }
     } catch {
       // Ignore parse errors
     }
+    
+    // Check initial permission
+    setPermission(Notification.permission)
+    
+    isInitializing.current = true
   }, [isSupported])
 
   // Save preferences when they change
@@ -95,66 +105,67 @@ export function usePushNotifications(): UsePushNotificationsReturn {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(preferences))
   }, [preferences, isSupported])
 
-  // Initialize: check permission and existing subscription
+  // Save last notification time when it changes
   useEffect(() => {
-    if (!isSupported || isInitializing.current) return
+    if (lastNotificationTimeRef.current) {
+      localStorage.setItem(LAST_NOTIFICATION_KEY, lastNotificationTimeRef.current)
+    }
+  }, [lastCheckedAt])
 
-    isInitializing.current = true
-
-    const init = async () => {
-      try {
-        // Check notification permission
-        setPermission(Notification.permission)
-
-        // Wait for service worker to be ready
-        const registration = await navigator.serviceWorker.ready
-        serviceWorkerRef.current = registration
-
-        // Check for existing push subscription
-        const existingSub = await registration.pushManager.getSubscription()
-        setSubscription(existingSub)
-
-        // If we have a subscription but permissions changed, clean up
-        if (existingSub && Notification.permission !== 'granted') {
-          await existingSub.unsubscribe()
-          setSubscription(null)
-        }
-      } catch (err) {
-        console.error('[Push] Initialization error:', err)
+  // Poll for notifications when enabled
+  useEffect(() => {
+    if (!isSupported || !preferences.enabled || permission !== 'granted') {
+      // Clear any existing interval
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current)
+        pollIntervalRef.current = null
       }
+      return
     }
 
-    void init()
+    // Check immediately when enabled
+    void checkForNotifications()
 
-    // Listen for permission changes
-    const handlePermissionChange = () => {
-      setPermission(Notification.permission)
-      if (Notification.permission !== 'granted' && subscription) {
-        setSubscription(null)
-      }
-    }
-
-    // Unfortunately there's no standard event for permission changes
-    // We poll periodically when the tab becomes visible
-    const onVisibilityChange = () => {
+    // Set up polling interval
+    const intervalMs = Math.min(
+      Math.max(preferences.pollInterval * 60_000, MIN_POLL_INTERVAL),
+      MAX_POLL_INTERVAL
+    )
+    
+    pollIntervalRef.current = setInterval(() => {
       if (document.visibilityState === 'visible') {
-        handlePermissionChange()
+        void checkForNotifications()
       }
-    }
-
-    document.addEventListener('visibilitychange', onVisibilityChange)
+    }, intervalMs)
 
     return () => {
-      document.removeEventListener('visibilitychange', onVisibilityChange)
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current)
+        pollIntervalRef.current = null
+      }
     }
-  }, [isSupported, subscription])
+  }, [isSupported, preferences.enabled, preferences.pollInterval, permission])
+
+  // Listen for permission changes
+  useEffect(() => {
+    if (!isSupported) return
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        setPermission(Notification.permission)
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+  }, [isSupported])
 
   /**
    * Request notification permission
    */
   const requestPermission = useCallback(async (): Promise<boolean> => {
     if (!isSupported) {
-      setError('Push notifications are not supported on this device')
+      setError('Notifications are not supported on this device')
       return false
     }
 
@@ -174,16 +185,59 @@ export function usePushNotifications(): UsePushNotificationsReturn {
   }, [isSupported])
 
   /**
-   * Subscribe to push notifications
+   * Check for new notifications and show local notifications
    */
-  const subscribe = useCallback(async (): Promise<void> => {
-    if (!isSupported || !serviceWorkerRef.current) {
-      setError('Push notifications not available')
-      return
-    }
+  const checkForNotifications = useCallback(async (): Promise<void> => {
+    if (!isSupported || permission !== 'granted') return
 
-    if (!VAPID_PUBLIC_KEY) {
-      setError('VAPID key not configured')
+    try {
+      // Get unread count first (lightweight)
+      const count = await getUnreadNotificationCount()
+      setUnreadCount(count)
+      setLastCheckedAt(new Date())
+
+      if (count === 0) return
+
+      // Get recent notifications to check for new ones
+      const { notifications } = await getNotifications(10)
+      
+      const lastSeenTime = lastNotificationTimeRef.current
+      const newNotifications = lastSeenTime 
+        ? notifications.filter(n => new Date(n.indexedAt) > new Date(lastSeenTime))
+        : notifications.slice(0, 3) // Show up to 3 on first enable
+
+      if (newNotifications.length > 0) {
+        // Update last seen time
+        const latestTime = notifications[0]?.indexedAt
+        if (latestTime) {
+          lastNotificationTimeRef.current = latestTime
+        }
+
+        // Show notifications for enabled types
+        for (const notification of newNotifications) {
+          if (!preferences.types.includes(notification.reason as NotificationType) && 
+              !preferences.types.includes('all')) {
+            continue
+          }
+
+          // Check quiet hours
+          if (isInQuietHours(preferences)) continue
+
+          // Show the notification
+          showLocalNotification(notification)
+        }
+      }
+    } catch (err) {
+      console.error('[Notifications] Check error:', err)
+    }
+  }, [isSupported, permission, preferences])
+
+  /**
+   * Enable notifications (start polling)
+   */
+  const enableNotifications = useCallback(async (): Promise<void> => {
+    if (!isSupported) {
+      setError('Notifications are not supported on this device')
       return
     }
 
@@ -199,70 +253,27 @@ export function usePushNotifications(): UsePushNotificationsReturn {
     setError(null)
 
     try {
-      // Unsubscribe first if already subscribed
-      const existingSub = await serviceWorkerRef.current.pushManager.getSubscription()
-      if (existingSub) {
-        await existingSub.unsubscribe()
-      }
-
-      // Subscribe with VAPID key
-      const newSubscription = await serviceWorkerRef.current.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) as unknown as ArrayBuffer,
-      })
-
-      // Convert to JSON-serializable format
-      const subData = newSubscription.toJSON() as PushSubscriptionData
-
-      // Send to your backend
-      const success = await sendSubscriptionToBackend(subData, 'subscribe')
-
-      if (success) {
-        setSubscription(newSubscription)
-        setPreferences(prev => ({ ...prev, enabled: true }))
-      } else {
-        // Clean up if backend registration failed
-        await newSubscription.unsubscribe()
-        throw new Error('Failed to register with server')
-      }
+      setPreferences(prev => ({ ...prev, enabled: true }))
+      // Initial check
+      await checkForNotifications()
     } catch (err) {
-      console.error('[Push] Subscribe error:', err)
-      setError(err instanceof Error ? err.message : 'Failed to subscribe to notifications')
+      console.error('[Notifications] Enable error:', err)
+      setError(err instanceof Error ? err.message : 'Failed to enable notifications')
     } finally {
       setIsLoading(false)
     }
-  }, [isSupported, permission, requestPermission])
+  }, [isSupported, permission, requestPermission, checkForNotifications])
 
   /**
-   * Unsubscribe from push notifications
+   * Disable notifications (stop polling)
    */
-  const unsubscribe = useCallback(async (): Promise<void> => {
-    if (!subscription) return
-
-    setIsLoading(true)
-    setError(null)
-
-    try {
-      // Notify backend to remove subscription
-      const subData = subscription.toJSON() as PushSubscriptionData
-      await sendSubscriptionToBackend(subData, 'unsubscribe')
-
-      // Unsubscribe from push manager
-      const success = await subscription.unsubscribe()
-
-      if (success) {
-        setSubscription(null)
-        setPreferences(prev => ({ ...prev, enabled: false }))
-      } else {
-        throw new Error('Unsubscribe failed')
-      }
-    } catch (err) {
-      console.error('[Push] Unsubscribe error:', err)
-      setError(err instanceof Error ? err.message : 'Failed to unsubscribe')
-    } finally {
-      setIsLoading(false)
+  const disableNotifications = useCallback((): void => {
+    setPreferences(prev => ({ ...prev, enabled: false }))
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current)
+      pollIntervalRef.current = null
     }
-  }, [subscription])
+  }, [])
 
   /**
    * Update notification preferences
@@ -270,15 +281,13 @@ export function usePushNotifications(): UsePushNotificationsReturn {
   const updatePreferences = useCallback((prefs: Partial<NotificationPreferences>): void => {
     setPreferences(prev => {
       const updated = { ...prev, ...prefs }
-
-      // Send preference update to backend if enabled
-      if (updated.enabled && subscription) {
-        void sendPreferencesToBackend(updated)
+      // Clamp poll interval
+      if (updated.pollInterval !== undefined) {
+        updated.pollInterval = Math.max(1, Math.min(10, updated.pollInterval))
       }
-
       return updated
     })
-  }, [subscription])
+  }, [])
 
   /**
    * Dismiss error message
@@ -290,15 +299,17 @@ export function usePushNotifications(): UsePushNotificationsReturn {
   return {
     isSupported,
     permission,
-    subscription,
     preferences,
     isLoading,
     error,
+    unreadCount,
+    lastCheckedAt,
     requestPermission,
-    subscribe,
-    unsubscribe,
+    enableNotifications,
+    disableNotifications,
     updatePreferences,
     dismissError,
+    checkNow: checkForNotifications,
   }
 }
 
@@ -306,54 +317,95 @@ export function usePushNotifications(): UsePushNotificationsReturn {
 // Helpers
 // ============================================================================
 
-/**
- * Convert URL-safe base64 to Uint8Array
- */
-function urlBase64ToUint8Array(base64String: string): Uint8Array {
-  const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
-  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
-  const rawData = atob(base64)
-  return Uint8Array.from(rawData.split('').map(c => c.charCodeAt(0)))
+interface NotificationData {
+  uri: string
+  author: { handle?: string; did: string; avatar?: string; displayName?: string }
+  reason: string
+  reasonSubject?: string
+  isRead: boolean
+  indexedAt: string
+  replyPreview?: string
 }
 
 /**
- * Send subscription to backend
+ * Show a local notification for a Bluesky notification
  */
-async function sendSubscriptionToBackend(
-  subscription: PushSubscriptionData,
-  action: 'subscribe' | 'unsubscribe'
-): Promise<boolean> {
-  try {
-    const endpoint = import.meta.env.VITE_PUSH_API_ENDPOINT || '/api/push'
-    const response = await fetch(`${endpoint}/${action}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ subscription }),
-    })
+function showLocalNotification(notification: NotificationData): void {
+  const reasonText: Record<string, string> = {
+    mention: 'mentioned you',
+    reply: 'replied to you',
+    like: 'liked your post',
+    follow: 'followed you',
+    repost: 'reposted your post',
+    quote: 'quoted your post',
+  }
 
-    return response.ok
+  const title = notification.author.displayName || notification.author.handle || 'Bluesky'
+  const body = reasonText[notification.reason] || `interacted with you`
+  const extraText = notification.replyPreview ? `: "${notification.replyPreview}"` : ''
+
+  try {
+    // Use service worker to show notification if available
+    if (navigator.serviceWorker?.controller) {
+      navigator.serviceWorker.controller.postMessage({
+        type: 'SHOW_NOTIFICATION',
+        title,
+        body: body + extraText,
+        icon: notification.author.avatar || '/icon-192.png',
+        data: {
+          url: notification.reason === 'follow' 
+            ? `/profile/${notification.author.did}`
+            : notification.uri ? `/post/${notification.uri.split('/').pop()}`
+            : '/',
+          type: notification.reason,
+        }
+      })
+    } else {
+      // Fallback to direct notification
+      // eslint-disable-next-line no-new
+      new Notification(title, {
+        body: body + extraText,
+        icon: notification.author.avatar || '/icon-192.png',
+        tag: notification.uri,
+      })
+    }
   } catch (err) {
-    console.error('[Push] Backend error:', err)
-    return false
+    console.error('[Notifications] Failed to show notification:', err)
   }
 }
 
 /**
- * Send preferences to backend
+ * Check if currently in quiet hours
  */
-async function sendPreferencesToBackend(preferences: NotificationPreferences): Promise<void> {
-  try {
-    const endpoint = import.meta.env.VITE_PUSH_API_ENDPOINT || '/api/push'
-    await fetch(`${endpoint}/preferences`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ preferences }),
-    })
-  } catch (err) {
-    console.error('[Push] Failed to update preferences:', err)
+function isInQuietHours(preferences: NotificationPreferences): boolean {
+  if (!preferences.enabled || !preferences.quietHours.enabled) {
+    return false
+  }
+
+  const now = new Date()
+  const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+  const { start, end } = preferences.quietHours
+
+  return isTimeInRange(currentTime, start, end)
+}
+
+/**
+ * Check if a time falls within a range (handles overnight ranges)
+ */
+function isTimeInRange(time: string, start: string, end: string): boolean {
+  const [timeH, timeM] = time.split(':').map(Number)
+  const [startH, startM] = start.split(':').map(Number)
+  const [endH, endM] = end.split(':').map(Number)
+
+  const timeMinutes = timeH * 60 + timeM
+  const startMinutes = startH * 60 + startM
+  const endMinutes = endH * 60 + endM
+
+  if (startMinutes <= endMinutes) {
+    // Normal range (e.g., 08:00 to 22:00)
+    return timeMinutes >= startMinutes && timeMinutes <= endMinutes
+  } else {
+    // Overnight range (e.g., 22:00 to 08:00)
+    return timeMinutes >= startMinutes || timeMinutes <= endMinutes
   }
 }

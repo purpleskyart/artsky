@@ -153,7 +153,7 @@ function PostCardInner({
   const showFeedStyleActionRow = feedPreviewActionRow || !artOnly || minimalist
   const showArtOnlyCornerActions = artOnly && !minimalist && !feedPreviewActionRow
   const { mediaMode } = useMediaOnly()
-  const { openQuotesModal, openPostModal, isModalOpen } = useProfileModal()
+  const { openQuotesModal, openPostModal, openProfileModal, isModalOpen } = useProfileModal()
   const { getFollowOverride, setFollowOverride } = useFollowOverrides()
   const location = useLocation()
   const modalScrollRef = useModalScroll()
@@ -1539,7 +1539,14 @@ function PostCardInner({
                     tabIndex={0}
                     title={repostedByHandle ? `Reposted by @${repostedByHandle}` : 'Quote post'}
                     aria-label={repostedByHandle ? `Reposted by @${repostedByHandle}` : 'Quote post'}
-                    onClick={(e) => { e.stopPropagation(); handleCardClick(e); }}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      if (repostedByHandle) {
+                        openProfileModal(repostedByHandle)
+                      } else {
+                        handleCardClick(e)
+                      }
+                    }}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' || e.key === ' ') {
                         e.preventDefault()

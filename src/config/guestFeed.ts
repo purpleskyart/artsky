@@ -14,7 +14,6 @@ export const GUEST_FEED_ACCOUNTS = [
   { handle: 'discountvillain.bsky.social', label: 'Discount Villain' },
   { handle: 'xenonb.bsky.social', label: 'Xenonb' },
   { handle: 'asteroidill.bsky.social', label: 'Asteroidill' },
-  { handle: 'fabraz.bsky.social', label: 'Fabraz' },
   { handle: 'poiandkeely.bsky.social', label: 'Poi and Keely' },
   { handle: 'gaya20001026.bsky.social', label: 'Ga Ya' },
   { handle: 'bemmpo.bsky.social', label: 'Bemmpo' },

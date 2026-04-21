@@ -4,8 +4,7 @@
 declare const __GIT_COMMIT_DATE__: string
 
 interface ImportMetaEnv {
-  readonly VITE_VAPID_PUBLIC_KEY: string
-  readonly VITE_PUSH_API_ENDPOINT: string
+  // No environment variables needed for client-side notification polling
 }
 
 interface ImportMeta {
@@ -26,8 +25,15 @@ declare module 'virtual:pwa-register' {
 
 // Service Worker message types
 interface ServiceWorkerMessage {
-  type: 'NAVIGATE' | 'SKIP_WAITING' | 'GET_VERSION'
+  type: 'NAVIGATE' | 'SKIP_WAITING' | 'GET_VERSION' | 'SHOW_NOTIFICATION'
   url?: string
+  title?: string
+  body?: string
+  icon?: string
+  data?: {
+    url?: string
+    type?: string
+  }
 }
 
 interface ServiceWorkerResponse {

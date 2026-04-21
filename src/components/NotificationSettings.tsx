@@ -42,7 +42,7 @@ export function NotificationSettings(): React.ReactElement {
   // Handle main toggle
   const handleToggle = async () => {
     if (isEnabled) {
-      await disableNotifications()
+      disableNotifications()
     } else {
       await enableNotifications()
     }
