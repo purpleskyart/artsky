@@ -18,6 +18,8 @@ function ProfileLink({ handle, className, title, 'aria-label': ariaLabel, onClic
   const handleClick = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
+    e.nativeEvent.stopPropagation()
+    e.nativeEvent.stopImmediatePropagation()
     preloadProfileOpen(handle)
     preloadProfileFeed(handle)
     openProfileModal(handle)

@@ -105,7 +105,7 @@ export default function LayoutComposerForm({
         onChange={setCurrentSegmentText}
         onKeyDown={(e) => handleComposeKeyDown(e, composeFormRef.current)}
         placeholder="What's on your mind? Type @ for users or # for hashtags"
-        rows={4}
+        rows={6}
         maxLength={postMaxLength}
         disabled={composePosting}
         autoFocus={isDesktop}

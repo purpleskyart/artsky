@@ -310,8 +310,8 @@ export default function FeedPage() {
   /** Per-column card counts; empty columns keep a top sentinel — must not drive "short column" auto load-more. */
   const distributedColumnLengthsRef = useRef<number[]>([])
   const loadingMoreRef = useRef(false)
-  /** Cooldown after triggering load more so we don't fire again while sentinel stays in view (stops infinite load loop). */
-  const lastLoadMoreAtRef = useRef(0)
+  /** Per-column cooldown tracking so each column can trigger load independently (columns don't block each other). */
+  const lastLoadMoreByColumnRef = useRef<number[]>([])
   const { openPostModal, isModalOpen } = useProfileModal()
   const cardRefsRef = useRef<(HTMLDivElement | null)[]>([])
   /** Refs for focused media elements: [cardIndex][mediaIndex] for scroll-into-view on multi-image posts */
@@ -669,8 +669,8 @@ export default function FeedPage() {
   // Large rootMargin so we load before the user reaches the end. After each load we also schedule a
   // fallback check: if any column clearly ends above the viewport bottom (visible gap), trigger another
   // load once the cooldown expires — not when the user is already at the end (avoids infinite chaining).
-  /** Debounce between automatic load-more triggers (sentinel can stay visible on short columns). Keep low so reaching another column’s bottom doesn’t feel stuck for seconds after a recent load. */
-  const LOAD_MORE_COOLDOWN_MS = 900
+  /** Per-column debounce between automatic load-more triggers. Lowered to allow multiple columns to load in quick succession. */
+  const LOAD_MORE_COOLDOWN_MS = 450
   /** Start loading when sentinel is within this distance below the viewport (load before user reaches end). */
   const LOAD_MORE_ROOT_MARGIN_PX = 1200
   /** Min gap (px) between viewport bottom and a column sentinel to count as "short" (empty masonry below). Capped vs viewport so small phones still work. */
@@ -700,15 +700,35 @@ export default function FeedPage() {
       return false
     }
 
-    /** After cooldown, check for short columns and load more if needed. */
+    /** After cooldown, check for short columns and load more if needed. Uses per-column cooldowns. */
     const scheduleRetry = () => {
       clearTimeout(retryId)
-      const wait = Math.max(50, LOAD_MORE_COOLDOWN_MS - (Date.now() - lastLoadMoreAtRef.current) + 50)
+      // Find the shortest waiting time among all columns
+      const now = Date.now()
+      const minColCooldown = Math.min(
+        ...Array.from({ length: cols }, (_, i) => lastLoadMoreByColumnRef.current[i] ?? 0),
+        now // Include now as a fallback to avoid Math.min on empty array
+      )
+      const wait = Math.max(50, LOAD_MORE_COOLDOWN_MS - (now - minColCooldown) + 50)
       retryId = window.setTimeout(() => {
         if (loadingMoreRef.current) return
         if (anyColumnShort()) {
           loadingMoreRef.current = true
-          lastLoadMoreAtRef.current = Date.now()
+          // Update cooldown for the shortest column that triggered this
+          const shortColIdx = (() => {
+            const lengths = distributedColumnLengthsRef.current
+            const vh = window.innerHeight
+            const margin = Math.min(LOAD_MORE_SHORT_MARGIN_PX, Math.floor(vh * 0.4))
+            const threshold = vh - margin
+            for (let c = 0; c < cols; c++) {
+              if ((lengths[c] ?? 0) === 0) continue
+              const el = refs[c]
+              if (!el) continue
+              if (el.getBoundingClientRect().bottom < threshold) return c
+            }
+            return 0
+          })()
+          lastLoadMoreByColumnRef.current[shortColIdx] = Date.now()
           load(feedState.cursor)
         }
       }, wait)
@@ -716,15 +736,21 @@ export default function FeedPage() {
 
     const observer = new IntersectionObserver(
       (entries) => {
+        // Find which column triggered this intersection
         for (const e of entries) {
           if (!e.isIntersecting || loadingMoreRef.current) continue
-          if (Date.now() - lastLoadMoreAtRef.current < LOAD_MORE_COOLDOWN_MS) {
+          // Find the column index for this sentinel
+          const colIndex = refs.findIndex((ref) => ref === e.target)
+          const colCooldown = lastLoadMoreByColumnRef.current[colIndex] ?? 0
+          // Check both global and per-column cooldown to prevent infinite loops
+          if (Date.now() - colCooldown < LOAD_MORE_COOLDOWN_MS) {
             scheduleRetry()
             continue
           }
           loadingMoreRef.current = true
           const c = feedState.cursor
-          lastLoadMoreAtRef.current = Date.now()
+          // Update cooldown for this specific column
+          lastLoadMoreByColumnRef.current[colIndex] = Date.now()
           rafId = requestAnimationFrame(() => {
             rafId = 0
             load(c)
@@ -749,6 +775,15 @@ export default function FeedPage() {
       clearTimeout(retryId)
     }
   }, [feedState.cursor, load, cols])
+
+  // Keep per-column cooldown array in sync with column count
+  useEffect(() => {
+    const current = lastLoadMoreByColumnRef.current
+    if (current.length !== cols) {
+      // Preserve existing cooldowns, initialize new columns to 0
+      lastLoadMoreByColumnRef.current = Array.from({ length: cols }, (_, i) => current[i] ?? 0)
+    }
+  }, [cols])
 
   const { mediaMode } = useMediaOnly()
   const { nsfwPreference, unblurredUris, setUnblurred } = useModeration()
