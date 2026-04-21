@@ -103,6 +103,9 @@ export default function AppModal({
   const isMobile = useSyncExternalStore(subscribeMobile, getMobileSnapshot, () => false)
   const isStandalonePwa = useStandalonePwa()
   const [isRestoringScroll, setIsRestoringScroll] = useState(false)
+  const [isTouchScrolling, setIsTouchScrolling] = useState(false)
+  const touchStartYRef = useRef<number | null>(null)
+  const touchScrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pullRefresh = usePullToRefresh({
     scrollRef,
     touchTargetRef: scrollRef,
@@ -113,6 +116,39 @@ export default function AppModal({
   const [topBarSlotEl, setTopBarSlotEl] = useState<HTMLDivElement | null>(null)
   const [topBarRightSlotEl, setTopBarRightSlotEl] = useState<HTMLDivElement | null>(null)
   const { expanded, setExpanded } = useModalExpand()
+
+  /* Track touch scrolling to disable pointer events on scroll content - prevents hover/focus on posts under finger during scroll */
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (!isMobile) return
+    touchStartYRef.current = e.touches[0]?.clientY ?? null
+    // Clear any pending reset
+    if (touchScrollTimeoutRef.current) {
+      clearTimeout(touchScrollTimeoutRef.current)
+      touchScrollTimeoutRef.current = null
+    }
+  }, [isMobile])
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!isMobile || touchStartYRef.current == null) return
+    const currentY = e.touches[0]?.clientY ?? touchStartYRef.current
+    const deltaY = Math.abs(currentY - touchStartYRef.current)
+    // If moved more than 10px, consider it a scroll
+    if (deltaY > 10 && !isTouchScrolling) {
+      setIsTouchScrolling(true)
+    }
+    // Chain the pull refresh handler
+    pullRefresh.onTouchMove(e)
+  }, [isMobile, isTouchScrolling, pullRefresh.onTouchMove])
+
+  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
+    touchStartYRef.current = null
+    // Delay re-enabling pointer events to avoid click triggering on posts
+    touchScrollTimeoutRef.current = setTimeout(() => {
+      setIsTouchScrolling(false)
+    }, 50)
+    // Chain the pull refresh handler
+    pullRefresh.onTouchEnd(e)
+  }, [pullRefresh.onTouchEnd])
   const scrollLock = useScrollLock()
   const handleSwipeRight = useCallback(() => {
     if (canGoBack) onBack()
@@ -457,10 +493,13 @@ export default function AppModal({
               }}
               data-modal-scroll
               className={`${styles.scroll} ${transparentTopBar ? styles.scrollWithTransparentBar : ''} ${styles.scrollWithFloatingBack}`}
-              onTouchStart={pullRefresh.onTouchStart}
-              onTouchMove={pullRefresh.onTouchMove}
-              onTouchEnd={pullRefresh.onTouchEnd}
-              style={{ visibility: isRestoringScroll ? 'hidden' : 'visible' }}
+              onTouchStart={(e) => {
+                handleTouchStart(e)
+                pullRefresh.onTouchStart(e)
+              }}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleTouchEnd}
+              style={{ visibility: isRestoringScroll ? 'hidden' : 'visible', pointerEvents: isTouchScrolling ? 'none' : undefined }}
             >
               <ModalScrollProvider scrollElement={scrollElement}>
                 {children}

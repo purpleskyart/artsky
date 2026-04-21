@@ -2921,7 +2921,7 @@ button.logoLink {
   border: 1px solid var(--border);
   border-radius: var(--glass-radius-sm);
   resize: vertical;
-  min-height: 100px;
+  min-height: 160px;
   margin-bottom: 0.75rem;
 }
 

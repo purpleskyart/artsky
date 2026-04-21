@@ -88,10 +88,10 @@ html[data-theme="dark"] .cardSeen .textOnlyPreview::after {
   background: rgba(0, 0, 0, 0.24);
 }
 
-/* Hover: lift toward user (shadow + purple border on desktop) */
+/* Hover: lift toward user (no shadow, purple border on desktop only) */
 .card:hover {
   outline: none;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+  box-shadow: none;
   z-index: 10;
 }
 .card:hover::after {
@@ -107,7 +107,7 @@ html[data-theme="dark"] .cardSeen .textOnlyPreview::after {
   }
 }
 html[data-theme="dark"] .card:hover {
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+  box-shadow: none;
 }
 [data-view-mode="1"] .card:hover {
   box-shadow: none;
