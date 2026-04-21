@@ -174,7 +174,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           // Create an agent from the stored session data (with tokens if available)
           // Use AtpAgent for AtpSessionData compatibility
           try {
-            const agent = new AtpAgent({ service: 'https://bsky.social' })
+            // Use the stored PDS URL if available, otherwise default to bsky.social
+            const serviceUrl = (sessionToUse as any).pdsUrl || 'https://bsky.social'
+            const agent = new AtpAgent({ service: serviceUrl })
             // @ts-expect-error - AtpAgent has internal session property that can be set
             agent.session = sessionToUse
             bsky.setOAuthAgent(agent as unknown as Agent, { did: sessionToUse.did, signOut: async () => {} } as unknown as import('@atproto/oauth-client').OAuthSession)
@@ -243,7 +245,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
             // Fallback to mirrored session from localStorage - this is a valid session
             // Don't increment failure count here as localStorage session is legitimate
             try {
-              const agent = new AtpAgent({ service: 'https://bsky.social' })
+              // Use the stored PDS URL if available, otherwise default to bsky.social
+              const serviceUrl = (sessionToUse as any).pdsUrl || 'https://bsky.social'
+              const agent = new AtpAgent({ service: serviceUrl })
               // @ts-expect-error - AtpAgent has internal session property that can be set
               agent.session = sessionToUse
               bsky.setOAuthAgent(agent as unknown as Agent, { did: sessionToUse.did, signOut: async () => {} } as unknown as import('@atproto/oauth-client').OAuthSession)
