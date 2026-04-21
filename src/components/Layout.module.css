@@ -2765,23 +2765,23 @@ button.logoLink {
 /* Mobile: match post modal full-height behavior */
 @media (max-width: 767px) {
   .composeOverlayMobile {
-    /* Match post modal: full height, minimal padding for safe areas */
-    align-items: flex-start;
+    /* Compact: minimal padding, align to bottom for keyboard */
+    align-items: flex-end;
     justify-content: center;
     padding: 0;
     padding-left: env(safe-area-inset-left);
     padding-right: env(safe-area-inset-right);
     padding-bottom: env(safe-area-inset-bottom);
-    padding-top: env(safe-area-inset-top);
+    padding-top: 0.5rem;
   }
 
   .composeCard {
-    /* Match post modal paneExpanded: full height minus keyboard inset */
+    /* Compact: barely bigger than typing area */
     max-width: none;
-    max-height: calc(100% - var(--keyboard-inset, 0px));
-    height: 100%;
-    border-radius: 0;
-    padding: 0.25rem;
+    max-height: calc(100% - var(--keyboard-inset, 0px) - 2rem);
+    height: auto;
+    border-radius: var(--glass-radius);
+    padding: 0.75rem;
   }
 }
 
