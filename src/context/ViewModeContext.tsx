@@ -68,7 +68,7 @@ function ViewModeProviderInner({
 }) {
   const toast = useToast()
   const stored = getStored()
-  const defaultMode: ViewMode = !isGuest ? '2' : isDesktop ? 'a' : '2'
+  const defaultMode: ViewMode = isDesktop ? '3' : '2'
   const [viewMode, setViewModeState] = useState<ViewMode>(() => {
     const v = stored ?? defaultMode
     return v === '1' || v === '2' || v === '3' || v === 'a' ? v : defaultMode
