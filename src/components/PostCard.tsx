@@ -736,8 +736,11 @@ function PostCardInner({
     /* Skip navigation if click originated from a ProfileLink or button.
        Note: exclude the cardLink itself which has role="button" but is the container. */
     const clickTarget = e.target as HTMLElement
+    const profileLinkEl = clickTarget.closest('[data-profile-link="true"]')
+    const buttonEl = clickTarget.closest('button')
+    // For role="button", only block if it's not the cardLink itself
     const roleButtonEl = clickTarget.closest('[role="button"]')
-    if (clickTarget.closest('[data-profile-link="true"]') || clickTarget.closest('button') || (roleButtonEl && roleButtonEl !== e.currentTarget)) {
+    if (profileLinkEl || buttonEl || (roleButtonEl && roleButtonEl !== e.currentTarget && !roleButtonEl.classList.contains(styles.cardLink))) {
       e.preventDefault()
       e.stopPropagation()
       return
@@ -1213,12 +1216,18 @@ function PostCardInner({
           {(!hasMedia || mediaMode === 'text') ? (
             <div className={styles.textOnlyPreview}>
               {text ? (
-                <div className={styles.textOnlyPreviewText} onClick={(e) => { e.stopPropagation(); handleCardClick(e); }}>
+                <div className={styles.textOnlyPreviewText} onClick={(e) => {
+                  const clickTarget = e.target as HTMLElement
+                  if (clickTarget.closest('[data-profile-link="true"]')) {
+                    return
+                  }
+                  e.stopPropagation()
+                  openPost()
+                }}>
                   <PostText
                     text={text}
                     facets={(post.record as { facets?: unknown[] })?.facets}
                     maxLength={500}
-                    stopPropagation
                     interactive={true}
                   />
                 </div>
