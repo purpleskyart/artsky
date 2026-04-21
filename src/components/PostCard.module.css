@@ -669,14 +669,12 @@ html[data-theme="dark"] [data-view-mode="1"] .card:hover {
     width: 1.5rem;
     height: 1.5rem;
   }
-  /* 3-column and All Columns on mobile: compact avatar */
-  [data-view-mode="3"] .cardActionRowAvatar img,
-  [data-view-mode="a"] .cardActionRowAvatar img {
+  /* 3-column on mobile: compact avatar (All Columns uses default size) */
+  [data-view-mode="3"] .cardActionRowAvatar img {
     width: 1.1rem;
     height: 1.1rem;
   }
-  [data-view-mode="3"] .cardActionRowAvatar,
-  [data-view-mode="a"] .cardActionRowAvatar {
+  [data-view-mode="3"] .cardActionRowAvatar {
     width: 1.1rem;
     height: 1.1rem;
   }

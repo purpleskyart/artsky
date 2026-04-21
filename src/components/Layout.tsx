@@ -568,6 +568,7 @@ export default function Layout({ title, children, showNav }: Props) {
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false)
   const [composeOpen, setComposeOpen] = useState(false)
   const [composeOverlayBottom, setComposeOverlayBottom] = useState(0)
+  const [composeFieldFocused, setComposeFieldFocused] = useState(false)
   /** Mobile compose: once the real keyboard has shown, use actual inset; before that, reserve a typical gap so first paint matches post-focus layout. */
   const composeKeyboardUsedRef = useRef(false)
   /** Track when file picker is opening to prevent modal from jumping when keyboard hides */
@@ -2519,7 +2520,7 @@ export default function Layout({ title, children, showNav }: Props) {
                 aria-hidden
               />
               <div
-                className={`${styles.composeOverlay} ${!isDesktop ? styles.composeOverlayMobile : ''}`}
+                className={`${styles.composeOverlay} ${!isDesktop ? (composeFieldFocused ? styles.composeOverlayMobileFocused : styles.composeOverlayMobile) : ''}`}
                 role="dialog"
                 aria-label="New post"
                 onClick={(e) => { if (e.target === e.currentTarget) closeCompose() }}
@@ -2582,6 +2583,8 @@ export default function Layout({ title, children, showNav }: Props) {
                         onAddMediaClick={handleAddMediaClick}
                         onToggleSpoiler={toggleSpoiler}
                         onToggleMediaSensitive={toggleMediaSensitive}
+                        onFocus={() => setComposeFieldFocused(true)}
+                        onBlur={() => setComposeFieldFocused(false)}
                       />
                     </Suspense>
                   )}

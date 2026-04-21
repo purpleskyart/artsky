@@ -33,6 +33,10 @@ export interface LayoutComposerFormProps {
   onToggleSpoiler?: () => void
   /** Toggle media sensitive flag for images */
   onToggleMediaSensitive?: () => void
+  /** Callback when the compose textarea is focused */
+  onFocus?: () => void
+  /** Callback when the compose textarea is blurred */
+  onBlur?: () => void
 }
 
 export default function LayoutComposerForm({
@@ -58,6 +62,8 @@ export default function LayoutComposerForm({
   onAddMediaClick,
   onToggleSpoiler,
   onToggleMediaSensitive,
+  onFocus,
+  onBlur,
 }: LayoutComposerFormProps) {
   return (
     <form id="compose-form" ref={composeFormRef} onSubmit={handleComposeSubmit}>
@@ -109,6 +115,8 @@ export default function LayoutComposerForm({
         maxLength={postMaxLength}
         disabled={composePosting}
         autoFocus={isDesktop}
+        onFocus={onFocus}
+        onBlur={onBlur}
       />
       {currentSegment.images.length > 0 && (
         <div className={styles.composeMediaSection}>
