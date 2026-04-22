@@ -748,7 +748,6 @@ function PostCardInner({
 
   const setCardRef = useCallback(
     (el: HTMLDivElement | null) => {
-      setCardRootEl(el)
       ;(cardRef as React.MutableRefObject<HTMLDivElement | null>).current = el
       if (cardRefProp) {
         if (typeof cardRefProp === 'function') cardRefProp(el)
