@@ -89,10 +89,7 @@
   margin-bottom: 0.75rem;
 }
 
-/* Nested replies: fixed step per level (avoids stacking depth×12px margins on each ancestor). */
-.threadedCommentArticle[data-thread-depth]:not([data-thread-depth='0']) {
-  margin-left: 6px;
-}
+/* Nested replies: depth-based indentation is handled via inline style in PostDetailPage.tsx */
 
 /* Comments: darkened area under each comment (no border) */
 .postBlock:not(.rootPostBlock) {

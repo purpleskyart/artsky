@@ -482,7 +482,9 @@ async function fetchGuestAuthorBatch(
   actors: string[],
   perHandle: number,
 ): Promise<{ data: { feed: TimelineItem[] } }[]> {
-  return Promise.all(
+  // Fetch all authors in parallel - no artificial delays needed
+  // Bluesky's public API handles concurrent requests efficiently
+  const results = await Promise.all(
     actors.map((actor) => {
       const cacheKey = `guest:${actor}:${perHandle}`
       const cached = responseCache.get<{ data: { feed: TimelineItem[] } }>(cacheKey)
@@ -496,56 +498,52 @@ async function fetchGuestAuthorBatch(
         .catch(() => ({ data: { feed: [] } }))
     }),
   )
+
+  return results
 }
 
 /**
  * Fetch and merge author feeds for guest (no login). Uses public API so it works when logged out.
- * cursor = offset as string.
- * First page (offset 0): fetch half the handles first; if the merged pool is enough, skip the rest so
- * we are not blocked by the slowest of many parallel requests. Deeper pages use one parallel batch.
+ * cursor = page number as string (which author group to fetch).
+ * To avoid rate limits (60 req/min), we progressively fetch from more authors per page:
+ * - Page 0: fetch from first 3 authors, return up to 20 posts
+ * - Page 1: fetch from next 3 authors, return up to 20 posts
+ * - Page 2+: fetch from remaining authors, return up to 20 posts
+ * Each page returns posts from a different set of authors. The FeedPage will append them.
+ * This keeps initial load very fast and under rate limit, while allowing pagination to discover more content.
  */
 export async function getGuestFeed(
   limit: number,
   cursor?: string,
 ): Promise<{ feed: TimelineItem[]; cursor: string | undefined }> {
-  const offset = cursor ? parseInt(cursor, 10) || 0 : 0
-  const need = offset + limit
+  const pageNumber = cursor ? parseInt(cursor, 10) || 0 : 0
   const handles = GUEST_FEED_HANDLES
+  const AUTHORS_PER_PAGE = 3
+  const POSTS_PER_PAGE = Math.min(limit, 20) // Cap at 20 posts per page for faster loads
+
+  // Determine which authors to fetch based on page number
+  const authorStartIndex = pageNumber * AUTHORS_PER_PAGE
+  const authorEndIndex = Math.min(authorStartIndex + AUTHORS_PER_PAGE, handles.length)
+  const authorsToFetch = handles.slice(authorStartIndex, authorEndIndex)
 
   let deduped: TimelineItem[]
 
-  if (offset === 0 && handles.length >= 4) {
-    const mid = Math.ceil(handles.length / 2)
-    const wave1Handles = handles.slice(0, mid)
-    const wave2Handles = handles.slice(mid)
-
-    const per1 = Math.ceil(need / wave1Handles.length)
-    const r1 = await fetchGuestAuthorBatch(wave1Handles, per1)
-    const pool1 = mergeDedupeSortGuestItems(
-      r1.map((res) => (res.data.feed || []) as TimelineItem[]),
-    )
-
-    if (pool1.length >= need || wave2Handles.length === 0) {
-      deduped = pool1
-    } else {
-      const per2 = Math.ceil(need / wave2Handles.length)
-      const r2 = await fetchGuestAuthorBatch(wave2Handles, per2)
-      deduped = mergeDedupeSortGuestItems([
-        ...r1.map((res) => (res.data.feed || []) as TimelineItem[]),
-        ...r2.map((res) => (res.data.feed || []) as TimelineItem[]),
-      ])
-    }
-  } else {
-    const perHandle = Math.ceil(need / handles.length)
-    const results = await fetchGuestAuthorBatch(handles, perHandle)
+  if (authorsToFetch.length > 0) {
+    const perHandle = Math.ceil(POSTS_PER_PAGE / authorsToFetch.length)
+    const results = await fetchGuestAuthorBatch(authorsToFetch, perHandle)
     deduped = mergeDedupeSortGuestItems(
       results.map((res) => (res.data.feed || []) as TimelineItem[]),
     )
+  } else {
+    // No more authors to fetch
+    deduped = []
   }
 
-  const feed = deduped.slice(offset, offset + limit)
-  /* Full page ⇒ allow another request with a larger perHandle (we only ever fetch the head of each author feed). Using deduped.length >= offset + limit was wrong: it suppressed pagination whenever the merged pool was short of offset+limit even though the next fetch could grow the pool. */
-  const nextCursor = feed.length === limit ? String(offset + limit) : undefined
+  const feed = deduped.slice(0, POSTS_PER_PAGE)
+
+  /* Allow pagination if there are more authors to fetch, regardless of whether current page has posts.
+   * This ensures we check all authors even if earlier ones have no posts. */
+  const nextCursor = authorEndIndex < handles.length ? String(pageNumber + 1) : undefined
   return { feed, cursor: nextCursor }
 }
 

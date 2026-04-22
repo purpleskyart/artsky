@@ -66,7 +66,7 @@ export default function LayoutComposerForm({
   onBlur,
 }: LayoutComposerFormProps) {
   return (
-    <form id="compose-form" ref={composeFormRef} onSubmit={handleComposeSubmit} onClick={(e) => e.stopPropagation()}>
+    <form id="compose-form" ref={composeFormRef} onSubmit={handleComposeSubmit} onClick={(e) => e.stopPropagation()} onTouchStart={(e) => e.stopPropagation()} onTouchEnd={(e) => e.stopPropagation()}>
       {composeSegments.length > 1 && (
         <div className={styles.composePreviousPosts} role="region" aria-label="Posts in thread">
           <p className={styles.composePreviousPostsTitle}>Posts in thread — click to edit</p>

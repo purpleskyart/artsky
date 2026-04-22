@@ -16,6 +16,7 @@ interface Props {
   loop?: boolean
   /** When true, start with controls hidden; first tap on video shows native controls (for mobile post detail). */
   controlsHiddenUntilTap?: boolean
+  style?: React.CSSProperties
 }
 
 export default function VideoWithHls({
@@ -28,6 +29,7 @@ export default function VideoWithHls({
   autoPlay = false,
   loop = false,
   controlsHiddenUntilTap = false,
+  style,
 }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const [showControls, setShowControls] = useState(!controlsHiddenUntilTap)
@@ -89,6 +91,7 @@ export default function VideoWithHls({
     <video
       ref={videoRef}
       className={className}
+      style={style}
       data-controls-hidden={controlsHiddenUntilTap && !showControls ? true : undefined}
       poster={poster}
       controls={effectiveControls}

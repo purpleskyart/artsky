@@ -1237,6 +1237,7 @@ export default function ProfileContent({
                   <div key={`${item.post.uri}-${index}`}>
                     <PostCard
                       item={item}
+                      fillCell={false}
                       onPostClick={(uri, opts) => {
                         if (opts?.initialItem) setInitialPostForUri(uri, opts.initialItem)
                         openPostModal(uri, opts?.openReply, undefined, item.post.author?.handle)
@@ -1256,6 +1257,23 @@ export default function ProfileContent({
               </div>
               {cursor && <div ref={loadMoreSentinelRef} className={styles.loadMoreSentinel} aria-hidden />}
               {loadingMore && <div className={styles.loadingMore}>Loading…</div>}
+              {cursor && !loadingMore && (
+                <div style={{ display: 'flex', justifyContent: 'center', padding: '1rem 0' }}>
+                  <button
+                    type="button"
+                    className={styles.loadMoreBtn}
+                    onClick={() => {
+                      if (loadMoreCursor && !loadingMore) {
+                        loadingMoreRef.current = true
+                        loadMore(loadMoreCursor)
+                      }
+                    }}
+                    disabled={loadingMore}
+                  >
+                    Load more
+                  </button>
+                </div>
+              )}
             </>
             )
           ) : tab === 'feeds' ? (
@@ -1353,6 +1371,23 @@ export default function ProfileContent({
               ))}
             </div>
             {loadingMore && <div className={styles.loadingMore}>Loading…</div>}
+            {loadMoreCursor && !loadingMore && (
+              <div style={{ display: 'flex', justifyContent: 'center', padding: '1rem 0' }}>
+                <button
+                  type="button"
+                  className={styles.loadMoreBtn}
+                  onClick={() => {
+                    if (loadMoreCursor && !loadingMore) {
+                      loadingMoreRef.current = true
+                      loadMore(loadMoreCursor)
+                    }
+                  }}
+                  disabled={loadingMore}
+                >
+                  Load more
+                </button>
+              </div>
+            )}
           </>
         )}
         </div>

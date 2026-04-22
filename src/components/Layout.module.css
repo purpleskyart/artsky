@@ -224,6 +224,18 @@
     width: 28px;
     height: 28px;
   }
+  .headerAccountNavBtn .headerAccountIcon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    color: var(--text);
+  }
+  .headerAccountNavBtn .headerAccountIcon svg {
+    width: 24px;
+    height: 24px;
+  }
   .headerAccountNavBtn .navLabel {
     white-space: nowrap;
   }
@@ -640,6 +652,14 @@
   .headerAccountNavBtn .headerAccountAvatar {
     width: 24px;
     height: 24px;
+  }
+  .headerAccountNavBtn .headerAccountIcon {
+    width: 24px;
+    height: 24px;
+  }
+  .headerAccountNavBtn .headerAccountIcon svg {
+    width: 20px;
+    height: 20px;
   }
   .header .headerRight {
     gap: 0.2rem;
@@ -2346,6 +2366,20 @@ button.logoLink {
   -webkit-touch-callout: none;
   user-select: none;
   pointer-events: none;
+}
+
+.navProfileIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  color: var(--text);
+}
+
+.navProfileIcon svg {
+  width: 22px;
+  height: 22px;
 }
 
 /* Mobile: account menu popup above the profile button (like desktop dropdown).

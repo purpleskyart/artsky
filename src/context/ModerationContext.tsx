@@ -1,5 +1,6 @@
-import { createContext, useCallback, useContext, useEffect, useState } from 'react'
+import { createContext, useCallback, useContext, useState } from 'react'
 import { useToast } from './ToastContext'
+import { asyncStorage } from '../lib/AsyncStorage'
 
 const STORAGE_KEY = 'artsky-moderation-nsfw'
 
@@ -22,8 +23,8 @@ const ModerationContext = createContext<ModerationContextValue | null>(null)
 
 function getStored(): NsfwPreference {
   try {
-    const v = localStorage.getItem(STORAGE_KEY)
-    if (v === 'nsfw' || v === 'sfw' || v === 'blurred') return v
+    const v = asyncStorage.get<string>(STORAGE_KEY)
+    if (v === 'nsfw' || v === 'sfw' || v === 'blurred') return v as NsfwPreference
   } catch {
     // ignore
   }
@@ -35,16 +36,9 @@ export function ModerationProvider({ children }: { children: React.ReactNode }) 
   const [nsfwPreference, setNsfwPreferenceState] = useState<NsfwPreference>(getStored)
   const [unblurredUris, setUnblurredUris] = useState<Set<string>>(() => new Set())
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, nsfwPreference)
-    } catch {
-      // ignore
-    }
-  }, [nsfwPreference])
-
   const setNsfwPreference = useCallback((p: NsfwPreference, _anchor?: HTMLElement, options?: { showToast?: boolean }) => {
     setNsfwPreferenceState(p)
+    asyncStorage.set(STORAGE_KEY, p, 0)
     if (options?.showToast !== false) toast?.showToast(NSFW_LABELS[p])
   }, [toast])
 
@@ -52,6 +46,7 @@ export function ModerationProvider({ children }: { children: React.ReactNode }) 
     setNsfwPreferenceState((prev) => {
       const i = NSFW_CYCLE.indexOf(prev)
       const next = NSFW_CYCLE[(i + 1) % NSFW_CYCLE.length]
+      asyncStorage.set(STORAGE_KEY, next, 0)
       if (options?.showToast !== false) toast?.showToast(NSFW_LABELS[next])
       return next
     })

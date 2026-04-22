@@ -1,7 +1,8 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
+import { createContext, useCallback, useContext, useRef, useState } from 'react'
 import { getSession } from '../lib/bsky'
 import { useToast } from './ToastContext'
 import { useSession } from './SessionContext'
+import { asyncStorage } from '../lib/AsyncStorage'
 
 export type CardViewMode = 'default' | 'artOnly' | 'minimalist'
 
@@ -13,8 +14,8 @@ function cardViewKeyForDid(did: string): string {
   return `artsky-card-view:${did}`
 }
 
-function parseStoredMode(v: string | null): CardViewMode | null {
-  if (v === 'artOnly' || v === 'minimalist' || v === 'default') return v
+function parseStoredMode(v: unknown): CardViewMode | null {
+  if (v === 'artOnly' || v === 'minimalist' || v === 'default') return v as CardViewMode
   if (v === '1' || v === 'true') return 'artOnly'
   return null
 }
@@ -26,16 +27,16 @@ function parseStoredMode(v: string | null): CardViewMode | null {
 export function loadModeForDid(did: string | null): CardViewMode {
   try {
     if (!did) {
-      const g = parseStoredMode(localStorage.getItem(GUEST_STORAGE_KEY))
+      const g = parseStoredMode(asyncStorage.get(GUEST_STORAGE_KEY))
       return g ?? 'default'
     }
-    const per = parseStoredMode(localStorage.getItem(cardViewKeyForDid(did)))
+    const per = parseStoredMode(asyncStorage.get(cardViewKeyForDid(did)))
     if (per !== null) return per
-    const legacy = localStorage.getItem(LEGACY_STORAGE_KEY)
+    const legacy = asyncStorage.get(LEGACY_STORAGE_KEY)
     const legacyParsed = parseStoredMode(legacy)
     if (legacyParsed !== null) {
-      localStorage.setItem(cardViewKeyForDid(did), legacyParsed)
-      localStorage.removeItem(LEGACY_STORAGE_KEY)
+      asyncStorage.set(cardViewKeyForDid(did), legacyParsed, 0)
+      asyncStorage.remove(LEGACY_STORAGE_KEY)
       return legacyParsed
     }
     return 'default'
@@ -47,9 +48,9 @@ export function loadModeForDid(did: string | null): CardViewMode {
 function persistMode(did: string | null, mode: CardViewMode) {
   try {
     if (!did) {
-      localStorage.setItem(GUEST_STORAGE_KEY, mode)
+      asyncStorage.set(GUEST_STORAGE_KEY, mode, 0)
     } else {
-      localStorage.setItem(cardViewKeyForDid(did), mode)
+      asyncStorage.set(cardViewKeyForDid(did), mode, 0)
     }
   } catch {
     // ignore
@@ -81,32 +82,27 @@ export function ArtOnlyProvider({ children }: { children: React.ReactNode }) {
   const { session } = useSession()
   const did = session?.did ?? null
   const [cardViewMode, setCardViewModeState] = useState<CardViewMode>(() => loadModeForDid(getSession()?.did ?? null))
-  const prevDidRef = useRef<string | null | undefined>(undefined)
+  const prevDidRef = useRef<string | null>(did)
 
-  useEffect(() => {
-    if (prevDidRef.current === undefined) {
-      prevDidRef.current = did
-      return
-    }
-    if (prevDidRef.current !== did) {
-      prevDidRef.current = did
-      setCardViewModeState(loadModeForDid(did))
-      return
-    }
-    persistMode(did, cardViewMode)
-  }, [did, cardViewMode])
+  // Update mode when switching accounts
+  if (prevDidRef.current !== did) {
+    prevDidRef.current = did
+    setCardViewModeState(loadModeForDid(did))
+  }
 
   const setCardViewMode = useCallback((value: CardViewMode) => {
     setCardViewModeState(value)
-  }, [])
+    persistMode(did, value)
+  }, [did])
 
   const cycleCardView = useCallback((_anchor?: HTMLElement, options?: { showToast?: boolean }) => {
     setCardViewModeState((m) => {
       const next = m === 'default' ? 'minimalist' : m === 'minimalist' ? 'artOnly' : 'default'
       if (options?.showToast !== false) toast?.showToast(CARD_VIEW_LABELS[next])
+      persistMode(did, next)
       return next
     })
-  }, [toast])
+  }, [did, toast])
 
   const artOnly = cardViewMode !== 'default'
   const minimalist = cardViewMode === 'minimalist'
