@@ -679,15 +679,15 @@ function profileResponseCacheKey(actor: string, usePublic: boolean): string {
 export async function getProfileCached(
   actor: string,
   usePublic = false
-): Promise<{ handle?: string; displayName?: string; avatar?: string; did?: string; createdAt?: string; indexedAt?: string }> {
+): Promise<{ handle?: string; displayName?: string; avatar?: string; did?: string; createdAt?: string; indexedAt?: string; viewer?: { following?: string; blocking?: string; followedBy?: boolean } }> {
   const cacheKey = profileResponseCacheKey(actor, usePublic)
   const client = usePublic ? publicAgent : (getSession() ? agent : publicAgent)
 
   // Try to get from cache with revalidation support
-  const cached = responseCache.get<{ handle?: string; displayName?: string; avatar?: string; did?: string; createdAt?: string; indexedAt?: string }>(
+  const cached = responseCache.get<{ handle?: string; displayName?: string; avatar?: string; did?: string; createdAt?: string; indexedAt?: string; viewer?: { following?: string; blocking?: string; followedBy?: boolean } }>(
     cacheKey,
     () => client.getProfile({ actor }).then((p) => {
-      const data = p.data as { handle?: string; displayName?: string; avatar?: string; did?: string; createdAt?: string; indexedAt?: string }
+      const data = p.data as { handle?: string; displayName?: string; avatar?: string; did?: string; createdAt?: string; indexedAt?: string; viewer?: { following?: string; blocking?: string; followedBy?: boolean } }
       return data
     })
   )
@@ -698,12 +698,12 @@ export async function getProfileCached(
   const dedupeKey = `getProfileCached:${cacheKey}`
   return requestDeduplicator.dedupe(dedupeKey, async () => {
     // Double-check cache after getting the dedupe lock (another request may have filled it)
-    const doubleCheck = responseCache.get<{ handle?: string; displayName?: string; avatar?: string; did?: string; createdAt?: string; indexedAt?: string }>(cacheKey)
+    const doubleCheck = responseCache.get<{ handle?: string; displayName?: string; avatar?: string; did?: string; createdAt?: string; indexedAt?: string; viewer?: { following?: string; blocking?: string; followedBy?: boolean } }>(cacheKey)
     if (doubleCheck) return doubleCheck
 
     // Fetch and cache with 10 min TTL + 5 min stale-while-revalidate
     const profile = await client.getProfile({ actor })
-    const data = profile.data as { handle?: string; displayName?: string; avatar?: string; did?: string; createdAt?: string; indexedAt?: string }
+    const data = profile.data as { handle?: string; displayName?: string; avatar?: string; did?: string; createdAt?: string; indexedAt?: string; viewer?: { following?: string; blocking?: string; followedBy?: boolean } }
     responseCache.set(cacheKey, data, 600_000, 300_000)
     return data
   })

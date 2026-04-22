@@ -842,7 +842,7 @@ function PostCardInner({
     if (mediaClickFromTouchRef.current) return
     // When displaying quoted media (outer post has no media), clicking should open the quote post in modal context, quoting post on feed
     const openTargetPost = isDisplayingQuotedMedia
-      ? (hasPathOverlayStack(location) ? openQuotedPost : openPost)
+      ? (isModalOpen ? openQuotedPost : openPost)
       : openPost
     // Mouse users expect immediate open. Keep double-tap-like behavior touch-only.
     if (e.nativeEvent.detail <= 1) {

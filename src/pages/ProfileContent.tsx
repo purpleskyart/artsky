@@ -182,7 +182,7 @@ type ProfileState = {
   avatar?: string
   description?: string
   did: string
-  viewer?: { following?: string; blocking?: string }
+  viewer?: { following?: string; blocking?: string; followedBy?: boolean }
   verification?: { verifiedStatus?: string }
   createdAt?: string
   indexedAt?: string
@@ -277,7 +277,7 @@ export default function ProfileContent({
     getProfileCached(handle, !session)
       .then((data) => {
         if (cancelled || gen !== profileFetchGenRef.current) return
-        const profileData = data as { did?: string; displayName?: string; avatar?: string; description?: string; viewer?: { following?: string; blocking?: string }; verification?: { verifiedStatus?: string }; createdAt?: string; indexedAt?: string }
+        const profileData = data as { did?: string; displayName?: string; avatar?: string; description?: string; viewer?: { following?: string; blocking?: string; followedBy?: boolean }; verification?: { verifiedStatus?: string }; createdAt?: string; indexedAt?: string }
         if (!profileData.did) return
         setProfile({
           displayName: profileData.displayName,
@@ -968,6 +968,9 @@ export default function ProfileContent({
                   <p className={styles.handle}>
                     @{handle}
                   </p>
+                )}
+                {profile?.viewer?.followedBy && !isOwnProfile && (
+                  <span className={styles.followsYouBadge}>Follows you</span>
                 )}
                 {isOwnProfile && (
                   <>
