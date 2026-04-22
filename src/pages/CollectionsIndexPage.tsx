@@ -94,7 +94,7 @@ function LazyPreviewStrip({
           <div key={i} className={styles.previewCell}>
             {isVideo ? (
               <VideoWithHls
-                playlistUrl={media.videoPlaylist}
+                playlistUrl={media.videoPlaylist || ''}
                 poster={src || undefined}
                 className={styles.previewImg}
                 loop

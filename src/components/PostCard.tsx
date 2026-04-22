@@ -227,7 +227,6 @@ function PostCardInner({
   const cardRef = useRef<HTMLDivElement>(null)
   const [cardRootEl, setCardRootEl] = useState<HTMLDivElement | null>(null)
   const modalScrollContainer = modalScrollRef
-  const isCardNearViewport = useOffscreenOptimization(cardRootEl, { rootMargin: '400px 0px 400px 0px', root: modalScrollContainer })
   const prevSelectedRef = useRef(isSelected)
   const lastTapRef = useRef(0)
   const lastMediaClickRef = useRef(0)
@@ -1120,7 +1119,7 @@ function PostCardInner({
           ) : isVideo ? (
             <div className={styles.mediaVideoWrap}>
               <VideoWithHls
-                playlistUrl={media!.videoPlaylist}
+                playlistUrl={media!.videoPlaylist || ''}
                 poster={media!.url || undefined}
                 className={styles.media}
                 loop

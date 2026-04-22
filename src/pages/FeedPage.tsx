@@ -77,8 +77,6 @@ const PRESET_SOURCES: FeedSource[] = [
   { kind: 'custom', label: "What's Hot", uri: 'at://did:plc:z72i7hdynmk6r22z27h6tvur/app.bsky.feed.generator/whats-hot' },
 ]
 
-/** Nominal column width for height estimation (px). */
-const ESTIMATE_COL_WIDTH = 280
 const CARD_CHROME = 100
 
 const REASON_REPOST = 'app.bsky.feed.defs#reasonRepost'
