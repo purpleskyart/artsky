@@ -692,9 +692,13 @@ export default function FeedPage() {
       const margin = Math.min(LOAD_MORE_SHORT_MARGIN_PX, Math.floor(vh * 0.4))
       const threshold = vh - margin
       for (let c = 0; c < cols; c++) {
-        if ((lengths[c] ?? 0) === 0) continue
         const el = refs[c]
         if (!el) continue
+        // Empty columns should also trigger load more (e.g., after hiding seen posts)
+        if ((lengths[c] ?? 0) === 0) {
+          if (el.getBoundingClientRect().bottom < threshold) return true
+          continue
+        }
         if (el.getBoundingClientRect().bottom < threshold) return true
       }
       return false
@@ -716,14 +720,13 @@ export default function FeedPage() {
           loadingMoreRef.current = true
           // Update cooldown for the shortest column that triggered this
           const shortColIdx = (() => {
-            const lengths = distributedColumnLengthsRef.current
             const vh = window.innerHeight
             const margin = Math.min(LOAD_MORE_SHORT_MARGIN_PX, Math.floor(vh * 0.4))
             const threshold = vh - margin
             for (let c = 0; c < cols; c++) {
-              if ((lengths[c] ?? 0) === 0) continue
               const el = refs[c]
               if (!el) continue
+              // Empty columns should also trigger load more (e.g., after hiding seen posts)
               if (el.getBoundingClientRect().bottom < threshold) return c
             }
             return 0

@@ -133,22 +133,43 @@ export function CollectionDetailContent({ uri: decodedUri }: CollectionDetailCon
       if (col.items.length > 0) {
         setLoadingPosts(true)
         const chunkSize = 25 // Match API batch size
-        const loadedItems: TimelineItem[] = []
+        const chunks: string[][] = []
 
+        // Prepare all chunks
         for (let i = 0; i < col.items.length; i += chunkSize) {
-          const chunk = col.items.slice(i, i + chunkSize)
+          chunks.push(col.items.slice(i, i + chunkSize))
+        }
+
+        // Track loaded items by chunk index to maintain order
+        const itemsByChunkIndex = new Map<number, TimelineItem[]>()
+        let completedChunks = 0
+
+        // Fetch all chunks in parallel
+        const chunkPromises = chunks.map(async (chunk, chunkIndex) => {
           try {
             const map = await getPostsBatch(chunk)
+            const newItems: TimelineItem[] = []
             for (const u of chunk) {
               const p = map.get(u)
-              if (p) loadedItems.push(toTimelineItem(p))
+              if (p) newItems.push(toTimelineItem(p))
             }
-            // Update UI after each chunk for progressive rendering
-            setItems([...loadedItems])
+            itemsByChunkIndex.set(chunkIndex, newItems)
           } catch (e) {
             console.warn('Failed to load post chunk:', e)
+            itemsByChunkIndex.set(chunkIndex, [])
+          } finally {
+            completedChunks++
+            // Update UI with all completed chunks so far
+            const allItems: TimelineItem[] = []
+            for (let i = 0; i < chunks.length; i++) {
+              const items = itemsByChunkIndex.get(i)
+              if (items) allItems.push(...items)
+            }
+            setItems(allItems)
           }
-        }
+        })
+
+        await Promise.all(chunkPromises)
         setLoadingPosts(false)
       }
     } catch (e) {

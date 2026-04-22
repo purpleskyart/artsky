@@ -133,15 +133,19 @@ export function CollectionsIndexContent() {
     setError(null)
     setPostByUri(new Map())
     try {
-      const list = await listMyCollectionSummaries()
+      // Fetch collections and profile in parallel for faster loading
+      const [list] = await Promise.all([
+        listMyCollectionSummaries(),
+        getProfileCached(session.did)
+          .then((prof) => {
+            const h = prof.handle?.replace(/^@/, '').trim()
+            setPathActor(h || session.did)
+          })
+          .catch(() => {
+            setPathActor(session.did)
+          }),
+      ])
       setItems(list)
-      try {
-        const prof = await getProfileCached(session.did)
-        const h = prof.handle?.replace(/^@/, '').trim()
-        setPathActor(h || session.did)
-      } catch {
-        setPathActor(session.did)
-      }
       setLoading(false) // Collections list loads instantly now
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not load collections')
