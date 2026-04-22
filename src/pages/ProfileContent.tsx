@@ -425,6 +425,14 @@ export default function ProfileContent({
     onRegisterRefreshRef.current?.(() => refreshImplRef.current?.())
   }, [tab, profilePostsFilter])
 
+  // Infinite scroll: load more when sentinel enters view. Cooldown prevents re-triggering while sentinel stays in view (stops infinite load loop).
+  // Large rootMargin so we load before the user reaches the end. After each load we also schedule a
+  // fallback check: if any column clearly ends above the viewport bottom (visible gap), trigger another
+  // load once the cooldown expires — not when the user is already at the end (avoids infinite chaining).
+  loadingMoreRef.current = loadingMore
+  const colsUncapped = useColumnCount(viewMode, 150)
+  const cols = inModal ? Math.min(colsUncapped, PROFILE_MODAL_MAX_MASONRY_COLS) : colsUncapped
+
   // Keep per-column cooldown array in sync with column count
   useEffect(() => {
     const current = lastLoadMoreByColumnRef.current
@@ -433,14 +441,6 @@ export default function ProfileContent({
       lastLoadMoreByColumnRef.current = Array.from({ length: cols }, (_, i) => current[i] ?? 0)
     }
   }, [cols])
-
-  // Infinite scroll: load more when sentinel enters view. Cooldown prevents re-triggering while sentinel stays in view (stops infinite load loop).
-  // Large rootMargin so we load before the user reaches the end. After each load we also schedule a
-  // fallback check: if any column clearly ends above the viewport bottom (visible gap), trigger another
-  // load once the cooldown expires — not when the user is already at the end (avoids infinite chaining).
-  loadingMoreRef.current = loadingMore
-  const colsUncapped = useColumnCount(viewMode, 150)
-  const cols = inModal ? Math.min(colsUncapped, PROFILE_MODAL_MAX_MASONRY_COLS) : colsUncapped
   const loadMoreCursor = tab === 'posts' && profilePostsFilter === 'liked' ? likedCursor : cursor
   const loadMore = tab === 'posts' && profilePostsFilter === 'liked' ? (c: string) => loadLiked(c) : load
   useEffect(() => {
@@ -949,7 +949,7 @@ export default function ProfileContent({
               <ProgressiveImage src={profile.avatar} alt="" className={styles.avatar} loading="lazy" root={modalScrollRef} />
             ) : (
               <div className={styles.avatar} style={{ backgroundColor: 'var(--glass-border)' }} aria-hidden />
-            )
+            )}
             <div className={styles.profileMeta}>
               {profile?.displayName && (
                 <h2 className={styles.displayName}>{profile.displayName}</h2>

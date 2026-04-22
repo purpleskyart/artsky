@@ -2409,7 +2409,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                     <img src={thread.post.author.avatar} alt="" className={styles.avatar} loading="lazy" />
                   ) : (
                     <div className={styles.avatar} style={{ backgroundColor: 'var(--glass-border)' }} aria-hidden />
-                  )
+                  )}
                   <div className={styles.authorRow}>
                     <ProfileLink
                       handle={thread.post.author.handle ?? thread.post.author.did}
