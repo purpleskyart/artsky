@@ -1658,7 +1658,7 @@ export default function Layout({ title, children, showNav }: Props) {
                     draggable={false}
                   />
                 ) : (
-                  <AccountIcon />
+                  <div className={styles.navProfileAvatar} style={{ backgroundColor: 'var(--glass-border)' }} aria-hidden />
                 )}
               </span>
             </button>
@@ -1762,7 +1762,15 @@ export default function Layout({ title, children, showNav }: Props) {
           <section className={styles.menuSection}>
             <div className={styles.menuProfileAndAccounts}>
               <div className={styles.menuAccountsBlock}>
-                {sessionsList.map((s) => {
+                {[...sessionsList].sort((a, b) => {
+                  // Active account: top on desktop, bottom on mobile (closest to profile button)
+                  if (currentAccountDid == null) return 0
+                  const aIsCurrent = a.did === currentAccountDid
+                  const bIsCurrent = b.did === currentAccountDid
+                  if (aIsCurrent && !bIsCurrent) return isDesktop ? -1 : 1
+                  if (bIsCurrent && !aIsCurrent) return isDesktop ? 1 : -1
+                  return 0
+                }).map((s) => {
             const profile = accountProfiles[s.did]
             const profileHandle = profile?.handle
             const isValidProfileHandle = profileHandle && profileHandle !== 'handle.invalid' && !profileHandle.includes('.invalid') && !profileHandle.startsWith('did:')
@@ -2179,7 +2187,7 @@ export default function Layout({ title, children, showNav }: Props) {
                         {currentAccountAvatar ? (
                           <img src={currentAccountAvatar} alt="" className={styles.headerAccountAvatar} loading="lazy" />
                         ) : (
-                          <AccountIcon />
+                          <div className={styles.headerAccountAvatar} style={{ backgroundColor: 'var(--glass-border)' }} aria-hidden />
                         )}
                       </span>
                     </button>
@@ -2217,7 +2225,7 @@ export default function Layout({ title, children, showNav }: Props) {
                         {currentAccountAvatar ? (
                           <img src={currentAccountAvatar} alt="" className={styles.headerAccountAvatar} loading="lazy" />
                         ) : (
-                          <AccountIcon />
+                          <div className={styles.headerAccountAvatar} style={{ backgroundColor: 'var(--glass-border)' }} aria-hidden />
                         )}
                       </span>
                     </button>

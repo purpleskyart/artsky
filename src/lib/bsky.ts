@@ -1752,7 +1752,7 @@ export async function getFollows(
 }
 
 /** Profile view for list display (followers/following). indexedAt when available (e.g. when they appeared in the list). */
-export type ProfileViewBasic = { did: string; handle?: string; displayName?: string; avatar?: string; indexedAt?: string }
+export type ProfileViewBasic = { did: string; handle?: string; displayName?: string; avatar?: string; indexedAt?: string; followersCount?: number }
 
 /** Get list of accounts that follow the actor (for profile followers modal). */
 export async function getFollowers(
@@ -1765,12 +1765,13 @@ export async function getFollowers(
     limit: opts?.limit ?? 50,
     cursor: opts?.cursor,
   })
-  const list = (res.data.followers ?? []).map((f: { did: string; handle?: string; displayName?: string; avatar?: string; indexedAt?: string }) => ({
+  const list = (res.data.followers ?? []).map((f: { did: string; handle?: string; displayName?: string; avatar?: string; indexedAt?: string; followersCount?: number }) => ({
     did: f.did,
     handle: f.handle,
     displayName: f.displayName,
     avatar: f.avatar,
     indexedAt: f.indexedAt,
+    followersCount: f.followersCount,
   }))
   return { list, cursor: res.data.cursor }
 }
@@ -1786,12 +1787,13 @@ export async function getFollowsList(
     limit: opts?.limit ?? 50,
     cursor: opts?.cursor,
   })
-  const list = (res.data.follows ?? []).map((f: { did: string; handle?: string; displayName?: string; avatar?: string; indexedAt?: string }) => ({
+  const list = (res.data.follows ?? []).map((f: { did: string; handle?: string; displayName?: string; avatar?: string; indexedAt?: string; followersCount?: number }) => ({
     did: f.did,
     handle: f.handle,
     displayName: f.displayName,
     avatar: f.avatar,
     indexedAt: f.indexedAt,
+    followersCount: f.followersCount,
   }))
   return { list, cursor: res.data.cursor }
 }

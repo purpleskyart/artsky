@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect } from 'react'
-import { blockAccount, unblockAccount, getSession, getProfileCached } from '../lib/bsky'
+import { blockAccount, unblockAccount, getSession, getProfileCached, muteAccountWithLifecycle, unmuteAccountWithLifecycle } from '../lib/bsky'
 import { getShareableProfileUrl } from '../lib/appUrl'
 import { formatExactDateTimeLongMonth } from '../lib/date'
 import styles from './ProfileActionsMenu.module.css'
@@ -38,6 +38,7 @@ export default function ProfileActionsMenu({
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   const [blockStep, setBlockStep] = useState<'idle' | 'confirm'>('idle')
   const [authorBlockingUri, setAuthorBlockingUri] = useState<string | null>(initialAuthorBlockingUri ?? null)
+  const [authorMuted, setAuthorMuted] = useState<boolean>(false)
   const [profileMeta, setProfileMeta] = useState<{ createdAt?: string; indexedAt?: string } | null>(initialProfileMeta ?? null)
   const menuRef = useRef<HTMLDivElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
@@ -67,11 +68,13 @@ export default function ProfileActionsMenu({
         createdAt: data.createdAt ?? undefined,
         indexedAt: data.indexedAt ?? undefined,
       })
-      const viewerData = data as { viewer?: { blocking?: string } }
+      const viewerData = data as { viewer?: { blocking?: string; muted?: string } }
       setAuthorBlockingUri(viewerData.viewer?.blocking ?? null)
+      setAuthorMuted(!!viewerData.viewer?.muted)
     }).catch(() => {
       if (!cancelled) {
         setAuthorBlockingUri(null)
+        setAuthorMuted(false)
         setProfileMeta(null)
       }
     })
@@ -140,6 +143,35 @@ export default function ProfileActionsMenu({
       showSuccess('Account unblocked')
     } catch {
       showError('Could not unblock. Try again.')
+    } finally {
+      setLoading(null)
+    }
+  }
+
+  async function handleMute() {
+    if (!session?.did || isOwnProfile) return
+    setLoading('mute')
+    setFeedback(null)
+    try {
+      await muteAccountWithLifecycle(profileDid)
+      setAuthorMuted(true)
+      showSuccess('Account muted')
+    } catch {
+      showError('Could not mute. Try again.')
+    } finally {
+      setLoading(null)
+    }
+  }
+
+  async function handleUnmute() {
+    setLoading('unmute')
+    setFeedback(null)
+    try {
+      await unmuteAccountWithLifecycle(profileDid)
+      setAuthorMuted(false)
+      showSuccess('Account unmuted')
+    } catch {
+      showError('Could not unmute. Try again.')
     } finally {
       setLoading(null)
     }
@@ -227,6 +259,29 @@ export default function ProfileActionsMenu({
                     role="menuitem"
                   >
                     Block user
+                  </button>
+                )
+              )}
+              {showBlockUnblock && (
+                authorMuted ? (
+                  <button
+                    type="button"
+                    className={styles.item}
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleUnmute() }}
+                    disabled={loading === 'unmute'}
+                    role="menuitem"
+                  >
+                    {loading === 'unmute' ? '…' : 'Unmute account'}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className={styles.item}
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleMute() }}
+                    disabled={loading === 'mute'}
+                    role="menuitem"
+                  >
+                    {loading === 'mute' ? '…' : 'Mute account'}
                   </button>
                 )
               )}
