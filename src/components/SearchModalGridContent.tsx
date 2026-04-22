@@ -158,10 +158,7 @@ export function SearchModalGridContent({
   const [blockedDids, setBlockedDids] = useState<Set<string>>(new Set())
   const [mutedDids, setMutedDids] = useState<Set<string>>(new Set())
   const [actionsMenuOpenForIndex, setActionsMenuOpenForIndex] = useState<number | null>(null)
-  const [collectionMenuOpenForIndex, setCollectionMenuOpenForIndex] = useState<number | null>(null)
-  const [collectionMenuOpenSignal, setCollectionMenuOpenSignal] = useState(0)
   const [blockConfirm, setBlockConfirm] = useState<{ did: string; handle: string; avatar?: string } | null>(null)
-  const [focusSetByMouse, setFocusSetByMouse] = useState(false)
   const cardRefsRef = useRef<(HTMLDivElement | null)[]>([])
   const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null)
   const loadMoreSentinelRefs = useRef<(HTMLDivElement | null)[]>([])
@@ -180,6 +177,8 @@ export function SearchModalGridContent({
   const focusTargetsRef = useRef<{ cardIndex: number; mediaIndex: number }[]>([])
   const firstFocusIndexForCardRef = useRef<number[]>([])
   const lastFocusIndexForCardRef = useRef<number[]>([])
+
+  const cols = useColumnCount(viewMode, 150)
   const colsRef = useRef(cols)
   const { beginKeyboardNavigation, tryHoverSelectCard, gridPointerGateProps } = usePostCardGridPointerGate()
 
@@ -252,7 +251,6 @@ export function SearchModalGridContent({
       if (!authorDid) return true
       return !blockedDids.has(authorDid) && !mutedDids.has(authorDid)
     })
-  const cols = useColumnCount(viewMode, 150)
   mediaItemsRef.current = mediaItems
   keyboardFocusIndexRef.current = keyboardFocusIndex
 
@@ -261,7 +259,7 @@ export function SearchModalGridContent({
     const out: { cardIndex: number; mediaIndex: number }[] = []
     mediaItems.forEach((item, cardIndex) => {
       const media = getPostMediaInfo(item.post)
-      const n = media ? media.images?.length ?? media.alt?.length ?? 1 : 1
+      const n = media ? media.imageCount ?? 1 : 1
       for (let m = 0; m < n; m++) out.push({ cardIndex, mediaIndex: m })
     })
     return out
@@ -274,7 +272,7 @@ export function SearchModalGridContent({
     mediaItems.forEach((item, cardIndex) => {
       out[cardIndex] = idx
       const media = getPostMediaInfo(item.post)
-      const n = media ? media.images?.length ?? media.alt?.length ?? 1 : 1
+      const n = media ? media.imageCount ?? 1 : 1
       idx += n
     })
     return out
@@ -286,7 +284,7 @@ export function SearchModalGridContent({
     let idx = 0
     mediaItems.forEach((item, cardIndex) => {
       const media = getPostMediaInfo(item.post)
-      const n = media ? media.images?.length ?? media.alt?.length ?? 1 : 1
+      const n = media ? media.imageCount ?? 1 : 1
       idx += n
       out[cardIndex] = idx - 1
     })
@@ -322,11 +320,6 @@ export function SearchModalGridContent({
   // Stable callback refs to prevent unnecessary re-renders
   const handleCardRef = useCallback((index: number) => (el: HTMLDivElement | null) => {
     cardRefsRef.current[index] = el
-  }, [])
-
-  const handleMediaRef = useCallback((index: number, mediaIndex: number, el: HTMLElement | null) => {
-    if (!mediaRefsRef.current[index]) mediaRefsRef.current[index] = {}
-    mediaRefsRef.current[index][mediaIndex] = el
   }, [])
 
   loadingMoreRef.current = loadingMore
@@ -428,7 +421,6 @@ export function SearchModalGridContent({
       }
       if (key === 'w' || key === 's' || key === 'a' || key === 'd' || key === 'i' || key === 'j' || key === 'k' || key === 'l' || key === 'e' || key === 'o' || key === 'enter' || key === 'r' || key === 'c' || e.code === 'Space' || key === 'm' || key === '`' || key === 'f' || e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') e.preventDefault()
 
-      setFocusSetByMouse(false)
       const focusTarget = currentFocusTargets[i]
       const currentCardIndex = focusTarget?.cardIndex ?? 0
       const currentMediaIndex = focusTarget?.mediaIndex ?? 0
@@ -558,8 +550,7 @@ export function SearchModalGridContent({
       }
       if (key === 'c') {
         if (i >= 0) {
-          setCollectionMenuOpenForIndex(currentCardIndex)
-          setCollectionMenuOpenSignal((n) => n + 1)
+          setActionsMenuOpenForIndex(currentCardIndex)
         }
         return
       }
@@ -634,7 +625,7 @@ export function SearchModalGridContent({
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [beginKeyboardNavigation, mediaItems.length, cols, navigate, location, isModalOpen, inModal, openPostModal, likeOverrides, session, setLikeOverride, setItems, setFollowOverride, setActionsMenuOpenForIndex, setCollectionMenuOpenForIndex, setCollectionMenuOpenSignal, setBlockConfirm])
+  }, [beginKeyboardNavigation, mediaItems.length, cols, navigate, location, isModalOpen, inModal, openPostModal, likeOverrides, session, setLikeOverride, setItems, setFollowOverride, setActionsMenuOpenForIndex, setBlockConfirm])
 
   if (!trimmedQuery) return null
 
@@ -669,9 +660,6 @@ export function SearchModalGridContent({
                 }
                 hasCursor={!!cursor}
                 keyboardFocusIndex={keyboardFocusIndex}
-                focusTargets={focusTargets}
-                firstFocusIndexForCard={firstFocusIndexForCard}
-                focusSetByMouse={focusSetByMouse}
                 actionsMenuOpenForIndex={actionsMenuOpenForIndex}
                 nsfwPreference={nsfwPreference}
                 unblurredUris={unblurredUris}
@@ -694,7 +682,6 @@ export function SearchModalGridContent({
                       }
                 }
                 cardRef={handleCardRef}
-                onMediaRef={handleMediaRef}
                 onActionsMenuOpenChange={(index, open) => {
                   setActionsMenuOpenForIndex(open ? index : null)
                 }}

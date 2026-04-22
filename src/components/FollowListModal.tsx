@@ -36,7 +36,7 @@ export function FollowListModal({
   /** Required when mode is 'followedByFollows': authenticated API client. */
   authenticatedClient?: AtpAgent
 }) {
-  const { openProfileModal, closeAllModals } = useProfileModal()
+  const { openProfileModal } = useProfileModal()
   const isMobile = useSyncExternalStore(subscribeMobile, getMobileSnapshot, () => false)
   const [pages, setPages] = useState<ProfileViewBasic[][]>([])
   const [cursor, setCursor] = useState<string | undefined>()
