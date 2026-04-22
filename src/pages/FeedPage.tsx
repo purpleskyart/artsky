@@ -675,8 +675,48 @@ export default function FeedPage() {
   const LOAD_MORE_ROOT_MARGIN_PX = 1200
   /** Min gap (px) between viewport bottom and a column sentinel to count as "short" (empty masonry below). Capped vs viewport so small phones still work. */
   const LOAD_MORE_SHORT_MARGIN_PX = 300
+
+  const { mediaMode } = useMediaOnly()
+  const { nsfwPreference, unblurredUris, setUnblurred } = useModeration()
+  const { hideRepostsFromDids } = useHideReposts() ?? { hideRepostsFromDids: [] as string[] }
+  const displayItems = useMemo(() =>
+    (feedState.items ?? [])
+      .filter((item) => {
+        if (mediaMode === 'media') return getPostMediaInfoForDisplay(item.post)
+        if (mediaMode === 'video') return getPostMediaInfoForDisplay(item.post)?.type === 'video'
+        return true
+      })
+      .filter((item) => !feedState.seenUrisAtReset.has(item.post.uri))
+      .filter((item) => nsfwPreference !== 'sfw' || !isPostNsfw(item.post))
+      .filter((item) => {
+        if (!isRepost(item)) return true
+        const reposterDid = (item.reason as { by?: { did: string } })?.by?.did
+        return !reposterDid || !hideRepostsFromDids.includes(reposterDid)
+      }),
+    [feedState.items, mediaMode, feedState.seenUrisAtReset, nsfwPreference, hideRepostsFromDids]
+  )
+  const displayEntries = useMemo(() => buildDisplayEntries(displayItems), [displayItems])
+
   useEffect(() => {
     if (!feedState.cursor) return
+    
+    // Auto-load more when feed is empty (e.g., after hiding seen posts) but cursor exists
+    if (displayEntries.length === 0 && !loadingMoreRef.current) {
+      const now = Date.now()
+      const minColCooldown = Math.min(
+        ...Array.from({ length: cols }, (_, i) => lastLoadMoreByColumnRef.current[i] ?? 0),
+        now
+      )
+      const wait = Math.max(50, LOAD_MORE_COOLDOWN_MS - (now - minColCooldown) + 50)
+      const timeoutId = setTimeout(() => {
+        if (!loadingMoreRef.current && displayEntries.length === 0 && feedState.cursor) {
+          loadingMoreRef.current = true
+          lastLoadMoreByColumnRef.current[0] = Date.now()
+          load(feedState.cursor)
+        }
+      }, wait)
+      return () => clearTimeout(timeoutId)
+    }
     const refs = loadMoreSentinelRefs.current
     let rafId = 0
     let retryId = 0
@@ -777,7 +817,7 @@ export default function FeedPage() {
       if (rafId) cancelAnimationFrame(rafId)
       clearTimeout(retryId)
     }
-  }, [feedState.cursor, load, cols])
+  }, [feedState.cursor, load, cols, displayEntries.length])
 
   // Keep per-column cooldown array in sync with column count
   useEffect(() => {
@@ -787,27 +827,6 @@ export default function FeedPage() {
       lastLoadMoreByColumnRef.current = Array.from({ length: cols }, (_, i) => current[i] ?? 0)
     }
   }, [cols])
-
-  const { mediaMode } = useMediaOnly()
-  const { nsfwPreference, unblurredUris, setUnblurred } = useModeration()
-  const { hideRepostsFromDids } = useHideReposts() ?? { hideRepostsFromDids: [] as string[] }
-  const displayItems = useMemo(() =>
-    (feedState.items ?? [])
-      .filter((item) => {
-        if (mediaMode === 'media') return getPostMediaInfoForDisplay(item.post)
-        if (mediaMode === 'video') return getPostMediaInfoForDisplay(item.post)?.type === 'video'
-        return true
-      })
-      .filter((item) => !feedState.seenUrisAtReset.has(item.post.uri))
-      .filter((item) => nsfwPreference !== 'sfw' || !isPostNsfw(item.post))
-      .filter((item) => {
-        if (!isRepost(item)) return true
-        const reposterDid = (item.reason as { by?: { did: string } })?.by?.did
-        return !reposterDid || !hideRepostsFromDids.includes(reposterDid)
-      }),
-    [feedState.items, mediaMode, feedState.seenUrisAtReset, nsfwPreference, hideRepostsFromDids]
-  )
-  const displayEntries = useMemo(() => buildDisplayEntries(displayItems), [displayItems])
 
   // Prefetch first few posts when feed loads for instant feel on first clicks
   useEffect(() => {
@@ -1529,7 +1548,11 @@ export default function FeedPage() {
                 <button
                   type="button"
                   className={styles.loadMoreBtn}
-                  onClick={() => feedState.cursor && !feedState.loadingMore && load(feedState.cursor)}
+                  onClick={() => {
+                    if (feedState.cursor && !feedState.loadingMore) {
+                      load(feedState.cursor)
+                    }
+                  }}
                   disabled={feedState.loadingMore}
                 >
                   {feedState.loadingMore ? 'Loading…' : 'Load more'}
@@ -1588,7 +1611,11 @@ export default function FeedPage() {
               <button
                 type="button"
                 className={styles.loadMoreBtn}
-                onClick={() => feedState.cursor && !feedState.loadingMore && load(feedState.cursor)}
+                onClick={() => {
+                  if (feedState.cursor && !feedState.loadingMore) {
+                    load(feedState.cursor)
+                  }
+                }}
                 disabled={feedState.loadingMore || !feedState.cursor}
               >
                 {feedState.cursor ? 'Load more' : 'No more posts'}
