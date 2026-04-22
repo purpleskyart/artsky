@@ -720,7 +720,6 @@ export default function FeedPage() {
           loadingMoreRef.current = true
           // Update cooldown for the shortest column that triggered this
           const shortColIdx = (() => {
-            const lengths = distributedColumnLengthsRef.current
             const vh = window.innerHeight
             const margin = Math.min(LOAD_MORE_SHORT_MARGIN_PX, Math.floor(vh * 0.4))
             const threshold = vh - margin
