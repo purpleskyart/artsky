@@ -118,7 +118,21 @@ export function FollowListModal({
     }
     const cmp = sortBy === 'handle' ? byHandle : sortBy === 'displayName' ? byDisplayName : sortBy === 'followers' ? byFollowers : byDate
 
-    // Process each page: filter, sort within page, maintain page order
+    // For followers count, sort globally across all pages
+    if (sortBy === 'followers') {
+      let allItems = pages.flat()
+      if (q) {
+        allItems = allItems.filter(
+          (p) =>
+            (p.handle ?? '').toLowerCase().includes(q) ||
+            (p.displayName ?? '').toLowerCase().includes(q)
+        )
+      }
+      allItems.sort((a, b) => (order === 'asc' ? cmp(a, b) : cmp(b, a)))
+      return allItems
+    }
+
+    // For other sorts, process each page: filter, sort within page, maintain page order
     const processedPages = pages.map((page) => {
       let out = q
         ? page.filter(

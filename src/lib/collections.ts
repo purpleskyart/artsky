@@ -33,6 +33,25 @@ const ownerDidCache = new Map<string, string | null>()
 const boardSegmentRkeyCache = new Map<string, string | null>()
 const plcPdsBaseCache = new Map<string, string | null>()
 
+/** Collection metadata cache to avoid re-fetching on navigation. */
+const collectionCache = new Map<string, { view: CollectionView; timestamp: number }>()
+const COLLECTION_CACHE_TTL_MS = 5 * 60 * 1000 // 5 minutes
+
+/** Invalidate cache for a specific collection. */
+function invalidateCollectionCache(uri: string): void {
+  const n = normalizeAtUriParam(uri.trim())
+  collectionCache.delete(n)
+  // Also invalidate by compact ref format
+  const parsed = parseAtUri(n)
+  if (parsed) {
+    collectionCache.delete(`${parsed.did}/${parsed.rkey}`)
+    const cached = boardSegmentRkeyCache.get(`${parsed.did}::${parsed.rkey}`)
+    if (cached) {
+      collectionCache.delete(`${parsed.did}/${cached}`)
+    }
+  }
+}
+
 /** Persistent cache keys for localStorage */
 const OWNER_DID_CACHE_KEY = 'purplesky:owner-did-cache'
 const BOARD_SEGMENT_CACHE_KEY = 'purplesky:board-segment-cache'
@@ -513,29 +532,44 @@ async function loadCollectionViewFromDidRkey(did: string, rkey: string): Promise
 export async function getCollectionByAtUri(ref: string): Promise<CollectionView | null> {
   const sessionDid = getSession()?.did ?? null
   const n = normalizeAtUriParam(ref.trim())
+  const cacheKey = n
+
+  // Check cache first
+  const cached = collectionCache.get(cacheKey)
+  if (cached && Date.now() - cached.timestamp < COLLECTION_CACHE_TTL_MS) {
+    const view = cached.view
+    if (view?.isPrivate && sessionDid !== view.did) return null
+    return view
+  }
+
+  let view: CollectionView | null = null
   if (n.startsWith('at://')) {
     const parsed = parseAtUri(n)
     if (!parsed || parsed.collection !== COLLECTION_LEXICON) return null
-    const view = await loadCollectionViewFromDidRkey(parsed.did, parsed.rkey)
-    if (view?.isPrivate && sessionDid !== view.did) return null
-    return view
-  }
-  const slash = parseSlashSeparatedCollectionRef(n)
-  if (!slash) return null
-  const did = await resolveCollectionOwnerToDid(slash.owner)
-  if (!did) return null
+    view = await loadCollectionViewFromDidRkey(parsed.did, parsed.rkey)
+  } else {
+    const slash = parseSlashSeparatedCollectionRef(n)
+    if (!slash) return null
+    const did = await resolveCollectionOwnerToDid(slash.owner)
+    if (!did) return null
 
-  // Try to load directly by rkey first (fast path)
-  const direct = await fetchCollectionRecordLoose(did, slash.segment)
-  if (direct?.cid && typeof direct.uri === 'string') {
-    const view = await loadCollectionViewFromDidRkey(did, slash.segment)
-    if (view?.isPrivate && sessionDid !== view.did) return null
-    return view
+    // Try to load directly by rkey first (fast path)
+    const direct = await fetchCollectionRecordLoose(did, slash.segment)
+    if (direct?.cid && typeof direct.uri === 'string') {
+      view = await loadCollectionViewFromDidRkey(did, slash.segment)
+    } else {
+      // Segment is a slug - look it up (this lists all collections but returns full data)
+      view = await findCollectionBySlug(did, slash.segment.toLowerCase())
+    }
   }
 
-  // Segment is a slug - look it up (this lists all collections but returns full data)
-  const view = await findCollectionBySlug(did, slash.segment.toLowerCase())
   if (view?.isPrivate && sessionDid !== view.did) return null
+
+  // Cache the result
+  if (view) {
+    collectionCache.set(cacheKey, { view, timestamp: Date.now() })
+  }
+
   return view
 }
 
@@ -724,6 +758,7 @@ export async function addPostToCollection(collectionAtUri: string, postUri: stri
   const deduped = view.items.filter((u) => u !== postUri)
   const next = [postUri, ...deduped]
   await writeCollectionItems(view, next)
+  invalidateCollectionCache(collectionAtUri)
 }
 
 /** Remove a post URI from a collection. */
@@ -734,6 +769,7 @@ export async function removePostFromCollection(collectionAtUri: string, postUri:
   if (!session?.did || session.did !== view.did) throw new Error('Not authorized')
   const next = view.items.filter((u) => u !== postUri)
   await writeCollectionItems(view, next)
+  invalidateCollectionCache(collectionAtUri)
 }
 
 /** Rename a collection while preserving slug, items, and createdAt. */
@@ -759,6 +795,7 @@ export async function renameCollection(collectionAtUri: string, nextTitle: strin
     record,
     validate: false,
   })
+  invalidateCollectionCache(collectionAtUri)
 }
 
 /** Update collection visibility while preserving title, slug, items, and createdAt. */
@@ -782,6 +819,7 @@ export async function setCollectionPrivacy(collectionAtUri: string, isPrivate: b
     record,
     validate: false,
   })
+  invalidateCollectionCache(collectionAtUri)
 }
 
 /** Permanently delete one of the logged-in user's collections. */
@@ -795,6 +833,7 @@ export async function deleteCollection(collectionAtUri: string): Promise<void> {
     collection: COLLECTION_LEXICON,
     rkey: view.rkey,
   })
+  invalidateCollectionCache(collectionAtUri)
 }
 
 /**
