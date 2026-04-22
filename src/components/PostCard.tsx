@@ -13,7 +13,6 @@ import { setInitialPostForUri } from '../lib/postCache'
 import { getPostOverlayPath } from '../lib/appUrl'
 import { getOverlayBackgroundLocation, hasPathOverlayStack } from '../lib/overlayNavigation'
 import { useModalScroll } from '../context/ModalScrollContext'
-import { useOffscreenOptimization } from '../hooks/useOffscreenOptimization'
 import { preloadPostOpen } from '../lib/modalPreload'
 import { getProgressiveImageDefaults } from '../lib/imageUtils'
 import PostText from './PostText'
@@ -225,7 +224,6 @@ function PostCardInner({
   const [actionsMenuOpen, setActionsMenuOpen] = useState(false)
   const actionsMenuDropdownRef = useRef<HTMLDivElement>(null)
   const cardRef = useRef<HTMLDivElement>(null)
-  const [cardRootEl, setCardRootEl] = useState<HTMLDivElement | null>(null)
   const modalScrollContainer = modalScrollRef
   const prevSelectedRef = useRef(isSelected)
   const lastTapRef = useRef(0)
