@@ -60,7 +60,6 @@ export function formatRelativeTimeTitle(isoDate: string): string {
     const day = Math.floor(sec / 86400)
     return `${day} day${day === 1 ? '' : 's'} ago`
   }
-  if (sec < 31536000) return formatShortDate(d, false)
   return formatShortDate(d, true)
 }
 

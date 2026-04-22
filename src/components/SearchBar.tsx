@@ -467,7 +467,7 @@ export default function SearchBar({
                   className={`${styles.item} ${i === activeIndex ? styles.itemActive : ''}`}
                   onClick={() => handleSelect(i)}
                 >
-                  {opt.avatar && <img src={opt.avatar} alt="" className={styles.itemAvatar} loading="lazy" />}
+                  {opt.avatar ? <img src={opt.avatar} alt="" className={styles.itemAvatar} loading="lazy" /> : <div className={styles.itemAvatar} style={{ backgroundColor: 'var(--glass-border)' }} aria-hidden />}
                   <span className={styles.itemLabel}>
                     {opt.displayName ? `${opt.displayName} ` : ''}@{opt.handle}
                   </span>
@@ -484,7 +484,7 @@ export default function SearchBar({
                   className={`${styles.item} ${i === activeIndex ? styles.itemActive : ''}`}
                   onClick={() => handleSelect(i)}
                 >
-                  {v.avatar && <img src={v.avatar} alt="" className={styles.itemAvatar} loading="lazy" />}
+                  {v.avatar ? <img src={v.avatar} alt="" className={styles.itemAvatar} loading="lazy" /> : <div className={styles.itemAvatar} style={{ backgroundColor: 'var(--glass-border)' }} aria-hidden />}
                   <span className={styles.itemLabel}>{v.displayName ?? v.uri}</span>
                 </button>
               )

@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect, useLayoutEffect, memo, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { blockAccount, unblockAccount, reportPost, muteThread, deletePost, getProfileCached, sendFeedInteractions } from '../lib/bsky'
+import { blockAccount, unblockAccount, reportPost, muteThread, deletePost, getProfileCached, sendFeedInteractions, muteAccountWithLifecycle, unmuteAccountWithLifecycle } from '../lib/bsky'
 import { getShareablePostUrl } from '../lib/appUrl'
 import { formatRelativeTimeTitle, formatExactDateTime } from '../lib/date'
 import { useSession } from '../context/SessionContext'
@@ -195,6 +195,7 @@ function PostActionsMenu({
   const [reportStep, setReportStep] = useState<'main' | 'reason'>('main')
   const [blockStep, setBlockStep] = useState<'idle' | 'confirm'>('idle')
   const [authorBlockingUri, setAuthorBlockingUri] = useState<string | null>(null)
+  const [authorMuted, setAuthorMuted] = useState<boolean>(false)
   const [authorHandle, setAuthorHandle] = useState<string | null>(null)
   const feedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // Track feeds that don't support interactions (501 error) to hide buttons
@@ -225,18 +226,20 @@ function PostActionsMenu({
     }
   }, [open])
 
-  /* When menu opens and logged in and not own post, fetch profile to get viewer.blocking and handle */
+  /* When menu opens and logged in and not own post, fetch profile to get viewer.blocking, viewer.muted, and handle */
   useEffect(() => {
     if (!open || !session?.did || isOwnPost) return
     let cancelled = false
     getProfileCached(authorDid).then((data) => {
       if (cancelled) return
-      const profileData = data as { viewer?: { blocking?: string }; handle?: string }
+      const profileData = data as { viewer?: { blocking?: string; muted?: string }; handle?: string }
       setAuthorBlockingUri(profileData.viewer?.blocking ?? null)
+      setAuthorMuted(!!profileData.viewer?.muted)
       setAuthorHandle(profileData.handle ?? null)
     }).catch(() => {
       if (!cancelled) {
         setAuthorBlockingUri(null)
+        setAuthorMuted(false)
         setAuthorHandle(null)
       }
     })
@@ -396,6 +399,47 @@ function PostActionsMenu({
       setLoading(null)
     }
   }, [authorBlockingUri, showSuccess, showError, reportAuthError])
+
+  const handleMute = useCallback(async () => {
+    if (!session?.did || isOwnPost) return
+    setLoading('mute')
+    setFeedback(null)
+    try {
+      await muteAccountWithLifecycle(authorDid)
+      setAuthorMuted(true)
+      showSuccess('Account muted')
+    } catch (err) {
+      const error = err as { status?: number }
+      if (error.status === 401) {
+        showError('Your session has expired. Please log in again.')
+        reportAuthError()
+      } else {
+        showError('Could not mute. Try again.')
+      }
+    } finally {
+      setLoading(null)
+    }
+  }, [session?.did, isOwnPost, authorDid, showSuccess, showError, reportAuthError])
+
+  const handleUnmute = useCallback(async () => {
+    setLoading('unmute')
+    setFeedback(null)
+    try {
+      await unmuteAccountWithLifecycle(authorDid)
+      setAuthorMuted(false)
+      showSuccess('Account unmuted')
+    } catch (err) {
+      const error = err as { status?: number }
+      if (error.status === 401) {
+        showError('Your session has expired. Please log in again.')
+        reportAuthError()
+      } else {
+        showError('Could not unmute. Try again.')
+      }
+    } finally {
+      setLoading(null)
+    }
+  }, [authorDid, showSuccess, showError, reportAuthError])
 
   const REPORT_REASONS: { label: string; reasonType: string }[] = [
     { label: 'Spam', reasonType: 'com.atproto.moderation.defs#reasonSpam' },
@@ -713,6 +757,31 @@ function PostActionsMenu({
                   >
                     <span className={styles.itemIcon}><BlockIcon /></span>
                     Block user
+                  </button>
+                )
+              )}
+              {!isOwnPost && (
+                authorMuted ? (
+                  <button
+                    type="button"
+                    className={styles.item}
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleUnmute() }}
+                    disabled={loading === 'unmute'}
+                    role="menuitem"
+                  >
+                    <span className={styles.itemIcon}>{loading === 'unmute' ? '…' : <MuteIcon />}</span>
+                    {loading === 'unmute' ? '' : 'Unmute account'}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className={styles.item}
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleMute() }}
+                    disabled={loading === 'mute'}
+                    role="menuitem"
+                  >
+                    <span className={styles.itemIcon}>{loading === 'mute' ? '…' : <MuteIcon />}</span>
+                    {loading === 'mute' ? '' : 'Mute account'}
                   </button>
                 )
               )}

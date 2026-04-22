@@ -28,6 +28,7 @@ export const GUEST_FEED_ACCOUNTS = [
   { handle: 'cardbordtoaster.bsky.social', label: 'Toaster' },
   { handle: 'lacruzo.bsky.social', label: 'lacruzo' },
   { handle: 'sarenstone.com', label: 'SAREN' },
+  { handle: 'sssvvv.bsky.social', label: 'sssvvv' },
 
 ] as const
 

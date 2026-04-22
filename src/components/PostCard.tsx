@@ -1460,7 +1460,7 @@ function PostCardInner({
               >
                 {isLiked ? '♥' : '♡'}
               </button>
-              {post.author.avatar && (
+              {post.author.avatar ? (
                 isOwnPost || !session || isFollowingAuthor ? (
                   <ProfileLink
                     handle={handle}
@@ -1482,6 +1482,28 @@ function PostCardInner({
                     title={`Follow @${handle}`}
                   >
                     <ProgressiveImage src={post.author.avatar} alt="" loading="lazy" root={modalScrollContainer} />
+                    <span className={styles.cardActionRowAvatarPlus} aria-hidden>
+                      <svg viewBox="0 0 8 8" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M4 2v4M2 4h4" />
+                      </svg>
+                    </span>
+                  </button>
+                )
+              ) : (
+                isOwnPost || !session || isFollowingAuthor ? (
+                  <div className={styles.cardActionRowAvatar} style={{ backgroundColor: 'var(--glass-border)', borderRadius: '50%' }} aria-hidden />
+                ) : (
+                  <button
+                    type="button"
+                    className={`${styles.cardActionRowAvatar} ${styles.cardActionRowAvatarFollow}`}
+                    onTouchStart={(e) => e.stopPropagation()}
+                    onTouchEnd={(e) => e.stopPropagation()}
+                    onClick={handleFollowClick}
+                    disabled={followLoading}
+                    aria-label={`Follow @${handle}`}
+                    title={`Follow @${handle}`}
+                  >
+                    <div style={{ width: '100%', height: '100%', backgroundColor: 'var(--glass-border)', borderRadius: '50%' }} aria-hidden />
                     <span className={styles.cardActionRowAvatarPlus} aria-hidden>
                       <svg viewBox="0 0 8 8" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
                         <path d="M4 2v4M2 4h4" />

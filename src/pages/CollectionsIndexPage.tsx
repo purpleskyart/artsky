@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import Layout from '../components/Layout'
 import { ProgressiveImage } from '../components/ProgressiveImage'
@@ -25,17 +25,66 @@ import { useToast } from '../context/ToastContext'
 
 const PREVIEW_SLOTS = 4
 
-function PreviewStrip({
-  previewPostUris,
+/** Lazy-loaded preview strip that only fetches posts when visible */
+function LazyPreviewStrip({
+  collection,
   postByUri,
+  onPostsLoaded,
 }: {
-  previewPostUris: string[]
+  collection: CollectionSummary
   postByUri: Map<string, PostView>
+  onPostsLoaded: (posts: Map<string, PostView>) => void
 }) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [shouldLoad, setShouldLoad] = useState(false)
+  const loadingRef = useRef(false)
+
+  // Use intersection observer to detect when this collection card is visible
+  useEffect(() => {
+    if (!containerRef.current) return
+    if (collection.previewPostUris.length === 0) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          setShouldLoad(true)
+          observer.disconnect()
+        }
+      },
+      { rootMargin: '100px' } // Start loading slightly before it's fully visible
+    )
+
+    observer.observe(containerRef.current)
+    return () => observer.disconnect()
+  }, [collection.previewPostUris.length])
+
+  // Load posts when collection becomes visible
+  useEffect(() => {
+    if (!shouldLoad) return
+    if (loadingRef.current) return
+
+    // Filter to only URIs we haven't loaded yet globally
+    const urisToLoad = collection.previewPostUris.filter((uri) => !postByUri.has(uri))
+    if (urisToLoad.length === 0) return
+
+    loadingRef.current = true
+
+    getPostsBatch(urisToLoad)
+      .then((map) => {
+        onPostsLoaded(map)
+      })
+      .catch(() => {
+        // Silently fail - previews are non-critical
+      })
+      .finally(() => {
+        loadingRef.current = false
+      })
+  }, [shouldLoad, collection.previewPostUris, onPostsLoaded, postByUri])
+
   return (
-    <div className={styles.previewRow} aria-hidden>
+    <div ref={containerRef} className={styles.previewRow} aria-hidden>
       {Array.from({ length: PREVIEW_SLOTS }, (_, i) => {
-        const uri = previewPostUris[i]
+        const uri = collection.previewPostUris[i]
         const post = uri ? postByUri.get(uri) : undefined
         const media = post ? getPostMediaInfoForDisplay(post, POST_MEDIA_FEED_PREVIEW) : null
         const src = media?.url?.trim() ? media.url : null
@@ -68,7 +117,6 @@ export function CollectionsIndexContent() {
   const [items, setItems] = useState<CollectionSummary[]>([])
   const [postByUri, setPostByUri] = useState<Map<string, PostView>>(() => new Map())
   const [loading, setLoading] = useState(true)
-  const [loadingPreviews, setLoadingPreviews] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [editMode, setEditMode] = useState(false)
   const [editingUri, setEditingUri] = useState<string | null>(null)
@@ -82,7 +130,6 @@ export function CollectionsIndexContent() {
   const load = useCallback(async () => {
     if (!session?.did) return
     setLoading(true)
-    setLoadingPreviews(false)
     setError(null)
     setPostByUri(new Map())
     try {
@@ -95,39 +142,26 @@ export function CollectionsIndexContent() {
       } catch {
         setPathActor(session.did)
       }
-      setLoading(false) // Show collections list immediately
-
-      // Load preview posts progressively in chunks for better perceived performance
-      const allUris = [...new Set(list.flatMap((c) => c.previewPostUris))]
-      if (allUris.length > 0) {
-        setLoadingPreviews(true)
-        const chunkSize = 25 // Match API batch size
-        const loadedMap = new Map<string, PostView>()
-
-        for (let i = 0; i < allUris.length; i += chunkSize) {
-          const chunk = allUris.slice(i, i + chunkSize)
-          try {
-            const map = await getPostsBatch(chunk)
-            for (const [uri, post] of map) {
-              loadedMap.set(uri, post)
-            }
-            // Update UI after each chunk for progressive rendering
-            setPostByUri(new Map(loadedMap))
-          } catch (e) {
-            console.warn('Failed to load preview chunk:', e)
-          }
-        }
-        setLoadingPreviews(false)
-      }
+      setLoading(false) // Collections list loads instantly now
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not load collections')
       setItems([])
       setPostByUri(new Map())
       setPathActor(null)
       setLoading(false)
-      setLoadingPreviews(false)
     }
   }, [session?.did])
+
+  // Merge newly loaded posts into the global map
+  const handlePostsLoaded = useCallback((newPosts: Map<string, PostView>) => {
+    setPostByUri((prev) => {
+      const merged = new Map(prev)
+      for (const [uri, post] of newPosts) {
+        merged.set(uri, post)
+      }
+      return merged
+    })
+  }, [])
 
   useEffect(() => {
     load()
@@ -232,7 +266,6 @@ export function CollectionsIndexContent() {
         </p>
         {items.length > 0 && !loading ? (
           <div className={styles.headerActions}>
-            {loadingPreviews && <span className={styles.loadingHint}>Loading previews…</span>}
             <button
               type="button"
               className={styles.editBtn}
@@ -261,7 +294,7 @@ export function CollectionsIndexContent() {
                   to={`/${collectionShareRef(pathActor ?? session.did ?? '', c.slug, c.rkey)}`}
                   state={collectionLinkState}
                 >
-                  <PreviewStrip previewPostUris={c.previewPostUris} postByUri={postByUri} />
+                  <LazyPreviewStrip collection={c} postByUri={postByUri} onPostsLoaded={handlePostsLoaded} />
                   <div className={styles.cardFooter}>
                     <span className={styles.cardTitle}>{c.title}</span>
                     <span className={styles.meta}>

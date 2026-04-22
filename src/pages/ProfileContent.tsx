@@ -36,6 +36,13 @@ const VIEW_MODE_CYCLE: ViewMode[] = ['1', '2', '3', 'a']
 /** Profile lightbox: keep the masonry grid readable (All Columns on the full page can use more). */
 const PROFILE_MODAL_MAX_MASONRY_COLS = 3
 
+/** Per-column debounce between automatic load-more triggers. Lowered to allow multiple columns to load in quick succession. */
+const LOAD_MORE_COOLDOWN_MS = 450
+/** Start loading when sentinel is within this distance below the viewport (load before user reaches end). */
+const LOAD_MORE_ROOT_MARGIN_PX = 1200
+/** Min gap (px) between viewport bottom and a column sentinel to count as "short" (empty masonry below). Capped vs viewport so small phones still work. */
+const LOAD_MORE_SHORT_MARGIN_PX = 300
+
 /** Nominal column width for height estimation (px). */
 const ESTIMATE_COL_WIDTH = 280
 const CARD_CHROME = 100
@@ -226,7 +233,11 @@ export default function ProfileContent({
   const loadMoreSentinelRef = useRef<HTMLDivElement>(null)
   /** One sentinel per column so we load more when the user nears the bottom of any column (avoids blank space in short columns). */
   const loadMoreSentinelRefs = useRef<(HTMLDivElement | null)[]>([])
+  /** Per-column card counts; empty columns keep a top sentinel — must not drive "short column" auto load-more. */
+  const distributedColumnLengthsRef = useRef<number[]>([])
   const loadingMoreRef = useRef(false)
+  /** Per-column cooldown tracking so each column can trigger load independently (columns don't block each other). */
+  const lastLoadMoreByColumnRef = useRef<number[]>([])
   const [tabsBarVisible] = useState(true)
   const [keyboardFocusIndex, setKeyboardFocusIndex] = useState(0)
   const [actionsMenuOpenForIndex, setActionsMenuOpenForIndex] = useState<number | null>(null)
@@ -414,10 +425,19 @@ export default function ProfileContent({
     onRegisterRefreshRef.current?.(() => refreshImplRef.current?.())
   }, [tab, profilePostsFilter])
 
-  // Infinite scroll: load more when any column's sentinel is about to enter view (posts, reposts tabs).
-  // Per-column sentinels when cols >= 2 so short columns trigger load before blank space; 800px
-  // rootMargin to load before user sees empty space. Fallback timer handles the case where a very
-  // tall post pushes short-column sentinels beyond rootMargin and the observer never sees them.
+  // Keep per-column cooldown array in sync with column count
+  useEffect(() => {
+    const current = lastLoadMoreByColumnRef.current
+    if (current.length !== cols) {
+      // Preserve existing cooldowns, initialize new columns to 0
+      lastLoadMoreByColumnRef.current = Array.from({ length: cols }, (_, i) => current[i] ?? 0)
+    }
+  }, [cols])
+
+  // Infinite scroll: load more when sentinel enters view. Cooldown prevents re-triggering while sentinel stays in view (stops infinite load loop).
+  // Large rootMargin so we load before the user reaches the end. After each load we also schedule a
+  // fallback check: if any column clearly ends above the viewport bottom (visible gap), trigger another
+  // load once the cooldown expires — not when the user is already at the end (avoids infinite chaining).
   loadingMoreRef.current = loadingMore
   const colsUncapped = useColumnCount(viewMode, 150)
   const cols = inModal ? Math.min(colsUncapped, PROFILE_MODAL_MAX_MASONRY_COLS) : colsUncapped
@@ -426,47 +446,104 @@ export default function ProfileContent({
   useEffect(() => {
     if (tab !== 'posts' && tab !== 'videos' && tab !== 'replies' && tab !== 'reposts') return
     if (!loadMoreCursor) return
-    const firstSentinel = cols >= 2 ? loadMoreSentinelRefs.current[0] : loadMoreSentinelRef.current
-    const root = inModal ? firstSentinel?.closest('[data-modal-scroll]') ?? null : null
+    const refs = loadMoreSentinelRefs.current
+    let rafId = 0
     let retryId = 0
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const e of entries) {
-          if (e.isIntersecting && !loadingMoreRef.current) {
-            loadingMoreRef.current = true
-            loadMore(loadMoreCursor)
-            break
-          }
-        }
-      },
-      { root: root ?? undefined, rootMargin: '800px', threshold: 0 }
-    )
-    if (cols >= 2) {
-      const refs = loadMoreSentinelRefs.current
+    /**
+     * True when a column ends with clear empty space still visible below its sentinel — not when the user
+     * is scrolled to the document end (sentinel near viewport bottom). The old check used
+     * threshold = innerHeight + margin, so nearly every sentinel matched and scheduleRetry() chained
+     * load-more forever, locking scroll at the bottom on mobile.
+     */
+    const anyColumnShort = () => {
+      const lengths = distributedColumnLengthsRef.current
+      const vh = window.innerHeight
+      const margin = Math.min(LOAD_MORE_SHORT_MARGIN_PX, Math.floor(vh * 0.4))
+      const threshold = vh - margin
       for (let c = 0; c < cols; c++) {
+        if ((lengths[c] ?? 0) === 0) continue
         const el = refs[c]
-        if (el) observer.observe(el)
+        if (!el) continue
+        if (el.getBoundingClientRect().bottom < threshold) return true
       }
-      // Fallback: if any column's sentinel scrolled beyond rootMargin (very tall post), check after a short delay.
+      return false
+    }
+
+    /** After cooldown, check for short columns and load more if needed. Uses per-column cooldowns. */
+    const scheduleRetry = () => {
+      clearTimeout(retryId)
+      // Find the shortest waiting time among all columns
+      const now = Date.now()
+      const minColCooldown = Math.min(
+        ...Array.from({ length: cols }, (_, i) => lastLoadMoreByColumnRef.current[i] ?? 0),
+        now // Include now as a fallback to avoid Math.min on empty array
+      )
+      const wait = Math.max(50, LOAD_MORE_COOLDOWN_MS - (now - minColCooldown) + 50)
       retryId = window.setTimeout(() => {
         if (loadingMoreRef.current) return
-        const rootBottom = root ? root.getBoundingClientRect().bottom : window.innerHeight
-        for (let c = 0; c < cols; c++) {
-          const el = refs[c]
-          if (!el) continue
-          if (el.getBoundingClientRect().bottom < rootBottom) {
-            loadingMoreRef.current = true
-            loadMore(loadMoreCursor)
-            return
-          }
+        if (anyColumnShort()) {
+          loadingMoreRef.current = true
+          // Update cooldown for the shortest column that triggered this
+          const shortColIdx = (() => {
+            const lengths = distributedColumnLengthsRef.current
+            const vh = window.innerHeight
+            const margin = Math.min(LOAD_MORE_SHORT_MARGIN_PX, Math.floor(vh * 0.4))
+            const threshold = vh - margin
+            for (let c = 0; c < cols; c++) {
+              if ((lengths[c] ?? 0) === 0) continue
+              const el = refs[c]
+              if (!el) continue
+              if (el.getBoundingClientRect().bottom < threshold) return c
+            }
+            return 0
+          })()
+          lastLoadMoreByColumnRef.current[shortColIdx] = Date.now()
+          loadMore(loadMoreCursor)
         }
-      }, 200)
-    } else {
-      const sentinel = loadMoreSentinelRef.current
-      if (sentinel) observer.observe(sentinel)
+      }, wait)
     }
+
+    const firstSentinel = cols >= 2 ? loadMoreSentinelRefs.current[0] : loadMoreSentinelRef.current
+    const root = inModal ? firstSentinel?.closest('[data-modal-scroll]') ?? null : null
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        // Find which column triggered this intersection
+        for (const e of entries) {
+          if (!e.isIntersecting || loadingMoreRef.current) continue
+          // Find the column index for this sentinel
+          const colIndex = refs.findIndex((ref) => ref === e.target)
+          const colCooldown = lastLoadMoreByColumnRef.current[colIndex] ?? 0
+          // Check both global and per-column cooldown to prevent infinite loops
+          if (Date.now() - colCooldown < LOAD_MORE_COOLDOWN_MS) {
+            scheduleRetry()
+            continue
+          }
+          loadingMoreRef.current = true
+          const c = loadMoreCursor
+          // Update cooldown for this specific column
+          lastLoadMoreByColumnRef.current[colIndex] = Date.now()
+          rafId = requestAnimationFrame(() => {
+            rafId = 0
+            loadMore(c)
+          })
+          break
+        }
+      },
+      { root: root ?? undefined, rootMargin: `${LOAD_MORE_ROOT_MARGIN_PX}px`, threshold: 0 }
+    )
+    for (let c = 0; c < cols; c++) {
+      const el = refs[c]
+      if (el) observer.observe(el)
+    }
+
+    // After each cursor change (new posts loaded), schedule a fallback check for short columns
+    // whose sentinels may have scrolled beyond rootMargin or been blocked by cooldown (incl. 1-col).
+    scheduleRetry()
+
     return () => {
       observer.disconnect()
+      if (rafId) cancelAnimationFrame(rafId)
       clearTimeout(retryId)
     }
   }, [tab, profilePostsFilter, loadMoreCursor, load, loadLiked, loadMore, inModal, cols])
@@ -551,6 +628,10 @@ export default function ProfileContent({
     .filter((item) => mediaByPostUri.get(item.post.uri))
     .filter((item) => nsfwPreference !== 'sfw' || !isPostNsfw(item.post))
   const profileGridItems = mediaItems
+
+  // Distribute items into columns and track lengths for infinite scroll
+  const distributedColumns = useMemo(() => distributeByHeight(profileGridItems, cols), [profileGridItems, cols])
+  distributedColumnLengthsRef.current = distributedColumns.map((c) => c.length)
 
   // Prefetch first few posts when profile loads for instant feel on first clicks
   useEffect(() => {
@@ -667,8 +748,7 @@ export default function ProfileContent({
         beginKeyboardNavigation()
         scrollIntoViewFromKeyboardRef.current = true
         if (cols >= 2) {
-          const columns = distributeByHeight(items, cols)
-          setKeyboardFocusIndex((idx) => indexAbove(columns, idx))
+          setKeyboardFocusIndex((idx) => indexAbove(distributedColumns, idx))
         } else {
           setKeyboardFocusIndex((idx) => Math.max(0, idx - 1))
         }
@@ -678,8 +758,7 @@ export default function ProfileContent({
         beginKeyboardNavigation()
         scrollIntoViewFromKeyboardRef.current = true
         if (cols >= 2) {
-          const columns = distributeByHeight(items, cols)
-          setKeyboardFocusIndex((idx) => indexBelow(columns, idx))
+          setKeyboardFocusIndex((idx) => indexBelow(distributedColumns, idx))
         } else {
           setKeyboardFocusIndex((idx) => Math.min(items.length - 1, idx + 1))
         }
@@ -691,7 +770,6 @@ export default function ProfileContent({
         setActionsMenuOpenForIndex(null)
         const goLeft = key === 'a' || key === 'j' || e.key === 'ArrowLeft'
         if (cols >= 2) {
-          const columns = distributeByHeight(items, cols)
           const idx = keyboardFocusIndexRef.current
           const measure = (cardIndex: number) => {
             const el = cardRefsRef.current[cardIndex]
@@ -701,8 +779,8 @@ export default function ProfileContent({
             return { top: r.top, left: r.left, width: r.width, height: r.height }
           }
           setKeyboardFocusIndex(
-            pickAdjacentCardIndexByViewport(columns, goLeft ? -1 : 1, idx, measure) ??
-              (goLeft ? indexLeftByRow(columns, idx) : indexRightByRow(columns, idx)),
+            pickAdjacentCardIndexByViewport(distributedColumns, goLeft ? -1 : 1, idx, measure) ??
+              (goLeft ? indexLeftByRow(distributedColumns, idx) : indexRightByRow(distributedColumns, idx)),
           )
         } else {
           setKeyboardFocusIndex((idx) =>
@@ -867,9 +945,11 @@ export default function ProfileContent({
       <div className={`${styles.wrap} ${inModal ? styles.wrapInModal : ''}`}>
         <header className={styles.profileHeader}>
           <div className={styles.profileHeaderMain}>
-            {profile?.avatar && (
+            {profile?.avatar ? (
               <ProgressiveImage src={profile.avatar} alt="" className={styles.avatar} loading="lazy" root={modalScrollRef} />
-            )}
+            ) : (
+              <div className={styles.avatar} style={{ backgroundColor: 'var(--glass-border)' }} aria-hidden />
+            )
             <div className={styles.profileMeta}>
               {profile?.displayName && (
                 <h2 className={styles.displayName}>{profile.displayName}</h2>
@@ -1227,7 +1307,7 @@ export default function ProfileContent({
               {...gridPointerGateProps}
               data-view-mode={viewMode}
             >
-              {distributeByHeight(mediaItems, cols).map((column, colIndex) => (
+              {distributedColumns.map((column, colIndex) => (
                 <ProfileColumn
                   key={colIndex}
                   column={column}

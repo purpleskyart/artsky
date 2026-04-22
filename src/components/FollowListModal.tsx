@@ -18,7 +18,7 @@ function getMobileSnapshot() {
   return typeof window !== 'undefined' ? window.innerWidth < MOBILE_BREAKPOINT : false
 }
 
-export type FollowListSortBy = 'handle' | 'displayName' | 'date'
+export type FollowListSortBy = 'handle' | 'displayName' | 'date' | 'followers'
 export type FollowListOrder = 'asc' | 'desc'
 
 export function FollowListModal({
@@ -38,7 +38,7 @@ export function FollowListModal({
 }) {
   const { openProfileModal, closeAllModals } = useProfileModal()
   const isMobile = useSyncExternalStore(subscribeMobile, getMobileSnapshot, () => false)
-  const [list, setList] = useState<ProfileViewBasic[]>([])
+  const [pages, setPages] = useState<ProfileViewBasic[][]>([])
   const [cursor, setCursor] = useState<string | undefined>()
   const [loading, setLoading] = useState(false) // Changed to false - don't load on mount
   const [loadingMore, setLoadingMore] = useState(false)
@@ -65,7 +65,7 @@ export function FollowListModal({
       else setLoadingMore(true)
       try {
         if (mode === 'mutuals' || mode === 'followedByFollows') {
-          setList([])
+          setPages([])
           setCursor(undefined)
         } else {
           const fetcher = mode === 'followers' ? getFollowers : getFollowsList
@@ -73,12 +73,12 @@ export function FollowListModal({
             limit: PAGE_SIZE,
             cursor: nextCursor,
           })
-          setList((prev) => (isFirst ? page : [...prev, ...page]))
+          setPages((prev) => (isFirst ? [page] : [...prev, page]))
           setCursor(next)
         }
         if (isFirst) setHasLoadedOnce(true)
       } catch {
-        if (isFirst) setList([])
+        if (isFirst) setPages([])
       } finally {
         setLoading(false)
         setLoadingMore(false)
@@ -92,22 +92,16 @@ export function FollowListModal({
     if (mode === 'mutuals' || mode === 'followedByFollows') {
       // Don't auto-load for modes that require special handling
       setLoading(false)
-      setList([])
+      setPages([])
     } else {
       // Auto-load followers/following immediately
       load()
     }
   }, [mode, load])
 
+  // Flatten pages, sorting each page individually so newly loaded pages stay at the bottom
   const filteredAndSorted = useMemo(() => {
     const q = search.trim().toLowerCase()
-    let out = q
-      ? list.filter(
-          (p) =>
-            (p.handle ?? '').toLowerCase().includes(q) ||
-            (p.displayName ?? '').toLowerCase().includes(q)
-        )
-      : [...list]
     const byHandle = (a: ProfileViewBasic, b: ProfileViewBasic) =>
       (a.handle ?? a.did).localeCompare(b.handle ?? b.did)
     const byDisplayName = (a: ProfileViewBasic, b: ProfileViewBasic) =>
@@ -117,10 +111,28 @@ export function FollowListModal({
       const tb = b.indexedAt ? new Date(b.indexedAt).getTime() : 0
       return ta - tb
     }
-    const cmp = sortBy === 'handle' ? byHandle : sortBy === 'displayName' ? byDisplayName : byDate
-    out.sort((a, b) => (order === 'asc' ? cmp(a, b) : cmp(b, a)))
-    return out
-  }, [list, search, sortBy, order])
+    const byFollowers = (a: ProfileViewBasic, b: ProfileViewBasic) => {
+      const fa = a.followersCount ?? 0
+      const fb = b.followersCount ?? 0
+      return fa - fb
+    }
+    const cmp = sortBy === 'handle' ? byHandle : sortBy === 'displayName' ? byDisplayName : sortBy === 'followers' ? byFollowers : byDate
+
+    // Process each page: filter, sort within page, maintain page order
+    const processedPages = pages.map((page) => {
+      let out = q
+        ? page.filter(
+            (p) =>
+              (p.handle ?? '').toLowerCase().includes(q) ||
+              (p.displayName ?? '').toLowerCase().includes(q)
+          )
+        : [...page]
+      out.sort((a, b) => (order === 'asc' ? cmp(a, b) : cmp(b, a)))
+      return out
+    })
+
+    return processedPages.flat()
+  }, [pages, search, sortBy, order])
 
   const loadMore = useCallback(() => {
     if (!cursor || loadingMore || loading) return
@@ -130,11 +142,10 @@ export function FollowListModal({
   const handleBackdropClick = useCallback(
     (e: React.MouseEvent) => {
       if (e.target === e.currentTarget) {
-        if (isMobile) onClose()
-        else closeAllModals()
+        onClose()
       }
     },
-    [onClose, isMobile, closeAllModals]
+    [onClose]
   )
 
   return createPortal(
@@ -163,8 +174,8 @@ export function FollowListModal({
                 : mode === 'followedByFollows'
                   ? 'People you follow who follow this account'
                   : 'Mutuals'}
-            {list.length > 0 && !loading && (
-              <span className={styles.count}> ({list.length}{mode !== 'mutuals' && mode !== 'followedByFollows' && cursor != null ? '+' : ''})</span>
+            {pages.length > 0 && !loading && (
+              <span className={styles.count}> ({pages.flat().length}{mode !== 'mutuals' && mode !== 'followedByFollows' && cursor != null ? '+' : ''})</span>
             )}
           </h2>
           <button type="button" className={styles.closeBtn} onClick={onClose} aria-label="Close">
@@ -191,6 +202,7 @@ export function FollowListModal({
           >
             <option value="handle">Username</option>
             <option value="displayName">Display name</option>
+            <option value="followers">Followers count</option>
             <option value="date">Date followed</option>
           </select>
           <button
@@ -226,7 +238,7 @@ export function FollowListModal({
                 {loading ? 'Loading…' : `Load ${mode === 'followers' ? 'Followers' : mode === 'following' ? 'Following' : mode === 'followedByFollows' ? 'List' : 'Mutuals'}`}
               </button>
             </div>
-          ) : loading && list.length === 0 ? (
+          ) : loading && pages.length === 0 ? (
             <p className={styles.loading}>Loading…</p>
           ) : filteredAndSorted.length === 0 ? (
             <p className={styles.empty}>
@@ -278,7 +290,7 @@ export function FollowListModal({
               ))}
             </ul>
           )}
-          {cursor && mode !== 'mutuals' && mode !== 'followedByFollows' && list.length > 0 && !loading && (
+          {cursor && mode !== 'mutuals' && mode !== 'followedByFollows' && pages.length > 0 && !loading && (
             <div className={styles.loadMoreWrap}>
               <button
                 type="button"

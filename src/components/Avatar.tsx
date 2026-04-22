@@ -23,9 +23,10 @@ export function Avatar({ src, alt = '', className, loading = 'lazy', fallback }:
     setHasError(true)
   }, [])
 
-  // If no src or error occurred, show fallback or nothing
+  // If no src or error occurred, show fallback or blank circle
   if (!src || hasError) {
-    return fallback ? <>{fallback}</> : null
+    if (fallback) return <>{fallback}</>
+    return <div className={className} style={{ borderRadius: '50%', backgroundColor: 'var(--glass-border)' }} aria-hidden />
   }
 
   return (

@@ -230,9 +230,11 @@ export default function LoginCard({ onSuccess, onClose }: LoginCardProps) {
                           setSuggestionsOpen(false)
                         }}
                       >
-                        {actor.avatar && (
+                        {actor.avatar ? (
                           <img src={actor.avatar} alt="" className={styles.suggestionAvatar} loading="lazy" />
-                        )}
+                        ) : (
+                          <div className={styles.suggestionAvatar} style={{ backgroundColor: 'var(--glass-border)' }} aria-hidden />
+                        )
                         <div className={styles.suggestionText}>
                           {actor.displayName && (
                             <span className={styles.suggestionDisplayName}>{actor.displayName}</span>
