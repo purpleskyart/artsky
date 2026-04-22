@@ -675,6 +675,28 @@ export default function FeedPage() {
   const LOAD_MORE_ROOT_MARGIN_PX = 1200
   /** Min gap (px) between viewport bottom and a column sentinel to count as "short" (empty masonry below). Capped vs viewport so small phones still work. */
   const LOAD_MORE_SHORT_MARGIN_PX = 300
+
+  const { mediaMode } = useMediaOnly()
+  const { nsfwPreference, unblurredUris, setUnblurred } = useModeration()
+  const { hideRepostsFromDids } = useHideReposts() ?? { hideRepostsFromDids: [] as string[] }
+  const displayItems = useMemo(() =>
+    (feedState.items ?? [])
+      .filter((item) => {
+        if (mediaMode === 'media') return getPostMediaInfoForDisplay(item.post)
+        if (mediaMode === 'video') return getPostMediaInfoForDisplay(item.post)?.type === 'video'
+        return true
+      })
+      .filter((item) => !feedState.seenUrisAtReset.has(item.post.uri))
+      .filter((item) => nsfwPreference !== 'sfw' || !isPostNsfw(item.post))
+      .filter((item) => {
+        if (!isRepost(item)) return true
+        const reposterDid = (item.reason as { by?: { did: string } })?.by?.did
+        return !reposterDid || !hideRepostsFromDids.includes(reposterDid)
+      }),
+    [feedState.items, mediaMode, feedState.seenUrisAtReset, nsfwPreference, hideRepostsFromDids]
+  )
+  const displayEntries = useMemo(() => buildDisplayEntries(displayItems), [displayItems])
+
   useEffect(() => {
     if (!feedState.cursor) return
     
@@ -805,27 +827,6 @@ export default function FeedPage() {
       lastLoadMoreByColumnRef.current = Array.from({ length: cols }, (_, i) => current[i] ?? 0)
     }
   }, [cols])
-
-  const { mediaMode } = useMediaOnly()
-  const { nsfwPreference, unblurredUris, setUnblurred } = useModeration()
-  const { hideRepostsFromDids } = useHideReposts() ?? { hideRepostsFromDids: [] as string[] }
-  const displayItems = useMemo(() =>
-    (feedState.items ?? [])
-      .filter((item) => {
-        if (mediaMode === 'media') return getPostMediaInfoForDisplay(item.post)
-        if (mediaMode === 'video') return getPostMediaInfoForDisplay(item.post)?.type === 'video'
-        return true
-      })
-      .filter((item) => !feedState.seenUrisAtReset.has(item.post.uri))
-      .filter((item) => nsfwPreference !== 'sfw' || !isPostNsfw(item.post))
-      .filter((item) => {
-        if (!isRepost(item)) return true
-        const reposterDid = (item.reason as { by?: { did: string } })?.by?.did
-        return !reposterDid || !hideRepostsFromDids.includes(reposterDid)
-      }),
-    [feedState.items, mediaMode, feedState.seenUrisAtReset, nsfwPreference, hideRepostsFromDids]
-  )
-  const displayEntries = useMemo(() => buildDisplayEntries(displayItems), [displayItems])
 
   // Prefetch first few posts when feed loads for instant feel on first clicks
   useEffect(() => {
