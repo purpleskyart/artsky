@@ -807,7 +807,6 @@ html[data-theme="dark"] [data-view-mode="1"] .card:hover {
 .mediaWrap {
   position: relative;
   width: 100%;
-  aspect-ratio: 1; /* fallback until image loads (was 3/4, made cards too tall for landscape/square images) */
   min-height: 100px;
   max-height: var(--feed-card-media-max-height, none); /* optional cap when ancestor sets --feed-card-media-max-height */
   overflow: hidden;
@@ -819,12 +818,41 @@ html[data-theme="dark"] [data-view-mode="1"] .card:hover {
   border-radius: var(--glass-radius-sm) var(--glass-radius-sm) 0 0;
 }
 
-/* Desktop single column: unset aspect-ratio so media scales without cropping when max-height is applied */
+/* Desktop single column: media scales without cropping when max-height is applied */
 @media (min-width: 768px) {
   .gridView1 .mediaWrap {
-    aspect-ratio: unset;
     max-height: none;
+    min-height: auto;
+    width: 100%;
   }
+  .gridView1 .media {
+    width: 100%;
+    max-width: 100%;
+    height: auto;
+    max-height: none;
+    object-fit: contain;
+  }
+}
+
+/* Modal context: ensure images fill available modal width without cropping */
+.overlay .gridView1 .mediaWrap {
+  width: 100%;
+  max-width: none;
+}
+.overlay .gridView1 .media {
+  width: 100%;
+  max-width: none;
+  height: auto;
+  object-fit: contain;
+}
+
+/* Grid views: single image cards should scale like multi-image cards (no forced 1:1 square) */
+.gridView1 .mediaWrap,
+.gridView2 .mediaWrap,
+.gridView3 .mediaWrap,
+.gridView4 .mediaWrap,
+.gridView5 .mediaWrap {
+  aspect-ratio: unset;
 }
 
 /* Art only: flatter top than 16px full glass; bottom keeps full radius */
@@ -959,7 +987,6 @@ html[data-theme="dark"] [data-view-mode="1"] .card:hover {
 /* Single-col profile/feed: fixed height from the start so media doesn't resize when image loads */
 .mediaWrapConstrained {
   height: var(--feed-card-media-max-height);
-  aspect-ratio: unset;
   min-height: unset;
 }
 
@@ -1022,6 +1049,16 @@ html[data-theme="dark"] [data-view-mode="1"] .card:hover {
   min-height: 2.75rem;
   height: auto;
   align-items: stretch;
+}
+
+/* Single image cards: remove forced aspect ratio and let image determine height */
+.mediaWrap:not(.mediaWrapTextOnly):not(.mediaWrapMultiStack):not(.mediaWrapFillCell) {
+  aspect-ratio: unset;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  min-height: 100px;
+  height: auto;
 }
 
 .cardNsfwBlurred .mediaWrap.mediaWrapTextOnly {

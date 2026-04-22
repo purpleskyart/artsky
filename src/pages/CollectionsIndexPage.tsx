@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import Layout from '../components/Layout'
 import { ProgressiveImage } from '../components/ProgressiveImage'
+import VideoWithHls from '../components/VideoWithHls'
 import { useSession } from '../context/SessionContext'
 import { useLoginModal } from '../context/LoginModalContext'
 import {
@@ -88,9 +89,20 @@ function LazyPreviewStrip({
         const post = uri ? postByUri.get(uri) : undefined
         const media = post ? getPostMediaInfoForDisplay(post, POST_MEDIA_FEED_PREVIEW) : null
         const src = media?.url?.trim() ? media.url : null
+        const isVideo = media?.type === 'video' && media?.videoPlaylist
         return (
           <div key={i} className={styles.previewCell}>
-            {src ? (
+            {isVideo ? (
+              <VideoWithHls
+                playlistUrl={media.videoPlaylist || ''}
+                poster={src || undefined}
+                className={styles.previewImg}
+                loop
+                autoPlay
+                preload="metadata"
+                controlsHiddenUntilTap
+              />
+            ) : src ? (
               <ProgressiveImage src={src} alt="" className={styles.previewImg} loading="lazy" />
             ) : (
               <div className={styles.previewPlaceholder} title={post ? 'Text or link post' : undefined}>

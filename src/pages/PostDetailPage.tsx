@@ -2495,6 +2495,9 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                       navigate(getPostAppPath(quoted.uri, quoted.author?.handle))
                     }
                   }
+                  const handleQuotedMediaClick = (_url: string, _index: number) => {
+                    openQuotedPost()
+                  }
                   return (
                     <div className={styles.quotedPostWrap}>
                       <p className={styles.quotedPostLabel}>Quoting</p>
@@ -2537,6 +2540,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                               items={quotedMediaFull}
                               forEmbeddedPreview
                               hideVideoControlsUntilTap={!isDesktop}
+                              onImageClick={handleQuotedMediaClick}
                             />
                           </div>
                         )}

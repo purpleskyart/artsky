@@ -10,25 +10,25 @@
  */
 export const GUEST_FEED_ACCOUNTS = [
   { handle: 'oseanworld.bsky.social', label: 'Osean World' },
-  { handle: 'certly.bsky.social', label: 'Certly' },
-  { handle: 'discountvillain.bsky.social', label: 'Discount Villain' },
-  { handle: 'xenonb.bsky.social', label: 'Xenonb' },
+  { handle: 'sssvvv.bsky.social', label: 'sssvvv' },
+  { handle: 'shio-to-no.bsky.social', label: 'Shio To No' },
+  { handle: 'anatofinnstark.bsky.social', label: 'Anatofinnstark' },
   { handle: 'asteroidill.bsky.social', label: 'Asteroidill' },
+  { handle: 'discountvillain.bsky.social', label: 'Discount Villain' },
   { handle: 'poiandkeely.bsky.social', label: 'Poi and Keely' },
   { handle: 'gaya20001026.bsky.social', label: 'Ga Ya' },
   { handle: 'bemmpo.bsky.social', label: 'Bemmpo' },
+  { handle: 'sarenstone.com', label: 'SAREN' },
   { handle: 'onepiececolor.bsky.social', label: '𝐎𝐍𝐄 𝐏𝐈𝐄𝐂𝐄' },
   { handle: 'minbitt.bsky.social', label: 'Minbitt' },
   { handle: 'pyawakit.bsky.social', label: 'Pyawakit' },
-  { handle: 'shio-to-no.bsky.social', label: 'Shio To No' },
   { handle: 'goomyloid.bsky.social', label: 'Goomyloid' },
   { handle: 'saredd99.bsky.social', label: 'Saredd99' },
   { handle: 'kianamai.bsky.social', label: 'Kianamai' },
-  { handle: 'anatofinnstark.bsky.social', label: 'Anatofinnstark' },
   { handle: 'cardbordtoaster.bsky.social', label: 'Toaster' },
   { handle: 'lacruzo.bsky.social', label: 'lacruzo' },
-  { handle: 'sarenstone.com', label: 'SAREN' },
-  { handle: 'sssvvv.bsky.social', label: 'sssvvv' },
+  { handle: 'certly.bsky.social', label: 'Certly' },
+
 
 ] as const
 

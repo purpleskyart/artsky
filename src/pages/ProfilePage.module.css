@@ -249,6 +249,16 @@
   text-decoration-color: var(--accent);
 }
 
+.followsYouBadge {
+  font-size: 0.75rem;
+  color: var(--accent);
+  background: rgba(var(--accent-rgb), 0.1);
+  padding: 0.15rem 0.5rem;
+  border-radius: 0.375rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
 .description {
   margin: 0;
   font-size: 0.9rem;
@@ -747,6 +757,28 @@
   color: var(--muted);
   padding: 1rem;
   font-size: 0.9rem;
+}
+
+.loadMoreBtn {
+  padding: 0.5rem 1.25rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text-on-accent);
+  background: var(--accent-gradient);
+  border: none;
+  border-radius: var(--glass-radius-sm);
+  cursor: pointer;
+  transition: filter 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.loadMoreBtn:hover:not(:disabled) {
+  filter: brightness(0.92);
+}
+
+.loadMoreBtn:disabled {
+  opacity: 0.7;
+  cursor: default;
 }
 
 .more {

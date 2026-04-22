@@ -16,6 +16,10 @@ function ProfileLink({ handle, className, title, 'aria-label': ariaLabel, onClic
   const { openProfileModal } = useProfileModal()
 
   const handleClick = useCallback((e: React.MouseEvent) => {
+    // Allow middle-click (button 1) or ctrl/cmd+click to open in new tab
+    if (e.button === 1 || e.ctrlKey || e.metaKey) {
+      return
+    }
     e.preventDefault()
     e.stopPropagation()
     e.nativeEvent.stopPropagation()
@@ -55,14 +59,14 @@ function ProfileLink({ handle, className, title, 'aria-label': ariaLabel, onClic
   }, [openProfileModal, handle, onClick])
 
   return (
-    <span
+    <a
+      href={`/profile/${handle}`}
       className={className}
       title={title}
       aria-label={ariaLabel}
-      role="button"
-      tabIndex={0}
+      target="_blank"
+      rel="noopener noreferrer"
       data-profile-link="true"
-      style={{ cursor: 'pointer' }}
       onMouseEnter={() => preloadProfileOpen(handle)}
       onPointerDown={() => {
         preloadProfileOpen(handle)
@@ -79,7 +83,7 @@ function ProfileLink({ handle, className, title, 'aria-label': ariaLabel, onClic
       }}
     >
       {children}
-    </span>
+    </a>
   )
 }
 

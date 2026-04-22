@@ -77,8 +77,6 @@ const PRESET_SOURCES: FeedSource[] = [
   { kind: 'custom', label: "What's Hot", uri: 'at://did:plc:z72i7hdynmk6r22z27h6tvur/app.bsky.feed.generator/whats-hot' },
 ]
 
-/** Nominal column width for height estimation (px). */
-const ESTIMATE_COL_WIDTH = 280
 const CARD_CHROME = 100
 
 const REASON_REPOST = 'app.bsky.feed.defs#reasonRepost'
@@ -103,11 +101,16 @@ export function buildDisplayEntries(items: TimelineItem[]): FeedDisplayEntry[] {
   return items.map((item, entryIndex) => ({ type: 'post', item, entryIndex }))
 }
 
-function estimateEntryHeight(entry: FeedDisplayEntry): number {
+function estimateEntryHeight(entry: FeedDisplayEntry, numCols: number = 3): number {
   const media = getPostMediaInfoForDisplay(entry.item.post)
   if (!media) return CARD_CHROME + 80
+  
+  // Base width for 3-column view (~280px). 
+  // In 1-column view, it's roughly 2x-2.5x larger on modern mobile/tablet.
+  const estimatedWidth = numCols === 1 ? 580 : numCols === 2 ? 400 : 280
+  
   if (media.aspectRatio != null && media.aspectRatio > 0) {
-    return CARD_CHROME + ESTIMATE_COL_WIDTH / media.aspectRatio
+    return CARD_CHROME + estimatedWidth / media.aspectRatio
   }
   return CARD_CHROME + 220
 }
@@ -169,7 +172,7 @@ function distributeEntriesByHeight(
 
     for (let i = 0; i < entries.length; i++) {
       const entry = entries[i]
-      const h = estimateEntryHeight(entry)
+      const h = estimateEntryHeight(entry, cols)
       const prevCol = previousColumnForEntry(entry, keyToColumn, cols)
       const col = prevCol !== undefined ? prevCol : pickShortestColumnIndex(columns, columnHeights)
       columns[col].push({ entry, originalIndex: i })
@@ -186,7 +189,7 @@ function distributeEntriesByHeight(
   const columnHeights: number[] = Array(cols).fill(0)
   for (let i = 0; i < entries.length; i++) {
     const entry = entries[i]
-    const h = estimateEntryHeight(entry)
+    const h = estimateEntryHeight(entry, cols)
     const lengths = columns.map((col) => col.length)
     const minCount = lengths.length === 0 ? 0 : Math.min(...lengths)
     let best = -1

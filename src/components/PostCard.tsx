@@ -1,7 +1,5 @@
 import { useRef, useEffect, useLayoutEffect, useState, useCallback, useMemo, memo } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import type Hls from 'hls.js'
-import { loadHls } from '../lib/loadHls'
 import { getPostMediaInfoForDisplay, getPostAllMediaForDisplay, getPostExternalLink, getReplyParentPostView, getQuotedPostView, POST_MEDIA_FEED_PREVIEW, likePostWithLifecycle, unlikePostWithLifecycle, followAccountWithLifecycle, type TimelineItem } from '../lib/bsky'
 import { useSession } from '../context/SessionContext'
 import { useLoginModal } from '../context/LoginModalContext'
@@ -15,7 +13,6 @@ import { setInitialPostForUri } from '../lib/postCache'
 import { getPostOverlayPath } from '../lib/appUrl'
 import { getOverlayBackgroundLocation, hasPathOverlayStack } from '../lib/overlayNavigation'
 import { useModalScroll } from '../context/ModalScrollContext'
-import { useOffscreenOptimization } from '../hooks/useOffscreenOptimization'
 import { preloadPostOpen } from '../lib/modalPreload'
 import { getProgressiveImageDefaults } from '../lib/imageUtils'
 import PostText from './PostText'
@@ -102,10 +99,6 @@ function PinIcon() {
   )
 }
 
-function isHlsUrl(url: string): boolean {
-  return /\.m3u8(\?|$)/i.test(url) || url.includes('m3u8')
-}
-
 type InnerProps = Props & {
   setUnblurred: (uri: string, revealed: boolean) => void
   isRevealed: boolean
@@ -157,11 +150,7 @@ function PostCardInner({
   const { getFollowOverride, setFollowOverride } = useFollowOverrides()
   const location = useLocation()
   const modalScrollRef = useModalScroll()
-  const videoRef = useRef<HTMLVideoElement>(null)
   const mediaWrapRef = useRef<HTMLDivElement>(null)
-  const hlsRef = useRef<Hls | null>(null)
-  const videoPlayInViewRef = useRef(false)
-  const [videoPreloadInRange, setVideoPreloadInRange] = useState(false)
   const { post, reason } = item as { post: typeof item.post; reason?: { $type?: string; by?: { handle?: string; did?: string } } }
   const feedSource = (item as { _feedSource?: { kind?: string; label?: string; uri?: string; acceptsInteractions?: boolean } })._feedSource
   const feedLabel = feedSource?.label ?? (feedSource?.kind === 'timeline' ? 'Following' : undefined)
@@ -232,13 +221,10 @@ function PostCardInner({
   const [mediaAspect, setMediaAspect] = useState<number | null>(() =>
     hasMedia && media?.aspectRatio != null ? media.aspectRatio : null,
   )
-  const [videoPaused, setVideoPaused] = useState(true)
   const [actionsMenuOpen, setActionsMenuOpen] = useState(false)
   const actionsMenuDropdownRef = useRef<HTMLDivElement>(null)
   const cardRef = useRef<HTMLDivElement>(null)
-  const [cardRootEl, setCardRootEl] = useState<HTMLDivElement | null>(null)
   const modalScrollContainer = modalScrollRef
-  const isCardNearViewport = useOffscreenOptimization(cardRootEl, { rootMargin: '400px 0px 400px 0px', root: modalScrollContainer })
   const prevSelectedRef = useRef(isSelected)
   const lastTapRef = useRef(0)
   const lastMediaClickRef = useRef(0)
@@ -412,23 +398,22 @@ function PostCardInner({
   }, [isModalOpen])
 
   const isVideo = hasMedia && media!.type === 'video' && media!.videoPlaylist
-  const effectiveVideoPreloadRange = isCardNearViewport && videoPreloadInRange
   const cardMediaPreloadDistance = useMemo(() => {
     const { preloadDistance } = getProgressiveImageDefaults()
     return feedPreviewActionRow ? preloadDistance + 480 : preloadDistance
   }, [feedPreviewActionRow])
-  const isMultipleImages = hasMedia && media!.type === 'image' && (media!.imageCount ?? 0) > 1
   const imageItems = useMemo(() => allMedia.filter((m) => m.type === 'image'), [allMedia])
+  const isMultipleImages = hasMedia && media!.type === 'image' && imageItems.length > 1
   const isTextOnlyPreview = !hasMedia || mediaMode === 'text'
   /** Feed / loose grids: short text posts should not reserve a full square (1:1) of empty space. */
   const useCompactTextOnlyHeight =
-    isTextOnlyPreview && !fillCell && !constrainMediaHeight && !(isMultipleImages && imageItems.length > 1)
+    isTextOnlyPreview && !fillCell && !constrainMediaHeight && !isMultipleImages
   /** Indices in allMedia for each image (for onMediaRef / focusedMediaIndex when multi-image) */
   const imageMediaIndices = useMemo(
     () => allMedia.map((m, i) => (m.type === 'image' ? i : -1)).filter((i): i is number => i >= 0),
     [allMedia]
   )
-  const currentImageUrl = isMultipleImages && imageItems.length ? imageItems[0]?.url : (media?.url ?? '')
+  const currentImageUrl = isMultipleImages ? imageItems[0]?.url : (media?.url ?? '')
 
   const handleImageLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
     const img = e.currentTarget
@@ -462,127 +447,6 @@ function PostCardInner({
   useEffect(() => {
     if (mediaAspect != null && onAspectRatio) onAspectRatio(mediaAspect)
   }, [mediaAspect, onAspectRatio])
-
-  /* Start fetching video (HLS) while still off-screen, using the same margins as feed images. Playback stays gated below. */
-  useEffect(() => {
-    if (!isVideo || !mediaWrapRef.current) {
-      setVideoPreloadInRange(false)
-      return
-    }
-    const el = mediaWrapRef.current
-    const { preloadDistance } = getProgressiveImageDefaults()
-    const margin = feedPreviewActionRow ? `${preloadDistance + 480}px` : `${preloadDistance}px`
-    const rootMargin = `${margin} 0px ${margin} 0px`
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const entry = entries[0]
-        if (!entry) return
-        setVideoPreloadInRange(entry.isIntersecting)
-      },
-      { rootMargin, threshold: 0 }
-    )
-    observer.observe(el)
-    return () => {
-      observer.disconnect()
-      setVideoPreloadInRange(false)
-    }
-  }, [isVideo, post.uri, feedPreviewActionRow])
-
-  useEffect(() => {
-    if (!isVideo || !media?.videoPlaylist || !effectiveVideoPreloadRange) {
-      if (hlsRef.current) {
-        hlsRef.current.destroy()
-        hlsRef.current = null
-      }
-      const v = videoRef.current
-      if (v) {
-        v.pause()
-        v.removeAttribute('src')
-      }
-      return
-    }
-
-    const video = videoRef.current
-    if (!video) return
-    const src = media!.videoPlaylist
-    let cancelled = false
-
-    if (isHlsUrl(src)) {
-      loadHls()
-        .then((Hls) => {
-          if (cancelled || !videoRef.current) return
-          const v = videoRef.current
-          if (Hls.isSupported()) {
-            const hls = new Hls()
-            hlsRef.current = hls
-            hls.loadSource(src)
-            hls.attachMedia(v)
-            hls.on(Hls.Events.ERROR, () => {})
-          } else if (v.canPlayType('application/vnd.apple.mpegurl')) {
-            v.src = src
-          }
-        })
-        .catch(() => {
-          if (!cancelled && videoRef.current?.canPlayType('application/vnd.apple.mpegurl')) {
-            videoRef.current.src = src
-          }
-        })
-    } else {
-      video.src = src
-    }
-
-    return () => {
-      cancelled = true
-      if (hlsRef.current) {
-        hlsRef.current.destroy()
-        hlsRef.current = null
-      }
-      const v = videoRef.current
-      if (v) {
-        v.pause()
-        v.removeAttribute('src')
-      }
-    }
-  }, [isVideo, media?.videoPlaylist, effectiveVideoPreloadRange])
-
-  /* Autoplay only when actually in the viewport (not merely in the preload margin). Pause when out of view or modal opens. */
-  const isModalOpenRef = useRef(isModalOpen)
-  isModalOpenRef.current = isModalOpen
-  useEffect(() => {
-    if (!isVideo || !mediaWrapRef.current || !videoRef.current) return
-    const el = mediaWrapRef.current
-    const video = videoRef.current
-    videoPlayInViewRef.current = false
-    if (isModalOpen) video.pause()
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const entry = entries[0]
-        if (!entry || !video) return
-        const inView = entry.isIntersecting
-        videoPlayInViewRef.current = inView
-        if (isModalOpenRef.current) {
-          video.pause()
-          return
-        }
-        if (inView) {
-          video.play().catch(() => {})
-        } else {
-          video.pause()
-        }
-      },
-      { threshold: 0, rootMargin: '0px' }
-    )
-    observer.observe(el)
-    return () => {
-      observer.disconnect()
-      videoPlayInViewRef.current = false
-    }
-  }, [isVideo, isModalOpen, post.uri])
-
-  useEffect(() => {
-    if (!isVideo || !videoRef.current) return
-    if (!isCardNearViewport) videoRef.current.pause()
-  }, [isVideo, isCardNearViewport])
 
   /* Unblur NSFW when this card gains focus; reblur when it loses selection. Reused across feed, profile, tag, popups. useLayoutEffect so unblur runs before paint (fixes profile modal). Skip unblur on touch devices within 500ms of touch to prevent scroll-induced selection from unblurring. */
   useLayoutEffect(() => {
@@ -658,19 +522,6 @@ function PostCardInner({
     observer.observe(el)
     return () => observer.disconnect()
   }, [hasMedia, post.uri, isRevealed, setUnblurred, modalScrollRef])
-
-  const onMediaEnter = useCallback(() => {
-    if (videoRef.current && videoPlayInViewRef.current) {
-      videoRef.current.play().catch(() => {})
-    }
-  }, [])
-
-  const onMediaLeave = useCallback(() => {
-    if (videoRef.current) {
-      videoRef.current.pause()
-      videoRef.current.currentTime = 0
-    }
-  }, [])
 
   /** Open post in modal (profile page) or navigate to feed with post param (other pages). Same behavior as when onPostClick is provided. */
   const openPostInModalOrFeed = useCallback(() => {
@@ -842,7 +693,7 @@ function PostCardInner({
     if (mediaClickFromTouchRef.current) return
     // When displaying quoted media (outer post has no media), clicking should open the quote post in modal context, quoting post on feed
     const openTargetPost = isDisplayingQuotedMedia
-      ? (hasPathOverlayStack(location) ? openQuotedPost : openPost)
+      ? (isModalOpen ? openQuotedPost : openPost)
       : openPost
     // Mouse users expect immediate open. Keep double-tap-like behavior touch-only.
     if (e.nativeEvent.detail <= 1) {
@@ -897,7 +748,6 @@ function PostCardInner({
 
   const setCardRef = useCallback(
     (el: HTMLDivElement | null) => {
-      setCardRootEl(el)
       ;(cardRef as React.MutableRefObject<HTMLDivElement | null>).current = el
       if (cardRefProp) {
         if (typeof cardRefProp === 'function') cardRefProp(el)
@@ -1189,27 +1039,22 @@ function PostCardInner({
         <div
           ref={(el) => {
             ;(mediaWrapRef as React.MutableRefObject<HTMLDivElement | null>).current = el
-            if (onMediaRef && (mediaMode === 'text' || (hasMedia && !(isMultipleImages && imageItems.length > 1)))) onMediaRef(0, el)
+            if (onMediaRef && (mediaMode === 'text' || (hasMedia && !isMultipleImages))) onMediaRef(0, el)
           }}
-          className={`${styles.mediaWrap} ${fillCell ? styles.mediaWrapFillCell : ''} ${constrainMediaHeight ? styles.mediaWrapConstrained : ''} ${isMultipleImages && imageItems.length > 1 ? styles.mediaWrapMultiStack : ''} ${useCompactTextOnlyHeight ? styles.mediaWrapTextOnly : ''}`}
+          className={`${styles.mediaWrap} ${fillCell ? styles.mediaWrapFillCell : ''} ${constrainMediaHeight ? styles.mediaWrapConstrained : ''} ${isMultipleImages ? styles.mediaWrapMultiStack : ''} ${useCompactTextOnlyHeight ? styles.mediaWrapTextOnly : ''}`}
           style={
             fillCell || constrainMediaHeight ||
-            (isMultipleImages && imageItems.length > 1)
+            isMultipleImages
               ? undefined
               : {
                   aspectRatio: useCompactTextOnlyHeight
                     ? undefined
                     : !hasMedia
                       ? '1'
-                      : mediaAspect != null
-                        ? String(mediaAspect)
-                        : isVideo
-                          ? '1'
-                          : undefined,
+                      : mediaAspect ? String(mediaAspect) : undefined,
+                  minHeight: !hasMedia ? '200px' : 'auto',
                 }
           }
-          onMouseEnter={onMediaEnter}
-          onMouseLeave={onMediaLeave}
           {...(hasMedia && { onClick: handleMediaClick })}
         >
           <div className={styles.mediaNsfwBlurTarget}>
@@ -1270,33 +1115,18 @@ function PostCardInner({
             </div>
           ) : isVideo ? (
             <div className={styles.mediaVideoWrap}>
-              <video
-                ref={videoRef}
-                className={styles.media}
+              <VideoWithHls
+                playlistUrl={media!.videoPlaylist || ''}
                 poster={media!.url || undefined}
-                muted
-                playsInline
+                className={styles.media}
                 loop
-                preload={effectiveVideoPreloadRange ? 'metadata' : 'none'}
+                autoPlay
+                preload="metadata"
+                controls={false}
                 style={{ aspectRatio: mediaAspect != null ? `${mediaAspect}` : undefined }}
-                onLoadedMetadata={(e) => {
-                  const v = e.currentTarget
-                  if (!v.videoWidth || !v.videoHeight) return
-                  /* Set aspect once from video dimensions so vertical/landscape scale correctly; don't overwrite if already set (e.g. from API). */
-                  setMediaAspect((prev) => (prev != null ? prev : v.videoWidth / v.videoHeight))
-                }}
-                onPause={() => setVideoPaused(true)}
-                onPlay={() => setVideoPaused(false)}
               />
-              {videoPaused && (
-                <span className={styles.videoIconOverlay} aria-hidden>
-                  <svg viewBox="0 0 24 24" fill="currentColor" width="48" height="48">
-                    <path d="M8 5v14l11-7z"/>
-                  </svg>
-                </span>
-              )}
             </div>
-          ) : isMultipleImages && imageItems.length > 1 ? (
+          ) : isMultipleImages ? (
             <>
               {/* Spacer height = sum of each image's height at full width so all images fit without cropping */}
                 {(() => {

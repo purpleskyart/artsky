@@ -182,7 +182,7 @@ type ProfileState = {
   avatar?: string
   description?: string
   did: string
-  viewer?: { following?: string; blocking?: string }
+  viewer?: { following?: string; blocking?: string; followedBy?: boolean }
   verification?: { verifiedStatus?: string }
   createdAt?: string
   indexedAt?: string
@@ -277,7 +277,7 @@ export default function ProfileContent({
     getProfileCached(handle, !session)
       .then((data) => {
         if (cancelled || gen !== profileFetchGenRef.current) return
-        const profileData = data as { did?: string; displayName?: string; avatar?: string; description?: string; viewer?: { following?: string; blocking?: string }; verification?: { verifiedStatus?: string }; createdAt?: string; indexedAt?: string }
+        const profileData = data as { did?: string; displayName?: string; avatar?: string; description?: string; viewer?: { following?: string; blocking?: string; followedBy?: boolean }; verification?: { verifiedStatus?: string }; createdAt?: string; indexedAt?: string }
         if (!profileData.did) return
         setProfile({
           displayName: profileData.displayName,
@@ -969,6 +969,9 @@ export default function ProfileContent({
                     @{handle}
                   </p>
                 )}
+                {profile?.viewer?.followedBy && !isOwnProfile && (
+                  <span className={styles.followsYouBadge}>Follows you</span>
+                )}
                 {isOwnProfile && (
                   <>
                     <button
@@ -1234,6 +1237,7 @@ export default function ProfileContent({
                   <div key={`${item.post.uri}-${index}`}>
                     <PostCard
                       item={item}
+                      fillCell={false}
                       onPostClick={(uri, opts) => {
                         if (opts?.initialItem) setInitialPostForUri(uri, opts.initialItem)
                         openPostModal(uri, opts?.openReply, undefined, item.post.author?.handle)
@@ -1253,6 +1257,23 @@ export default function ProfileContent({
               </div>
               {cursor && <div ref={loadMoreSentinelRef} className={styles.loadMoreSentinel} aria-hidden />}
               {loadingMore && <div className={styles.loadingMore}>Loading…</div>}
+              {cursor && !loadingMore && (
+                <div style={{ display: 'flex', justifyContent: 'center', padding: '1rem 0' }}>
+                  <button
+                    type="button"
+                    className={styles.loadMoreBtn}
+                    onClick={() => {
+                      if (loadMoreCursor && !loadingMore) {
+                        loadingMoreRef.current = true
+                        loadMore(loadMoreCursor)
+                      }
+                    }}
+                    disabled={loadingMore}
+                  >
+                    Load more
+                  </button>
+                </div>
+              )}
             </>
             )
           ) : tab === 'feeds' ? (
@@ -1350,6 +1371,23 @@ export default function ProfileContent({
               ))}
             </div>
             {loadingMore && <div className={styles.loadingMore}>Loading…</div>}
+            {loadMoreCursor && !loadingMore && (
+              <div style={{ display: 'flex', justifyContent: 'center', padding: '1rem 0' }}>
+                <button
+                  type="button"
+                  className={styles.loadMoreBtn}
+                  onClick={() => {
+                    if (loadMoreCursor && !loadingMore) {
+                      loadingMoreRef.current = true
+                      loadMore(loadMoreCursor)
+                    }
+                  }}
+                  disabled={loadingMore}
+                >
+                  Load more
+                </button>
+              </div>
+            )}
           </>
         )}
         </div>

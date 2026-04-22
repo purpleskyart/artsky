@@ -1,4 +1,5 @@
-import { createContext, useCallback, useContext, useEffect, useState } from 'react'
+import { createContext, useCallback, useContext, useState } from 'react'
+import { asyncStorage } from '../lib/AsyncStorage'
 
 const STORAGE_KEY = 'artsky-hide-reposts-from'
 
@@ -15,42 +16,38 @@ const HideRepostsContext = createContext<HideRepostsContextValue | null>(null)
 
 function getStored(): string[] {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return []
-    const parsed = JSON.parse(raw)
+    const parsed = asyncStorage.get<string[]>(STORAGE_KEY)
     return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string') : []
   } catch {
     return []
   }
 }
 
-function save(dids: string[]) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(dids))
-  } catch {
-    // ignore
-  }
-}
-
 export function HideRepostsProvider({ children }: { children: React.ReactNode }) {
   const [hideRepostsFromDids, setHideRepostsFromDids] = useState<string[]>(getStored)
 
-  useEffect(() => {
-    save(hideRepostsFromDids)
-  }, [hideRepostsFromDids])
-
   const addHideRepostsFrom = useCallback((did: string) => {
-    setHideRepostsFromDids((prev) => (prev.includes(did) ? prev : [...prev, did]))
+    setHideRepostsFromDids((prev) => {
+      const next = prev.includes(did) ? prev : [...prev, did]
+      asyncStorage.set(STORAGE_KEY, next, 0)
+      return next
+    })
   }, [])
 
   const removeHideRepostsFrom = useCallback((did: string) => {
-    setHideRepostsFromDids((prev) => prev.filter((d) => d !== did))
+    setHideRepostsFromDids((prev) => {
+      const next = prev.filter((d) => d !== did)
+      asyncStorage.set(STORAGE_KEY, next, 0)
+      return next
+    })
   }, [])
 
   const toggleHideRepostsFrom = useCallback((did: string) => {
-    setHideRepostsFromDids((prev) =>
-      prev.includes(did) ? prev.filter((d) => d !== did) : [...prev, did]
-    )
+    setHideRepostsFromDids((prev) => {
+      const next = prev.includes(did) ? prev.filter((d) => d !== did) : [...prev, did]
+      asyncStorage.set(STORAGE_KEY, next, 0)
+      return next
+    })
   }, [])
 
   const isHidingRepostsFrom = useCallback(
