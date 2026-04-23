@@ -16,30 +16,6 @@
   padding: 0;
 }
 
-/* Mobile: prevent cursor emulation in modal context */
-@media (max-width: 767px) {
-  .wrapInModal {
-    -webkit-user-select: none;
-    user-select: none;
-    cursor: default;
-  }
-  .wrapInModal * {
-    -webkit-tap-highlight-color: transparent;
-  }
-  .wrapInModal button:focus,
-  .wrapInModal a:focus,
-  .wrapInModal [role="button"]:focus {
-    outline: none;
-    transform: none;
-  }
-  .wrapInModal button:hover,
-  .wrapInModal a:hover,
-  .wrapInModal [role="button"]:hover {
-    outline: none;
-    transform: none;
-  }
-}
-
 /* In profile popup: no border/shadow on header; square top so it meets the modal pane under the floating back; no bottom margin so surface runs into tabs row */
 .wrapInModal .profileHeader {
   border: none;

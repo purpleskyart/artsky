@@ -47,27 +47,6 @@
     -webkit-user-select: auto;
     user-select: auto;
   }
-  /* Prevent cursor emulation and hover/focus states in modal context on mobile */
-  .wrapInModal {
-    -webkit-user-select: none;
-    user-select: none;
-    cursor: default;
-  }
-  .wrapInModal * {
-    -webkit-tap-highlight-color: transparent;
-  }
-  .wrapInModal button:focus,
-  .wrapInModal a:focus,
-  .wrapInModal [role="button"]:focus {
-    outline: none;
-    transform: none;
-  }
-  .wrapInModal button:hover,
-  .wrapInModal a:hover,
-  .wrapInModal [role="button"]:hover {
-    outline: none;
-    transform: none;
-  }
 }
 
 /* In modal on mobile: media takes full width of popup */
@@ -308,17 +287,6 @@
     outline: 2px solid #a855f7;
     outline-offset: 2px;
     border-color: var(--accent);
-  }
-}
-
-/* Mobile: prevent hover/focus states on quoted post cards to prevent cursor emulation */
-@media (max-width: 767px) {
-  .quotedPostCard:focus,
-  .quotedPostCard:hover {
-    outline: none;
-    background: var(--glass-highlight);
-    border-color: var(--border);
-    transform: none;
   }
 }
 
@@ -1319,11 +1287,9 @@
   flex-shrink: 0;
 }
 
-@media (hover: hover) {
-  .likeRepostBtn:hover:not(:disabled) {
-    color: var(--accent);
-    border-color: var(--accent);
-  }
+.likeRepostBtn:hover:not(:disabled) {
+  color: var(--accent);
+  border-color: var(--accent);
 }
 
 .likeRepostBtnActive {
@@ -1342,10 +1308,8 @@
     background-clip: unset;
   }
 }
-@media (hover: hover) {
-  .likeRepostBtnActive:hover:not(:disabled) {
-    filter: brightness(1.15);
-  }
+.likeRepostBtnActive:hover:not(:disabled) {
+  filter: brightness(1.15);
 }
 .likeRepostBtnActive .likeRepostBtnIcon {
   color: #ec4899;
@@ -1407,10 +1371,8 @@
   cursor: pointer;
 }
 
-@media (hover: hover) {
-  .repostDropdownItem:hover:not(:disabled) {
-    background: var(--glass-highlight);
-  }
+.repostDropdownItem:hover:not(:disabled) {
+  background: var(--glass-highlight);
 }
 
 .repostDropdownItem:disabled {
@@ -1555,6 +1517,12 @@
   cursor: pointer;
   text-align: left;
   transition: transform 0.2s ease;
+}
+
+@media (hover: hover) {
+  .replyAsHandleBtn:hover {
+    text-decoration: none;
+  }
 }
 
 .replyAsHandleBtn:focus-visible {
