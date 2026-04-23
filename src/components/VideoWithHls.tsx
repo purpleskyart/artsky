@@ -37,7 +37,6 @@ export default function VideoWithHls({
   const videoRef = useRef<HTMLVideoElement>(null)
   const [showControls, setShowControls] = useState(!controlsHiddenUntilTap)
   const effectiveControls = controlsHiddenUntilTap ? showControls : controls
-  const [isVisible, setIsVisible] = useState(true)
   const wasPlayingRef = useRef(false)
 
   useEffect(() => {
@@ -101,7 +100,6 @@ export default function VideoWithHls({
       (entries) => {
         for (const entry of entries) {
           const isIntersecting = entry.isIntersecting
-          setIsVisible(isIntersecting)
 
           if (!isIntersecting) {
             // Video is leaving viewport - pause it and remember it was playing

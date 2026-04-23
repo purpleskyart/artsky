@@ -20,6 +20,8 @@ function getVirtualizationMargin(): string {
 type VirtCallback = (isNearViewport: boolean) => void
 
 const virtCallbacks = new WeakMap<Element, VirtCallback>()
+// Track elements separately for window resize handling (WeakMap is not iterable)
+const trackedElements = new Map<Element, { callback: VirtCallback; root: Element | null }>()
 const observerCache = new Map<Element | null, IntersectionObserver>()
 
 // Handle window resize to update observers with new margin
@@ -30,7 +32,9 @@ if (typeof window !== 'undefined') {
     resizeTimeout = setTimeout(() => {
       // Recreate all observers with new margin
       for (const [root, observer] of observerCache.entries()) {
-        const elements = Array.from(virtCallbacks.keys()).filter(el => observer.root === root)
+        const elements = Array.from(trackedElements.entries())
+          .filter(([, data]) => data.root === root)
+          .map(([el]) => el)
         observer.disconnect()
         observerCache.delete(root)
 
@@ -76,9 +80,11 @@ export function observeVirtualization(
 ): () => void {
   const observer = getObserver(root)
   virtCallbacks.set(el, callback)
+  trackedElements.set(el, { callback, root })
   observer.observe(el)
   return () => {
     virtCallbacks.delete(el)
+    trackedElements.delete(el)
     observer.unobserve(el)
   }
 }

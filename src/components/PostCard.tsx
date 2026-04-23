@@ -718,34 +718,6 @@ function PostCardInner({
     }
   }, [mediaClickFromTouchRef, lastMediaClickRef, handleMediaDoubleTapLike, openPost, openQuotedPost, isDisplayingQuotedMedia, nsfwBlurred, onNsfwUnblur])
 
-  const handleReplyParentMediaClick = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation()
-    if (replyParentMediaClickFromTouchRef.current) return
-    // In post detail modal, open parent post; on feed, open reply post
-    const openTargetPost = isModalOpen ? openReplyParentPost : openPostInModalOrFeed
-    // Mouse users expect immediate open. Keep double-tap-like behavior touch-only.
-    if (e.nativeEvent.detail <= 1) {
-      openTargetPost()
-      return
-    }
-    const now = Date.now()
-    if (now - lastReplyParentMediaClickRef.current < MEDIA_CLICK_DOUBLE_TAP_WINDOW_MS) {
-      lastReplyParentMediaClickRef.current = 0
-      if (replyParentMediaOpenDelayTimerRef.current) {
-        clearTimeout(replyParentMediaOpenDelayTimerRef.current)
-        replyParentMediaOpenDelayTimerRef.current = null
-      }
-      handleReplyParentDoubleTapLike()
-    } else {
-      lastReplyParentMediaClickRef.current = now
-      if (replyParentMediaOpenDelayTimerRef.current) clearTimeout(replyParentMediaOpenDelayTimerRef.current)
-      replyParentMediaOpenDelayTimerRef.current = setTimeout(() => {
-        replyParentMediaOpenDelayTimerRef.current = null
-        openTargetPost()
-      }, TOUCH_OPEN_DELAY_MS)
-    }
-  }, [replyParentMediaClickFromTouchRef, handleReplyParentDoubleTapLike, openReplyParentPost, openPostInModalOrFeed, isModalOpen])
-
   const setCardRef = useCallback(
     (el: HTMLDivElement | null) => {
       ;(cardRef as React.MutableRefObject<HTMLDivElement | null>).current = el
