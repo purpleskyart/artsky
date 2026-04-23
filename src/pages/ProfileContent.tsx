@@ -39,7 +39,7 @@ const PROFILE_MODAL_MAX_MASONRY_COLS = 3
 /** Per-column debounce between automatic load-more triggers. Lowered to allow multiple columns to load in quick succession. */
 const LOAD_MORE_COOLDOWN_MS = 450
 /** Start loading when sentinel is within this distance below the viewport (load before user reaches end). */
-const LOAD_MORE_ROOT_MARGIN_PX = 1200
+const LOAD_MORE_ROOT_MARGIN_PX = 1600
 /** Min gap (px) between viewport bottom and a column sentinel to count as "short" (empty masonry below). Capped vs viewport so small phones still work. */
 const LOAD_MORE_SHORT_MARGIN_PX = 300
 
@@ -446,6 +446,24 @@ export default function ProfileContent({
   useEffect(() => {
     if (tab !== 'posts' && tab !== 'videos' && tab !== 'replies' && tab !== 'reposts') return
     if (!loadMoreCursor) return
+    
+    // Auto-load more when feed is empty (e.g., after filtering) but cursor exists
+    if (profileGridItems.length === 0 && !loadingMoreRef.current) {
+      const now = Date.now()
+      const minColCooldown = Math.min(
+        ...Array.from({ length: cols }, (_, i) => lastLoadMoreByColumnRef.current[i] ?? 0),
+        now
+      )
+      const wait = Math.max(50, LOAD_MORE_COOLDOWN_MS - (now - minColCooldown) + 50)
+      const timeoutId = setTimeout(() => {
+        if (!loadingMoreRef.current && profileGridItems.length === 0 && loadMoreCursor) {
+          loadingMoreRef.current = true
+          lastLoadMoreByColumnRef.current[0] = Date.now()
+          loadMore(loadMoreCursor)
+        }
+      }, wait)
+      return () => clearTimeout(timeoutId)
+    }
     const refs = loadMoreSentinelRefs.current
     let rafId = 0
     let retryId = 0
@@ -461,9 +479,13 @@ export default function ProfileContent({
       const margin = Math.min(LOAD_MORE_SHORT_MARGIN_PX, Math.floor(vh * 0.4))
       const threshold = vh - margin
       for (let c = 0; c < cols; c++) {
-        if ((lengths[c] ?? 0) === 0) continue
         const el = refs[c]
         if (!el) continue
+        // Empty columns should also trigger load more (e.g., after filtering)
+        if ((lengths[c] ?? 0) === 0) {
+          if (el.getBoundingClientRect().bottom < threshold) return true
+          continue
+        }
         if (el.getBoundingClientRect().bottom < threshold) return true
       }
       return false
@@ -485,14 +507,13 @@ export default function ProfileContent({
           loadingMoreRef.current = true
           // Update cooldown for the shortest column that triggered this
           const shortColIdx = (() => {
-            const lengths = distributedColumnLengthsRef.current
             const vh = window.innerHeight
             const margin = Math.min(LOAD_MORE_SHORT_MARGIN_PX, Math.floor(vh * 0.4))
             const threshold = vh - margin
             for (let c = 0; c < cols; c++) {
-              if ((lengths[c] ?? 0) === 0) continue
               const el = refs[c]
               if (!el) continue
+              // Empty columns should also trigger load more (e.g., after filtering)
               if (el.getBoundingClientRect().bottom < threshold) return c
             }
             return 0
@@ -505,6 +526,9 @@ export default function ProfileContent({
 
     const firstSentinel = cols >= 2 ? loadMoreSentinelRefs.current[0] : loadMoreSentinelRef.current
     const root = inModal ? firstSentinel?.closest('[data-modal-scroll]') ?? null : null
+    // Use viewport-relative margin on mobile (smaller screens) for better UX
+    const vh = window.innerHeight
+    const rootMarginPx = Math.min(LOAD_MORE_ROOT_MARGIN_PX, Math.floor(vh * 1.5))
 
     const observer = new IntersectionObserver(
       (entries) => {
@@ -530,7 +554,7 @@ export default function ProfileContent({
           break
         }
       },
-      { root: root ?? undefined, rootMargin: `${LOAD_MORE_ROOT_MARGIN_PX}px`, threshold: 0 }
+      { root: root ?? undefined, rootMargin: `${rootMarginPx}px`, threshold: 0 }
     )
     for (let c = 0; c < cols; c++) {
       const el = refs[c]

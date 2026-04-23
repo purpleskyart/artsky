@@ -63,9 +63,11 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-.closeBtn:hover {
-  background: var(--glass-bg);
-  color: var(--accent);
+@media (hover: hover) {
+  .closeBtn:hover {
+    background: var(--glass-bg);
+    color: var(--accent);
+  }
 }
 
 .closeBtn:focus {
@@ -153,8 +155,10 @@
   transition: filter 0.15s ease;
 }
 
-.avatarBtn:hover {
-  filter: brightness(0.92);
+@media (hover: hover) {
+  .avatarBtn:hover {
+    filter: brightness(0.92);
+  }
 }
 
 .avatarBtnSecondary {
@@ -163,9 +167,11 @@
   border: 1px solid var(--border);
 }
 
-.avatarBtnSecondary:hover {
-  color: var(--text);
-  border-color: var(--muted);
+@media (hover: hover) {
+  .avatarBtnSecondary:hover {
+    color: var(--text);
+    border-color: var(--muted);
+  }
 }
 
 .error {
@@ -237,9 +243,11 @@
   cursor: pointer;
 }
 
-.cancelBtn:hover {
-  color: var(--text);
-  border-color: var(--muted);
+@media (hover: hover) {
+  .cancelBtn:hover {
+    color: var(--text);
+    border-color: var(--muted);
+  }
 }
 
 .submitBtn {
@@ -254,8 +262,10 @@
   transition: filter 0.15s ease;
 }
 
-.submitBtn:hover:not(:disabled) {
-  filter: brightness(0.92);
+@media (hover: hover) {
+  .submitBtn:hover:not(:disabled) {
+    filter: brightness(0.92);
+  }
 }
 
 .submitBtn:disabled {

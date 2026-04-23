@@ -116,7 +116,8 @@ export default defineConfig({
           // Split vendor chunks for better caching
           'react-vendor': ['react', 'react-dom', 'react-router-dom'],
           // Lazy load heavy dependencies
-          'atproto': ['@atproto/api', '@atproto/oauth-client-browser'],
+          'atproto-api': ['@atproto/api'],
+          'atproto-oauth': ['@atproto/oauth-client-browser'],
           'video': ['hls.js'],
         },
       },
@@ -130,7 +131,7 @@ export default defineConfig({
       },
     },
     // Optimize chunk size
-    chunkSizeWarningLimit: 500,
+    chunkSizeWarningLimit: 1000,
   },
   // Enable dependency pre-bundling optimization (CJS packages like @atproto/api must be pre-bundled so named exports work in ESM)
   optimizeDeps: {

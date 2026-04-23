@@ -17,6 +17,8 @@ interface Props {
   /** When true, start with controls hidden; first tap on video shows native controls (for mobile post detail). */
   controlsHiddenUntilTap?: boolean
   style?: React.CSSProperties
+  /** Root element for IntersectionObserver (e.g., modal scroll container) */
+  intersectionRoot?: Element | null
 }
 
 export default function VideoWithHls({
@@ -30,10 +32,12 @@ export default function VideoWithHls({
   loop = false,
   controlsHiddenUntilTap = false,
   style,
+  intersectionRoot,
 }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const [showControls, setShowControls] = useState(!controlsHiddenUntilTap)
   const effectiveControls = controlsHiddenUntilTap ? showControls : controls
+  const wasPlayingRef = useRef(false)
 
   useEffect(() => {
     if (!playlistUrl || !videoRef.current) return
@@ -86,6 +90,41 @@ export default function VideoWithHls({
     else video.addEventListener('loadeddata', playWhenReady, { once: true })
     return () => video.removeEventListener('loadeddata', playWhenReady)
   }, [autoPlay, playlistUrl])
+
+  // Pause video when not visible to prevent resource contention with multiple videos
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          const isIntersecting = entry.isIntersecting
+
+          if (!isIntersecting) {
+            // Video is leaving viewport - pause it and remember it was playing
+            if (!video.paused) {
+              wasPlayingRef.current = true
+              video.pause()
+            }
+          } else {
+            // Video is entering viewport - resume if it was playing
+            if (wasPlayingRef.current && video.readyState >= 2) {
+              video.play().catch(() => {})
+              wasPlayingRef.current = false
+            }
+          }
+        }
+      },
+      { threshold: 0.1, root: intersectionRoot ?? undefined }
+    )
+
+    observer.observe(video)
+
+    return () => {
+      observer.disconnect()
+    }
+  }, [intersectionRoot])
 
   return (
     <video

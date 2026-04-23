@@ -244,9 +244,11 @@
   background: transparent;
   border-radius: 0;
 }
-.modalTopBarTransparent .closeBtn:hover,
-.modalTopBarTransparent .backBtn:hover {
-  background: var(--glass-bg);
+@media (hover: hover) {
+  .modalTopBarTransparent .closeBtn:hover,
+  .modalTopBarTransparent .backBtn:hover {
+    background: var(--glass-bg);
+  }
 }
 
 /* When bar is overlay, no top padding so content (e.g. media) goes under the X */
@@ -326,10 +328,12 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-.backBtn:hover,
-.closeBtn:hover {
-  background: var(--glass-bg);
-  color: var(--accent);
+@media (hover: hover) {
+  .backBtn:hover,
+  .closeBtn:hover {
+    background: var(--glass-bg);
+    color: var(--accent);
+  }
 }
 
 .backBtn:focus,
@@ -365,9 +369,11 @@
   height: 1rem;
   flex-shrink: 0;
 }
-.expandBtn:hover {
-  background: var(--glass-bg);
-  color: var(--accent);
+@media (hover: hover) {
+  .expandBtn:hover {
+    background: var(--glass-bg);
+    color: var(--accent);
+  }
 }
 .expandBtn:focus {
   outline: none;

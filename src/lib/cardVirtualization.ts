@@ -6,16 +6,56 @@
  * per-card observers from memory. A single shared IO keeps overhead O(1)
  * regardless of how many cards exist.
  *
- * 2 000 px ≈ 2–3 desktop viewport-heights of buffer in each direction,
+ * Margin is calculated as 1x viewport height in each direction,
  * giving React enough time to re-mount content before it scrolls into view.
  */
 
-const VIRTUALIZATION_MARGIN = '2000px 0px 2000px 0px'
+function getVirtualizationMargin(): string {
+  if (typeof window === 'undefined') return '800px 0px 800px 0px'
+  const vh = window.innerHeight
+  const margin = Math.floor(vh * 1)
+  return `${margin}px 0px ${margin}px 0px`
+}
 
 type VirtCallback = (isNearViewport: boolean) => void
 
 const virtCallbacks = new WeakMap<Element, VirtCallback>()
+// Track elements separately for window resize handling (WeakMap is not iterable)
+const trackedElements = new Map<Element, { callback: VirtCallback; root: Element | null }>()
 const observerCache = new Map<Element | null, IntersectionObserver>()
+
+// Handle window resize to update observers with new margin
+if (typeof window !== 'undefined') {
+  let resizeTimeout: ReturnType<typeof setTimeout> | undefined
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimeout)
+    resizeTimeout = setTimeout(() => {
+      // Recreate all observers with new margin
+      for (const [root, observer] of observerCache.entries()) {
+        const elements = Array.from(trackedElements.entries())
+          .filter(([, data]) => data.root === root)
+          .map(([el]) => el)
+        observer.disconnect()
+        observerCache.delete(root)
+
+        const newObserver = new IntersectionObserver(
+          (entries) => {
+            for (const entry of entries) {
+              virtCallbacks.get(entry.target)?.(entry.isIntersecting)
+            }
+          },
+          { rootMargin: getVirtualizationMargin(), threshold: 0, root },
+        )
+        observerCache.set(root, newObserver)
+
+        // Re-observe all elements
+        for (const el of elements) {
+          newObserver.observe(el)
+        }
+      }
+    }, 100)
+  })
+}
 
 function getObserver(root: Element | null = null): IntersectionObserver {
   const cached = observerCache.get(root)
@@ -27,7 +67,7 @@ function getObserver(root: Element | null = null): IntersectionObserver {
         virtCallbacks.get(entry.target)?.(entry.isIntersecting)
       }
     },
-    { rootMargin: VIRTUALIZATION_MARGIN, threshold: 0, root },
+    { rootMargin: getVirtualizationMargin(), threshold: 0, root },
   )
   observerCache.set(root, observer)
   return observer
@@ -40,9 +80,11 @@ export function observeVirtualization(
 ): () => void {
   const observer = getObserver(root)
   virtCallbacks.set(el, callback)
+  trackedElements.set(el, { callback, root: root ?? null })
   observer.observe(el)
   return () => {
     virtCallbacks.delete(el)
+    trackedElements.delete(el)
     observer.unobserve(el)
   }
 }

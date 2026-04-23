@@ -23,8 +23,10 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-.trigger:hover {
-  color: var(--text);
+@media (hover: hover) {
+  .trigger:hover {
+    color: var(--text);
+  }
 }
 
 .trigger:focus {
@@ -109,8 +111,10 @@
   cursor: pointer;
 }
 
-.item:hover:not(:disabled) {
-  background: var(--glass-highlight);
+@media (hover: hover) {
+  .item:hover:not(:disabled) {
+    background: var(--glass-highlight);
+  }
 }
 
 .item:disabled {
