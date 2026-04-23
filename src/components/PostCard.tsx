@@ -898,7 +898,7 @@ function PostCardInner({
                 }
                 e.preventDefault()
                 e.stopPropagation()
-                handleReplyParentDoubleTapLike()
+                handleMediaDoubleTapLike()
               } else {
                 lastReplyParentTapRef.current = now
                 if (replyParentMediaOpenDelayTimerRef.current) clearTimeout(replyParentMediaOpenDelayTimerRef.current)

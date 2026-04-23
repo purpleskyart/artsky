@@ -1,4 +1,5 @@
 import { type ReactNode, useRef, useState, useEffect, memo } from 'react'
+import { useSyncExternalStore } from 'react'
 import type { TimelineItem } from '../lib/bsky'
 import { isPostNsfw } from '../lib/bsky'
 import PostCard from './PostCard'
@@ -6,6 +7,17 @@ import { setInitialPostForUri } from '../lib/postCache'
 import { observeVirtualization } from '../lib/cardVirtualization'
 import profileStyles from '../pages/ProfilePage.module.css'
 import feedStyles from '../pages/FeedPage.module.css'
+
+const DESKTOP_BREAKPOINT = 768
+function subscribeDesktop(cb: () => void) {
+  if (typeof window === 'undefined') return () => {}
+  const mq = window.matchMedia(`(min-width: ${DESKTOP_BREAKPOINT}px)`)
+  mq.addEventListener('change', cb)
+  return () => mq.removeEventListener('change', cb)
+}
+function getDesktopSnapshot() {
+  return typeof window !== 'undefined' ? window.innerWidth >= DESKTOP_BREAKPOINT : false
+}
 
 type ColumnItem = { item: TimelineItem; originalIndex: number }
 
@@ -109,6 +121,7 @@ function ProfileColumnComponent(props: ProfileColumnProps) {
   } = props
 
   const styles = layout === 'feed' ? feedStyles : profileStyles
+  const isDesktop = useSyncExternalStore(subscribeDesktop, getDesktopSnapshot, () => false)
 
   if (column.length === 0) {
     return (
@@ -136,17 +149,17 @@ function ProfileColumnComponent(props: ProfileColumnProps) {
             data-selected={isSelected(originalIndex) || undefined}
             onMouseEnter={() => {
               onMouseEnter(originalIndex)
-              if (!suppressHoverNsfwUnblur && isNsfwBlurred) setUnblurred(item.post.uri, true)
+              if (isDesktop && !suppressHoverNsfwUnblur && isNsfwBlurred) setUnblurred(item.post.uri, true)
             }}
             onMouseLeave={() => {
-              if (!suppressHoverNsfwUnblur && unblurredUris.has(item.post.uri)) setUnblurred(item.post.uri, false)
+              if (isDesktop && !suppressHoverNsfwUnblur && unblurredUris.has(item.post.uri)) setUnblurred(item.post.uri, false)
             }}
-            onPointerEnter={() => {
+            onPointerEnter={isDesktop ? () => {
               if (!suppressHoverNsfwUnblur && isNsfwBlurred) setUnblurred(item.post.uri, true)
-            }}
-            onPointerLeave={() => {
+            } : undefined}
+            onPointerLeave={isDesktop ? () => {
               if (!suppressHoverNsfwUnblur && unblurredUris.has(item.post.uri)) setUnblurred(item.post.uri, false)
-            }}
+            } : undefined}
           >
             <VirtualizedCell root={scrollRef}>
               <PostCard
