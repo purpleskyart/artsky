@@ -377,10 +377,6 @@ function PostCardInner({
         clearTimeout(mediaOpenDelayTimerRef.current)
         mediaOpenDelayTimerRef.current = null
       }
-      if (replyParentMediaOpenDelayTimerRef.current) {
-        clearTimeout(replyParentMediaOpenDelayTimerRef.current)
-        replyParentMediaOpenDelayTimerRef.current = null
-      }
     }
   }, [])
 
@@ -864,43 +860,6 @@ function PostCardInner({
               e.stopPropagation()
               openReplyParentPost()
             }}
-            onTouchStart={(e) => {
-              const t = e.touches[0]
-              replyParentTouchStartRef.current = t ? { x: t.clientX, y: t.clientY } : null
-            }}
-            onTouchEnd={(e) => {
-              if (e.changedTouches.length !== 1) return
-              const start = replyParentTouchStartRef.current
-              replyParentTouchStartRef.current = null
-              const end = e.changedTouches[0]
-              const moved = start && end ? Math.hypot(end.clientX - start.x, end.clientY - start.y) : 0
-              const isScroll = moved > 12
-              if (isScroll) {
-                if (replyParentMediaOpenDelayTimerRef.current) {
-                  clearTimeout(replyParentMediaOpenDelayTimerRef.current)
-                  replyParentMediaOpenDelayTimerRef.current = null
-                }
-                return
-              }
-              const now = Date.now()
-              if (now - lastReplyParentTapRef.current < TOUCH_DOUBLE_TAP_WINDOW_MS) {
-                lastReplyParentTapRef.current = 0
-                if (replyParentMediaOpenDelayTimerRef.current) {
-                  clearTimeout(replyParentMediaOpenDelayTimerRef.current)
-                  replyParentMediaOpenDelayTimerRef.current = null
-                }
-                e.preventDefault()
-                e.stopPropagation()
-                handleReplyParentDoubleTapLike()
-              } else {
-                lastReplyParentTapRef.current = now
-                if (replyParentMediaOpenDelayTimerRef.current) clearTimeout(replyParentMediaOpenDelayTimerRef.current)
-                replyParentMediaOpenDelayTimerRef.current = setTimeout(() => {
-                  replyParentMediaOpenDelayTimerRef.current = null
-                  openReplyParentPost()
-                }, TOUCH_OPEN_DELAY_MS)
-              }
-            }}
           >
             <div className={styles.replyParentStripHeader}>
               <p className={styles.replyParentLabel}>Replying to</p>
@@ -913,29 +872,8 @@ function PostCardInner({
                 className={`${styles.replyParentMediaBlock} ${replyParentAllMedia.length > 1 ? styles.replyParentMediaBlockMulti : ''}`}
                 onClick={(e) => {
                   e.stopPropagation()
-                  // Mouse users expect immediate open
-                  if (e.nativeEvent.detail <= 1) {
-                    const openTargetPost = isModalOpen ? openReplyParentPost : openPostInModalOrFeed
-                    openTargetPost()
-                    return
-                  }
-                  const now = Date.now()
-                  if (now - lastReplyParentMediaClickRef.current < MEDIA_CLICK_DOUBLE_TAP_WINDOW_MS) {
-                    lastReplyParentMediaClickRef.current = 0
-                    if (replyParentMediaOpenDelayTimerRef.current) {
-                      clearTimeout(replyParentMediaOpenDelayTimerRef.current)
-                      replyParentMediaOpenDelayTimerRef.current = null
-                    }
-                    handleReplyParentDoubleTapLike()
-                  } else {
-                    lastReplyParentMediaClickRef.current = now
-                    if (replyParentMediaOpenDelayTimerRef.current) clearTimeout(replyParentMediaOpenDelayTimerRef.current)
-                    replyParentMediaOpenDelayTimerRef.current = setTimeout(() => {
-                      replyParentMediaOpenDelayTimerRef.current = null
-                      const openTargetPost = isModalOpen ? openReplyParentPost : openPostInModalOrFeed
-                      openTargetPost()
-                    }, TOUCH_OPEN_DELAY_MS)
-                  }
+                  const openTargetPost = isModalOpen ? openReplyParentPost : openPostInModalOrFeed
+                  openTargetPost()
                 }}
               >
                 {replyParentAllMedia.map((m, i) => {
