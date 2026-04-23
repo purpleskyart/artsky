@@ -116,7 +116,8 @@ export default defineConfig({
           // Split vendor chunks for better caching
           'react-vendor': ['react', 'react-dom', 'react-router-dom'],
           // Lazy load heavy dependencies
-          'atproto': ['@atproto/api', '@atproto/oauth-client-browser'],
+          'atproto-api': ['@atproto/api'],
+          'atproto-oauth': ['@atproto/oauth-client-browser'],
           'video': ['hls.js'],
         },
       },
