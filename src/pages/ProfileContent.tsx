@@ -1384,6 +1384,7 @@ export default function ProfileContent({
                       originalIndex,
                       () => keyboardFocusIndexRef.current,
                       (idx) => setKeyboardFocusIndex(idx),
+                      { applyOnTouch: inModal ? false : undefined }
                     )
                   }}
                   isSelected={(index) => (tab === 'posts' || tab === 'videos' || tab === 'replies' || tab === 'reposts') && index === keyboardFocusIndex}

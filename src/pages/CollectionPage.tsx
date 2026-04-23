@@ -386,6 +386,7 @@ export function CollectionDetailContent({ uri: decodedUri }: CollectionDetailCon
                     originalIndex,
                     () => keyboardFocusIndexRef.current,
                     (idx) => setKeyboardFocusIndex(idx),
+                    { applyOnTouch: false }
                   )
                 }
                 isSelected={(index) => index === keyboardFocusIndex}
