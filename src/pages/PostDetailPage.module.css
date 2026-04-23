@@ -311,6 +311,17 @@
   }
 }
 
+/* Mobile: prevent hover/focus states on quoted post cards to prevent cursor emulation */
+@media (max-width: 767px) {
+  .quotedPostCard:focus,
+  .quotedPostCard:hover {
+    outline: none;
+    background: var(--glass-highlight);
+    border-color: var(--border);
+    transform: none;
+  }
+}
+
 .quotedPostHead {
   display: flex;
   flex-wrap: wrap;
@@ -1308,9 +1319,11 @@
   flex-shrink: 0;
 }
 
-.likeRepostBtn:hover:not(:disabled) {
-  color: var(--accent);
-  border-color: var(--accent);
+@media (hover: hover) {
+  .likeRepostBtn:hover:not(:disabled) {
+    color: var(--accent);
+    border-color: var(--accent);
+  }
 }
 
 .likeRepostBtnActive {
@@ -1329,8 +1342,10 @@
     background-clip: unset;
   }
 }
-.likeRepostBtnActive:hover:not(:disabled) {
-  filter: brightness(1.15);
+@media (hover: hover) {
+  .likeRepostBtnActive:hover:not(:disabled) {
+    filter: brightness(1.15);
+  }
 }
 .likeRepostBtnActive .likeRepostBtnIcon {
   color: #ec4899;
@@ -1392,8 +1407,10 @@
   cursor: pointer;
 }
 
-.repostDropdownItem:hover:not(:disabled) {
-  background: var(--glass-highlight);
+@media (hover: hover) {
+  .repostDropdownItem:hover:not(:disabled) {
+    background: var(--glass-highlight);
+  }
 }
 
 .repostDropdownItem:disabled {
@@ -1538,12 +1555,6 @@
   cursor: pointer;
   text-align: left;
   transition: transform 0.2s ease;
-}
-
-@media (hover: hover) {
-  .replyAsHandleBtn:hover {
-    text-decoration: none;
-  }
 }
 
 .replyAsHandleBtn:focus-visible {

@@ -403,6 +403,7 @@
     justify-content: flex-start;
     -webkit-user-select: none;
     user-select: none;
+    -webkit-touch-callout: none;
   }
   .overlayFlushTop.overlay {
     padding-top: max(0.5rem, env(safe-area-inset-top));
@@ -422,11 +423,13 @@
     max-height: 100%;
     -webkit-user-select: none;
     user-select: none;
+    -webkit-touch-callout: none;
   }
   .scroll {
     padding-bottom: calc(var(--nav-height) + env(safe-area-inset-bottom));
     -webkit-user-select: none;
     user-select: none;
+    -webkit-touch-callout: none;
   }
   /* Transparent bar on mobile: keep at top */
   .modalTopBarTransparent {

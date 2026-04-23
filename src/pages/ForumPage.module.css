@@ -34,9 +34,11 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-.newThreadBtn:hover {
-  background: var(--accent);
-  color: var(--text-on-accent);
+@media (hover: hover) {
+  .newThreadBtn:hover {
+    background: var(--accent);
+    color: var(--text-on-accent);
+  }
 }
 
 /* Single outline: no outline on form container or fields; use border/shadow for focus */
@@ -100,9 +102,11 @@
   cursor: pointer;
 }
 
-.tab:hover {
-  border-color: var(--accent);
-  color: var(--accent);
+@media (hover: hover) {
+  .tab:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
 }
 
 .tabActive {
@@ -141,8 +145,10 @@
   text-decoration: none;
 }
 
-.standardLink:hover {
-  text-decoration: underline;
+@media (hover: hover) {
+  .standardLink:hover {
+    text-decoration: underline;
+  }
 }
 
 .error {
@@ -185,10 +191,12 @@
   transition: background 0.15s ease;
 }
 
-.postLink:hover:not([data-selected]) {
-  color: inherit;
-  text-decoration: none;
-  background: var(--glass-highlight, rgba(255, 255, 255, 0.05));
+@media (hover: hover) {
+  .postLink:hover:not([data-selected]) {
+    color: inherit;
+    text-decoration: none;
+    background: var(--glass-highlight, rgba(255, 255, 255, 0.05));
+  }
 }
 
 .postLink[data-selected]:active {
@@ -248,9 +256,11 @@
   cursor: pointer;
 }
 
-.more:hover:not(:disabled) {
-  border-color: var(--accent);
-  color: var(--accent);
+@media (hover: hover) {
+  .more:hover:not(:disabled) {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
 }
 
 .more:disabled {

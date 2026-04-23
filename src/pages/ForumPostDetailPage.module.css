@@ -69,8 +69,10 @@
   text-decoration: none;
 }
 
-.externalLink:hover {
-  text-decoration: underline;
+@media (hover: hover) {
+  .externalLink:hover {
+    text-decoration: underline;
+  }
 }
 
 .actions {
@@ -93,10 +95,12 @@
   cursor: pointer;
 }
 
-.actionBtn:hover:not(:disabled),
-.actionBtnPrimary:hover:not(:disabled) {
-  border-color: var(--accent);
-  color: var(--accent);
+@media (hover: hover) {
+  .actionBtn:hover:not(:disabled),
+  .actionBtnPrimary:hover:not(:disabled) {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
 }
 
 .actionBtnPrimary {
@@ -106,9 +110,11 @@
   transition: filter 0.15s ease;
 }
 
-.actionBtnPrimary:hover:not(:disabled) {
-  filter: brightness(0.92);
-  color: var(--text-on-accent);
+@media (hover: hover) {
+  .actionBtnPrimary:hover:not(:disabled) {
+    filter: brightness(0.92);
+    color: var(--text-on-accent);
+  }
 }
 
 .actionBtnDanger {
@@ -116,8 +122,10 @@
   color: var(--error);
 }
 
-.actionBtnDanger:hover:not(:disabled) {
-  background: var(--error-bg);
+@media (hover: hover) {
+  .actionBtnDanger:hover:not(:disabled) {
+    background: var(--error-bg);
+  }
 }
 
 .deleteConfirmText {
@@ -207,9 +215,11 @@
   cursor: pointer;
 }
 
-.addMediaBtn:hover {
-  border-color: var(--accent);
-  color: var(--accent);
+@media (hover: hover) {
+  .addMediaBtn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
 }
 
 .mediaDropHint {
@@ -259,9 +269,11 @@
   box-shadow: var(--shadow-card);
 }
 
-.mediaPreviewRemove:hover {
-  background: var(--error);
-  color: var(--text-on-danger);
+@media (hover: hover) {
+  .mediaPreviewRemove:hover {
+    background: var(--error);
+    color: var(--text-on-danger);
+  }
 }
 
 .editActions {
@@ -322,8 +334,10 @@
   cursor: pointer;
 }
 
-.replyingToCancel:hover {
-  color: var(--text);
+@media (hover: hover) {
+  .replyingToCancel:hover {
+    color: var(--text);
+  }
 }
 
 .replyToBtn {
@@ -336,9 +350,11 @@
   cursor: pointer;
 }
 
-.replyToBtn:hover {
-  border-color: var(--accent);
-  color: var(--accent);
+@media (hover: hover) {
+  .replyToBtn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
 }
 
 .commentBadge {
@@ -385,8 +401,10 @@
   transition: filter 0.15s ease;
 }
 
-.replySubmit:hover:not(:disabled) {
-  filter: brightness(0.92);
+@media (hover: hover) {
+  .replySubmit:hover:not(:disabled) {
+    filter: brightness(0.92);
+  }
 }
 
 .replySubmit:disabled {
@@ -454,8 +472,10 @@
   text-decoration: none;
 }
 
-.viewPostLink:hover {
-  text-decoration: underline;
+@media (hover: hover) {
+  .viewPostLink:hover {
+    text-decoration: underline;
+  }
 }
 
 .likeBtn,
@@ -469,8 +489,10 @@
   cursor: pointer;
 }
 
-.likeBtn:hover:not(:disabled) {
-  color: var(--accent);
+@media (hover: hover) {
+  .likeBtn:hover:not(:disabled) {
+    color: var(--accent);
+  }
 }
 
 .likeBtnLiked {
