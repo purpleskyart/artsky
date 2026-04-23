@@ -432,10 +432,13 @@
   flex-shrink: 0;
 }
 
-.guestPreviewCard:hover {
-  border-color: var(--accent);
-  background: var(--accent-subtle);
-  text-decoration: none;
+@media (hover: hover) {
+  .guestPreviewCard:hover {
+    border-color: var(--accent);
+    background: var(--accent-subtle);
+    text-decoration: none;
+  }
+}
 }
 
 .guestPreviewText {

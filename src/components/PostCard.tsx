@@ -918,6 +918,14 @@ function PostCardInner({
             {replyParentAllMedia.length > 0 ? (
               <div
                 className={`${styles.replyParentMediaBlock} ${replyParentAllMedia.length > 1 ? styles.replyParentMediaBlockMulti : ''}`}
+                onTouchStart={() => {
+                  replyParentMediaClickFromTouchRef.current = true
+                }}
+                onTouchEnd={() => {
+                  setTimeout(() => {
+                    replyParentMediaClickFromTouchRef.current = false
+                  }, 450)
+                }}
                 onClick={(e) => {
                   e.stopPropagation()
                   if (replyParentMediaClickFromTouchRef.current) return
@@ -934,7 +942,7 @@ function PostCardInner({
                       clearTimeout(replyParentMediaOpenDelayTimerRef.current)
                       replyParentMediaOpenDelayTimerRef.current = null
                     }
-                    handleReplyParentDoubleTapLike()
+                    handleMediaDoubleTapLike()
                   } else {
                     lastReplyParentMediaClickRef.current = now
                     if (replyParentMediaOpenDelayTimerRef.current) clearTimeout(replyParentMediaOpenDelayTimerRef.current)

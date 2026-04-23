@@ -89,13 +89,15 @@ html[data-theme="dark"] .cardSeen .textOnlyPreview::after {
 }
 
 /* Hover: lift toward user (no shadow, purple border on desktop only) */
-.card:hover {
-  outline: none;
-  box-shadow: none;
-  z-index: 10;
-}
-.card:hover::after {
-  box-shadow: none;
+@media (hover: hover) {
+  .card:hover {
+    outline: none;
+    box-shadow: none;
+    z-index: 10;
+  }
+  .card:hover::after {
+    box-shadow: none;
+  }
 }
 
 /* Desktop: purple border on hover */
