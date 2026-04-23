@@ -56,6 +56,8 @@ function ProfileLink({ handle, className, title, 'aria-label': ariaLabel, onClic
     preloadProfileFeed(handle)
     openProfileModal(handle)
     onClick?.(e as any)
+    /* Clear focus to prevent invisible cursor hover state on mobile */
+    ;(e.target as HTMLElement).blur()
   }, [openProfileModal, handle, onClick])
 
   return (
