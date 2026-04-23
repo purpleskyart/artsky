@@ -89,12 +89,12 @@ function LazyPreviewStrip({
         const post = uri ? postByUri.get(uri) : undefined
         const media = post ? getPostMediaInfoForDisplay(post, POST_MEDIA_FEED_PREVIEW) : null
         const src = media?.url?.trim() ? media.url : null
-        const isVideo = media?.type === 'video' && media?.videoPlaylist
+        const isVideo = media?.type === 'video'
         return (
           <div key={i} className={styles.previewCell}>
             {isVideo ? (
               <VideoWithHls
-                playlistUrl={media.videoPlaylist || ''}
+                playlistUrl={media.videoPlaylist || media.url || ''}
                 poster={src || undefined}
                 className={styles.previewImg}
                 loop

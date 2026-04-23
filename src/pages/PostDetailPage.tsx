@@ -418,6 +418,29 @@ function MediaGallery({
               </div>
             )
           }
+          if (m.type === 'video' && !m.videoPlaylist) {
+            const videoAspect = m.aspectRatio ?? 16 / 9
+            return (
+              <div
+                key={i}
+                className={styles.galleryVideoWrap}
+                style={forEmbeddedPreview ? undefined : { aspectRatio: videoAspect }}
+                data-media-item={i}
+                data-embedded-preview={forEmbeddedPreview || undefined}
+                tabIndex={forEmbeddedPreview ? undefined : 0}
+                onFocus={forEmbeddedPreview ? undefined : () => onFocusItem?.(i)}
+              >
+                <VideoWithHls
+                  playlistUrl={m.url || ''}
+                  poster={m.url || undefined}
+                  className={styles.galleryVideo}
+                  autoPlay={i === firstVideoIndex}
+                  preload={i === firstVideoIndex ? 'metadata' : 'none'}
+                  controlsHiddenUntilTap={hideVideoControlsUntilTap}
+                />
+              </div>
+            )
+          }
           const aspect = m.type === 'image' && m.aspectRatio != null ? m.aspectRatio : 1
           const handleImageClick = (_e: React.MouseEvent) => {
             // Prevent triggering when double-clicking for like
@@ -996,6 +1019,17 @@ function PostBlock({
                               <div className={styles.quotedPostVideoThumb}>
                                 <VideoWithHls
                                   playlistUrl={firstMedia.videoPlaylist}
+                                  poster={firstMedia.url || undefined}
+                                  className={styles.quotedPostVideo}
+                                  loop
+                                  autoPlay
+                                  preload="metadata"
+                                />
+                              </div>
+                            ) : firstMedia.type === 'video' ? (
+                              <div className={styles.quotedPostVideoThumb}>
+                                <VideoWithHls
+                                  playlistUrl={firstMedia.url || ''}
                                   poster={firstMedia.url || undefined}
                                   className={styles.quotedPostVideo}
                                   loop
@@ -2945,6 +2979,17 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                                   <div className={styles.quotedPostVideoThumb}>
                                     <VideoWithHls
                                       playlistUrl={firstMedia.videoPlaylist}
+                                      poster={firstMedia.url || undefined}
+                                      className={styles.quotedPostVideo}
+                                      loop
+                                      autoPlay
+                                      preload="metadata"
+                                    />
+                                  </div>
+                                ) : firstMedia.type === 'video' ? (
+                                  <div className={styles.quotedPostVideoThumb}>
+                                    <VideoWithHls
+                                      playlistUrl={firstMedia.url || ''}
                                       poster={firstMedia.url || undefined}
                                       className={styles.quotedPostVideo}
                                       loop

@@ -125,8 +125,10 @@
   cursor: pointer;
 }
 
-.followBtn:hover:not(:disabled) {
-  background: var(--accent-muted);
+@media (hover: hover) {
+  .followBtn:hover:not(:disabled) {
+    background: var(--accent-muted);
+  }
 }
 
 .followBtn:disabled {
@@ -139,22 +141,28 @@
   border-color: var(--border);
 }
 
-.followBtnFollowing:hover:not(:disabled) {
-  color: var(--error);
-  border-color: var(--error);
-  background: var(--error-bg);
+@media (hover: hover) {
+  .followBtnFollowing:hover:not(:disabled) {
+    color: var(--error);
+    border-color: var(--error);
+    background: var(--error-bg);
+  }
 }
 
 .followLabelHover {
   display: none;
 }
 
-.followBtnFollowing:hover:not(:disabled) .followLabelDefault {
-  display: none;
+@media (hover: hover) {
+  .followBtnFollowing:hover:not(:disabled) .followLabelDefault {
+    display: none;
+  }
 }
 
-.followBtnFollowing:hover:not(:disabled) .followLabelHover {
-  display: inline;
+@media (hover: hover) {
+  .followBtnFollowing:hover:not(:disabled) .followLabelHover {
+    display: inline;
+  }
 }
 
 .notificationBellBtn {
@@ -173,10 +181,12 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-.notificationBellBtn:hover:not(:disabled) {
-  color: var(--text);
-  border-color: var(--border);
-  background: var(--glass-highlight);
+@media (hover: hover) {
+  .notificationBellBtn:hover:not(:disabled) {
+    color: var(--text);
+    border-color: var(--border);
+    background: var(--glass-highlight);
+  }
 }
 
 .notificationBellBtn:disabled {
@@ -190,9 +200,11 @@
   border-color: var(--accent);
 }
 
-.notificationBellBtnActive:hover:not(:disabled) {
-  background: var(--accent-muted);
-  border-color: var(--accent);
+@media (hover: hover) {
+  .notificationBellBtnActive:hover:not(:disabled) {
+    background: var(--accent-muted);
+    border-color: var(--accent);
+  }
 }
 
 .notificationBellIcon {
@@ -212,9 +224,11 @@
   cursor: pointer;
 }
 
-.blockedMutedBtn:hover {
-  color: var(--text);
-  border-color: var(--text);
+@media (hover: hover) {
+  .blockedMutedBtn:hover {
+    color: var(--text);
+    border-color: var(--text);
+  }
 }
 
 .displayName {
@@ -244,9 +258,11 @@
   transition: color 0.15s ease, text-decoration-color 0.15s ease;
 }
 
-.handleClickable:hover {
-  color: var(--accent);
-  text-decoration-color: var(--accent);
+@media (hover: hover) {
+  .handleClickable:hover {
+    color: var(--accent);
+    text-decoration-color: var(--accent);
+  }
 }
 
 .followsYouBadge {
@@ -285,10 +301,12 @@
   cursor: pointer;
 }
 
-.followListBtn:hover {
-  color: var(--text);
-  border-color: var(--accent);
-  background: var(--accent-muted, rgba(0, 0, 0, 0.04));
+@media (hover: hover) {
+  .followListBtn:hover {
+    color: var(--text);
+    border-color: var(--accent);
+    background: var(--accent-muted, rgba(0, 0, 0, 0.04));
+  }
 }
 
 .followListBtn:focus-visible {
@@ -313,12 +331,16 @@
   min-width: 0;
 }
 
-.followedByFollowsPreview:hover {
-  text-decoration: underline;
+@media (hover: hover) {
+  .followedByFollowsPreview:hover {
+    text-decoration: underline;
+  }
 }
 
-.followedByFollowsPreview:hover .followedByFollowsText {
-  text-decoration: underline;
+@media (hover: hover) {
+  .followedByFollowsPreview:hover .followedByFollowsText {
+    text-decoration: underline;
+  }
 }
 
 .followedByFollowsPreview:focus-visible {
@@ -452,8 +474,10 @@
   cursor: pointer;
 }
 
-.toggleBtn:hover {
-  color: var(--text);
+@media (hover: hover) {
+  .toggleBtn:hover {
+    color: var(--text);
+  }
 }
 
 .toggleBtnActive {
@@ -543,8 +567,10 @@
   cursor: pointer;
 }
 
-.tab:hover {
-  color: var(--text);
+@media (hover: hover) {
+  .tab:hover {
+    color: var(--text);
+  }
 }
 
 .tabActive {
@@ -571,8 +597,10 @@
   text-decoration: none;
 }
 
-.feedLink:hover {
-  border-color: var(--accent);
+@media (hover: hover) {
+  .feedLink:hover {
+    border-color: var(--accent);
+  }
 }
 
 .feedName {
@@ -605,14 +633,18 @@
   color: inherit;
 }
 
-.textPostLink:hover {
-  color: inherit;
-  text-decoration: none;
+@media (hover: hover) {
+  .textPostLink:hover {
+    color: inherit;
+    text-decoration: none;
+  }
 }
 
-.textPostLink:hover *,
-.textPostLink * {
-  text-decoration: none;
+@media (hover: hover) {
+  .textPostLink:hover *,
+  .textPostLink * {
+    text-decoration: none;
+  }
 }
 
 /* Text tab: no borders or box-shadow on post blocks; tighter spacing (gap on list only) */
@@ -624,8 +656,10 @@
   margin-bottom: 0 !important;
 }
 
-.textPostHandleLink:hover {
-  text-decoration: underline;
+@media (hover: hover) {
+  .textPostHandleLink:hover {
+    text-decoration: underline;
+  }
 }
 
 .textLink {
@@ -638,8 +672,10 @@
   text-decoration: none;
 }
 
-.textLink:hover {
-  border-color: var(--accent);
+@media (hover: hover) {
+  .textLink:hover {
+    border-color: var(--accent);
+  }
 }
 
 .textSnippet {
@@ -739,10 +775,12 @@
 }
 
 /* When card inside is selected/focused, lift the grid item wrapper */
-.gridItem:has(.card:hover),
-.gridItem:has(.cardSelected),
-.gridItem[data-selected] {
-  z-index: 10;
+@media (hover: hover) {
+  .gridItem:has(.card:hover),
+  .gridItem:has(.cardSelected),
+  .gridItem[data-selected] {
+    z-index: 10;
+  }
 }
 
 .loadMoreSentinel {
@@ -772,8 +810,10 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-.loadMoreBtn:hover:not(:disabled) {
-  filter: brightness(0.92);
+@media (hover: hover) {
+  .loadMoreBtn:hover:not(:disabled) {
+    filter: brightness(0.92);
+  }
 }
 
 .loadMoreBtn:disabled {

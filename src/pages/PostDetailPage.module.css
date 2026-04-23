@@ -128,9 +128,11 @@
   padding-left: 0.6rem;
 }
 
-.parentPostWrap .quotedPostCard:hover {
-  border: none;
-  border-left: 3px solid var(--accent);
+@media (hover: hover) {
+  .parentPostWrap .quotedPostCard:hover {
+    border: none;
+    border-left: 3px solid var(--accent);
+  }
 }
 
 .parentPostWrap .quotedPostHandle {
@@ -189,9 +191,11 @@
   transition: background 0.15s ease, border-color 0.15s ease;
 }
 
-.ancestorPostCard:hover {
-  background: color-mix(in srgb, var(--surface) 80%, transparent);
-  border-left-color: var(--accent);
+@media (hover: hover) {
+  .ancestorPostCard:hover {
+    background: color-mix(in srgb, var(--surface) 80%, transparent);
+    border-left-color: var(--accent);
+  }
 }
 
 .ancestorConnector {
@@ -265,9 +269,11 @@
   margin-bottom: 0.5rem;
 }
 
-.quotedPostCard:hover {
-  background: var(--surface-hover);
-  border-color: var(--accent);
+@media (hover: hover) {
+  .quotedPostCard:hover {
+    background: var(--surface-hover);
+    border-color: var(--accent);
+  }
 }
 
 .quotedPostCard:focus {
@@ -394,15 +400,19 @@
   margin-right: 0.5rem;
 }
 
-.collapseColumn:hover .collapseBtn,
-.collapseColumn:hover .collapseStrip {
-  color: var(--accent);
+@media (hover: hover) {
+  .collapseColumn:hover .collapseBtn,
+  .collapseColumn:hover .collapseStrip {
+    color: var(--accent);
+  }
 }
 
 /* Hovering the - button also highlights the collapse strip below it */
-.collapseColumn:has(.collapseBtn:hover) .collapseStrip {
-  color: var(--accent);
-  background: var(--accent-strong);
+@media (hover: hover) {
+  .collapseColumn:has(.collapseBtn:hover) .collapseStrip {
+    color: var(--accent);
+    background: var(--accent-strong);
+  }
 }
 
 .collapseBtn {
@@ -420,8 +430,10 @@
   flex-shrink: 0;
 }
 
-.collapseBtn:hover {
-  color: var(--accent);
+@media (hover: hover) {
+  .collapseBtn:hover {
+    color: var(--accent);
+  }
 }
 
 .collapseBtn:focus {
@@ -441,8 +453,10 @@
   width: 1.25rem;
 }
 
-.collapseStrip:hover {
-  background: var(--accent-strong);
+@media (hover: hover) {
+  .collapseStrip:hover {
+    background: var(--accent-strong);
+  }
 }
 
 .collapseStrip:focus {
@@ -613,8 +627,10 @@
   cursor: pointer;
 }
 
-.followBtn:hover:not(:disabled) {
-  background: var(--accent-muted);
+@media (hover: hover) {
+  .followBtn:hover:not(:disabled) {
+    background: var(--accent-muted);
+  }
 }
 
 .followBtn:disabled {
@@ -627,22 +643,28 @@
   border-color: var(--border);
 }
 
-.followBtnFollowing:hover:not(:disabled) {
-  color: var(--error);
-  border-color: var(--error);
-  background: var(--error-bg);
+@media (hover: hover) {
+  .followBtnFollowing:hover:not(:disabled) {
+    color: var(--error);
+    border-color: var(--error);
+    background: var(--error-bg);
+  }
 }
 
 .followLabelHover {
   display: none;
 }
 
-.followBtnFollowing:hover:not(:disabled) .followLabelDefault {
-  display: none;
+@media (hover: hover) {
+  .followBtnFollowing:hover:not(:disabled) .followLabelDefault {
+    display: none;
+  }
 }
 
-.followBtnFollowing:hover:not(:disabled) .followLabelHover {
-  display: inline;
+@media (hover: hover) {
+  .followBtnFollowing:hover:not(:disabled) .followLabelHover {
+    display: inline;
+  }
 }
 
 .postTimestamp {
@@ -681,9 +703,11 @@
   flex-shrink: 0;
 }
 
-.replyBtn:hover {
-  color: var(--accent);
-  border-color: var(--accent);
+@media (hover: hover) {
+  .replyBtn:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+  }
 }
 
 .commentLikeBtn,
@@ -697,9 +721,11 @@
   cursor: pointer;
 }
 
-.commentLikeBtn:hover:not(:disabled) {
-  color: var(--accent);
-  border-color: var(--accent);
+@media (hover: hover) {
+  .commentLikeBtn:hover:not(:disabled) {
+    color: var(--accent);
+    border-color: var(--accent);
+  }
 }
 
 .commentLikeBtnLiked {
@@ -718,9 +744,11 @@
   cursor: pointer;
 }
 
-.commentDownvoteBtn:hover:not(:disabled) {
-  color: var(--muted);
-  border-color: var(--muted);
+@media (hover: hover) {
+  .commentDownvoteBtn:hover:not(:disabled) {
+    color: var(--muted);
+    border-color: var(--muted);
+  }
 }
 
 .commentDownvoteBtnActive {
@@ -750,9 +778,11 @@
   flex-shrink: 0;
 }
 
-.commentRepostBtn:hover:not(:disabled) {
-  color: var(--accent);
-  border-color: var(--accent);
+@media (hover: hover) {
+  .commentRepostBtn:hover:not(:disabled) {
+    color: var(--accent);
+    border-color: var(--accent);
+  }
 }
 
 .commentRepostBtn:disabled {
@@ -787,8 +817,10 @@
   transition: background 0.15s ease;
 }
 
-.commentRepostDropdownItem:hover {
-  background: var(--glass-hover);
+@media (hover: hover) {
+  .commentRepostDropdownItem:hover {
+    background: var(--glass-hover);
+  }
 }
 
 .commentRepostDropdownItem:disabled {
@@ -816,9 +848,11 @@
   white-space: nowrap;
 }
 
-.commentViewQuotesBtn:hover:not(:disabled) {
-  color: var(--text);
-  border-color: var(--muted);
+@media (hover: hover) {
+  .commentViewQuotesBtn:hover:not(:disabled) {
+    color: var(--text);
+    border-color: var(--muted);
+  }
 }
 
 .commentViewQuotesBtn:disabled {
@@ -848,8 +882,10 @@
   text-decoration: none;
 }
 
-.handleLink:hover {
-  text-decoration: underline;
+@media (hover: hover) {
+  .handleLink:hover {
+    text-decoration: underline;
+  }
 }
 
 /* Nested comments: keep username within comment border (truncate with ellipsis) */
@@ -1026,8 +1062,10 @@
   width: 100%;
 }
 
-.repliesCollapsed:hover {
-  color: var(--accent);
+@media (hover: hover) {
+  .repliesCollapsed:hover {
+    color: var(--accent);
+  }
 }
 
 .replies {
@@ -1061,8 +1099,10 @@
   min-width: 0;
 }
 
-.commentSortSelect:hover {
-  border-color: var(--accent);
+@media (hover: hover) {
+  .commentSortSelect:hover {
+    border-color: var(--accent);
+  }
 }
 
 .commentSortSelect:focus {
@@ -1159,13 +1199,17 @@
   flex-shrink: 0;
 }
 
-.collapsedCommentBtn:hover .collapsedCommentExpandIcon {
-  color: var(--accent);
+@media (hover: hover) {
+  .collapsedCommentBtn:hover .collapsedCommentExpandIcon {
+    color: var(--accent);
+  }
 }
 
-.collapsedCommentBtn:hover {
-  background: var(--glass-highlight);
-  color: var(--accent);
+@media (hover: hover) {
+  .collapsedCommentBtn:hover {
+    background: var(--glass-highlight);
+    color: var(--accent);
+  }
 }
 
 .collapsedCommentAvatar {
@@ -1446,9 +1490,11 @@
   cursor: default;
 }
 
-.replyAsUserChip:hover {
-  border-color: var(--accent);
-  background: var(--accent-subtle);
+@media (hover: hover) {
+  .replyAsUserChip:hover {
+    border-color: var(--accent);
+    background: var(--accent-subtle);
+  }
 }
 
 .replyAsHandleWrap {
@@ -1471,8 +1517,10 @@
   transition: transform 0.2s ease;
 }
 
-.replyAsHandleBtn:hover {
-  text-decoration: none;
+@media (hover: hover) {
+  .replyAsHandleBtn:hover {
+    text-decoration: none;
+  }
 }
 
 .replyAsHandleBtn:focus-visible {
@@ -1514,10 +1562,12 @@
   text-decoration: none;
 }
 
-.replyAsDropdownItem:hover,
-.replyAsDropdownItemActive:hover {
-  background: var(--glass-highlight);
-  text-decoration: none;
+@media (hover: hover) {
+  .replyAsDropdownItem:hover,
+  .replyAsDropdownItemActive:hover {
+    background: var(--glass-highlight);
+    text-decoration: none;
+  }
 }
 
 .replyAsDropdownItemActive {
@@ -1578,9 +1628,11 @@
   text-decoration: none;
 }
 
-.replyAsDropdownAddAccount:hover {
-  background: var(--accent-subtle);
-  text-decoration: none;
+@media (hover: hover) {
+  .replyAsDropdownAddAccount:hover {
+    background: var(--accent-subtle);
+    text-decoration: none;
+  }
 }
 
 .replyAsAvatar {
@@ -1620,8 +1672,10 @@
   cursor: pointer;
 }
 
-.cancelReply:hover {
-  color: var(--text);
+@media (hover: hover) {
+  .cancelReply:hover {
+    color: var(--text);
+  }
 }
 
 .commentFormFooter {
@@ -1673,8 +1727,10 @@
   transition: filter 0.15s ease;
 }
 
-.submit:hover:not(:disabled) {
-  filter: brightness(0.92);
+@media (hover: hover) {
+  .submit:hover:not(:disabled) {
+    filter: brightness(0.92);
+  }
 }
 
 .submit:disabled {
@@ -1740,9 +1796,11 @@
   transition: none;
 }
 
-.quoteComposerQuotedCard:hover {
-  background: var(--bg);
-  border-color: var(--border);
+@media (hover: hover) {
+  .quoteComposerQuotedCard:hover {
+    background: var(--bg);
+    border-color: var(--border);
+  }
 }
 
 .quoteComposerQuotedCard .quotedPostText {
@@ -1826,8 +1884,10 @@
   justify-content: center;
 }
 
-.quoteComposerPreviewRemove:hover:not(:disabled) {
-  background: var(--overlay-bg);
+@media (hover: hover) {
+  .quoteComposerPreviewRemove:hover:not(:disabled) {
+    background: var(--overlay-bg);
+  }
 }
 
 .quoteComposerPreviewRemove:disabled {
@@ -1911,9 +1971,11 @@
   font-family: inherit;
 }
 
-.quoteComposerAddMedia:hover:not(:disabled) {
-  color: var(--text);
-  border-color: var(--muted);
+@media (hover: hover) {
+  .quoteComposerAddMedia:hover:not(:disabled) {
+    color: var(--text);
+    border-color: var(--muted);
+  }
 }
 
 .quoteComposerAddMedia:disabled {
@@ -1947,9 +2009,11 @@
   border: 1px solid var(--border);
 }
 
-.quoteComposerCancel:hover:not(:disabled) {
-  color: var(--text);
-  border-color: var(--muted);
+@media (hover: hover) {
+  .quoteComposerCancel:hover:not(:disabled) {
+    color: var(--text);
+    border-color: var(--muted);
+  }
 }
 
 .quoteComposerSubmit {
@@ -1958,8 +2022,10 @@
   border: none;
 }
 
-.quoteComposerSubmit:hover:not(:disabled) {
-  filter: brightness(0.92);
+@media (hover: hover) {
+  .quoteComposerSubmit:hover:not(:disabled) {
+    filter: brightness(0.92);
+  }
 }
 
 .quoteComposerSubmit:disabled {

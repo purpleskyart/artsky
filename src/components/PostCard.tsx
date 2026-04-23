@@ -397,7 +397,7 @@ function PostCardInner({
     didDoubleTapRef.current = false
   }, [isModalOpen])
 
-  const isVideo = hasMedia && media!.type === 'video' && media!.videoPlaylist
+  const isVideo = hasMedia && media!.type === 'video'
   const cardMediaPreloadDistance = useMemo(() => {
     const { preloadDistance } = getProgressiveImageDefaults()
     return feedPreviewActionRow ? preloadDistance + 480 : preloadDistance
@@ -898,6 +898,43 @@ function PostCardInner({
               e.stopPropagation()
               openReplyParentPost()
             }}
+            onTouchStart={(e) => {
+              const t = e.touches[0]
+              replyParentTouchStartRef.current = t ? { x: t.clientX, y: t.clientY } : null
+            }}
+            onTouchEnd={(e) => {
+              if (e.changedTouches.length !== 1) return
+              const start = replyParentTouchStartRef.current
+              replyParentTouchStartRef.current = null
+              const end = e.changedTouches[0]
+              const moved = start && end ? Math.hypot(end.clientX - start.x, end.clientY - start.y) : 0
+              const isScroll = moved > 12
+              if (isScroll) {
+                if (replyParentMediaOpenDelayTimerRef.current) {
+                  clearTimeout(replyParentMediaOpenDelayTimerRef.current)
+                  replyParentMediaOpenDelayTimerRef.current = null
+                }
+                return
+              }
+              const now = Date.now()
+              if (now - lastReplyParentTapRef.current < TOUCH_DOUBLE_TAP_WINDOW_MS) {
+                lastReplyParentTapRef.current = 0
+                if (replyParentMediaOpenDelayTimerRef.current) {
+                  clearTimeout(replyParentMediaOpenDelayTimerRef.current)
+                  replyParentMediaOpenDelayTimerRef.current = null
+                }
+                e.preventDefault()
+                e.stopPropagation()
+                handleReplyParentDoubleTapLike()
+              } else {
+                lastReplyParentTapRef.current = now
+                if (replyParentMediaOpenDelayTimerRef.current) clearTimeout(replyParentMediaOpenDelayTimerRef.current)
+                replyParentMediaOpenDelayTimerRef.current = setTimeout(() => {
+                  replyParentMediaOpenDelayTimerRef.current = null
+                  openReplyParentPost()
+                }, TOUCH_OPEN_DELAY_MS)
+              }
+            }}
           >
             <div className={styles.replyParentStripHeader}>
               <p className={styles.replyParentLabel}>Replying to</p>
@@ -908,43 +945,27 @@ function PostCardInner({
             {replyParentAllMedia.length > 0 ? (
               <div
                 className={`${styles.replyParentMediaBlock} ${replyParentAllMedia.length > 1 ? styles.replyParentMediaBlockMulti : ''}`}
-                onClick={handleReplyParentMediaClick}
-                onTouchStart={(e) => {
-                  const t = e.touches[0]
-                  replyParentTouchStartRef.current = t ? { x: t.clientX, y: t.clientY } : null
-                }}
-                onTouchEnd={(e) => {
-                  if (e.changedTouches.length !== 1) return
-                  const start = replyParentTouchStartRef.current
-                  replyParentTouchStartRef.current = null
-                  const end = e.changedTouches[0]
-                  const moved = start && end ? Math.hypot(end.clientX - start.x, end.clientY - start.y) : 0
-                  const isScroll = moved > 12
-                  if (isScroll) {
-                    if (replyParentMediaOpenDelayTimerRef.current) {
-                      clearTimeout(replyParentMediaOpenDelayTimerRef.current)
-                      replyParentMediaOpenDelayTimerRef.current = null
-                    }
+                onClick={(e) => {
+                  e.stopPropagation()
+                  // Mouse users expect immediate open
+                  if (e.nativeEvent.detail <= 1) {
+                    const openTargetPost = isModalOpen ? openReplyParentPost : openPostInModalOrFeed
+                    openTargetPost()
                     return
                   }
                   const now = Date.now()
-                  if (now - lastReplyParentTapRef.current < TOUCH_DOUBLE_TAP_WINDOW_MS) {
-                    lastReplyParentTapRef.current = 0
-                    lastReplyParentMediaClickRef.current = now
-                    replyParentMediaClickFromTouchRef.current = true
+                  if (now - lastReplyParentMediaClickRef.current < MEDIA_CLICK_DOUBLE_TAP_WINDOW_MS) {
+                    lastReplyParentMediaClickRef.current = 0
                     if (replyParentMediaOpenDelayTimerRef.current) {
                       clearTimeout(replyParentMediaOpenDelayTimerRef.current)
                       replyParentMediaOpenDelayTimerRef.current = null
                     }
-                    e.preventDefault()
                     handleReplyParentDoubleTapLike()
                   } else {
-                    lastReplyParentTapRef.current = now
-                    replyParentMediaClickFromTouchRef.current = false
+                    lastReplyParentMediaClickRef.current = now
                     if (replyParentMediaOpenDelayTimerRef.current) clearTimeout(replyParentMediaOpenDelayTimerRef.current)
                     replyParentMediaOpenDelayTimerRef.current = setTimeout(() => {
                       replyParentMediaOpenDelayTimerRef.current = null
-                      replyParentMediaClickFromTouchRef.current = false
                       const openTargetPost = isModalOpen ? openReplyParentPost : openPostInModalOrFeed
                       openTargetPost()
                     }, TOUCH_OPEN_DELAY_MS)
@@ -984,6 +1005,20 @@ function PostCardInner({
                             autoPlay
                             preload="metadata"
                             controlsHiddenUntilTap
+                            intersectionRoot={modalScrollContainer}
+                          />
+                        </div>
+                      ) : m.type === 'video' ? (
+                        <div className={styles.replyParentVideoWrap} style={{ aspectRatio: String(ar) }}>
+                          <VideoWithHls
+                            playlistUrl={m.url || ''}
+                            poster={m.url || undefined}
+                            className={styles.replyParentMediaVideo}
+                            loop
+                            autoPlay
+                            preload="metadata"
+                            controlsHiddenUntilTap
+                            intersectionRoot={modalScrollContainer}
                           />
                         </div>
                       ) : null}
@@ -1116,7 +1151,7 @@ function PostCardInner({
           ) : isVideo ? (
             <div className={styles.mediaVideoWrap}>
               <VideoWithHls
-                playlistUrl={media!.videoPlaylist || ''}
+                playlistUrl={media!.videoPlaylist || media!.url || ''}
                 poster={media!.url || undefined}
                 className={styles.media}
                 loop
@@ -1124,6 +1159,7 @@ function PostCardInner({
                 preload="metadata"
                 controls={false}
                 style={{ aspectRatio: mediaAspect != null ? `${mediaAspect}` : undefined }}
+                intersectionRoot={modalScrollContainer}
               />
             </div>
           ) : isMultipleImages ? (
