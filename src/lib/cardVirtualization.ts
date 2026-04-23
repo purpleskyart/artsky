@@ -6,14 +6,14 @@
  * per-card observers from memory. A single shared IO keeps overhead O(1)
  * regardless of how many cards exist.
  *
- * Margin is calculated as 1x viewport height in each direction,
+ * Margin is calculated as 1.5x viewport height in each direction,
  * giving React enough time to re-mount content before it scrolls into view.
  */
 
 function getVirtualizationMargin(): string {
-  if (typeof window === 'undefined') return '800px 0px 800px 0px'
+  if (typeof window === 'undefined') return '1200px 0px 1200px 0px'
   const vh = window.innerHeight
-  const margin = Math.floor(vh * 1)
+  const margin = Math.floor(vh * 1.5)
   return `${margin}px 0px ${margin}px 0px`
 }
 

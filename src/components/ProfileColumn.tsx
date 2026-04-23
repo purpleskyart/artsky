@@ -1,4 +1,6 @@
-import { type ReactNode, useRef, useState, useEffect, memo } from 'react'
+import { type ReactNode, useRef, useState, useEffect, memo, useCallback } from 'react'
+import { useSyncExternalStore } from 'react'
+import { subscribeDesktop, getDesktopSnapshot } from '../lib/desktop'
 import type { TimelineItem } from '../lib/bsky'
 import { isPostNsfw } from '../lib/bsky'
 import PostCard from './PostCard'
@@ -109,6 +111,7 @@ function ProfileColumnComponent(props: ProfileColumnProps) {
   } = props
 
   const styles = layout === 'feed' ? feedStyles : profileStyles
+  const isDesktop = useSyncExternalStore(subscribeDesktop, getDesktopSnapshot, () => false)
 
   if (column.length === 0) {
     return (
@@ -136,17 +139,17 @@ function ProfileColumnComponent(props: ProfileColumnProps) {
             data-selected={isSelected(originalIndex) || undefined}
             onMouseEnter={() => {
               onMouseEnter(originalIndex)
-              if (!suppressHoverNsfwUnblur && isNsfwBlurred) setUnblurred(item.post.uri, true)
+              if (isDesktop && !suppressHoverNsfwUnblur && isNsfwBlurred) setUnblurred(item.post.uri, true)
             }}
             onMouseLeave={() => {
-              if (!suppressHoverNsfwUnblur && unblurredUris.has(item.post.uri)) setUnblurred(item.post.uri, false)
+              if (isDesktop && !suppressHoverNsfwUnblur && unblurredUris.has(item.post.uri)) setUnblurred(item.post.uri, false)
             }}
-            onPointerEnter={() => {
+            onPointerEnter={isDesktop ? () => {
               if (!suppressHoverNsfwUnblur && isNsfwBlurred) setUnblurred(item.post.uri, true)
-            }}
-            onPointerLeave={() => {
+            } : undefined}
+            onPointerLeave={isDesktop ? () => {
               if (!suppressHoverNsfwUnblur && unblurredUris.has(item.post.uri)) setUnblurred(item.post.uri, false)
-            }}
+            } : undefined}
           >
             <VirtualizedCell root={scrollRef}>
               <PostCard
