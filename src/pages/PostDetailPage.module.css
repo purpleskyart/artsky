@@ -1287,11 +1287,9 @@
   flex-shrink: 0;
 }
 
-@media (hover: hover) {
-  .likeRepostBtn:hover:not(:disabled) {
-    color: var(--accent);
-    border-color: var(--accent);
-  }
+.likeRepostBtn:hover:not(:disabled) {
+  color: var(--accent);
+  border-color: var(--accent);
 }
 
 .likeRepostBtnActive {
@@ -1310,10 +1308,8 @@
     background-clip: unset;
   }
 }
-@media (hover: hover) {
-  .likeRepostBtnActive:hover:not(:disabled) {
-    filter: brightness(1.15);
-  }
+.likeRepostBtnActive:hover:not(:disabled) {
+  filter: brightness(1.15);
 }
 .likeRepostBtnActive .likeRepostBtnIcon {
   color: #ec4899;
@@ -1375,10 +1371,8 @@
   cursor: pointer;
 }
 
-@media (hover: hover) {
-  .repostDropdownItem:hover:not(:disabled) {
-    background: var(--glass-highlight);
-  }
+.repostDropdownItem:hover:not(:disabled) {
+  background: var(--glass-highlight);
 }
 
 .repostDropdownItem:disabled {
