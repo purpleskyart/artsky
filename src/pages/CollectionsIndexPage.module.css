@@ -83,11 +83,13 @@
   gap: 0.45rem;
 }
 
-.card:hover {
-  background: var(--glass-highlight);
-  border-color: var(--accent);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
-  text-decoration: none;
+@media (hover: hover) {
+  .card:hover {
+    background: var(--glass-highlight);
+    border-color: var(--accent);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
+    text-decoration: none;
+  }
 }
 
 .card:focus-visible {

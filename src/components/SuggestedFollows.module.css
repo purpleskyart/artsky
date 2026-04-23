@@ -85,8 +85,10 @@
   text-align: left;
 }
 
-.profileBtn:hover {
-  background: var(--bg-hover, rgba(0, 0, 0, 0.05));
+@media (hover: hover) {
+  .profileBtn:hover {
+    background: var(--bg-hover, rgba(0, 0, 0, 0.05));
+  }
 }
 
 .profileBtn:focus-visible {
@@ -161,9 +163,11 @@
   justify-content: center;
 }
 
-.infoBtn:hover {
-  background: var(--bg-hover, rgba(0, 0, 0, 0.05));
-  color: var(--fg);
+@media (hover: hover) {
+  .infoBtn:hover {
+    background: var(--bg-hover, rgba(0, 0, 0, 0.05));
+    color: var(--fg);
+  }
 }
 
 .infoBtn:focus-visible {
@@ -212,9 +216,11 @@
   justify-content: center;
 }
 
-.dismissBtn:hover {
-  background: var(--bg-hover, rgba(0, 0, 0, 0.05));
-  color: var(--fg);
+@media (hover: hover) {
+  .dismissBtn:hover {
+    background: var(--bg-hover, rgba(0, 0, 0, 0.05));
+    color: var(--fg);
+  }
 }
 
 .dismissBtn:focus-visible {
@@ -276,9 +282,11 @@
   flex-shrink: 0;
 }
 
-.detailClose:hover {
-  background: var(--bg-hover, rgba(0, 0, 0, 0.05));
-  color: var(--fg);
+@media (hover: hover) {
+  .detailClose:hover {
+    background: var(--bg-hover, rgba(0, 0, 0, 0.05));
+    color: var(--fg);
+  }
 }
 
 .detailBody {
@@ -320,8 +328,10 @@
   text-align: left;
 }
 
-.detailProfileBtn:hover {
-  background: var(--bg-hover, rgba(0, 0, 0, 0.05));
+@media (hover: hover) {
+  .detailProfileBtn:hover {
+    background: var(--bg-hover, rgba(0, 0, 0, 0.05));
+  }
 }
 
 .detailProfileBtn:focus-visible {

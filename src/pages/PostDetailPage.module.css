@@ -1413,8 +1413,10 @@
   cursor: pointer;
 }
 
-.cancelBtn:hover {
-  color: var(--text);
+@media (hover: hover) {
+  .cancelBtn:hover {
+    color: var(--text);
+  }
 }
 
 .commentForm {

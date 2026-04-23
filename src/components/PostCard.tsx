@@ -213,11 +213,6 @@ function PostCardInner({
   const effectiveLikedUri = likedUriOverride !== undefined ? (likedUriOverride ?? undefined) : likedUri
   const isLiked = !!effectiveLikedUri
 
-  // Reply parent like state
-  const replyParentViewer = replyParentPost as { viewer?: { like?: string } } | undefined
-  const initialReplyParentLikedUri = replyParentViewer?.viewer?.like
-  const [replyParentLikedUri, setReplyParentLikedUri] = useState<string | undefined>(initialReplyParentLikedUri)
-
   const [mediaAspect, setMediaAspect] = useState<number | null>(() =>
     hasMedia && media?.aspectRatio != null ? media.aspectRatio : null,
   )
@@ -659,22 +654,6 @@ function PostCardInner({
     }
   }, [session?.did, openLoginModal, effectiveLikedUri, post.uri, post.cid, onLikedChange])
 
-  const handleReplyParentDoubleTapLike = useCallback(() => {
-    if (!session?.did || !replyParentPost) {
-      openLoginModal()
-      return
-    }
-    if (replyParentLikedUri) {
-      setReplyParentLikedUri(undefined)
-      unlikePostWithLifecycle(replyParentLikedUri, replyParentPost.uri).catch(() => setReplyParentLikedUri(replyParentLikedUri))
-    } else {
-      setReplyParentLikedUri('pending')
-      likePostWithLifecycle(replyParentPost.uri, replyParentPost.cid).then((res) => {
-        setReplyParentLikedUri(res.uri)
-      }).catch(() => setReplyParentLikedUri(undefined))
-    }
-  }, [session?.did, openLoginModal, replyParentLikedUri, replyParentPost])
-
   const handleMediaClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
     /* Blurred + synthetic click before parent re-renders: unblur only, do not open post */
@@ -918,6 +897,14 @@ function PostCardInner({
             {replyParentAllMedia.length > 0 ? (
               <div
                 className={`${styles.replyParentMediaBlock} ${replyParentAllMedia.length > 1 ? styles.replyParentMediaBlockMulti : ''}`}
+                onTouchStart={() => {
+                  replyParentMediaClickFromTouchRef.current = true
+                }}
+                onTouchEnd={() => {
+                  setTimeout(() => {
+                    replyParentMediaClickFromTouchRef.current = false
+                  }, 450)
+                }}
                 onClick={(e) => {
                   e.stopPropagation()
                   if (replyParentMediaClickFromTouchRef.current) return
@@ -934,7 +921,7 @@ function PostCardInner({
                       clearTimeout(replyParentMediaOpenDelayTimerRef.current)
                       replyParentMediaOpenDelayTimerRef.current = null
                     }
-                    handleReplyParentDoubleTapLike()
+                    handleMediaDoubleTapLike()
                   } else {
                     lastReplyParentMediaClickRef.current = now
                     if (replyParentMediaOpenDelayTimerRef.current) clearTimeout(replyParentMediaOpenDelayTimerRef.current)
