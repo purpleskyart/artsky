@@ -51,12 +51,10 @@
   cursor: pointer;
 }
 
-@media (hover: hover) {
-  .editBtn:hover,
-  .editBtn:focus-visible {
-    border-color: var(--accent);
-    background: var(--glass-highlight);
-  }
+.editBtn:hover,
+.editBtn:focus-visible {
+  border-color: var(--accent);
+  background: var(--glass-highlight);
 }
 
 .list {
@@ -101,11 +99,9 @@
   text-decoration: none;
 }
 
-@media (hover: hover) {
-  .card:hover .cardTitle,
-  .card:focus-visible .cardTitle {
-    text-decoration: none;
-  }
+.card:hover .cardTitle,
+.card:focus-visible .cardTitle {
+  text-decoration: none;
 }
 
 .previewRow {
@@ -218,15 +214,13 @@
   color: var(--danger, #dc2626);
 }
 
-@media (hover: hover) {
-  .smallBtn:hover,
-  .smallBtn:focus-visible,
-  .smallBtnMuted:hover,
-  .smallBtnMuted:focus-visible,
-  .smallBtnDanger:hover,
-  .smallBtnDanger:focus-visible {
-    background: var(--glass-highlight);
-  }
+.smallBtn:hover,
+.smallBtn:focus-visible,
+.smallBtnMuted:hover,
+.smallBtnMuted:focus-visible,
+.smallBtnDanger:hover,
+.smallBtnDanger:focus-visible {
+  background: var(--glass-highlight);
 }
 
 .smallBtn:disabled,

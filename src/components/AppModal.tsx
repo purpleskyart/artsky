@@ -190,40 +190,27 @@ export default function AppModal({
     return () => window.removeEventListener('wheel', onWheel, { capture: true })
   }, [isTopModal])
 
-  /* Touch: block scrolling the main app (#root) under the overlay. Portals on document.body (e.g. menus) stay scrollable — they are not under #root.
-   * NOTE: Removed global touchmove interception to prevent "invisible cursor" effect on mobile where tapping leaves
-   * a focus/hover state that highlights elements during scroll. The overscroll-behavior: contain on body from
-   * ScrollLockContext should be sufficient to prevent scroll chaining. */
-  // useLayoutEffect(() => {
-  //   if (!isTopModal) return
-  //   const overlay = overlayRef.current
-  //   const scrollEl = scrollRef.current
-  //   const root = typeof document !== 'undefined' ? document.getElementById('root') : null
-  //   if (!overlay || !scrollEl || !root) return
-  //   const onTouchMove = (e: TouchEvent) => {
-  //     const target = e.target as Node
-  //     if (overlay.contains(target)) {
-  //       if (scrollEl.contains(target)) return
-  //       e.preventDefault()
-  //       return
-  //     }
-  //     if (root.contains(target)) e.preventDefault()
-  //   }
-  //   document.addEventListener('touchmove', onTouchMove, { passive: false, capture: true })
-  //   return () => document.removeEventListener('touchmove', onTouchMove, { capture: true })
-  // }, [isTopModal])
-
-  /* Clear focus when modal opens to prevent "invisible cursor" effect */
-  useEffect(() => {
+  /* Touch: block scrolling the main app (#root) under the overlay. Portals on document.body (e.g. menus) stay scrollable — they are not under #root. */
+  useLayoutEffect(() => {
     if (!isTopModal) return
-    // Clear any existing focus when modal opens
-    if (document.activeElement instanceof HTMLElement) {
-      document.activeElement.blur()
+    const overlay = overlayRef.current
+    const scrollEl = scrollRef.current
+    const root = typeof document !== 'undefined' ? document.getElementById('root') : null
+    if (!overlay || !scrollEl || !root) return
+    const onTouchMove = (e: TouchEvent) => {
+      const target = e.target as Node
+      if (overlay.contains(target)) {
+        if (scrollEl.contains(target)) return
+        e.preventDefault()
+        return
+      }
+      if (root.contains(target)) e.preventDefault()
     }
+    document.addEventListener('touchmove', onTouchMove, { passive: false, capture: true })
+    return () => document.removeEventListener('touchmove', onTouchMove, { capture: true })
   }, [isTopModal])
 
-  /* Mobile only: hide back/nav/gear when scrolling down in modal; desktop keeps header controls visible.
-   * Also blur active element on scroll to prevent "invisible cursor" effect where focus persists and highlights elements. */
+  /* Mobile only: hide back/nav/gear when scrolling down in modal; desktop keeps header controls visible */
   useEffect(() => {
     const el = scrollRef.current
     if (!el || !isMobile) return
@@ -238,10 +225,6 @@ export default function AppModal({
       if (delta > SCROLL_THRESHOLD) setModalScrollHidden(true)
       else if (delta < -SCROLL_THRESHOLD) setModalScrollHidden(false)
       lastScrollYRef.current = y
-      /* Blur active element on scroll to prevent focus from persisting and causing "cursor" effect */
-      if (document.activeElement instanceof HTMLElement && Math.abs(delta) > 2) {
-        document.activeElement.blur()
-      }
       if (scrollEndTimerRef.current) clearTimeout(scrollEndTimerRef.current)
       scrollEndTimerRef.current = setTimeout(() => {
         scrollEndTimerRef.current = null
@@ -254,52 +237,6 @@ export default function AppModal({
       if (scrollEndTimerRef.current) clearTimeout(scrollEndTimerRef.current)
     }
   }, [isMobile, setModalScrollHidden])
-
-  /* Clear focus on tap in modal to prevent "invisible cursor" effect */
-  useEffect(() => {
-    if (!isTopModal) return
-    const overlay = overlayRef.current
-    if (!overlay) return
-    const onTouchStart = (e: TouchEvent) => {
-      if (document.activeElement instanceof HTMLElement) {
-        document.activeElement.blur()
-      }
-      // Stop propagation to prevent cursor emulation
-      e.stopPropagation()
-    }
-    overlay.addEventListener('touchstart', onTouchStart, { passive: false })
-    return () => overlay.removeEventListener('touchstart', onTouchStart)
-  }, [isTopModal])
-
-  /* Prevent hover emulation on entire document when modal is open on mobile */
-  useEffect(() => {
-    if (!isTopModal || !isMobile) return
-    const onDocumentTouchStart = (e: TouchEvent) => {
-      // Prevent default hover emulation on touch devices
-      const target = e.target as HTMLElement
-      if (target.closest('.overlay') || target.closest('[role="dialog"]')) {
-        // Allow normal touch handling within modal
-        return
-      }
-    }
-    document.addEventListener('touchstart', onDocumentTouchStart, { passive: true })
-    return () => document.removeEventListener('touchstart', onDocumentTouchStart)
-  }, [isTopModal, isMobile])
-
-  /* Track recent touch time in modal to prevent focus-related cursor emulation (similar to PostCard logic) */
-  useEffect(() => {
-    if (!isTopModal) return
-    const scrollEl = scrollRef.current
-    if (!scrollEl) return
-    const onTouchStart = (_e: TouchEvent) => {
-      // Track touch time to prevent focus-related behaviors within 500ms
-      ;(scrollEl as any).__recentTouchTime = Date.now()
-      // Prevent default touch behavior to stop cursor emulation
-      // e.preventDefault()
-    }
-    scrollEl.addEventListener('touchstart', onTouchStart, { passive: true })
-    return () => scrollEl.removeEventListener('touchstart', onTouchStart)
-  }, [isTopModal])
 
   /* Mobile only: open in expanded mode by default */
   useEffect(() => {
@@ -493,75 +430,42 @@ export default function AppModal({
                 ? { transform: `translateY(${pullRefresh.pullDistance}px)` }
                 : undefined
             }
-            // onTouchEnd={swipe.onTouchEnd}
-            onClick={(e) => e.stopPropagation()}
           >
-            {onPullToRefresh && isMobile && isStandalonePwa && (
-              <div
-                className={styles.modalPanePullRefreshHeader}
-                aria-hidden={pullRefresh.pullDistance === 0 && !pullRefresh.isRefreshing}
-                aria-live="polite"
-                aria-label={pullRefresh.isRefreshing ? 'Refreshing' : undefined}
-              >
-                {(pullRefresh.pullDistance > 0 || pullRefresh.isRefreshing) && (
-                  <div
-                    className={styles.pullRefreshSpinner}
-                    style={
-                      pullRefresh.isRefreshing
-                        ? undefined
-                        : {
-                            animation: 'none',
-                            transform: `rotate(${Math.min(1, pullRefresh.pullDistance / PULL_THRESHOLD_PX) * 360}deg)`,
-                          }
-                    }
-                  />
-                )}
+            <button
+              type="button"
+              className={`float-btn modal-back-btn ${styles.modalFloatingBack}${modalScrollHidden ? ` ${styles.modalFloatingBackScrollHidden}` : ''}`}
+              onClick={canGoBack ? onBack : onClose}
+              aria-label={canGoBack ? 'Back' : 'Close'}
+              title={canGoBack ? 'Back' : 'Close'}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M19 12H5M12 19l-7-7 7-7" />
+              </svg>
+            </button>
+            {!hideTopBar && (
+              <div className={`${styles.modalTopBar} ${transparentTopBar ? styles.modalTopBarTransparent : ''} ${styles.modalTopBarActionsBelow}`}>
+                <div className={styles.modalTopBarLeft} aria-hidden="true">
+                  {/* Back/close is the floating circle button only (mobile and desktop) */}
+                </div>
+                <div ref={setTopBarSlotEl} className={styles.modalTopBarSlot} />
+                <div ref={setTopBarRightSlotEl} className={styles.modalTopBarRight} />
               </div>
             )}
             <div
-              className={styles.modalPaneBody}
-              style={
-                pullRefresh.pullDistance > 0
-                  ? { transform: `translateY(${pullRefresh.pullDistance}px)` }
-                  : undefined
-              }
+              ref={(el) => {
+                scrollRef.current = el
+                setScrollElement(el)
+              }}
+              data-modal-scroll
+              className={`${styles.scroll} ${transparentTopBar ? styles.scrollWithTransparentBar : ''} ${styles.scrollWithFloatingBack}`}
+              onTouchStart={pullRefresh.onTouchStart}
+              onTouchMove={pullRefresh.onTouchMove}
+              onTouchEnd={pullRefresh.onTouchEnd}
+              style={{ visibility: isRestoringScroll ? 'hidden' : 'visible' }}
             >
-              <button
-                type="button"
-                className={`float-btn modal-back-btn ${styles.modalFloatingBack}${modalScrollHidden ? ` ${styles.modalFloatingBackScrollHidden}` : ''}`}
-                onClick={canGoBack ? onBack : onClose}
-                aria-label={canGoBack ? 'Back' : 'Close'}
-                title={canGoBack ? 'Back' : 'Close'}
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                  <path d="M19 12H5M12 19l-7-7 7-7" />
-                </svg>
-              </button>
-              {!hideTopBar && (
-                <div className={`${styles.modalTopBar} ${transparentTopBar ? styles.modalTopBarTransparent : ''} ${styles.modalTopBarActionsBelow}`}>
-                  <div className={styles.modalTopBarLeft} aria-hidden="true">
-                    {/* Back/close is the floating circle button only (mobile and desktop) */}
-                  </div>
-                  <div ref={setTopBarSlotEl} className={styles.modalTopBarSlot} />
-                  <div ref={setTopBarRightSlotEl} className={styles.modalTopBarRight} />
-                </div>
-              )}
-              <div
-                ref={(el) => {
-                  scrollRef.current = el
-                  setScrollElement(el)
-                }}
-                data-modal-scroll
-                className={`${styles.scroll} ${transparentTopBar ? styles.scrollWithTransparentBar : ''} ${styles.scrollWithFloatingBack}`}
-                onTouchStart={pullRefresh.onTouchStart}
-                onTouchMove={pullRefresh.onTouchMove}
-                onTouchEnd={pullRefresh.onTouchEnd}
-                style={{ visibility: isRestoringScroll ? 'hidden' : 'visible' }}
-              >
-                <ModalScrollProvider scrollElement={scrollElement}>
-                  {children}
-                </ModalScrollProvider>
-              </div>
+              <ModalScrollProvider scrollElement={scrollElement}>
+                {children}
+              </ModalScrollProvider>
             </div>
           </div>
         </div>

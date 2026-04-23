@@ -69,10 +69,8 @@
   text-decoration: none;
 }
 
-@media (hover: hover) {
-  .externalLink:hover {
-    text-decoration: underline;
-  }
+.externalLink:hover {
+  text-decoration: underline;
 }
 
 .actions {
@@ -95,12 +93,10 @@
   cursor: pointer;
 }
 
-@media (hover: hover) {
-  .actionBtn:hover:not(:disabled),
-  .actionBtnPrimary:hover:not(:disabled) {
-    border-color: var(--accent);
-    color: var(--accent);
-  }
+.actionBtn:hover:not(:disabled),
+.actionBtnPrimary:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 .actionBtnPrimary {
@@ -110,11 +106,9 @@
   transition: filter 0.15s ease;
 }
 
-@media (hover: hover) {
-  .actionBtnPrimary:hover:not(:disabled) {
-    filter: brightness(0.92);
-    color: var(--text-on-accent);
-  }
+.actionBtnPrimary:hover:not(:disabled) {
+  filter: brightness(0.92);
+  color: var(--text-on-accent);
 }
 
 .actionBtnDanger {
@@ -122,10 +116,8 @@
   color: var(--error);
 }
 
-@media (hover: hover) {
-  .actionBtnDanger:hover:not(:disabled) {
-    background: var(--error-bg);
-  }
+.actionBtnDanger:hover:not(:disabled) {
+  background: var(--error-bg);
 }
 
 .deleteConfirmText {
@@ -215,11 +207,9 @@
   cursor: pointer;
 }
 
-@media (hover: hover) {
-  .addMediaBtn:hover {
-    border-color: var(--accent);
-    color: var(--accent);
-  }
+.addMediaBtn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 .mediaDropHint {
@@ -269,11 +259,9 @@
   box-shadow: var(--shadow-card);
 }
 
-@media (hover: hover) {
-  .mediaPreviewRemove:hover {
-    background: var(--error);
-    color: var(--text-on-danger);
-  }
+.mediaPreviewRemove:hover {
+  background: var(--error);
+  color: var(--text-on-danger);
 }
 
 .editActions {
@@ -334,10 +322,8 @@
   cursor: pointer;
 }
 
-@media (hover: hover) {
-  .replyingToCancel:hover {
-    color: var(--text);
-  }
+.replyingToCancel:hover {
+  color: var(--text);
 }
 
 .replyToBtn {
@@ -350,11 +336,9 @@
   cursor: pointer;
 }
 
-@media (hover: hover) {
-  .replyToBtn:hover {
-    border-color: var(--accent);
-    color: var(--accent);
-  }
+.replyToBtn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 .commentBadge {
@@ -401,10 +385,8 @@
   transition: filter 0.15s ease;
 }
 
-@media (hover: hover) {
-  .replySubmit:hover:not(:disabled) {
-    filter: brightness(0.92);
-  }
+.replySubmit:hover:not(:disabled) {
+  filter: brightness(0.92);
 }
 
 .replySubmit:disabled {
@@ -472,10 +454,8 @@
   text-decoration: none;
 }
 
-@media (hover: hover) {
-  .viewPostLink:hover {
-    text-decoration: underline;
-  }
+.viewPostLink:hover {
+  text-decoration: underline;
 }
 
 .likeBtn,
@@ -489,10 +469,8 @@
   cursor: pointer;
 }
 
-@media (hover: hover) {
-  .likeBtn:hover:not(:disabled) {
-    color: var(--accent);
-  }
+.likeBtn:hover:not(:disabled) {
+  color: var(--accent);
 }
 
 .likeBtnLiked {
