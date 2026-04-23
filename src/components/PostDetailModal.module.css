@@ -185,6 +185,13 @@
   z-index: 0;
 }
 
+/* Interactive elements within modal scroll should use manipulation to prevent hover states on touch */
+.scroll button,
+.scroll a,
+.scroll [role="button"] {
+  touch-action: manipulation;
+}
+
 /* Top padding so content (images, text) isn't covered by floating back, feed pill, or gear (all sit above the modal on mobile) */
 .scrollWithFloatingBack.scroll {
   padding-top: calc(2.5rem + max(var(--space-md), env(safe-area-inset-top, 0px)) + var(--space-sm));
@@ -326,6 +333,7 @@
   line-height: 1;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
 @media (hover: hover) {
@@ -361,6 +369,7 @@
   color: var(--text);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
   line-height: 0;
 }
 .expandBtn svg {
