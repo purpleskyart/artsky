@@ -291,7 +291,7 @@ export default function AppModal({
     if (!isTopModal) return
     const scrollEl = scrollRef.current
     if (!scrollEl) return
-    const onTouchStart = (e: TouchEvent) => {
+    const onTouchStart = (_e: TouchEvent) => {
       // Track touch time to prevent focus-related behaviors within 500ms
       ;(scrollEl as any).__recentTouchTime = Date.now()
       // Prevent default touch behavior to stop cursor emulation
@@ -444,68 +444,24 @@ export default function AppModal({
     }
     onClose()
   }
-  window.addEventListener('keydown', onKeyDown, true)
-  return () => window.removeEventListener('keydown', onKeyDown, true)
-}, [onClose, onBack, onDesktopBackdrop, isMobile])
 
-function handleBackdropClick(e: React.MouseEvent<HTMLDivElement>) {
-  if (e.target !== e.currentTarget) return
-  if (!isMobile && onDesktopBackdrop) {
-    onDesktopBackdrop()
-    return
-  }
-  onClose()
-}
-
-const modal = (
-  <ModalTopBarSlotContext.Provider value={{ centerSlot: topBarSlotEl, rightSlot: topBarRightSlotEl, isMobile }}>
-    <div
-      ref={overlayRef}
-      className={`${styles.overlay}${!isTopModal ? ` ${styles.overlayStackedUnder}` : ''}${transparentTopBar ? ` ${styles.overlayFlushTop}` : ''}${expanded ? ` ${styles.overlayExpanded}` : ''}`}
-      style={stackIndex !== undefined ? { zIndex: MODAL_OVERLAY_Z_BASE + stackIndex } : undefined}
-      onClick={handleBackdropClick}
-      role="dialog"
-      aria-modal="true"
-      aria-label={ariaLabel}
-    >
+  const modal = (
+    <ModalTopBarSlotContext.Provider value={{ centerSlot: topBarSlotEl, rightSlot: topBarRightSlotEl, isMobile }}>
       <div
-        className={`${styles.pane}${swipe.isReturning ? ` ${styles.paneSwipeReturning}` : ''}${transparentTopBar ? ` ${styles.paneNoRightBorder}` : ''}${compact ? ` ${styles.paneCompact}` : ''}${expanded ? ` ${styles.paneExpanded}` : ''}${feedBackground ? ` ${styles.paneFeedBackground}` : ''}`}
-        style={swipe.style}
-        onTouchStart={swipe.onTouchStart}
-        onTouchMove={swipe.onTouchMove}
-        onTouchEnd={swipe.onTouchEnd}
-        onClick={(e) => e.stopPropagation()}
+        ref={overlayRef}
+        className={`${styles.overlay}${!isTopModal ? ` ${styles.overlayStackedUnder}` : ''}${transparentTopBar ? ` ${styles.overlayFlushTop}` : ''}${expanded ? ` ${styles.overlayExpanded}` : ''}`}
+        style={stackIndex !== undefined ? { zIndex: MODAL_OVERLAY_Z_BASE + stackIndex } : undefined}
+        onClick={handleBackdropClick}
+        role="dialog"
+        aria-modal="true"
+        aria-label={ariaLabel}
       >
-        {onPullToRefresh && isMobile && isStandalonePwa && (
-          <div
-            className={styles.modalPanePullRefreshHeader}
-            aria-hidden={pullRefresh.pullDistance === 0 && !pullRefresh.isRefreshing}
-            aria-live="polite"
-            aria-label={pullRefresh.isRefreshing ? 'Refreshing' : undefined}
-          >
-            {(pullRefresh.pullDistance > 0 || pullRefresh.isRefreshing) && (
-              <div
-                className={styles.pullRefreshSpinner}
-                style={
-                  pullRefresh.isRefreshing
-                    ? undefined
-                    : {
-                        animation: 'none',
-                        transform: `rotate(${Math.min(1, pullRefresh.pullDistance / PULL_THRESHOLD_PX) * 360}deg)`,
-                      }
-                }
-              />
-            )}
-          </div>
-        )}
         <div
-          className={styles.modalPaneBody}
-          style={
-            pullRefresh.pullDistance > 0
-              ? { transform: `translateY(${pullRefresh.pullDistance}px)` }
-              : undefined
-          }
-          // onTouchEnd={swipe.onTouchEnd}
+          className={`${styles.pane}${swipe.isReturning ? ` ${styles.paneSwipeReturning}` : ''}${transparentTopBar ? ` ${styles.paneNoRightBorder}` : ''}${compact ? ` ${styles.paneCompact}` : ''}${expanded ? ` ${styles.paneExpanded}` : ''}${feedBackground ? ` ${styles.paneFeedBackground}` : ''}`}
+          style={swipe.style}
+          onTouchStart={swipe.onTouchStart}
+          onTouchMove={swipe.onTouchMove}
+          onTouchEnd={swipe.onTouchEnd}
           onClick={(e) => e.stopPropagation()}
         >
           {onPullToRefresh && isMobile && isStandalonePwa && (
@@ -537,42 +493,75 @@ const modal = (
                 ? { transform: `translateY(${pullRefresh.pullDistance}px)` }
                 : undefined
             }
+            // onTouchEnd={swipe.onTouchEnd}
+            onClick={(e) => e.stopPropagation()}
           >
-            <button
-              type="button"
-              className={`float-btn modal-back-btn ${styles.modalFloatingBack}${modalScrollHidden ? ` ${styles.modalFloatingBackScrollHidden}` : ''}`}
-              onClick={canGoBack ? onBack : onClose}
-              aria-label={canGoBack ? 'Back' : 'Close'}
-              title={canGoBack ? 'Back' : 'Close'}
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                <path d="M19 12H5M12 19l-7-7 7-7" />
-              </svg>
-            </button>
-            {!hideTopBar && (
-              <div className={`${styles.modalTopBar} ${transparentTopBar ? styles.modalTopBarTransparent : ''} ${styles.modalTopBarActionsBelow}`}>
-                <div className={styles.modalTopBarLeft} aria-hidden="true">
-                  {/* Back/close is the floating circle button only (mobile and desktop) */}
-                </div>
-                <div ref={setTopBarSlotEl} className={styles.modalTopBarSlot} />
-                <div ref={setTopBarRightSlotEl} className={styles.modalTopBarRight} />
+            {onPullToRefresh && isMobile && isStandalonePwa && (
+              <div
+                className={styles.modalPanePullRefreshHeader}
+                aria-hidden={pullRefresh.pullDistance === 0 && !pullRefresh.isRefreshing}
+                aria-live="polite"
+                aria-label={pullRefresh.isRefreshing ? 'Refreshing' : undefined}
+              >
+                {(pullRefresh.pullDistance > 0 || pullRefresh.isRefreshing) && (
+                  <div
+                    className={styles.pullRefreshSpinner}
+                    style={
+                      pullRefresh.isRefreshing
+                        ? undefined
+                        : {
+                            animation: 'none',
+                            transform: `rotate(${Math.min(1, pullRefresh.pullDistance / PULL_THRESHOLD_PX) * 360}deg)`,
+                          }
+                    }
+                  />
+                )}
               </div>
             )}
             <div
-              ref={(el) => {
-                scrollRef.current = el
-                setScrollElement(el)
-              }}
-              data-modal-scroll
-              className={`${styles.scroll} ${transparentTopBar ? styles.scrollWithTransparentBar : ''} ${styles.scrollWithFloatingBack}`}
-              onTouchStart={pullRefresh.onTouchStart}
-              onTouchMove={pullRefresh.onTouchMove}
-              onTouchEnd={pullRefresh.onTouchEnd}
-              style={{ visibility: isRestoringScroll ? 'hidden' : 'visible' }}
+              className={styles.modalPaneBody}
+              style={
+                pullRefresh.pullDistance > 0
+                  ? { transform: `translateY(${pullRefresh.pullDistance}px)` }
+                  : undefined
+              }
             >
-              <ModalScrollProvider scrollElement={scrollElement}>
-                {children}
-              </ModalScrollProvider>
+              <button
+                type="button"
+                className={`float-btn modal-back-btn ${styles.modalFloatingBack}${modalScrollHidden ? ` ${styles.modalFloatingBackScrollHidden}` : ''}`}
+                onClick={canGoBack ? onBack : onClose}
+                aria-label={canGoBack ? 'Back' : 'Close'}
+                title={canGoBack ? 'Back' : 'Close'}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M19 12H5M12 19l-7-7 7-7" />
+                </svg>
+              </button>
+              {!hideTopBar && (
+                <div className={`${styles.modalTopBar} ${transparentTopBar ? styles.modalTopBarTransparent : ''} ${styles.modalTopBarActionsBelow}`}>
+                  <div className={styles.modalTopBarLeft} aria-hidden="true">
+                    {/* Back/close is the floating circle button only (mobile and desktop) */}
+                  </div>
+                  <div ref={setTopBarSlotEl} className={styles.modalTopBarSlot} />
+                  <div ref={setTopBarRightSlotEl} className={styles.modalTopBarRight} />
+                </div>
+              )}
+              <div
+                ref={(el) => {
+                  scrollRef.current = el
+                  setScrollElement(el)
+                }}
+                data-modal-scroll
+                className={`${styles.scroll} ${transparentTopBar ? styles.scrollWithTransparentBar : ''} ${styles.scrollWithFloatingBack}`}
+                onTouchStart={pullRefresh.onTouchStart}
+                onTouchMove={pullRefresh.onTouchMove}
+                onTouchEnd={pullRefresh.onTouchEnd}
+                style={{ visibility: isRestoringScroll ? 'hidden' : 'visible' }}
+              >
+                <ModalScrollProvider scrollElement={scrollElement}>
+                  {children}
+                </ModalScrollProvider>
+              </div>
             </div>
           </div>
         </div>
