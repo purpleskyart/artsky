@@ -190,8 +190,7 @@ export default function AppModal({
     return () => window.removeEventListener('wheel', onWheel, { capture: true })
   }, [isTopModal])
 
-  /* Touch: block scrolling the main app (#root) under the overlay. Portals on document.body (e.g. menus) stay scrollable — they are not under #root.
-     Changed to non-capturing to avoid interfering with tap detection on mobile. */
+  /* Touch: block scrolling the main app (#root) under the overlay. Portals on document.body (e.g. menus) stay scrollable — they are not under #root. */
   useLayoutEffect(() => {
     if (!isTopModal) return
     const overlay = overlayRef.current
@@ -200,7 +199,6 @@ export default function AppModal({
     if (!overlay || !scrollEl || !root) return
     const onTouchMove = (e: TouchEvent) => {
       const target = e.target as Node
-      // Only block if touch is in overlay but not in scroll area, or if touch is in root
       if (overlay.contains(target)) {
         if (scrollEl.contains(target)) return
         e.preventDefault()
@@ -208,8 +206,8 @@ export default function AppModal({
       }
       if (root.contains(target)) e.preventDefault()
     }
-    document.addEventListener('touchmove', onTouchMove, { passive: false })
-    return () => document.removeEventListener('touchmove', onTouchMove)
+    document.addEventListener('touchmove', onTouchMove, { passive: false, capture: true })
+    return () => document.removeEventListener('touchmove', onTouchMove, { capture: true })
   }, [isTopModal])
 
   /* Mobile only: hide back/nav/gear when scrolling down in modal; desktop keeps header controls visible */
