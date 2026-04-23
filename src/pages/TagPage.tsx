@@ -366,6 +366,7 @@ export function TagContent({ tag, inModal = false, onRegisterRefresh }: { tag: s
                     originalIndex,
                     () => keyboardFocusIndexRef.current,
                     (idx) => setKeyboardFocusIndex(idx),
+                    { applyOnTouch: inModal ? false : undefined }
                   )
                 }
                 suppressHoverNsfwUnblur={inModal}

@@ -689,7 +689,8 @@ export function SearchModalGridContent({
                   tryHoverSelectCard(
                     originalIndex,
                     () => keyboardFocusIndexRef.current,
-                    (idx) => setKeyboardFocusIndex(idx)
+                    (idx) => setKeyboardFocusIndex(idx),
+                    { applyOnTouch: false }
                   )
                 }
                 isSelected={(index) => index === keyboardFocusIndex}
