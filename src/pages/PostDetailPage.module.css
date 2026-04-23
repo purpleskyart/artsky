@@ -47,6 +47,27 @@
     -webkit-user-select: auto;
     user-select: auto;
   }
+  /* Prevent cursor emulation and hover/focus states in modal context on mobile */
+  .wrapInModal {
+    -webkit-user-select: none;
+    user-select: none;
+    cursor: default;
+  }
+  .wrapInModal * {
+    -webkit-tap-highlight-color: transparent;
+  }
+  .wrapInModal button:focus,
+  .wrapInModal a:focus,
+  .wrapInModal [role="button"]:focus {
+    outline: none;
+    transform: none;
+  }
+  .wrapInModal button:hover,
+  .wrapInModal a:hover,
+  .wrapInModal [role="button"]:hover {
+    outline: none;
+    transform: none;
+  }
 }
 
 /* In modal on mobile: media takes full width of popup */

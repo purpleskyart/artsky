@@ -401,6 +401,8 @@
     padding-top: max(0.5rem, env(safe-area-inset-top));
     padding-bottom: env(safe-area-inset-bottom);
     justify-content: flex-start;
+    -webkit-user-select: none;
+    user-select: none;
   }
   .overlayFlushTop.overlay {
     padding-top: max(0.5rem, env(safe-area-inset-top));
@@ -418,9 +420,13 @@
   }
   .pane {
     max-height: 100%;
+    -webkit-user-select: none;
+    user-select: none;
   }
   .scroll {
     padding-bottom: calc(var(--nav-height) + env(safe-area-inset-bottom));
+    -webkit-user-select: none;
+    user-select: none;
   }
   /* Transparent bar on mobile: keep at top */
   .modalTopBarTransparent {
@@ -443,5 +449,12 @@
   .scroll [role="button"]:hover {
     outline: none;
     transform: none;
+  }
+  /* Prevent cursor emulation on entire modal structure */
+  .overlay,
+  .pane,
+  .scroll,
+  .modalPaneBody {
+    cursor: default;
   }
 }

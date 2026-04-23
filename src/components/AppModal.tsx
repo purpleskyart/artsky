@@ -404,9 +404,10 @@ export default function AppModal({
         <div
           className={`${styles.pane}${swipe.isReturning ? ` ${styles.paneSwipeReturning}` : ''}${transparentTopBar ? ` ${styles.paneNoRightBorder}` : ''}${compact ? ` ${styles.paneCompact}` : ''}${expanded ? ` ${styles.paneExpanded}` : ''}${feedBackground ? ` ${styles.paneFeedBackground}` : ''}`}
           style={swipe.style}
-          onTouchStart={swipe.onTouchStart}
-          onTouchMove={swipe.onTouchMove}
-          onTouchEnd={swipe.onTouchEnd}
+          // Temporarily disable swipe touch handlers to test if they cause cursor emulation
+          // onTouchStart={swipe.onTouchStart}
+          // onTouchMove={swipe.onTouchMove}
+          // onTouchEnd={swipe.onTouchEnd}
           onClick={(e) => e.stopPropagation()}
         >
           {onPullToRefresh && isMobile && isStandalonePwa && (
@@ -466,9 +467,10 @@ export default function AppModal({
               }}
               data-modal-scroll
               className={`${styles.scroll} ${transparentTopBar ? styles.scrollWithTransparentBar : ''} ${styles.scrollWithFloatingBack}`}
-              onTouchStart={pullRefresh.onTouchStart}
-              onTouchMove={pullRefresh.onTouchMove}
-              onTouchEnd={pullRefresh.onTouchEnd}
+              // Temporarily disable pull-to-refresh touch handlers to test if they cause cursor emulation
+              // onTouchStart={pullRefresh.onTouchStart}
+              // onTouchMove={pullRefresh.onTouchMove}
+              // onTouchEnd={pullRefresh.onTouchEnd}
               style={{ visibility: isRestoringScroll ? 'hidden' : 'visible' }}
             >
               <ModalScrollProvider scrollElement={scrollElement}>
