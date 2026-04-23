@@ -130,7 +130,7 @@ export default defineConfig({
       },
     },
     // Optimize chunk size
-    chunkSizeWarningLimit: 500,
+    chunkSizeWarningLimit: 1000,
   },
   // Enable dependency pre-bundling optimization (CJS packages like @atproto/api must be pre-bundled so named exports work in ESM)
   optimizeDeps: {
