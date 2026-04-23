@@ -213,6 +213,15 @@ export default function AppModal({
   //   return () => document.removeEventListener('touchmove', onTouchMove, { capture: true })
   // }, [isTopModal])
 
+  /* Clear focus when modal opens to prevent "invisible cursor" effect */
+  useEffect(() => {
+    if (!isTopModal) return
+    // Clear any existing focus when modal opens
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur()
+    }
+  }, [isTopModal])
+
   /* Mobile only: hide back/nav/gear when scrolling down in modal; desktop keeps header controls visible.
    * Also blur active element on scroll to prevent "invisible cursor" effect where focus persists and highlights elements. */
   useEffect(() => {
@@ -245,6 +254,52 @@ export default function AppModal({
       if (scrollEndTimerRef.current) clearTimeout(scrollEndTimerRef.current)
     }
   }, [isMobile, setModalScrollHidden])
+
+  /* Clear focus on tap in modal to prevent "invisible cursor" effect */
+  useEffect(() => {
+    if (!isTopModal) return
+    const overlay = overlayRef.current
+    if (!overlay) return
+    const onTouchStart = (e: TouchEvent) => {
+      if (document.activeElement instanceof HTMLElement) {
+        document.activeElement.blur()
+      }
+      // Stop propagation to prevent cursor emulation
+      e.stopPropagation()
+    }
+    overlay.addEventListener('touchstart', onTouchStart, { passive: false })
+    return () => overlay.removeEventListener('touchstart', onTouchStart)
+  }, [isTopModal])
+
+  /* Prevent hover emulation on entire document when modal is open on mobile */
+  useEffect(() => {
+    if (!isTopModal || !isMobile) return
+    const onDocumentTouchStart = (e: TouchEvent) => {
+      // Prevent default hover emulation on touch devices
+      const target = e.target as HTMLElement
+      if (target.closest('.overlay') || target.closest('[role="dialog"]')) {
+        // Allow normal touch handling within modal
+        return
+      }
+    }
+    document.addEventListener('touchstart', onDocumentTouchStart, { passive: true })
+    return () => document.removeEventListener('touchstart', onDocumentTouchStart)
+  }, [isTopModal, isMobile])
+
+  /* Track recent touch time in modal to prevent focus-related cursor emulation (similar to PostCard logic) */
+  useEffect(() => {
+    if (!isTopModal) return
+    const scrollEl = scrollRef.current
+    if (!scrollEl) return
+    const onTouchStart = (e: TouchEvent) => {
+      // Track touch time to prevent focus-related behaviors within 500ms
+      ;(scrollEl as any).__recentTouchTime = Date.now()
+      // Prevent default touch behavior to stop cursor emulation
+      // e.preventDefault()
+    }
+    scrollEl.addEventListener('touchstart', onTouchStart, { passive: true })
+    return () => scrollEl.removeEventListener('touchstart', onTouchStart)
+  }, [isTopModal])
 
   /* Mobile only: open in expanded mode by default */
   useEffect(() => {
@@ -389,24 +444,67 @@ export default function AppModal({
     }
     onClose()
   }
+  window.addEventListener('keydown', onKeyDown, true)
+  return () => window.removeEventListener('keydown', onKeyDown, true)
+}, [onClose, onBack, onDesktopBackdrop, isMobile])
 
-  const modal = (
-    <ModalTopBarSlotContext.Provider value={{ centerSlot: topBarSlotEl, rightSlot: topBarRightSlotEl, isMobile }}>
+function handleBackdropClick(e: React.MouseEvent<HTMLDivElement>) {
+  if (e.target !== e.currentTarget) return
+  if (!isMobile && onDesktopBackdrop) {
+    onDesktopBackdrop()
+    return
+  }
+  onClose()
+}
+
+const modal = (
+  <ModalTopBarSlotContext.Provider value={{ centerSlot: topBarSlotEl, rightSlot: topBarRightSlotEl, isMobile }}>
+    <div
+      ref={overlayRef}
+      className={`${styles.overlay}${!isTopModal ? ` ${styles.overlayStackedUnder}` : ''}${transparentTopBar ? ` ${styles.overlayFlushTop}` : ''}${expanded ? ` ${styles.overlayExpanded}` : ''}`}
+      style={stackIndex !== undefined ? { zIndex: MODAL_OVERLAY_Z_BASE + stackIndex } : undefined}
+      onClick={handleBackdropClick}
+      role="dialog"
+      aria-modal="true"
+      aria-label={ariaLabel}
+    >
       <div
-        ref={overlayRef}
-        className={`${styles.overlay}${!isTopModal ? ` ${styles.overlayStackedUnder}` : ''}${transparentTopBar ? ` ${styles.overlayFlushTop}` : ''}${expanded ? ` ${styles.overlayExpanded}` : ''}`}
-        style={stackIndex !== undefined ? { zIndex: MODAL_OVERLAY_Z_BASE + stackIndex } : undefined}
-        onClick={handleBackdropClick}
-        role="dialog"
-        aria-modal="true"
-        aria-label={ariaLabel}
+        className={`${styles.pane}${swipe.isReturning ? ` ${styles.paneSwipeReturning}` : ''}${transparentTopBar ? ` ${styles.paneNoRightBorder}` : ''}${compact ? ` ${styles.paneCompact}` : ''}${expanded ? ` ${styles.paneExpanded}` : ''}${feedBackground ? ` ${styles.paneFeedBackground}` : ''}`}
+        style={swipe.style}
+        onTouchStart={swipe.onTouchStart}
+        onTouchMove={swipe.onTouchMove}
+        onTouchEnd={swipe.onTouchEnd}
+        onClick={(e) => e.stopPropagation()}
       >
+        {onPullToRefresh && isMobile && isStandalonePwa && (
+          <div
+            className={styles.modalPanePullRefreshHeader}
+            aria-hidden={pullRefresh.pullDistance === 0 && !pullRefresh.isRefreshing}
+            aria-live="polite"
+            aria-label={pullRefresh.isRefreshing ? 'Refreshing' : undefined}
+          >
+            {(pullRefresh.pullDistance > 0 || pullRefresh.isRefreshing) && (
+              <div
+                className={styles.pullRefreshSpinner}
+                style={
+                  pullRefresh.isRefreshing
+                    ? undefined
+                    : {
+                        animation: 'none',
+                        transform: `rotate(${Math.min(1, pullRefresh.pullDistance / PULL_THRESHOLD_PX) * 360}deg)`,
+                      }
+                }
+              />
+            )}
+          </div>
+        )}
         <div
-          className={`${styles.pane}${swipe.isReturning ? ` ${styles.paneSwipeReturning}` : ''}${transparentTopBar ? ` ${styles.paneNoRightBorder}` : ''}${compact ? ` ${styles.paneCompact}` : ''}${expanded ? ` ${styles.paneExpanded}` : ''}${feedBackground ? ` ${styles.paneFeedBackground}` : ''}`}
-          style={swipe.style}
-          // Temporarily disable swipe touch handlers to test if they cause cursor emulation
-          // onTouchStart={swipe.onTouchStart}
-          // onTouchMove={swipe.onTouchMove}
+          className={styles.modalPaneBody}
+          style={
+            pullRefresh.pullDistance > 0
+              ? { transform: `translateY(${pullRefresh.pullDistance}px)` }
+              : undefined
+          }
           // onTouchEnd={swipe.onTouchEnd}
           onClick={(e) => e.stopPropagation()}
         >
@@ -467,10 +565,9 @@ export default function AppModal({
               }}
               data-modal-scroll
               className={`${styles.scroll} ${transparentTopBar ? styles.scrollWithTransparentBar : ''} ${styles.scrollWithFloatingBack}`}
-              // Temporarily disable pull-to-refresh touch handlers to test if they cause cursor emulation
-              // onTouchStart={pullRefresh.onTouchStart}
-              // onTouchMove={pullRefresh.onTouchMove}
-              // onTouchEnd={pullRefresh.onTouchEnd}
+              onTouchStart={pullRefresh.onTouchStart}
+              onTouchMove={pullRefresh.onTouchMove}
+              onTouchEnd={pullRefresh.onTouchEnd}
               style={{ visibility: isRestoringScroll ? 'hidden' : 'visible' }}
             >
               <ModalScrollProvider scrollElement={scrollElement}>

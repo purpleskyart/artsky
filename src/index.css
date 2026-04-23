@@ -229,6 +229,42 @@ button {
   font-family: inherit;
 }
 
+/* Prevent hover states from being triggered by touch on mobile devices within modal contexts */
+@media (hover: none) and (max-width: 767px) {
+  [role="dialog"] button:hover,
+  [role="dialog"] a:hover,
+  [role="dialog"] [role="button"]:hover,
+  .overlay button:hover,
+  .overlay a:hover,
+  .overlay [role="button"]:hover,
+  .pane button:hover,
+  .pane a:hover,
+  .pane [role="button"]:hover,
+  .scroll button:hover,
+  .scroll a:hover,
+  .scroll [role="button"]:hover {
+    cursor: default;
+    outline: none;
+    transform: none;
+    background: initial;
+    border-color: initial;
+    color: initial;
+  }
+}
+
+/* iOS Safari specific: prevent tap highlight and cursor emulation */
+@supports (-webkit-touch-callout: none) {
+  @media (max-width: 767px) {
+    [role="dialog"] *,
+    .overlay *,
+    .pane *,
+    .scroll * {
+      -webkit-tap-highlight-color: transparent !important;
+      -webkit-touch-callout: none !important;
+    }
+  }
+}
+
 /* Focus: no browser default outline (e.g. yellow ring) anywhere; we use scale for focus indication */
 *:focus,
 *:focus-visible {
