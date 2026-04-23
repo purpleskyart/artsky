@@ -398,7 +398,7 @@
   .overlayExpanded.overlay {
     padding-top: 0;
     padding-bottom: 0;
-    /* Match .pane (--surface) so safe-area / keyboard gaps aren't a different tint than the modal */
+    /* Match .pane (--surface) so safe-area / keyboard gaps aren’t a different tint than the modal */
     background: var(--surface);
   }
   /* Shrink pane to stay above the on-screen keyboard; --keyboard-inset is set by AppModal via visualViewport */

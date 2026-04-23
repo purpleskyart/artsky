@@ -235,20 +235,6 @@ button {
   outline: none;
 }
 
-/* Touch devices: disable hover emulation to prevent invisible cursor on tap */
-@media (hover: none) {
-  *:hover {
-    background-color: inherit !important;
-    color: inherit !important;
-    border-color: inherit !important;
-    box-shadow: inherit !important;
-    outline: inherit !important;
-    filter: inherit !important;
-    transform: inherit !important;
-    z-index: inherit !important;
-  }
-}
-
 @media (hover: hover) {
   /* Lift toward user for links and buttons (scale + purple border) */
   a:focus-visible,
