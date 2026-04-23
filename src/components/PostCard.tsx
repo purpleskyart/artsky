@@ -237,12 +237,6 @@ function PostCardInner({
   const nsfwOverlayHandledRef = useRef(false)
   /** On mobile, first tap on NSFW overlay only unblurs; set so synthetic click doesn't open. */
   const nsfwTouchUnblurOnlyRef = useRef(false)
-  // Reply parent double-tap detection
-  const lastReplyParentTapRef = useRef(0)
-  const lastReplyParentMediaClickRef = useRef(0)
-  const replyParentMediaClickFromTouchRef = useRef(false)
-  const replyParentMediaOpenDelayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const replyParentTouchStartRef = useRef<{ x: number; y: number } | null>(null)
   /* Close ... menu when parent says focus moved to another card (e.g. A/D) */
   useEffect(() => {
     if (cardIndex == null) return

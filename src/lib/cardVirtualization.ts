@@ -80,7 +80,7 @@ export function observeVirtualization(
 ): () => void {
   const observer = getObserver(root)
   virtCallbacks.set(el, callback)
-  trackedElements.set(el, { callback, root })
+  trackedElements.set(el, { callback, root: root ?? null })
   observer.observe(el)
   return () => {
     virtCallbacks.delete(el)
