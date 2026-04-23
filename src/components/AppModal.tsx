@@ -190,25 +190,28 @@ export default function AppModal({
     return () => window.removeEventListener('wheel', onWheel, { capture: true })
   }, [isTopModal])
 
-  /* Touch: block scrolling the main app (#root) under the overlay. Portals on document.body (e.g. menus) stay scrollable — they are not under #root. */
-  useLayoutEffect(() => {
-    if (!isTopModal) return
-    const overlay = overlayRef.current
-    const scrollEl = scrollRef.current
-    const root = typeof document !== 'undefined' ? document.getElementById('root') : null
-    if (!overlay || !scrollEl || !root) return
-    const onTouchMove = (e: TouchEvent) => {
-      const target = e.target as Node
-      if (overlay.contains(target)) {
-        if (scrollEl.contains(target)) return
-        e.preventDefault()
-        return
-      }
-      if (root.contains(target)) e.preventDefault()
-    }
-    document.addEventListener('touchmove', onTouchMove, { passive: false, capture: true })
-    return () => document.removeEventListener('touchmove', onTouchMove, { capture: true })
-  }, [isTopModal])
+  /* Touch: block scrolling the main app (#root) under the overlay. Portals on document.body (e.g. menus) stay scrollable — they are not under #root.
+   * NOTE: Removed global touchmove interception to prevent "invisible cursor" effect on mobile where tapping leaves
+   * a focus/hover state that highlights elements during scroll. The overscroll-behavior: contain on body from
+   * ScrollLockContext should be sufficient to prevent scroll chaining. */
+  // useLayoutEffect(() => {
+  //   if (!isTopModal) return
+  //   const overlay = overlayRef.current
+  //   const scrollEl = scrollRef.current
+  //   const root = typeof document !== 'undefined' ? document.getElementById('root') : null
+  //   if (!overlay || !scrollEl || !root) return
+  //   const onTouchMove = (e: TouchEvent) => {
+  //     const target = e.target as Node
+  //     if (overlay.contains(target)) {
+  //       if (scrollEl.contains(target)) return
+  //       e.preventDefault()
+  //       return
+  //     }
+  //     if (root.contains(target)) e.preventDefault()
+  //   }
+  //   document.addEventListener('touchmove', onTouchMove, { passive: false, capture: true })
+  //   return () => document.removeEventListener('touchmove', onTouchMove, { capture: true })
+  // }, [isTopModal])
 
   /* Mobile only: hide back/nav/gear when scrolling down in modal; desktop keeps header controls visible */
   useEffect(() => {
