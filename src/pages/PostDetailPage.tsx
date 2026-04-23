@@ -2,11 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import type { AppBskyFeedDefs } from '@atproto/api'
 import type { AtpSessionData } from '@atproto/api'
-import { agent, publicAgent, postReply, getPostAllMedia, getQuotedPostView, getPostExternalLink, getSession, createQuotePost, createDownvote, deleteDownvote, listMyDownvotes, getPostThreadCached, getProfilesBatch, getProfileCached, getPostsBatch, likePostWithLifecycle, unlikePostWithLifecycle, repostPostWithLifecycle, deleteRepostWithLifecycle, followAccountWithLifecycle, unfollowAccountWithLifecycle, POST_MEDIA_FULL, POST_MEDIA_FEED_PREVIEW, type PostView } from '../lib/bsky'
+import { agent, publicAgent, postReply, getPostAllMedia, getQuotedPostView, getPostExternalLink, getSession, createQuotePost, createDownvote, deleteDownvote, listMyDownvotes, getPostThreadCached, getProfilesBatch, getProfileCached, getPostsBatch, likePostWithLifecycle, unlikePostWithLifecycle, repostPostWithLifecycle, deleteRepostWithLifecycle, followAccountWithLifecycle, unfollowAccountWithLifecycle, isPostNsfw, POST_MEDIA_FULL, POST_MEDIA_FEED_PREVIEW, type PostView } from '../lib/bsky'
 import { getApiErrorMessage } from '../lib/apiErrors'
 import { takeInitialPostForUri, getCachedThread, invalidateThreadCache } from '../lib/postCache'
 import { getDownvoteCounts } from '../lib/constellation'
 import { useSession } from '../context/SessionContext'
+import { useModeration } from '../context/ModerationContext'
 import { formatRelativeTime, formatExactDateTime } from '../lib/date'
 import Layout from '../components/Layout'
 import ProfileLink from '../components/ProfileLink'
@@ -479,6 +480,58 @@ function MediaGallery({
           )
         })}
       </div>
+    </div>
+  )
+}
+
+/** Wrapper for MediaGallery in preview cards (parent/quote/ancestor posts) that adds NSFW blur */
+function NsfwBlurredMediaGallery({
+  items,
+  postUri,
+  post,
+  nsfwPreference,
+  unblurredUris,
+  setUnblurred,
+  forEmbeddedPreview = false,
+  hideVideoControlsUntilTap = false,
+  onImageClick,
+}: {
+  items: Array<{ url: string; type: 'image' | 'video'; videoPlaylist?: string; aspectRatio?: number }>
+  postUri: string
+  post: PostView
+  nsfwPreference: 'nsfw' | 'sfw' | 'blurred'
+  unblurredUris: Set<string>
+  setUnblurred: (uri: string, revealed: boolean) => void
+  forEmbeddedPreview?: boolean
+  hideVideoControlsUntilTap?: boolean
+  onImageClick?: (url: string, index: number) => void
+}) {
+  const isNsfw = isPostNsfw(post)
+  const isBlurred = nsfwPreference === 'blurred' && isNsfw && !unblurredUris.has(postUri)
+  
+  const handleTap = (e: React.MouseEvent) => {
+    if (isBlurred) {
+      e.stopPropagation()
+      setUnblurred(postUri, true)
+    }
+  }
+
+  return (
+    <div
+      className={`${styles.quotedPostGallery} ${isBlurred ? styles.quotedPostGalleryBlurred : ''}`}
+      onClick={handleTap}
+    >
+      {isBlurred && (
+        <div className={styles.nsfwOverlay}>
+          <span className={styles.nsfwOverlayText}>Tap to reveal</span>
+        </div>
+      )}
+      <MediaGallery
+        items={items}
+        forEmbeddedPreview={forEmbeddedPreview}
+        hideVideoControlsUntilTap={hideVideoControlsUntilTap}
+        onImageClick={isBlurred ? undefined : onImageClick}
+      />
     </div>
   )
 }
@@ -1244,6 +1297,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
   const prevSectionIndexRef = useRef(0)
   const session = getSession()
   const { session: sessionFromContext, sessionsList, switchAccount } = useSession()
+  const { nsfwPreference, unblurredUris, setUnblurred } = useModeration()
   const toast = useToast()
   const { setFollowOverride } = useFollowOverrides()
   const [replyAsProfile, setReplyAsProfile] = useState<{ handle: string; avatar?: string } | null>(null)
@@ -2386,13 +2440,16 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                               )}
                             </div>
                             {ancestorMediaFull.length > 0 && (
-                              <div className={styles.quotedPostGallery} onClick={(e) => e.stopPropagation()}>
-                                <MediaGallery
-                                  items={ancestorMediaFull}
-                                  forEmbeddedPreview
-                                  hideVideoControlsUntilTap={!isDesktop}
-                                />
-                              </div>
+                              <NsfwBlurredMediaGallery
+                                items={ancestorMediaFull}
+                                postUri={ancestorPost.uri}
+                                post={ancestorPost}
+                                nsfwPreference={nsfwPreference}
+                                unblurredUris={unblurredUris}
+                                setUnblurred={setUnblurred}
+                                forEmbeddedPreview
+                                hideVideoControlsUntilTap={!isDesktop}
+                              />
                             )}
                             {ancestorText ? (
                               <p className={styles.quotedPostText}>
@@ -2568,14 +2625,17 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                           )}
                         </div>
                         {quotedMediaFull.length > 0 && (
-                          <div className={styles.quotedPostGallery} onClick={openQuotedPost}>
-                            <MediaGallery
-                              items={quotedMediaFull}
-                              forEmbeddedPreview
-                              hideVideoControlsUntilTap={!isDesktop}
-                              onImageClick={handleQuotedMediaClick}
-                            />
-                          </div>
+                          <NsfwBlurredMediaGallery
+                            items={quotedMediaFull}
+                            postUri={quoted.uri}
+                            post={quoted}
+                            nsfwPreference={nsfwPreference}
+                            unblurredUris={unblurredUris}
+                            setUnblurred={setUnblurred}
+                            forEmbeddedPreview
+                            hideVideoControlsUntilTap={!isDesktop}
+                            onImageClick={handleQuotedMediaClick}
+                          />
                         )}
                         {quotedText ? (
                           <p className={styles.quotedPostText}>

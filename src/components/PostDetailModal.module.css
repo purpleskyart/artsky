@@ -175,8 +175,8 @@
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
-  /* Match feed card touch handling for consistent tap behavior */
-  touch-action: manipulation;
+  /* Allow vertical touch scroll even when body has touch-action: none from scroll lock */
+  touch-action: pan-y;
   flex: 1;
   min-height: 0;
   width: 100%;
