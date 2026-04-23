@@ -183,9 +183,6 @@
   min-width: 0;
   pointer-events: auto;
   z-index: 0;
-  /* Prevent accidental text selection when tapping and scrolling on mobile */
-  -webkit-user-select: none;
-  user-select: none;
 }
 
 /* Top padding so content (images, text) isn't covered by floating back, feed pill, or gear (all sit above the modal on mobile) */
