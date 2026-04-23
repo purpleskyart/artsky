@@ -1,6 +1,5 @@
-import { type ReactNode, useRef, useState, useEffect, memo, useCallback } from 'react'
+import { type ReactNode, useRef, useState, useEffect, memo } from 'react'
 import { useSyncExternalStore } from 'react'
-import { subscribeDesktop, getDesktopSnapshot } from '../lib/desktop'
 import type { TimelineItem } from '../lib/bsky'
 import { isPostNsfw } from '../lib/bsky'
 import PostCard from './PostCard'
@@ -8,6 +7,17 @@ import { setInitialPostForUri } from '../lib/postCache'
 import { observeVirtualization } from '../lib/cardVirtualization'
 import profileStyles from '../pages/ProfilePage.module.css'
 import feedStyles from '../pages/FeedPage.module.css'
+
+const DESKTOP_BREAKPOINT = 768
+function subscribeDesktop(cb: () => void) {
+  if (typeof window === 'undefined') return () => {}
+  const mq = window.matchMedia(`(min-width: ${DESKTOP_BREAKPOINT}px)`)
+  mq.addEventListener('change', cb)
+  return () => mq.removeEventListener('change', cb)
+}
+function getDesktopSnapshot() {
+  return typeof window !== 'undefined' ? window.innerWidth >= DESKTOP_BREAKPOINT : false
+}
 
 type ColumnItem = { item: TimelineItem; originalIndex: number }
 

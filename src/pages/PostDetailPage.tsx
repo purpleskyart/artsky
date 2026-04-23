@@ -1240,7 +1240,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
   const [keyboardFocusIndex, setKeyboardFocusIndex] = useState(0)
   const keyboardFocusIndexRef = useRef(0)
   const scrollIntoViewFromKeyboardRef = useRef(false)
-  const appliedInitialFocusUriRef = useRef<null>(null)
+  const appliedInitialFocusUriRef = useRef<string | null>(null)
   const prevSectionIndexRef = useRef(0)
   const session = getSession()
   const { session: sessionFromContext, sessionsList, switchAccount } = useSession()
