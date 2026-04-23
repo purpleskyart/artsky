@@ -213,7 +213,8 @@ export default function AppModal({
   //   return () => document.removeEventListener('touchmove', onTouchMove, { capture: true })
   // }, [isTopModal])
 
-  /* Mobile only: hide back/nav/gear when scrolling down in modal; desktop keeps header controls visible */
+  /* Mobile only: hide back/nav/gear when scrolling down in modal; desktop keeps header controls visible.
+   * Also blur active element on scroll to prevent "invisible cursor" effect where focus persists and highlights elements. */
   useEffect(() => {
     const el = scrollRef.current
     if (!el || !isMobile) return
@@ -228,6 +229,10 @@ export default function AppModal({
       if (delta > SCROLL_THRESHOLD) setModalScrollHidden(true)
       else if (delta < -SCROLL_THRESHOLD) setModalScrollHidden(false)
       lastScrollYRef.current = y
+      /* Blur active element on scroll to prevent focus from persisting and causing "cursor" effect */
+      if (document.activeElement instanceof HTMLElement && Math.abs(delta) > 2) {
+        document.activeElement.blur()
+      }
       if (scrollEndTimerRef.current) clearTimeout(scrollEndTimerRef.current)
       scrollEndTimerRef.current = setTimeout(() => {
         scrollEndTimerRef.current = null
