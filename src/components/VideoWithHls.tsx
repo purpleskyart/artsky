@@ -108,8 +108,8 @@ export default function VideoWithHls({
               video.pause()
             }
           } else {
-            // Video is entering viewport - resume if it was playing
-            if (wasPlayingRef.current && video.readyState >= 2) {
+            // Video is entering viewport - resume if it was playing or if autoPlay is enabled
+            if (video.readyState >= 2 && (wasPlayingRef.current || autoPlay)) {
               video.play().catch(() => {})
               wasPlayingRef.current = false
             }
@@ -124,7 +124,7 @@ export default function VideoWithHls({
     return () => {
       observer.disconnect()
     }
-  }, [intersectionRoot])
+  }, [intersectionRoot, autoPlay])
 
   return (
     <video
