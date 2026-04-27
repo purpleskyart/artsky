@@ -24,6 +24,15 @@ const virtCallbacks = new WeakMap<Element, VirtCallback>()
 const trackedElements = new Map<Element, { callback: VirtCallback; root: Element | null }>()
 const observerCache = new Map<Element | null, IntersectionObserver>()
 
+// Clear stale module-level state on page load (fixes refresh issues)
+if (typeof window !== 'undefined') {
+  window.addEventListener('load', () => {
+    trackedElements.clear()
+    observerCache.forEach((observer) => observer.disconnect())
+    observerCache.clear()
+  })
+}
+
 // Handle window resize to update observers with new margin
 if (typeof window !== 'undefined') {
   let resizeTimeout: ReturnType<typeof setTimeout> | undefined
