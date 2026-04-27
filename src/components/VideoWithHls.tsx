@@ -3,7 +3,7 @@ import { loadHls } from '../lib/loadHls'
 
 // Global video manager to limit concurrent playing videos
 // Reduced from 8 to 4 for better performance with multiple videos
-const MAX_CONCURRENT_VIDEOS = 4
+const MAX_CONCURRENT_VIDEOS = 7
 const playingVideos = new Map<string, HTMLVideoElement>()
 let playQueue: string[] = []
 
@@ -234,21 +234,36 @@ export default function VideoWithHls({
           }
         }
       },
-      { threshold: 0.30, rootMargin: '-10% 0px -10% 0px', root: intersectionRoot ?? undefined }
+      { threshold: 0.60, rootMargin: '-10% 0px -10% 0px', root: intersectionRoot ?? undefined }
     )
 
     observer.observe(video)
 
     // Check if video is already in viewport on mount and play if so
-    setTimeout(() => {
-      const entries = observer.takeRecords()
-      if (entries.length > 0 && entries[0].isIntersecting && video.readyState >= 2) {
-        registerPlayingVideo(videoId, video)
-        video.play().catch(() => {
-          unregisterPlayingVideo(videoId)
-        })
+    const checkAndPlay = () => {
+      if (video.readyState >= 2) {
+        const rect = video.getBoundingClientRect()
+        const root = intersectionRoot ?? document.documentElement
+        const rootRect = root.getBoundingClientRect()
+        
+        // Check if video is visible in viewport
+        const isVisible = rect.top < rootRect.bottom && rect.bottom > rootRect.top
+        
+        if (isVisible) {
+          registerPlayingVideo(videoId, video)
+          video.play().catch(() => {
+            unregisterPlayingVideo(videoId)
+          })
+        }
       }
-    }, 0)
+    }
+
+    // Try immediately, but if not ready, wait for loadeddata event
+    if (video.readyState >= 2) {
+      checkAndPlay()
+    } else {
+      video.addEventListener('loadeddata', checkAndPlay, { once: true })
+    }
 
     return () => {
       observer.disconnect()
