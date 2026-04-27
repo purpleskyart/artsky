@@ -2,7 +2,8 @@ import { useRef, useEffect, useState } from 'react'
 import { loadHls } from '../lib/loadHls'
 
 // Global video manager to limit concurrent playing videos
-const MAX_CONCURRENT_VIDEOS = 8
+// Reduced from 8 to 4 for better performance with multiple videos
+const MAX_CONCURRENT_VIDEOS = 4
 const playingVideos = new Map<string, HTMLVideoElement>()
 let playQueue: string[] = []
 
@@ -82,30 +83,36 @@ export default function VideoWithHls({
         if (!videoRef.current) return
         if (Hls.isSupported()) {
           const hls = new Hls({
-            // Balanced buffer sizes for stability with multiple videos
-            maxBufferLength: 30, // Restore to default for smoother playback
-            maxMaxBufferLength: 60, // Restore to default
-            maxBufferSize: 30 * 1024 * 1024, // 30MB for better buffering
+            // Reduced buffer sizes for better performance with multiple videos
+            maxBufferLength: 15, // Reduced from 30 to 15 seconds
+            maxMaxBufferLength: 30, // Reduced from 60 to 30 seconds
+            maxBufferSize: 15 * 1024 * 1024, // Reduced from 30MB to 15MB
             // Optimize quality switching
             enableWorker: true,
             lowLatencyMode: false, // Disable low latency for better performance
-            backBufferLength: 10, // Keep small back buffer for seeking
+            backBufferLength: 5, // Reduced from 10 to 5 seconds to save memory
             // Performance optimizations
-            maxBufferHole: 1.0, // More tolerant buffer hole threshold
+            maxBufferHole: 0.5, // More aggressive buffer hole detection
+            // Prefer lower quality for smoother playback with multiple videos
+            abrEwmaDefaultEstimate: 500000, // Start with 500kbps estimate
+            abrEwmaFastLive: 3, // Faster adaptation to network changes
+            abrEwmaSlowLive: 9, // Slower adaptation for stability
+            abrEwmaFastVoD: 3,
+            abrEwmaSlowVoD: 9,
             // Error recovery
             fragLoadPolicy: {
               default: {
                 maxTimeToFirstByteMs: 10000,
                 maxLoadTimeMs: 20000,
                 timeoutRetry: {
-                  maxNumRetry: 3,
+                  maxNumRetry: 2, // Reduced from 3 to 2
                   retryDelayMs: 1000,
-                  maxRetryDelayMs: 8000,
+                  maxRetryDelayMs: 5000, // Reduced from 8000
                 },
                 errorRetry: {
-                  maxNumRetry: 3,
+                  maxNumRetry: 2, // Reduced from 3 to 2
                   retryDelayMs: 1000,
-                  maxRetryDelayMs: 8000,
+                  maxRetryDelayMs: 5000, // Reduced from 8000
                 },
               },
             },
@@ -227,7 +234,7 @@ export default function VideoWithHls({
           }
         }
       },
-      { threshold: 0.10, rootMargin: '-10% 0px -10% 0px', root: intersectionRoot ?? undefined }
+      { threshold: 0.30, rootMargin: '-10% 0px -10% 0px', root: intersectionRoot ?? undefined }
     )
 
     observer.observe(video)
@@ -263,6 +270,9 @@ export default function VideoWithHls({
       muted={autoPlay}
       loop={loop}
       onClick={controlsHiddenUntilTap && !showControls ? () => setShowControls(true) : undefined}
+      // Hardware acceleration hints for smoother playback
+      disablePictureInPicture
+      disableRemotePlayback
     />
   )
 }
