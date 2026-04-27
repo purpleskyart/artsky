@@ -232,6 +232,17 @@ export default function VideoWithHls({
 
     observer.observe(video)
 
+    // Check if video is already in viewport on mount and play if so
+    setTimeout(() => {
+      const entries = observer.takeRecords()
+      if (entries.length > 0 && entries[0].isIntersecting && video.readyState >= 2) {
+        registerPlayingVideo(videoId, video)
+        video.play().catch(() => {
+          unregisterPlayingVideo(videoId)
+        })
+      }
+    }, 0)
+
     return () => {
       observer.disconnect()
       unregisterPlayingVideo(videoId)
