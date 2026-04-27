@@ -216,8 +216,8 @@ export default function VideoWithHls({
               unregisterPlayingVideo(videoId)
             }
           } else {
-            // Video is entering viewport - resume if it was playing or if autoPlay is enabled
-            if (video.readyState >= 2 && (wasPlayingRef.current || autoPlay)) {
+            // Video is entering viewport - always play when visible
+            if (video.readyState >= 2) {
               registerPlayingVideo(videoId, video)
               video.play().catch(() => {
                 unregisterPlayingVideo(videoId)

@@ -959,27 +959,13 @@ function PostCardInner({
                           root={modalScrollContainer}
                           className={styles.replyParentMediaImg}
                         />
-                      ) : m.videoPlaylist ? (
+                      ) : m.type === 'video' && m.videoPlaylist ? (
                         <div className={styles.replyParentVideoWrap} style={{ aspectRatio: String(ar) }}>
                           <VideoWithHls
                             playlistUrl={m.videoPlaylist}
                             poster={m.url || undefined}
                             className={styles.replyParentMediaVideo}
                             loop
-                            autoPlay
-                            preload="none"
-                            controlsHiddenUntilTap
-                            intersectionRoot={modalScrollContainer}
-                          />
-                        </div>
-                      ) : m.type === 'video' ? (
-                        <div className={styles.replyParentVideoWrap} style={{ aspectRatio: String(ar) }}>
-                          <VideoWithHls
-                            playlistUrl={m.url || ''}
-                            poster={m.url || undefined}
-                            className={styles.replyParentMediaVideo}
-                            loop
-                            autoPlay
                             preload="none"
                             controlsHiddenUntilTap
                             intersectionRoot={modalScrollContainer}
@@ -1112,14 +1098,13 @@ function PostCardInner({
                 <span className={styles.textOnlyPreviewEmpty}>Text post</span>
               ) : null}
             </div>
-          ) : isVideo ? (
+          ) : isVideo && media?.videoPlaylist ? (
             <div className={styles.mediaVideoWrap}>
               <VideoWithHls
-                playlistUrl={media!.videoPlaylist || media!.url || ''}
-                poster={media!.url || undefined}
+                playlistUrl={media.videoPlaylist}
+                poster={media.url || undefined}
                 className={styles.media}
                 loop
-                autoPlay
                 preload="none"
                 controls={false}
                 style={{ aspectRatio: mediaAspect != null ? `${mediaAspect}` : undefined }}
