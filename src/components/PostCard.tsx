@@ -20,6 +20,7 @@ import ProfileLink from './ProfileLink'
 import PostActionsMenu from './PostActionsMenu'
 import { ProgressiveImage } from './ProgressiveImage'
 import VideoWithHls from './VideoWithHls'
+import { PlayIcon } from './Icons'
 import styles from './PostCard.module.css'
 
 function replyParentMemoKey(item: TimelineItem): string {
@@ -216,6 +217,7 @@ function PostCardInner({
   const [mediaAspect, setMediaAspect] = useState<number | null>(() =>
     hasMedia && media?.aspectRatio != null ? media.aspectRatio : null,
   )
+  const [isVideoPlaying, setIsVideoPlaying] = useState(false)
   const [actionsMenuOpen, setActionsMenuOpen] = useState(false)
   const actionsMenuDropdownRef = useRef<HTMLDivElement>(null)
   const cardRef = useRef<HTMLDivElement>(null)
@@ -1122,7 +1124,13 @@ function PostCardInner({
                 controls={false}
                 style={{ aspectRatio: mediaAspect != null ? `${mediaAspect}` : undefined }}
                 intersectionRoot={modalScrollContainer}
+                onPlayStateChange={setIsVideoPlaying}
               />
+              {!isVideoPlaying && (
+                <div className={styles.videoIconOverlay}>
+                  <PlayIcon size={48} />
+                </div>
+              )}
             </div>
           ) : isMultipleImages ? (
             <>
