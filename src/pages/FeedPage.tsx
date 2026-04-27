@@ -679,7 +679,7 @@ export default function FeedPage() {
   /** Per-column debounce between automatic load-more triggers. Lowered to allow multiple columns to load in quick succession. */
   const LOAD_MORE_COOLDOWN_MS = 450
   /** Start loading when sentinel is within this distance below the viewport (load before user reaches end). */
-  const LOAD_MORE_ROOT_MARGIN = '150vh'
+  const LOAD_MORE_ROOT_MARGIN = '150%'
   /** Min gap (px) between viewport bottom and a column sentinel to count as "short" (empty masonry below). Capped vs viewport so small phones still work. */
   const LOAD_MORE_SHORT_MARGIN_PX = 300
 

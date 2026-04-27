@@ -136,7 +136,7 @@ export function TagContent({ tag, inModal = false, onRegisterRefresh }: { tag: s
         loadingMoreRef.current = true
         load(cursor)
       },
-      { rootMargin: '75vh', threshold: 0 }
+      { rootMargin: '75%', threshold: 0 }
     )
     observer.observe(firstSentinel)
     if (colsForObserver >= 2) {
