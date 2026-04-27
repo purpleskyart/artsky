@@ -75,7 +75,7 @@ export default function QuotesModal({ postUri, onClose, onBack, canGoBack, onDes
       (entries) => {
         if (entries[0]?.isIntersecting) load(cursor)
       },
-      { root, rootMargin: '25vh', threshold: 0 }
+      { root, rootMargin: '25%', threshold: 0 }
     )
     obs.observe(el)
     return () => obs.disconnect()
