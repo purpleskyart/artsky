@@ -1038,10 +1038,6 @@ function PostBlock({
                                   loop
                                   autoPlay
                                   forceMuted={true}
-                                  poster={firstMedia.url || undefined}
-                                  className={styles.quotedPostVideo}
-                                  loop
-                                  autoPlay
                                   preload="none"
                                 />
                               </div>
@@ -3003,10 +2999,6 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                                       loop
                                       autoPlay
                                       forceMuted={true}
-                                      poster={firstMedia.url || undefined}
-                                      className={styles.quotedPostVideo}
-                                      loop
-                                      autoPlay
                                       preload="none"
                                     />
                                   </div>
