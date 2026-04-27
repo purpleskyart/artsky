@@ -50,6 +50,8 @@ interface Props {
   intersectionRoot?: Element | null
   /** Callback when video play state changes (for showing play icon overlay) */
   onPlayStateChange?: (isPlaying: boolean) => void
+  /** When true, force video to be muted regardless of autoPlay setting */
+  forceMuted?: boolean
 }
 
 export default function VideoWithHls({
@@ -65,6 +67,7 @@ export default function VideoWithHls({
   style,
   intersectionRoot,
   onPlayStateChange,
+  forceMuted = false,
 }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const [showControls, setShowControls] = useState(!controlsHiddenUntilTap)
@@ -282,7 +285,7 @@ export default function VideoWithHls({
       playsInline={playsInline}
       preload={preload}
       autoPlay={autoPlay}
-      muted={autoPlay}
+      muted={forceMuted || autoPlay}
       loop={loop}
       onClick={controlsHiddenUntilTap && !showControls ? () => setShowControls(true) : undefined}
       // Hardware acceleration hints for smoother playback

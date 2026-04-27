@@ -1105,8 +1105,10 @@ function PostCardInner({
                 poster={media.url || undefined}
                 className={styles.media}
                 loop
+                autoPlay
                 preload="none"
                 controls={false}
+                forceMuted={true}
                 style={{ aspectRatio: mediaAspect != null ? `${mediaAspect}` : undefined }}
                 intersectionRoot={modalScrollContainer}
                 onPlayStateChange={setIsVideoPlaying}
