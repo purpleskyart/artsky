@@ -480,7 +480,9 @@ export default function ProfileContent({
      */
     const anyColumnShort = () => {
       const lengths = distributedColumnLengthsRef.current
-      const vh = window.innerHeight
+      // Use visualViewport for stable viewport on mobile (doesn't change with address bar)
+      const vv = window.visualViewport
+      const vh = vv ? vv.height : window.innerHeight
       const margin = Math.min(LOAD_MORE_SHORT_MARGIN_PX, Math.floor(vh * 0.4))
       const threshold = vh - margin
       for (let c = 0; c < cols; c++) {
@@ -512,7 +514,9 @@ export default function ProfileContent({
           loadingMoreRef.current = true
           // Update cooldown for the shortest column that triggered this
           const shortColIdx = (() => {
-            const vh = window.innerHeight
+            // Use visualViewport for stable viewport on mobile (doesn't change with address bar)
+            const vv = window.visualViewport
+            const vh = vv ? vv.height : window.innerHeight
             const margin = Math.min(LOAD_MORE_SHORT_MARGIN_PX, Math.floor(vh * 0.4))
             const threshold = vh - margin
             for (let c = 0; c < cols; c++) {
@@ -534,7 +538,9 @@ export default function ProfileContent({
     const firstSentinel = cols >= 2 ? loadMoreSentinelRefs.current[0] : loadMoreSentinelRef.current
     const root = inModal ? firstSentinel?.closest('[data-modal-scroll]') ?? null : null
     // Use viewport-relative margin on mobile (smaller screens) for better UX
-    const vh = window.innerHeight
+    // Use visualViewport for stable viewport on mobile (doesn't change with address bar)
+    const vv = window.visualViewport
+    const vh = vv ? vv.height : window.innerHeight
     const rootMarginPx = Math.min(LOAD_MORE_ROOT_MARGIN_PX, Math.floor(vh * 1.5))
 
     const observer = new IntersectionObserver(

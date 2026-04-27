@@ -17,6 +17,7 @@
   width: 100%;
   max-width: 420px;
   max-height: 85vh;
+  max-height: 85dvh;
   display: flex;
   flex-direction: column;
   background: var(--surface);

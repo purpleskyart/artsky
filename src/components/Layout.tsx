@@ -1212,11 +1212,12 @@ export default function Layout({ title, children, showNav }: Props) {
   }
 
   useEffect(() => {
-    if (!mobileSearchOpen || typeof window === 'undefined') return
+    if (!mobileSearchOpen || isDesktop || typeof window === 'undefined') return
     const vv = window.visualViewport
     if (!vv) return
     const viewport = vv
     function update() {
+      // Use visualViewport.height for stable viewport on mobile (doesn't change with address bar)
       setSearchOverlayBottom(window.innerHeight - (viewport.offsetTop + viewport.height))
     }
     update()
@@ -1226,7 +1227,7 @@ export default function Layout({ title, children, showNav }: Props) {
       viewport.removeEventListener('resize', update)
       viewport.removeEventListener('scroll', update)
     }
-  }, [mobileSearchOpen])
+  }, [mobileSearchOpen, isDesktop])
 
   /* On mobile: focus search input when overlay opens so the keyboard pops up immediately */
   useEffect(() => {
@@ -1248,7 +1249,8 @@ export default function Layout({ title, children, showNav }: Props) {
     if (!vv) return
     const viewport = vv
     function estimatedKeyboardInset(): number {
-      const h = window.innerHeight
+      // Use visualViewport.height for stable viewport on mobile
+      const h = viewport.height || window.innerHeight
       return Math.min(340, Math.max(200, Math.round(h * 0.35)))
     }
     function update() {
@@ -1316,7 +1318,9 @@ export default function Layout({ title, children, showNav }: Props) {
       const ih = window.innerHeight
       const h = vv.height
       const ot = vv.offsetTop
-      const shrunk = h < ih * 0.88
+      // Only consider it a keyboard if the viewport is significantly smaller than window
+      // This prevents false positives from address bar changes or console opening
+      const shrunk = h < ih * 0.75
       const panned = ot > 48
       setMobileVirtualKeyboardOpen(shrunk || panned)
     }

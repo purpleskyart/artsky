@@ -738,7 +738,9 @@ export default function FeedPage() {
      */
     const anyColumnShort = () => {
       const lengths = distributedColumnLengthsRef.current
-      const vh = window.innerHeight
+      // Use visualViewport for stable viewport on mobile (doesn't change with address bar)
+      const vv = window.visualViewport
+      const vh = vv ? vv.height : window.innerHeight
       const margin = Math.min(LOAD_MORE_SHORT_MARGIN_PX, Math.floor(vh * 0.4))
       const threshold = vh - margin
       for (let c = 0; c < cols; c++) {
@@ -776,7 +778,9 @@ export default function FeedPage() {
           lastRetryLoadTimeRef.current = Date.now()
           // Update cooldown for the shortest column that triggered this
           const shortColIdx = (() => {
-            const vh = window.innerHeight
+            // Use visualViewport for stable viewport on mobile (doesn't change with address bar)
+            const vv = window.visualViewport
+            const vh = vv ? vv.height : window.innerHeight
             const margin = Math.min(LOAD_MORE_SHORT_MARGIN_PX, Math.floor(vh * 0.4))
             const threshold = vh - margin
             for (let c = 0; c < cols; c++) {

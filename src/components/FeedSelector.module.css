@@ -261,6 +261,7 @@
   width: 100%;
   max-width: 420px;
   max-height: 85vh;
+  max-height: 85dvh;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   padding: 1.25rem;
