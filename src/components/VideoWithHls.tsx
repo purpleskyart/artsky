@@ -2,7 +2,7 @@ import { useRef, useEffect, useState } from 'react'
 import { loadHls } from '../lib/loadHls'
 
 // Global video manager to limit concurrent playing videos
-const MAX_CONCURRENT_VIDEOS = 5
+const MAX_CONCURRENT_VIDEOS = 8
 const playingVideos = new Map<string, HTMLVideoElement>()
 let playQueue: string[] = []
 
@@ -47,6 +47,8 @@ interface Props {
   style?: React.CSSProperties
   /** Root element for IntersectionObserver (e.g., modal scroll container) */
   intersectionRoot?: Element | null
+  /** Callback when video play state changes (for showing play icon overlay) */
+  onPlayStateChange?: (isPlaying: boolean) => void
 }
 
 export default function VideoWithHls({
@@ -61,6 +63,7 @@ export default function VideoWithHls({
   controlsHiddenUntilTap = false,
   style,
   intersectionRoot,
+  onPlayStateChange,
 }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const [showControls, setShowControls] = useState(!controlsHiddenUntilTap)
@@ -155,6 +158,7 @@ export default function VideoWithHls({
               wasPlayingRef.current = true
               video.pause()
               unregisterPlayingVideo(videoId)
+              onPlayStateChange?.(false)
             }
           } else {
             // Video is entering viewport - resume if it was playing or if autoPlay is enabled
@@ -162,8 +166,10 @@ export default function VideoWithHls({
               registerPlayingVideo(videoId, video)
               video.play().catch(() => {
                 unregisterPlayingVideo(videoId)
+                onPlayStateChange?.(false)
               })
               wasPlayingRef.current = false
+              onPlayStateChange?.(true)
             }
           }
         }
@@ -177,7 +183,7 @@ export default function VideoWithHls({
       observer.disconnect()
       unregisterPlayingVideo(videoId)
     }
-  }, [intersectionRoot, autoPlay])
+  }, [intersectionRoot, autoPlay, onPlayStateChange])
 
   return (
     <video
