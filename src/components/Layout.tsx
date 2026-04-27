@@ -1212,7 +1212,7 @@ export default function Layout({ title, children, showNav }: Props) {
   }
 
   useEffect(() => {
-    if (!mobileSearchOpen || typeof window === 'undefined') return
+    if (!mobileSearchOpen || isDesktop || typeof window === 'undefined') return
     const vv = window.visualViewport
     if (!vv) return
     const viewport = vv
@@ -1227,7 +1227,7 @@ export default function Layout({ title, children, showNav }: Props) {
       viewport.removeEventListener('resize', update)
       viewport.removeEventListener('scroll', update)
     }
-  }, [mobileSearchOpen])
+  }, [mobileSearchOpen, isDesktop])
 
   /* On mobile: focus search input when overlay opens so the keyboard pops up immediately */
   useEffect(() => {
@@ -1318,8 +1318,9 @@ export default function Layout({ title, children, showNav }: Props) {
       const ih = window.innerHeight
       const h = vv.height
       const ot = vv.offsetTop
-      // Use a larger threshold to avoid false positives when address bar appears/disappears
-      const shrunk = h < ih * 0.85
+      // Only consider it a keyboard if the viewport is significantly smaller than window
+      // This prevents false positives from address bar changes or console opening
+      const shrunk = h < ih * 0.75
       const panned = ot > 48
       setMobileVirtualKeyboardOpen(shrunk || panned)
     }
