@@ -1217,6 +1217,7 @@ export default function Layout({ title, children, showNav }: Props) {
     if (!vv) return
     const viewport = vv
     function update() {
+      // Use visualViewport.height for stable viewport on mobile (doesn't change with address bar)
       setSearchOverlayBottom(window.innerHeight - (viewport.offsetTop + viewport.height))
     }
     update()
@@ -1248,7 +1249,8 @@ export default function Layout({ title, children, showNav }: Props) {
     if (!vv) return
     const viewport = vv
     function estimatedKeyboardInset(): number {
-      const h = window.innerHeight
+      // Use visualViewport.height for stable viewport on mobile
+      const h = viewport.height || window.innerHeight
       return Math.min(340, Math.max(200, Math.round(h * 0.35)))
     }
     function update() {
@@ -1316,7 +1318,8 @@ export default function Layout({ title, children, showNav }: Props) {
       const ih = window.innerHeight
       const h = vv.height
       const ot = vv.offsetTop
-      const shrunk = h < ih * 0.88
+      // Use a larger threshold to avoid false positives when address bar appears/disappears
+      const shrunk = h < ih * 0.85
       const panned = ot > 48
       setMobileVirtualKeyboardOpen(shrunk || panned)
     }

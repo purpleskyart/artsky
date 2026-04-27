@@ -121,6 +121,7 @@
 .paneCompact.pane {
   max-width: 420px;
   max-height: 85vh;
+  max-height: 85dvh;
 }
 
 /* Smooth snap-back after swipe (no transition during drag for 1:1 follow) */

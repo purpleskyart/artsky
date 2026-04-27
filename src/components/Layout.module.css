@@ -454,6 +454,7 @@
   min-width: 280px;
   max-width: 90vw;
   max-height: 70vh;
+  max-height: 70dvh;
   overflow-y: auto;
   overflow-x: hidden;
   padding: 0;
@@ -1019,6 +1020,7 @@ button.logoLink {
   min-width: 260px;
   max-width: 320px;
   max-height: 70vh;
+  max-height: 70dvh;
   padding: 0.5rem;
   overflow-y: auto;
   background: var(--surface);
@@ -1037,6 +1039,7 @@ button.logoLink {
   min-width: 280px;
   max-width: min(360px, calc(100vw - 2rem));
   max-height: 70vh;
+  max-height: 70dvh;
   overflow-y: auto;
   padding: 0.5rem;
   background: var(--surface);
@@ -1433,6 +1436,7 @@ button.logoLink {
 .notificationFloatWrap .notificationsMenu {
   margin-top: 0.75rem;
   max-height: min(70vh, calc(100vh - 6rem));
+  max-height: min(70dvh, calc(100dvh - 6rem));
 }
 
 /* Mobile: account menu as bottom sheet (when opened from nav Profile button) */
@@ -1449,6 +1453,7 @@ button.logoLink {
   left: 0;
   right: 0;
   max-height: 75vh;
+  max-height: 75dvh;
   overflow-y: auto;
   padding: 1rem;
   padding-bottom: max(1rem, env(safe-area-inset-bottom));
@@ -2593,6 +2598,7 @@ button.logoLink {
   width: 100%;
   max-width: 420px;
   max-height: 85vh;
+  max-height: 85dvh;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   padding: 1.25rem;
@@ -2683,6 +2689,7 @@ button.logoLink {
   width: 100%;
   max-width: 420px;
   max-height: 85vh;
+  max-height: 85dvh;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   padding: 1.25rem;
@@ -2789,6 +2796,7 @@ button.logoLink {
   max-width: min(900px, calc(100vw - 5rem));
   /* Cap height relative to the overlay (keyboard already shrinks the fixed overlay on mobile). */
   max-height: min(85vh, 100%);
+  max-height: min(85dvh, 100%);
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   padding: 1.25rem;
@@ -2861,6 +2869,7 @@ button.logoLink {
   width: 100%;
   max-width: 420px;
   max-height: 85vh;
+  max-height: 85dvh;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -3391,6 +3400,7 @@ button.logoLink {
   width: calc(100% - 2rem);
   max-width: 360px;
   max-height: 85vh;
+  max-height: 85dvh;
   background: var(--surface);
   border: 1px solid var(--glass-border);
   border-radius: var(--glass-radius);
@@ -3400,6 +3410,7 @@ button.logoLink {
 .accountPopupContent {
   overflow-y: auto;
   max-height: 85vh;
+  max-height: 85dvh;
   padding: 1rem;
 }
 
@@ -3407,6 +3418,7 @@ button.logoLink {
 .accountPopupContentCompact {
   overflow-y: auto;
   max-height: 85vh;
+  max-height: 85dvh;
   padding: 0.75rem;
   display: flex;
   flex-direction: column;
