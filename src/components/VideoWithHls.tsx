@@ -141,6 +141,23 @@ export default function VideoWithHls({
     }
   }, [autoPlay, playlistUrl])
 
+  // Track play/pause state changes
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video) return
+
+    const handlePlay = () => onPlayStateChange?.(true)
+    const handlePause = () => onPlayStateChange?.(false)
+
+    video.addEventListener('play', handlePlay)
+    video.addEventListener('pause', handlePause)
+
+    return () => {
+      video.removeEventListener('play', handlePlay)
+      video.removeEventListener('pause', handlePause)
+    }
+  }, [onPlayStateChange])
+
   // Pause video when not visible to prevent resource contention with multiple videos
   useEffect(() => {
     const video = videoRef.current
@@ -158,7 +175,6 @@ export default function VideoWithHls({
               wasPlayingRef.current = true
               video.pause()
               unregisterPlayingVideo(videoId)
-              onPlayStateChange?.(false)
             }
           } else {
             // Video is entering viewport - resume if it was playing or if autoPlay is enabled
@@ -166,15 +182,13 @@ export default function VideoWithHls({
               registerPlayingVideo(videoId, video)
               video.play().catch(() => {
                 unregisterPlayingVideo(videoId)
-                onPlayStateChange?.(false)
               })
               wasPlayingRef.current = false
-              onPlayStateChange?.(true)
             }
           }
         }
       },
-      { threshold: 0.5, root: intersectionRoot ?? undefined }
+      { threshold: 0.90, rootMargin: '-10% 0px -10% 0px', root: intersectionRoot ?? undefined }
     )
 
     observer.observe(video)
@@ -183,7 +197,7 @@ export default function VideoWithHls({
       observer.disconnect()
       unregisterPlayingVideo(videoId)
     }
-  }, [intersectionRoot, autoPlay, onPlayStateChange])
+  }, [intersectionRoot, autoPlay])
 
   return (
     <video
