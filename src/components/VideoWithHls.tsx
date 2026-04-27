@@ -179,26 +179,18 @@ export default function VideoWithHls({
     const videoId = videoIdRef.current
 
     const playWhenReady = () => {
-      console.log('Video readyState:', video.readyState, 'autoPlay:', autoPlay)
       if (autoPlay && video.readyState >= 2) {
         registerPlayingVideo(videoId, video)
-        video.play().then(() => {
-          console.log('Autoplay succeeded')
-        }).catch((err) => {
-          console.warn('Autoplay failed:', err)
+        video.play().catch(() => {
           unregisterPlayingVideo(videoId)
         })
       }
     }
 
-    console.log('Initial readyState:', video.readyState)
     if (video.readyState >= 2) {
       playWhenReady()
     } else {
-      video.addEventListener('loadeddata', () => {
-        console.log('loadeddata fired, readyState:', video.readyState)
-        playWhenReady()
-      }, { once: true })
+      video.addEventListener('loadeddata', playWhenReady, { once: true })
     }
 
     return () => {
@@ -266,6 +258,7 @@ export default function VideoWithHls({
       controls={effectiveControls}
       playsInline={playsInline}
       preload={preload}
+      autoPlay={autoPlay}
       muted={forceMuted || autoPlay}
       loop={loop}
       onClick={controlsHiddenUntilTap && !showControls ? () => setShowControls(true) : undefined}
