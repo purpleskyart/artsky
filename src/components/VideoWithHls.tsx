@@ -74,7 +74,6 @@ export default function VideoWithHls({
   const effectiveControls = controlsHiddenUntilTap ? showControls : controls
   const wasPlayingRef = useRef(false)
   const videoIdRef = useRef(`video-${crypto.randomUUID()}`)
-  const isIntersectingRef = useRef(true) // Assume intersecting initially for viewport videos
 
   useEffect(() => {
     if (!playlistUrl || !videoRef.current) return
@@ -180,7 +179,7 @@ export default function VideoWithHls({
     const videoId = videoIdRef.current
 
     const playWhenReady = () => {
-      if (autoPlay && video.readyState >= 2 && isIntersectingRef.current) {
+      if (autoPlay && video.readyState >= 2) {
         registerPlayingVideo(videoId, video)
         video.play().catch(() => {
           unregisterPlayingVideo(videoId)
@@ -226,7 +225,6 @@ export default function VideoWithHls({
       (entries) => {
         for (const entry of entries) {
           const isIntersecting = entry.isIntersecting
-          isIntersectingRef.current = isIntersecting
 
           if (!isIntersecting) {
             // Video is leaving viewport - pause it and remember it was playing

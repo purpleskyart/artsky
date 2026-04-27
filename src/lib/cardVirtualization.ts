@@ -30,31 +30,36 @@ if (typeof window !== 'undefined') {
   window.addEventListener('resize', () => {
     clearTimeout(resizeTimeout)
     resizeTimeout = setTimeout(() => {
-      // Recreate all observers with new margin
-      for (const [root, observer] of observerCache.entries()) {
-        const elements = Array.from(trackedElements.entries())
-          .filter(([, data]) => data.root === root)
-          .map(([el]) => el)
-        observer.disconnect()
-        observerCache.delete(root)
+      try {
+        // Recreate all observers with new margin
+        for (const [root, observer] of observerCache.entries()) {
+          const elements = Array.from(trackedElements.entries())
+            .filter(([, data]) => data.root === root)
+            .map(([el]) => el)
+          observer.disconnect()
+          observerCache.delete(root)
 
-        const newObserver = new IntersectionObserver(
-          (entries) => {
-            for (const entry of entries) {
-              virtCallbacks.get(entry.target)?.(entry.isIntersecting)
-            }
-          },
-          { rootMargin: getVirtualizationMargin(), threshold: 0, root },
-        )
-        observerCache.set(root, newObserver)
+          const newObserver = new IntersectionObserver(
+            (entries) => {
+              for (const entry of entries) {
+                virtCallbacks.get(entry.target)?.(entry.isIntersecting)
+              }
+            },
+            { rootMargin: getVirtualizationMargin(), threshold: 0, root },
+          )
+          observerCache.set(root, newObserver)
 
-        // Re-observe all elements
-        for (const el of elements) {
-          newObserver.observe(el)
+          // Re-observe all elements
+          for (const el of elements) {
+            newObserver.observe(el)
+          }
         }
+      } catch (error) {
+        // Silently fail on resize errors to prevent app crashes
+        console.error('Error updating virtualization observers on resize:', error)
       }
-    }, 100)
-  })
+    }, 250)
+  }, { passive: true })
 }
 
 function getObserver(root: Element | null = null): IntersectionObserver {
