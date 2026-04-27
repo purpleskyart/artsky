@@ -233,8 +233,13 @@ export default function VideoWithHls({
               video.pause()
               unregisterPlayingVideo(videoId)
             }
+          } else if (autoPlay && video.paused && video.readyState >= 2) {
+            // Video is entering viewport and autoplay is enabled - play it
+            registerPlayingVideo(videoId, video)
+            video.play().catch(() => {
+              unregisterPlayingVideo(videoId)
+            })
           }
-          // Don't auto-play when entering viewport - let the autoplay effect handle that
         }
       },
       { threshold: 0.70, rootMargin: '-10% 0px -10% 0px', root: intersectionRoot ?? undefined }

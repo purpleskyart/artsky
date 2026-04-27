@@ -77,10 +77,13 @@ export function buildSessionFromStoredTokens(did: string): AtpSessionData | null
   const tokens = getStoredOAuthTokens()
   if (!tokens || tokens.did !== did) return null
 
-  // Check if tokens are expired
-  if (tokens.expiresAt < Date.now()) {
-    // Tokens are expired - we should try to refresh, but that's handled by the OAuth library
-    // For now, return null so we fall back to OAuth restore
+  // Check if tokens are expired - but allow a grace period for PWA updates
+  // Tokens might be temporarily stale during updates, but the refresh token should still work
+  const isExpired = tokens.expiresAt < Date.now()
+  const gracePeriodMs = 5 * 60 * 1000 // 5 minute grace period for PWA updates
+
+  if (isExpired && tokens.expiresAt < Date.now() - gracePeriodMs) {
+    // Tokens are significantly expired - return null so we fall back to OAuth restore
     return null
   }
 
@@ -91,6 +94,7 @@ export function buildSessionFromStoredTokens(did: string): AtpSessionData | null
   const handle = isValidHandle ? storedHandle : ''
 
   // Build a complete AtpSessionData with the OAuth tokens
+  // Even if slightly expired, the refresh token can still be used by the OAuth library
   return {
     did: tokens.did,
     handle,
@@ -158,7 +162,8 @@ export function setActiveOAuthDid(did: string | null): void {
 }
 
 const OAUTH_FAILURE_COUNT_KEY = 'artsky-oauth-failure-counts'
-const MAX_OAUTH_FAILURES_BEFORE_REMOVAL = 20
+// Increased threshold to prevent account removal during PWA updates when IndexedDB is temporarily unavailable
+const MAX_OAUTH_FAILURES_BEFORE_REMOVAL = 100
 
 /** Get the failure count for each OAuth DID */
 export function getOAuthFailureCounts(): Record<string, number> {
