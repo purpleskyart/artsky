@@ -172,21 +172,29 @@ export default function VideoWithHls({
     }
   }, [playlistUrl])
 
+  // Handle initial autoplay when video is ready
   useEffect(() => {
     if (!autoPlay || !videoRef.current) return
     const video = videoRef.current
     const videoId = videoIdRef.current
-    function playWhenReady() {
-      registerPlayingVideo(videoId, video)
-      video.play().catch(() => {
-        unregisterPlayingVideo(videoId)
-      })
+
+    const playWhenReady = () => {
+      if (autoPlay && video.readyState >= 2) {
+        registerPlayingVideo(videoId, video)
+        video.play().catch(() => {
+          unregisterPlayingVideo(videoId)
+        })
+      }
     }
-    if (video.readyState >= 2) playWhenReady()
-    else video.addEventListener('loadeddata', playWhenReady, { once: true })
+
+    if (video.readyState >= 2) {
+      playWhenReady()
+    } else {
+      video.addEventListener('loadeddata', playWhenReady, { once: true })
+    }
+
     return () => {
       video.removeEventListener('loadeddata', playWhenReady)
-      unregisterPlayingVideo(videoId)
     }
   }, [autoPlay, playlistUrl])
 
@@ -225,48 +233,14 @@ export default function VideoWithHls({
               video.pause()
               unregisterPlayingVideo(videoId)
             }
-          } else {
-            // Video is entering viewport - always play when visible
-            if (video.readyState >= 2) {
-              registerPlayingVideo(videoId, video)
-              video.play().catch(() => {
-                unregisterPlayingVideo(videoId)
-              })
-              wasPlayingRef.current = false
-            }
           }
+          // Don't auto-play when entering viewport - let the autoplay effect handle that
         }
       },
-      { threshold: 0.60, rootMargin: '-10% 0px -10% 0px', root: intersectionRoot ?? undefined }
+      { threshold: 0.70, rootMargin: '-10% 0px -10% 0px', root: intersectionRoot ?? undefined }
     )
 
     observer.observe(video)
-
-    // Check if video is already in viewport on mount and play if so
-    const checkAndPlay = () => {
-      if (video.readyState >= 2) {
-        const rect = video.getBoundingClientRect()
-        const root = intersectionRoot ?? document.documentElement
-        const rootRect = root.getBoundingClientRect()
-        
-        // Check if video is visible in viewport
-        const isVisible = rect.top < rootRect.bottom && rect.bottom > rootRect.top
-        
-        if (isVisible) {
-          registerPlayingVideo(videoId, video)
-          video.play().catch(() => {
-            unregisterPlayingVideo(videoId)
-          })
-        }
-      }
-    }
-
-    // Try immediately, but if not ready, wait for loadeddata event
-    if (video.readyState >= 2) {
-      checkAndPlay()
-    } else {
-      video.addEventListener('loadeddata', checkAndPlay, { once: true })
-    }
 
     return () => {
       observer.disconnect()
