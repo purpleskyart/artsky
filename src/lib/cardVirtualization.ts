@@ -40,13 +40,24 @@ if (typeof window !== 'undefined') {
     clearTimeout(resizeTimeout)
     resizeTimeout = setTimeout(() => {
       try {
+        // Collect all roots first to avoid mutation during iteration
+        const allRoots = Array.from(observerCache.keys())
+        const allElements = Array.from(trackedElements.entries())
+
+        // Disconnect and delete old observers
+        for (const root of allRoots) {
+          const observer = observerCache.get(root)
+          if (observer) {
+            observer.disconnect()
+            observerCache.delete(root)
+          }
+        }
+
         // Recreate all observers with new margin
-        for (const [root, observer] of observerCache.entries()) {
-          const elements = Array.from(trackedElements.entries())
+        for (const root of allRoots) {
+          const elements = allElements
             .filter(([, data]) => data.root === root)
             .map(([el]) => el)
-          observer.disconnect()
-          observerCache.delete(root)
 
           const newObserver = new IntersectionObserver(
             (entries) => {
