@@ -443,6 +443,11 @@ export default function ProfileContent({
   }, [cols])
   const loadMoreCursor = tab === 'posts' && profilePostsFilter === 'liked' ? likedCursor : cursor
   const loadMore = tab === 'posts' && profilePostsFilter === 'liked' ? (c: string) => loadLiked(c) : load
+  // Refs to avoid stale closures in scheduleRetry
+  const loadMoreCursorRef = useRef(loadMoreCursor)
+  loadMoreCursorRef.current = loadMoreCursor
+  const loadMoreFnRef = useRef(loadMore)
+  loadMoreFnRef.current = loadMore
   useEffect(() => {
     if (tab !== 'posts' && tab !== 'videos' && tab !== 'replies' && tab !== 'reposts') return
     if (!loadMoreCursor) return
@@ -456,10 +461,10 @@ export default function ProfileContent({
       )
       const wait = Math.max(50, LOAD_MORE_COOLDOWN_MS - (now - minColCooldown) + 50)
       const timeoutId = setTimeout(() => {
-        if (!loadingMoreRef.current && profileGridItems.length === 0 && loadMoreCursor) {
+        if (!loadingMoreRef.current && profileGridItems.length === 0 && loadMoreCursorRef.current) {
           loadingMoreRef.current = true
           lastLoadMoreByColumnRef.current[0] = Date.now()
-          loadMore(loadMoreCursor)
+          loadMoreFnRef.current(loadMoreCursorRef.current)
         }
       }, wait)
       return () => clearTimeout(timeoutId)
@@ -519,7 +524,7 @@ export default function ProfileContent({
             return 0
           })()
           lastLoadMoreByColumnRef.current[shortColIdx] = Date.now()
-          loadMore(loadMoreCursor)
+          loadMoreFnRef.current(loadMoreCursorRef.current)
         }
       }, wait)
     }
@@ -544,12 +549,11 @@ export default function ProfileContent({
             continue
           }
           loadingMoreRef.current = true
-          const c = loadMoreCursor
           // Update cooldown for this specific column
           lastLoadMoreByColumnRef.current[colIndex] = Date.now()
           rafId = requestAnimationFrame(() => {
             rafId = 0
-            loadMore(c)
+            loadMoreFnRef.current(loadMoreCursorRef.current)
           })
           break
         }
@@ -701,14 +705,14 @@ export default function ProfileContent({
 
   const visibleTabs = useMemo((): ProfileTab[] => {
     const t: ProfileTab[] = []
-    if (tabHasContent.posts || isOwnProfile) t.push('posts')
+    t.push('posts')
     if (tabHasContent.videos) t.push('videos')
     if (tabHasContent.text) t.push('text')
     if (tabHasContent.replies) t.push('replies')
     if (tabHasContent.reposts) t.push('reposts')
     if (tabHasContent.feeds) t.push('feeds')
     return t
-  }, [tabHasContent, isOwnProfile])
+  }, [tabHasContent])
 
   useEffect(() => {
     if (loading || visibleTabs.length === 0) return

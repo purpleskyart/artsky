@@ -1,6 +1,34 @@
 import { useRef, useEffect, useState } from 'react'
 import { loadHls } from '../lib/loadHls'
 
+// Global video manager to limit concurrent playing videos
+const MAX_CONCURRENT_VIDEOS = 5
+const playingVideos = new Map<string, HTMLVideoElement>()
+let playQueue: string[] = []
+
+function registerPlayingVideo(id: string, video: HTMLVideoElement) {
+  playingVideos.set(id, video)
+  playQueue = playQueue.filter((v) => v !== id)
+  playQueue.push(id)
+  
+  // If we exceed the limit, pause the oldest playing video
+  if (playingVideos.size > MAX_CONCURRENT_VIDEOS) {
+    const oldestId = playQueue.shift()
+    if (oldestId) {
+      const oldestVideo = playingVideos.get(oldestId)
+      if (oldestVideo && !oldestVideo.paused) {
+        oldestVideo.pause()
+        playingVideos.delete(oldestId)
+      }
+    }
+  }
+}
+
+function unregisterPlayingVideo(id: string) {
+  playingVideos.delete(id)
+  playQueue = playQueue.filter((v) => v !== id)
+}
+
 function isHlsUrl(url: string): boolean {
   return /\.m3u8(\?|$)/i.test(url) || url.includes('m3u8')
 }
@@ -27,7 +55,7 @@ export default function VideoWithHls({
   className,
   controls = true,
   playsInline = true,
-  preload = 'metadata',
+  preload = 'none',
   autoPlay = false,
   loop = false,
   controlsHiddenUntilTap = false,
@@ -38,6 +66,7 @@ export default function VideoWithHls({
   const [showControls, setShowControls] = useState(!controlsHiddenUntilTap)
   const effectiveControls = controlsHiddenUntilTap ? showControls : controls
   const wasPlayingRef = useRef(false)
+  const videoIdRef = useRef(`video-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`)
 
   useEffect(() => {
     if (!playlistUrl || !videoRef.current) return
@@ -49,7 +78,18 @@ export default function VideoWithHls({
       loadHls().then((Hls) => {
         if (!videoRef.current) return
         if (Hls.isSupported()) {
-          const hls = new Hls()
+          const hls = new Hls({
+            // Optimize buffer sizes for multiple videos
+            maxBufferLength: 10, // Reduced from default 30s
+            maxMaxBufferLength: 20, // Reduced from default 60s
+            maxBufferSize: 10 * 1024 * 1024, // 10MB max buffer
+            // Optimize quality switching
+            enableWorker: true,
+            lowLatencyMode: false, // Disable low latency for better performance
+            backBufferLength: 0, // Don't keep back buffer to save memory
+            // Performance optimizations
+            maxBufferHole: 0.5, // Reduce buffer hole threshold
+          })
           hls.loadSource(playlistUrl)
           hls.attachMedia(video)
           hls.on(Hls.Events.ERROR, () => {})
@@ -83,18 +123,26 @@ export default function VideoWithHls({
   useEffect(() => {
     if (!autoPlay || !videoRef.current) return
     const video = videoRef.current
+    const videoId = videoIdRef.current
     function playWhenReady() {
-      video.play().catch(() => {})
+      registerPlayingVideo(videoId, video)
+      video.play().catch(() => {
+        unregisterPlayingVideo(videoId)
+      })
     }
     if (video.readyState >= 2) playWhenReady()
     else video.addEventListener('loadeddata', playWhenReady, { once: true })
-    return () => video.removeEventListener('loadeddata', playWhenReady)
+    return () => {
+      video.removeEventListener('loadeddata', playWhenReady)
+      unregisterPlayingVideo(videoId)
+    }
   }, [autoPlay, playlistUrl])
 
   // Pause video when not visible to prevent resource contention with multiple videos
   useEffect(() => {
     const video = videoRef.current
     if (!video) return
+    const videoId = videoIdRef.current
 
     const observer = new IntersectionObserver(
       (entries) => {
@@ -106,23 +154,28 @@ export default function VideoWithHls({
             if (!video.paused) {
               wasPlayingRef.current = true
               video.pause()
+              unregisterPlayingVideo(videoId)
             }
           } else {
             // Video is entering viewport - resume if it was playing or if autoPlay is enabled
             if (video.readyState >= 2 && (wasPlayingRef.current || autoPlay)) {
-              video.play().catch(() => {})
+              registerPlayingVideo(videoId, video)
+              video.play().catch(() => {
+                unregisterPlayingVideo(videoId)
+              })
               wasPlayingRef.current = false
             }
           }
         }
       },
-      { threshold: 0.1, root: intersectionRoot ?? undefined }
+      { threshold: 0.5, root: intersectionRoot ?? undefined }
     )
 
     observer.observe(video)
 
     return () => {
       observer.disconnect()
+      unregisterPlayingVideo(videoId)
     }
   }, [intersectionRoot, autoPlay])
 

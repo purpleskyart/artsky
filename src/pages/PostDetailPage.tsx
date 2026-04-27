@@ -1023,7 +1023,7 @@ function PostBlock({
                                   className={styles.quotedPostVideo}
                                   loop
                                   autoPlay
-                                  preload="metadata"
+                                  preload="none"
                                 />
                               </div>
                             ) : firstMedia.type === 'video' ? (
@@ -1034,7 +1034,7 @@ function PostBlock({
                                   className={styles.quotedPostVideo}
                                   loop
                                   autoPlay
-                                  preload="metadata"
+                                  preload="none"
                                 />
                               </div>
                             ) : null}
@@ -2982,7 +2982,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                                       className={styles.quotedPostVideo}
                                       loop
                                       autoPlay
-                                      preload="metadata"
+                                      preload="none"
                                     />
                                   </div>
                                 ) : firstMedia.type === 'video' ? (
@@ -2993,7 +2993,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                                       className={styles.quotedPostVideo}
                                       loop
                                       autoPlay
-                                      preload="metadata"
+                                      preload="none"
                                     />
                                   </div>
                                 ) : null}

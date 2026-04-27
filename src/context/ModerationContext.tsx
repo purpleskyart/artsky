@@ -1,8 +1,9 @@
-import { createContext, useCallback, useContext, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import { useToast } from './ToastContext'
+import { useSession } from './SessionContext'
 import { asyncStorage } from '../lib/AsyncStorage'
 
-const STORAGE_KEY = 'artsky-moderation-nsfw'
+const STORAGE_KEY_BASE = 'artsky-moderation-nsfw'
 
 export type NsfwPreference = 'nsfw' | 'sfw' | 'blurred'
 
@@ -21,9 +22,10 @@ type ModerationContextValue = {
 
 const ModerationContext = createContext<ModerationContextValue | null>(null)
 
-function getStored(): NsfwPreference {
+function getStored(did?: string | null): NsfwPreference {
   try {
-    const v = asyncStorage.get<string>(STORAGE_KEY)
+    const key = did ? `${STORAGE_KEY_BASE}-${did}` : STORAGE_KEY_BASE
+    const v = asyncStorage.get<string>(key)
     if (v === 'nsfw' || v === 'sfw' || v === 'blurred') return v as NsfwPreference
   } catch {
     // ignore
@@ -33,24 +35,32 @@ function getStored(): NsfwPreference {
 
 export function ModerationProvider({ children }: { children: React.ReactNode }) {
   const toast = useToast()
-  const [nsfwPreference, setNsfwPreferenceState] = useState<NsfwPreference>(getStored)
+  const { session } = useSession()
+  const did = session?.did
+  const storageKey = did ? `${STORAGE_KEY_BASE}-${did}` : STORAGE_KEY_BASE
+  const [nsfwPreference, setNsfwPreferenceState] = useState<NsfwPreference>(() => getStored(did))
   const [unblurredUris, setUnblurredUris] = useState<Set<string>>(() => new Set())
+
+  // Reload preference when account changes
+  useEffect(() => {
+    setNsfwPreferenceState(getStored(did))
+  }, [did])
 
   const setNsfwPreference = useCallback((p: NsfwPreference, _anchor?: HTMLElement, options?: { showToast?: boolean }) => {
     setNsfwPreferenceState(p)
-    asyncStorage.set(STORAGE_KEY, p, 0)
+    asyncStorage.set(storageKey, p, 0)
     if (options?.showToast !== false) toast?.showToast(NSFW_LABELS[p])
-  }, [toast])
+  }, [toast, storageKey])
 
   const cycleNsfwPreference = useCallback((_anchor?: HTMLElement, options?: { showToast?: boolean }) => {
     setNsfwPreferenceState((prev) => {
       const i = NSFW_CYCLE.indexOf(prev)
       const next = NSFW_CYCLE[(i + 1) % NSFW_CYCLE.length]
-      asyncStorage.set(STORAGE_KEY, next, 0)
+      asyncStorage.set(storageKey, next, 0)
       if (options?.showToast !== false) toast?.showToast(NSFW_LABELS[next])
       return next
     })
-  }, [toast])
+  }, [toast, storageKey])
 
   const setUnblurred = useCallback((uri: string, revealed: boolean) => {
     setUnblurredUris((prev) => {
