@@ -75,6 +75,12 @@ export default function VideoWithHls({
   const wasPlayingRef = useRef(false)
   const videoIdRef = useRef(`video-${crypto.randomUUID()}`)
 
+  // Clear stale module-level state on mount (fixes refresh issues)
+  useEffect(() => {
+    playingVideos.clear()
+    playQueue = []
+  }, [])
+
   useEffect(() => {
     if (!playlistUrl || !videoRef.current) return
     const video = videoRef.current
