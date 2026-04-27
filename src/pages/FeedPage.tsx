@@ -315,6 +315,10 @@ export default function FeedPage() {
   const loadingMoreRef = useRef(false)
   /** Per-column cooldown tracking so each column can trigger load independently (columns don't block each other). */
   const lastLoadMoreByColumnRef = useRef<number[]>([])
+  /** Track last retry-based load to prevent infinite loops when columns stay short after loading. */
+  const lastRetryLoadTimeRef = useRef<number>(0)
+  /** Maximum cooldown after a retry-triggered load to prevent chaining. */
+  const RETRY_LOAD_COOLDOWN_MS = 2000
   const { openPostModal, isModalOpen } = useProfileModal()
   const cardRefsRef = useRef<(HTMLDivElement | null)[]>([])
   /** Refs for focused media elements: [cardIndex][mediaIndex] for scroll-into-view on multi-image posts */
@@ -704,7 +708,9 @@ export default function FeedPage() {
     if (!feedState.cursor) return
     
     // Auto-load more when feed is empty (e.g., after hiding seen posts) but cursor exists
-    if (displayEntries.length === 0 && !loadingMoreRef.current) {
+    // Only trigger if we haven't just done a retry-based load to prevent infinite loops.
+    const sinceRetryLoad = Date.now() - lastRetryLoadTimeRef.current
+    if (displayEntries.length === 0 && !loadingMoreRef.current && sinceRetryLoad > RETRY_LOAD_COOLDOWN_MS) {
       const now = Date.now()
       const minColCooldown = Math.min(
         ...Array.from({ length: cols }, (_, i) => lastLoadMoreByColumnRef.current[i] ?? 0),
@@ -715,6 +721,7 @@ export default function FeedPage() {
         if (!loadingMoreRef.current && displayEntries.length === 0 && feedState.cursor) {
           loadingMoreRef.current = true
           lastLoadMoreByColumnRef.current[0] = Date.now()
+          lastRetryLoadTimeRef.current = Date.now()
           load(feedState.cursor)
         }
       }, wait)
@@ -750,8 +757,11 @@ export default function FeedPage() {
     /** After cooldown, check for short columns and load more if needed. Uses per-column cooldowns. */
     const scheduleRetry = () => {
       clearTimeout(retryId)
-      // Find the shortest waiting time among all columns
+      // Prevent retry chaining: if we just did a retry-based load, don't schedule another.
       const now = Date.now()
+      const sinceRetryLoad = now - lastRetryLoadTimeRef.current
+      if (sinceRetryLoad <= RETRY_LOAD_COOLDOWN_MS) return
+      // Find the shortest waiting time among all columns
       const minColCooldown = Math.min(
         ...Array.from({ length: cols }, (_, i) => lastLoadMoreByColumnRef.current[i] ?? 0),
         now // Include now as a fallback to avoid Math.min on empty array
@@ -759,8 +769,11 @@ export default function FeedPage() {
       const wait = Math.max(50, LOAD_MORE_COOLDOWN_MS - (now - minColCooldown) + 50)
       retryId = window.setTimeout(() => {
         if (loadingMoreRef.current) return
+        // Double-check cooldown before loading to prevent race conditions
+        if (Date.now() - lastRetryLoadTimeRef.current <= RETRY_LOAD_COOLDOWN_MS) return
         if (anyColumnShort()) {
           loadingMoreRef.current = true
+          lastRetryLoadTimeRef.current = Date.now()
           // Update cooldown for the shortest column that triggered this
           const shortColIdx = (() => {
             const vh = window.innerHeight
@@ -788,11 +801,8 @@ export default function FeedPage() {
           // Find the column index for this sentinel
           const colIndex = refs.findIndex((ref) => ref === e.target)
           const colCooldown = lastLoadMoreByColumnRef.current[colIndex] ?? 0
-          // Check both global and per-column cooldown to prevent infinite loops
-          if (Date.now() - colCooldown < LOAD_MORE_COOLDOWN_MS) {
-            scheduleRetry()
-            continue
-          }
+          // Skip if this column is on cooldown - normal scrolling will re-trigger when ready
+          if (Date.now() - colCooldown < LOAD_MORE_COOLDOWN_MS) continue
           loadingMoreRef.current = true
           const c = feedState.cursor
           // Update cooldown for this specific column

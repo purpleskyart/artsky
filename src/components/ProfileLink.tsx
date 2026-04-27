@@ -32,11 +32,16 @@ function ProfileLink({ handle, className, title, 'aria-label': ariaLabel, onClic
 
   /* Track touch start position to distinguish tap from scroll on mobile. */
   const touchStartRef = useRef<{ x: number; y: number } | null>(null)
+  const linkRef = useRef<HTMLAnchorElement>(null)
 
   /* PostCard's cardLink schedules openPost on touchEnd; without stopping touch propagation, the post modal opens on top of the profile. */
   const stopTouchBubble = useCallback((e: React.TouchEvent) => {
     const touch = e.touches[0]
     if (touch) touchStartRef.current = { x: touch.clientX, y: touch.clientY }
+    // Mark this link as having handled a touch to prevent PostCard's synthetic click from opening the post
+    if (linkRef.current) {
+      linkRef.current.setAttribute('data-profile-link-touch-handled', 'true')
+    }
     e.preventDefault()
     e.stopPropagation()
   }, [])
@@ -44,22 +49,36 @@ function ProfileLink({ handle, className, title, 'aria-label': ariaLabel, onClic
   const handleTouchEnd = useCallback((e: React.TouchEvent) => {
     e.preventDefault()
     e.stopPropagation()
+    e.nativeEvent.stopPropagation()
+    e.nativeEvent.stopImmediatePropagation()
     /* If the finger moved more than 10px, the user was scrolling — don't open the modal. */
     const start = touchStartRef.current
     const touch = e.changedTouches[0]
     if (start && touch) {
       const dx = Math.abs(touch.clientX - start.x)
       const dy = Math.abs(touch.clientY - start.y)
-      if (dx > 10 || dy > 10) return
+      if (dx > 10 || dy > 10) {
+        if (linkRef.current) {
+          linkRef.current.removeAttribute('data-profile-link-touch-handled')
+        }
+        return
+      }
     }
     preloadProfileOpen(handle)
     preloadProfileFeed(handle)
     openProfileModal(handle)
     onClick?.(e as any)
+    // Clean up the attribute after a short delay to prevent the synthetic click from triggering post open
+    setTimeout(() => {
+      if (linkRef.current) {
+        linkRef.current.removeAttribute('data-profile-link-touch-handled')
+      }
+    }, 100)
   }, [openProfileModal, handle, onClick])
 
   return (
     <a
+      ref={linkRef}
       href={`/profile/${handle}`}
       className={className}
       title={title}

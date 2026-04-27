@@ -587,7 +587,9 @@ function PostCardInner({
     const buttonEl = clickTarget.closest('button')
     // For role="button", only block if it's not the cardLink itself
     const roleButtonEl = clickTarget.closest('[role="button"]')
-    if (profileLinkEl || buttonEl || (roleButtonEl && roleButtonEl !== e.currentTarget && !roleButtonEl.classList.contains(styles.cardLink))) {
+    // Also check if a ProfileLink recently handled a touch (prevents synthetic click from opening post on mobile)
+    const profileLinkTouchHandled = clickTarget.closest('[data-profile-link-touch-handled="true"]')
+    if (profileLinkEl || buttonEl || (roleButtonEl && roleButtonEl !== e.currentTarget && !roleButtonEl.classList.contains(styles.cardLink)) || profileLinkTouchHandled) {
       e.preventDefault()
       e.stopPropagation()
       return
@@ -963,7 +965,7 @@ function PostCardInner({
                             className={styles.replyParentMediaVideo}
                             loop
                             autoPlay
-                            preload="metadata"
+                            preload="none"
                             controlsHiddenUntilTap
                             intersectionRoot={modalScrollContainer}
                           />
@@ -976,7 +978,7 @@ function PostCardInner({
                             className={styles.replyParentMediaVideo}
                             loop
                             autoPlay
-                            preload="metadata"
+                            preload="none"
                             controlsHiddenUntilTap
                             intersectionRoot={modalScrollContainer}
                           />
@@ -1116,7 +1118,7 @@ function PostCardInner({
                 className={styles.media}
                 loop
                 autoPlay
-                preload="metadata"
+                preload="none"
                 controls={false}
                 style={{ aspectRatio: mediaAspect != null ? `${mediaAspect}` : undefined }}
                 intersectionRoot={modalScrollContainer}

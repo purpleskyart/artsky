@@ -465,17 +465,12 @@ export const GUEST_FEED_HANDLES = GUEST_FEED_ACCOUNTS.map((a) => a.handle)
 function mergeDedupeSortGuestItems(feedArrays: TimelineItem[][]): TimelineItem[] {
   const all = feedArrays.flat()
   const seen = new Set<string>()
-  const deduped = all.filter((item) => {
+  // Keep original API order (newest-first). Don't re-sort to prevent posts jumping above user's scroll position.
+  return all.filter((item) => {
     if (seen.has(item.post.uri)) return false
     seen.add(item.post.uri)
     return true
   })
-  deduped.sort((a, b) => {
-    const ta = new Date((a.post.record as { createdAt?: string })?.createdAt ?? 0).getTime()
-    const tb = new Date((b.post.record as { createdAt?: string })?.createdAt ?? 0).getTime()
-    return tb - ta
-  })
-  return deduped
 }
 
 async function fetchGuestAuthorBatch(
@@ -941,11 +936,8 @@ export async function getMixedFeed(
       }
     }
   })
-  combined.sort((a, b) => {
-    const ta = new Date((a.post.record as { createdAt?: string })?.createdAt ?? 0).getTime()
-    const tb = new Date((b.post.record as { createdAt?: string })?.createdAt ?? 0).getTime()
-    return tb - ta
-  })
+  // Don't re-sort by createdAt - preserve API order to prevent posts jumping above user's scroll position.
+  // The Bluesky API already returns posts in newest-first order.
   const nextCursors: Record<string, string> = {}
   results.forEach((r) => {
     if (r.nextCursor) nextCursors[r.key] = r.nextCursor
