@@ -257,7 +257,9 @@ export function TagContent({ tag, inModal = false, onRegisterRefresh }: { tag: s
                 }
               })
             )
-          }).catch(() => {})
+          }).catch((err) => {
+            console.warn('Failed to unfollow/follow/like/unlike:', err)
+          })
         } else {
           followAccountWithLifecycle(author.did).then((res) => {
             setItems((prev) =>
@@ -277,7 +279,9 @@ export function TagContent({ tag, inModal = false, onRegisterRefresh }: { tag: s
                 }
               })
             )
-          }).catch(() => {})
+          }).catch((err) => {
+            console.warn('Failed to unfollow/follow/like/unlike:', err)
+          })
         }
         return
       }
@@ -289,11 +293,15 @@ export function TagContent({ tag, inModal = false, onRegisterRefresh }: { tag: s
         if (currentLikeUri) {
           unlikePostWithLifecycle(currentLikeUri, uri).then(() => {
             setLikeOverride(uri, null)
-          }).catch(() => {})
+          }).catch((err) => {
+            console.warn('Failed to unfollow/follow/like/unlike:', err)
+          })
         } else {
           likePostWithLifecycle(uri, item.post.cid).then((res) => {
             setLikeOverride(uri, res.uri)
-          }).catch(() => {})
+          }).catch((err) => {
+            console.warn('Failed to unfollow/follow/like/unlike:', err)
+          })
         }
         return
       }

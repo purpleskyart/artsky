@@ -227,8 +227,19 @@ export class ResponseCache {
 export const responseCache = new ResponseCache()
 
 // Periodic cleanup to prevent memory leaks
+let pruneIntervalId: ReturnType<typeof setInterval> | null = null
+
 if (typeof window !== 'undefined') {
-  setInterval(() => {
+  pruneIntervalId = setInterval(() => {
     responseCache.prune()
   }, 60000) // Prune every minute
+}
+
+// Cleanup function for testing or app shutdown
+export function cleanupResponseCache(): void {
+  if (pruneIntervalId) {
+    clearInterval(pruneIntervalId)
+    pruneIntervalId = null
+  }
+  responseCache.clear()
 }
