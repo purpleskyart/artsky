@@ -971,7 +971,7 @@ function PostCardInner({
                             intersectionRoot={modalScrollContainer}
                           />
                         </div>
-                      ) : null)}
+                      ) : null}
                     </div>
                   )
                 })}
