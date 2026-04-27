@@ -69,7 +69,7 @@ export default function VideoWithHls({
   const [showControls, setShowControls] = useState(!controlsHiddenUntilTap)
   const effectiveControls = controlsHiddenUntilTap ? showControls : controls
   const wasPlayingRef = useRef(false)
-  const videoIdRef = useRef(`video-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`)
+  const videoIdRef = useRef(`video-${crypto.randomUUID()}`)
 
   useEffect(() => {
     if (!playlistUrl || !videoRef.current) return
@@ -82,26 +82,65 @@ export default function VideoWithHls({
         if (!videoRef.current) return
         if (Hls.isSupported()) {
           const hls = new Hls({
-            // Optimize buffer sizes for multiple videos
-            maxBufferLength: 10, // Reduced from default 30s
-            maxMaxBufferLength: 20, // Reduced from default 60s
-            maxBufferSize: 10 * 1024 * 1024, // 10MB max buffer
+            // Balanced buffer sizes for stability with multiple videos
+            maxBufferLength: 30, // Restore to default for smoother playback
+            maxMaxBufferLength: 60, // Restore to default
+            maxBufferSize: 30 * 1024 * 1024, // 30MB for better buffering
             // Optimize quality switching
             enableWorker: true,
             lowLatencyMode: false, // Disable low latency for better performance
-            backBufferLength: 0, // Don't keep back buffer to save memory
+            backBufferLength: 10, // Keep small back buffer for seeking
             // Performance optimizations
-            maxBufferHole: 0.5, // Reduce buffer hole threshold
+            maxBufferHole: 1.0, // More tolerant buffer hole threshold
+            // Error recovery
+            fragLoadPolicy: {
+              default: {
+                maxTimeToFirstByteMs: 10000,
+                maxLoadTimeMs: 20000,
+                timeoutRetry: {
+                  maxNumRetry: 3,
+                  retryDelayMs: 1000,
+                  maxRetryDelayMs: 8000,
+                },
+                errorRetry: {
+                  maxNumRetry: 3,
+                  retryDelayMs: 1000,
+                  maxRetryDelayMs: 8000,
+                },
+              },
+            },
           })
           hls.loadSource(playlistUrl)
           hls.attachMedia(video)
-          hls.on(Hls.Events.ERROR, () => {})
+          hls.on(Hls.Events.ERROR, (_event, data) => {
+            // eslint-disable-next-line no-console
+            console.error('HLS error:', data)
+            if (data.fatal) {
+              switch (data.type) {
+                case Hls.ErrorTypes.NETWORK_ERROR:
+                  hls.startLoad()
+                  break
+                case Hls.ErrorTypes.MEDIA_ERROR:
+                  hls.recoverMediaError()
+                  break
+                default:
+                  hls.destroy()
+                  break
+              }
+            }
+          })
           cleanup = () => {
             hls.destroy()
           }
         } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
           video.src = playlistUrl
+          const handleError = () => {
+            // eslint-disable-next-line no-console
+            console.error('Native HLS playback error for:', playlistUrl)
+          }
+          video.addEventListener('error', handleError)
           cleanup = () => {
+            video.removeEventListener('error', handleError)
             video.removeAttribute('src')
           }
         }
@@ -188,7 +227,7 @@ export default function VideoWithHls({
           }
         }
       },
-      { threshold: 0.90, rootMargin: '-10% 0px -10% 0px', root: intersectionRoot ?? undefined }
+      { threshold: 0.10, rootMargin: '-10% 0px -10% 0px', root: intersectionRoot ?? undefined }
     )
 
     observer.observe(video)
@@ -197,7 +236,7 @@ export default function VideoWithHls({
       observer.disconnect()
       unregisterPlayingVideo(videoId)
     }
-  }, [intersectionRoot, autoPlay])
+  }, [intersectionRoot, autoPlay, playlistUrl])
 
   return (
     <video
