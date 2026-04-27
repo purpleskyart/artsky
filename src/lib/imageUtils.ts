@@ -79,13 +79,13 @@ export function webpImageUrl(originalUrl: string | undefined | null, width?: num
 }
 
 /** Tighter srcset / preload margins on small or save-data connections. */
-export function getProgressiveImageDefaults(): { sizes: number[]; preloadDistance: number } {
+export function getProgressiveImageDefaults(): { sizes: number[]; preloadDistance: string } {
   const nav = typeof navigator !== 'undefined' ? navigator : undefined
   if (nav && (nav as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData) {
-    return { sizes: [320, 480, 640], preloadDistance: 1200 }
+    return { sizes: [320, 480, 640], preloadDistance: '150vh' }
   }
   if (typeof window !== 'undefined' && window.innerWidth > 0 && window.innerWidth < 720) {
-    return { sizes: [320, 480, 640, 960], preloadDistance: 2800 }
+    return { sizes: [320, 480, 640, 960], preloadDistance: '350vh' }
   }
-  return { sizes: [320, 640, 960, 1280], preloadDistance: 2400 }
+  return { sizes: [320, 640, 960, 1280], preloadDistance: '300vh' }
 }

@@ -48,9 +48,9 @@ type ObserverPoolEntry = {
 }
 const observerPool = new Map<string, ObserverPoolEntry>()
 
-function getObserverPoolEntry(preloadDistance: number, root: Element | null): ObserverPoolEntry | null {
+function getObserverPoolEntry(preloadDistance: string, root: Element | null): ObserverPoolEntry | null {
   if (typeof window === 'undefined' || typeof IntersectionObserver === 'undefined') return null
-  const margin = `${preloadDistance}px`
+  const margin = preloadDistance
   const rootId = root ? (root as any).__progressiveImageRootId ??= Math.random().toString(36).slice(2) : 'viewport'
   const key = `${margin}|${margin}|${margin}|${margin}|${rootId}`
   const existing = observerPool.get(key)

@@ -336,7 +336,7 @@ export function SearchModalGridContent({
         loadingMoreRef.current = true
         load(cursor)
       },
-      { root, rootMargin: '600px', threshold: 0 }
+      { root, rootMargin: '75vh', threshold: 0 }
     )
     observer.observe(firstSentinel)
     if (colsForObserver >= 2) {
