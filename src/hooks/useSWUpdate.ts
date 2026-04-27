@@ -16,6 +16,7 @@ export function useSWUpdate(): SWUpdateState {
     const POLL_INTERVAL_MS = 30 * 60 * 1000 // Check every 30 minutes in background
     let lastCheckAt = 0
     let checking = false
+    let pollIntervalId: ReturnType<typeof setInterval> | null = null
 
     const checkForUpdate = async (options?: { bypassThrottle?: boolean }) => {
       if (!('serviceWorker' in navigator)) return
@@ -59,13 +60,9 @@ export function useSWUpdate(): SWUpdateState {
           void checkForUpdate({ bypassThrottle: true })
 
           // Set up periodic polling for updates
-          const pollInterval = setInterval(() => {
+          pollIntervalId = setInterval(() => {
             void checkForUpdate()
           }, POLL_INTERVAL_MS)
-
-          return () => {
-            clearInterval(pollInterval)
-          }
         })
         .catch((err) => {
           console.error('Service worker registration failed:', err)
@@ -74,6 +71,10 @@ export function useSWUpdate(): SWUpdateState {
 
     return () => {
       document.removeEventListener('visibilitychange', onVisible)
+      if (pollIntervalId) {
+        clearInterval(pollIntervalId)
+        pollIntervalId = null
+      }
     }
   }, [])
 

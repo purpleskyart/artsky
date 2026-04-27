@@ -75,10 +75,15 @@ export default function VideoWithHls({
   const wasPlayingRef = useRef(false)
   const videoIdRef = useRef(`video-${crypto.randomUUID()}`)
 
-  // Clear stale module-level state on mount (fixes refresh issues)
+  // Clear stale module-level state on first mount only (fixes refresh issues)
+  // Use a ref to track if we've already cleared to avoid clearing on every component mount
+  const hasClearedStateRef = useRef(false)
   useEffect(() => {
-    playingVideos.clear()
-    playQueue = []
+    if (!hasClearedStateRef.current) {
+      playingVideos.clear()
+      playQueue = []
+      hasClearedStateRef.current = true
+    }
   }, [])
 
   useEffect(() => {
@@ -160,8 +165,9 @@ export default function VideoWithHls({
             video.removeAttribute('src')
           }
         }
-      }).catch(() => {
+      }).catch((err) => {
         // Fallback to native playback if hls.js fails to load
+        console.warn('HLS.js failed to load, falling back to native playback:', err)
         if (video.canPlayType('application/vnd.apple.mpegurl')) {
           video.src = playlistUrl
         }

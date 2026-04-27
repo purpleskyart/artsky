@@ -74,8 +74,8 @@ function LazyPreviewStrip({
       .then((map) => {
         onPostsLoaded(map)
       })
-      .catch(() => {
-        // Silently fail - previews are non-critical
+      .catch((err) => {
+        console.warn('Failed to load collection preview posts:', err)
       })
       .finally(() => {
         loadingRef.current = false
@@ -154,7 +154,8 @@ export function CollectionsIndexContent() {
             const h = prof.handle?.replace(/^@/, '').trim()
             setPathActor(h || session.did)
           })
-          .catch(() => {
+          .catch((err) => {
+            console.warn('Failed to resolve path actor:', err)
             setPathActor(session.did)
           }),
       ])

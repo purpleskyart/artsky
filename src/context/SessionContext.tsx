@@ -177,8 +177,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
             // Use the stored PDS URL if available, otherwise default to bsky.social
             const serviceUrl = (sessionToUse as any).pdsUrl || 'https://bsky.social'
             const agent = new AtpAgent({ service: serviceUrl })
-            // @ts-expect-error - AtpAgent has internal session property that can be set
-            agent.session = sessionToUse
+            // Use resumeSession instead of directly setting session property
+            // This is the type-safe way to restore a session on AtpAgent
+            await agent.resumeSession(sessionToUse)
             bsky.setOAuthAgent(agent as unknown as Agent, { did: sessionToUse.did, signOut: async () => {} } as unknown as import('@atproto/oauth-client').OAuthSession)
             finish(sessionToUse)
             // Silently try to restore OAuth in background to refresh tokens if needed
@@ -189,7 +190,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
                   bsky.resetOAuthFailure(preferredRestoreDid)
                 }
               })
-              .catch(() => { /* ignore background refresh errors */ })
+              .catch((err) => { console.warn('Background OAuth refresh failed:', err) })
             return
           } catch {
             // Failed to create agent from localStorage - fall through to OAuth restore
@@ -249,8 +250,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
                 // Trigger session update to refresh UI
                 refreshSession()
               }
-            }).catch(() => {
-              // Ignore fetch errors
+            }).catch((err) => {
+              console.warn('Failed to fetch profile handle:', err)
             })
           }
           return
@@ -269,8 +270,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
               // Use the stored PDS URL if available, otherwise default to bsky.social
               const serviceUrl = (sessionToUse as any).pdsUrl || 'https://bsky.social'
               const agent = new AtpAgent({ service: serviceUrl })
-              // @ts-expect-error - AtpAgent has internal session property that can be set
-              agent.session = sessionToUse
+              // Use resumeSession instead of directly setting session property
+              // This is the type-safe way to restore a session on AtpAgent
+              await agent.resumeSession(sessionToUse)
               bsky.setOAuthAgent(agent as unknown as Agent, { did: sessionToUse.did, signOut: async () => {} } as unknown as import('@atproto/oauth-client').OAuthSession)
               finish(sessionToUse)
               return
@@ -296,7 +298,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       if (!cancelled) finish()
     }
     init()
-      .catch(() => {
+      .catch((err) => {
+        console.warn('Session init failed:', err)
         if (!cancelled) finish()
       })
       .finally(() => {
