@@ -524,7 +524,9 @@ export default function ProfileContent({
             return 0
           })()
           lastLoadMoreByColumnRef.current[shortColIdx] = Date.now()
-          loadMoreFnRef.current(loadMoreCursorRef.current)
+          if (loadMoreCursorRef.current) {
+            loadMoreFnRef.current(loadMoreCursorRef.current)
+          }
         }
       }, wait)
     }
@@ -553,7 +555,9 @@ export default function ProfileContent({
           lastLoadMoreByColumnRef.current[colIndex] = Date.now()
           rafId = requestAnimationFrame(() => {
             rafId = 0
-            loadMoreFnRef.current(loadMoreCursorRef.current)
+            if (loadMoreCursorRef.current) {
+              loadMoreFnRef.current(loadMoreCursorRef.current)
+            }
           })
           break
         }
