@@ -224,7 +224,12 @@ export function ProgressiveImage({
     const container = containerRef.current
     if (!container) return
 
-    const pooled = getObserverPoolEntry(preloadDistance, root ?? null)
+    // Convert pixel distance to viewport-based percentage for resize compatibility
+    const vh = typeof window !== 'undefined' ? window.innerHeight : 800
+    const preloadDistanceVh = Math.round((preloadDistance / vh) * 100)
+    const margin = `${preloadDistanceVh}vh`
+
+    const pooled = getObserverPoolEntry(margin, root ?? null)
     if (!pooled) {
       setShouldPreload(true)
       return
