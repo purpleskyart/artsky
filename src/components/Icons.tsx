@@ -92,7 +92,7 @@ export function EyeClosedIcon({ size = 24 }: { size?: number }) {
 /** Play icon for video overlays */
 export function PlayIcon({ size = 48 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="#a855f7" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden>
       <path d="M8 5v14l11-7z" />
     </svg>
   )
