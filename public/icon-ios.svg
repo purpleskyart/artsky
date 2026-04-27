@@ -32,7 +32,7 @@
   <rect width="512" height="512" fill="url(#ios-bg)"/>
   
   <!-- Bee icon centered with subtle shadow -->
-  <g transform="translate(256 256) scale(0.78) translate(-256 -256)" filter="url(#ios-shadow)">
+  <g transform="translate(256 256) scale(0.95) translate(-256 -256)" filter="url(#ios-shadow)">
     <g transform="translate(256 256) scale(1.12 1) translate(-256 -256)">
       <!-- Wings -->
       <g fill="url(#ios-bee)">
