@@ -414,6 +414,7 @@ function MediaGallery({
                   autoPlay={i === firstVideoIndex}
                   preload={i === firstVideoIndex ? 'metadata' : 'none'}
                   controlsHiddenUntilTap={hideVideoControlsUntilTap}
+                  forceMuted={forEmbeddedPreview}
                 />
               </div>
             )
@@ -437,6 +438,7 @@ function MediaGallery({
                   autoPlay={i === firstVideoIndex}
                   preload={i === firstVideoIndex ? 'metadata' : 'none'}
                   controlsHiddenUntilTap={hideVideoControlsUntilTap}
+                  forceMuted={forEmbeddedPreview}
                 />
               </div>
             )
@@ -1023,6 +1025,7 @@ function PostBlock({
                                   className={styles.quotedPostVideo}
                                   loop
                                   autoPlay
+                                  forceMuted={true}
                                   preload="none"
                                 />
                               </div>
@@ -1034,6 +1037,7 @@ function PostBlock({
                                   className={styles.quotedPostVideo}
                                   loop
                                   autoPlay
+                                  forceMuted={true}
                                   preload="none"
                                 />
                               </div>
@@ -2982,6 +2986,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                                       className={styles.quotedPostVideo}
                                       loop
                                       autoPlay
+                                      forceMuted={true}
                                       preload="none"
                                     />
                                   </div>
@@ -2993,6 +2998,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                                       className={styles.quotedPostVideo}
                                       loop
                                       autoPlay
+                                      forceMuted={true}
                                       preload="none"
                                     />
                                   </div>

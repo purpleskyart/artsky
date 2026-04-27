@@ -99,6 +99,7 @@ function LazyPreviewStrip({
                 className={styles.previewImg}
                 loop
                 autoPlay
+                forceMuted={true}
                 preload="metadata"
                 controlsHiddenUntilTap
               />
