@@ -8,14 +8,11 @@ import {
   DEFAULT_PLACEHOLDER_ASPECT,
 } from '../lib/mediaAspect'
 import { setCachedMediaAspect } from '../lib/mediaAspectCache'
-import { useSession } from '../context/SessionContext'
 import { useLoginModal } from '../context/LoginModalContext'
-import { useArtOnly } from '../context/ArtOnlyContext'
-import { useMediaOnly } from '../context/MediaOnlyContext'
 import { useModeration } from '../context/ModerationContext'
-import { useFollowOverrides } from '../context/FollowOverridesContext'
+import { useLikeOverrideForUri } from '../context/LikeOverridesContext'
+import { usePostCardDisplayContext, type PostCardDisplayContext } from '../hooks/usePostCardDisplayContext'
 import CollectionSaveMenu from './CollectionSaveMenu'
-import { useProfileModal } from '../context/ProfileModalContext'
 import { setInitialPostForUri } from '../lib/postCache'
 import { getPostOverlayPath } from '../lib/appUrl'
 import { getOverlayBackgroundLocation, hasPathOverlayStack } from '../lib/overlayNavigation'
@@ -87,6 +84,10 @@ interface Props {
   openCollectionMenuSignal?: number
   /** When true, do not auto-unblur on selection (for modal scroll where hover can fire from moving content under stationary cursor). */
   suppressHoverNsfwUnblur?: boolean
+  /** When set, skips per-card ArtOnly/MediaOnly/ProfileModal/FollowOverrides/Session context subscriptions. */
+  displayContext?: PostCardDisplayContext
+  /** Use preview priority for videos on collection board grids. */
+  collectionGridPlayback?: boolean
 }
 
 const REASON_PIN = 'app.bsky.feed.defs#reasonPin'
@@ -110,6 +111,7 @@ function PinIcon() {
 type InnerProps = Props & {
   setUnblurred: (uri: string, revealed: boolean) => void
   isRevealed: boolean
+  displayContext: PostCardDisplayContext
 }
 
 function PostCardInner({
@@ -139,6 +141,8 @@ function PostCardInner({
   feedPreviewActionRow = false,
   openCollectionMenuSignal,
   suppressHoverNsfwUnblur = false,
+  collectionGridPlayback = false,
+  displayContext,
 }: InnerProps) {
   void suppressHoverNsfwUnblur // Currently unused, reserved for future use
   /** Must stay > `TOUCH_DOUBLE_TAP_WINDOW_MS` so a second tap can cancel before we open. */
@@ -148,14 +152,21 @@ function PostCardInner({
   const MEDIA_CLICK_DOUBLE_TAP_WINDOW_MS = TOUCH_DOUBLE_TAP_WINDOW_MS
 
   const navigate = useNavigate()
-  const { session } = useSession()
   const { openLoginModal } = useLoginModal()
-  const { artOnly, minimalist } = useArtOnly()
+  const {
+    artOnly,
+    minimalist,
+    mediaMode,
+    inModalStack: isModalOpen,
+    sessionDid,
+    openQuotesModal,
+    openPostModal,
+    openProfileModal,
+    getFollowOverride,
+    setFollowOverride,
+  } = displayContext
   const showFeedStyleActionRow = feedPreviewActionRow || !artOnly || minimalist
   const showArtOnlyCornerActions = artOnly && !minimalist && !feedPreviewActionRow
-  const { mediaMode } = useMediaOnly()
-  const { openQuotesModal, openPostModal, openProfileModal, isModalOpen } = useProfileModal()
-  const { getFollowOverride, setFollowOverride } = useFollowOverrides()
   const location = useLocation()
   const modalScrollRef = useModalScroll()
   const mediaWrapRef = useRef<HTMLDivElement>(null)
@@ -212,13 +223,17 @@ function PostCardInner({
   const [followUriOverride, setFollowUriOverride] = useState<string | null>(initialFollowingUri ?? null)
   const effectiveFollowingUri = globalFollowOverride !== undefined ? globalFollowOverride : (followUriOverride ?? initialFollowingUri ?? null)
   const isFollowingAuthor = !!effectiveFollowingUri
-  const isOwnPost = session?.did === post.author.did
+  const isOwnPost = sessionDid === post.author.did
   const [followLoading, setFollowLoading] = useState(false)
   const postViewer = (post as { viewer?: { like?: string } }).viewer
   const initialLikedUri = postViewer?.like
   const [likedUri, setLikedUri] = useState<string | undefined>(initialLikedUri)
   const [likeLoading, setLikeLoading] = useState(false)
-  const effectiveLikedUri = likedUriOverride !== undefined ? (likedUriOverride ?? undefined) : likedUri
+  const storeLikeOverride = useLikeOverrideForUri(post.uri)
+  const resolvedLikeOverride =
+    likedUriOverride !== undefined ? likedUriOverride : storeLikeOverride
+  const effectiveLikedUri =
+    resolvedLikeOverride !== undefined ? (resolvedLikeOverride ?? undefined) : likedUri
   const isLiked = !!effectiveLikedUri
 
   const [mediaAspect, setMediaAspect] = useState<number | null>(() =>
@@ -230,6 +245,7 @@ function PostCardInner({
   const multiPendingAspectsRef = useRef<(number | null)[]>([])
   const multiBatchAppliedRef = useRef(false)
   const [isVideoPlaying, setIsVideoPlaying] = useState(false)
+  const [isVideoPlaybackPending, setIsVideoPlaybackPending] = useState(false)
   const [actionsMenuOpen, setActionsMenuOpen] = useState(false)
   const actionsMenuDropdownRef = useRef<HTMLDivElement>(null)
   const cardRef = useRef<HTMLDivElement>(null)
@@ -301,22 +317,22 @@ function PostCardInner({
   }, [actionsMenuOpen])
 
   useEffect(() => {
-    if (likedUriOverride !== undefined) {
-      setLikedUri(likedUriOverride ?? undefined)
+    if (resolvedLikeOverride !== undefined) {
+      setLikedUri(resolvedLikeOverride ?? undefined)
     } else {
       setLikedUri(initialLikedUri)
     }
-  }, [post.uri, initialLikedUri, likedUriOverride])
+  }, [post.uri, initialLikedUri, resolvedLikeOverride])
 
   useEffect(() => {
     setFollowUriOverride(initialFollowingUri ?? null)
-  }, [post.uri, initialFollowingUri, session?.did])
+  }, [post.uri, initialFollowingUri, sessionDid])
 
   // Memoize event handlers to prevent unnecessary re-renders
   const handleFollowClick = useCallback(async (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    if (followLoading || isOwnPost || !session?.did || isFollowingAuthor) return
+    if (followLoading || isOwnPost || !sessionDid || isFollowingAuthor) return
 
     // Optimistic update: immediately update UI before API call completes
     setFollowLoading(true)
@@ -341,7 +357,7 @@ function PostCardInner({
   }, [
     followLoading,
     isOwnPost,
-    session?.did,
+    sessionDid,
     isFollowingAuthor,
     post.author.did,
     profileAuthorDid,
@@ -352,7 +368,7 @@ function PostCardInner({
   const handleLikeClick = useCallback(async (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    if (!session?.did) {
+    if (!sessionDid) {
       openLoginModal()
       return
     }
@@ -380,7 +396,7 @@ function PostCardInner({
     } finally {
       setLikeLoading(false)
     }
-  }, [session?.did, openLoginModal, likeLoading, effectiveLikedUri, post.uri, post.cid, onLikedChange])
+  }, [sessionDid, openLoginModal, likeLoading, effectiveLikedUri, post.uri, post.cid, onLikedChange])
 
   useEffect(() => {
     return () => {
@@ -749,7 +765,7 @@ function PostCardInner({
   }, [quotedPost, onPostClick, location, openPostModal, navigate])
 
   const handleMediaDoubleTapLike = useCallback(() => {
-    if (!session?.did) {
+    if (!sessionDid) {
       openLoginModal()
       return
     }
@@ -765,7 +781,7 @@ function PostCardInner({
         onLikedChange?.(post.uri, res.uri)
       }).catch(() => setLikedUri(undefined))
     }
-  }, [session?.did, openLoginModal, effectiveLikedUri, post.uri, post.cid, onLikedChange])
+  }, [sessionDid, openLoginModal, effectiveLikedUri, post.uri, post.cid, onLikedChange])
 
   const handleMediaClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
@@ -1218,13 +1234,16 @@ function PostCardInner({
                 preload="none"
                 controls={false}
                 forceMuted={true}
-                playbackMode={modalScrollContainer ? 'detail' : 'feed'}
+                playbackMode={
+                  collectionGridPlayback ? 'preview' : modalScrollContainer ? 'detail' : 'feed'
+                }
                 style={{ aspectRatio: mediaAspect != null ? `${mediaAspect}` : undefined }}
                 intersectionRoot={modalScrollContainer}
                 onPlayStateChange={setIsVideoPlaying}
+                onPlaybackPendingChange={setIsVideoPlaybackPending}
                 onVideoDimensions={handleVideoDimensions}
               />
-              {!isVideoPlaying && (
+              {!isVideoPlaying && !isVideoPlaybackPending && (
                 <div className={styles.videoIconOverlay}>
                   <PlayIcon size={48} />
                 </div>
@@ -1338,7 +1357,7 @@ function PostCardInner({
         </div>
         {showArtOnlyCornerActions && (
           <div className={styles.artOnlyActions} onClick={(e) => e.stopPropagation()}>
-            {!isOwnPost && session && !isFollowingAuthor && (
+            {!isOwnPost && sessionDid && !isFollowingAuthor && (
               <button
                 type="button"
                 className={styles.artOnlyFollowBtn}
@@ -1398,7 +1417,7 @@ function PostCardInner({
                 {isLiked ? '♥' : '♡'}
               </button>
               {post.author.avatar ? (
-                isOwnPost || !session || isFollowingAuthor ? (
+                isOwnPost || !sessionDid || isFollowingAuthor ? (
                   <ProfileLink
                     handle={handle}
                     className={styles.cardActionRowAvatar}
@@ -1427,7 +1446,7 @@ function PostCardInner({
                   </button>
                 )
               ) : (
-                isOwnPost || !session || isFollowingAuthor ? (
+                isOwnPost || !sessionDid || isFollowingAuthor ? (
                   <div className={styles.cardActionRowAvatar} style={{ backgroundColor: 'var(--glass-border)', borderRadius: '50%' }} aria-hidden />
                 ) : (
                   <button
@@ -1549,7 +1568,7 @@ function PostCardInner({
 }
 
 /** When parent passes setUnblurred + isRevealed, we don't subscribe to ModerationContext so only this card re-renders on unblur (avoids slow profile-modal unblur). */
-function PostCardWithContext(props: Props) {
+function PostCardWithModeration(props: Props & { displayContext: PostCardDisplayContext }) {
   const { unblurredUris, setUnblurred } = useModeration()
   const isRevealed = unblurredUris.has(props.item.post.uri)
   return (
@@ -1561,17 +1580,38 @@ function PostCardWithContext(props: Props) {
   )
 }
 
-function PostCard(props: Props) {
+function PostCardWithContexts(props: Props) {
+  const displayContext = usePostCardDisplayContext()
   if (props.setUnblurred != null && typeof props.isRevealed === 'boolean') {
     return (
       <PostCardInner
         {...props}
+        displayContext={props.displayContext ?? displayContext}
         setUnblurred={props.setUnblurred}
         isRevealed={props.isRevealed}
       />
     )
   }
-  return <PostCardWithContext {...props} />
+  return (
+    <PostCardWithModeration
+      {...props}
+      displayContext={props.displayContext ?? displayContext}
+    />
+  )
+}
+
+function PostCard(props: Props) {
+  if (props.displayContext && props.setUnblurred != null && typeof props.isRevealed === 'boolean') {
+    return (
+      <PostCardInner
+        {...props}
+        displayContext={props.displayContext}
+        setUnblurred={props.setUnblurred}
+        isRevealed={props.isRevealed}
+      />
+    )
+  }
+  return <PostCardWithContexts {...props} />
 }
 
 // Wrap PostCard with React.memo and custom comparison function

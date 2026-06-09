@@ -1,14 +1,15 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { getQuotes } from '../lib/bsky'
 import type { TimelineItem } from '../lib/bsky'
 import ProfileColumn from './ProfileColumn'
 import AppModal from './AppModal'
 import { useProfileModal } from '../context/ProfileModalContext'
-import { useLikeOverrides } from '../context/LikeOverridesContext'
+import { useLikeOverridesActions } from '../context/LikeOverridesContext'
 import { useModeration } from '../context/ModerationContext'
 import { usePostCardGridPointerGate } from '../hooks/usePostCardGridPointerGate'
 import styles from './QuotesModal.module.css'
 import gridStyles from '../styles/postGrid.module.css'
+import { usePostCardDisplayContext } from '../hooks/usePostCardDisplayContext'
 
 interface QuotesModalProps {
   postUri: string
@@ -29,7 +30,7 @@ export default function QuotesModal({ postUri, onClose, onBack, canGoBack, onDes
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [refreshFn, setRefreshFn] = useState<(() => void | Promise<void>) | null>(null)
-  const { likeOverrides, setLikeOverride } = useLikeOverrides()
+  const { setLikeOverride } = useLikeOverridesActions()
   const [keyboardFocusIndex, setKeyboardFocusIndex] = useState(0)
   const keyboardFocusIndexRef = useRef(0)
   const cardRefsRef = useRef<(HTMLDivElement | null)[]>([])
@@ -141,6 +142,40 @@ export default function QuotesModal({ postUri, onClose, onBack, canGoBack, onDes
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [beginKeyboardNavigation, items.length, openPostModal])
 
+  const postCardDisplayContext = usePostCardDisplayContext(true)
+
+  const quoteColumn = useMemo(
+    () => items.map((item, i) => ({ item, originalIndex: i })),
+    [items],
+  )
+
+  const handleCardRef = useCallback((index: number) => (el: HTMLDivElement | null) => {
+    cardRefsRef.current[index] = el
+  }, [])
+
+  const handleLoadMoreSentinelRef = useCallback((el: HTMLDivElement | null) => {
+    (loadMoreSentinelRef as unknown as { current: HTMLDivElement | null }).current = el
+  }, [])
+
+  const handleMouseEnter = useCallback(
+    (originalIndex: number) => {
+      tryHoverSelectCard(
+        originalIndex,
+        () => keyboardFocusIndexRef.current,
+        (idx) => setKeyboardFocusIndex(idx),
+        { disabled: true },
+      )
+    },
+    [tryHoverSelectCard],
+  )
+
+  const isSelected = useCallback(
+    (index: number) => index === keyboardFocusIndex,
+    [keyboardFocusIndex],
+  )
+
+  const noopActionsMenuOpenChange = useCallback(() => {}, [])
+
   return (
     <AppModal
       ariaLabel="Posts that quote this post"
@@ -163,31 +198,24 @@ export default function QuotesModal({ postUri, onClose, onBack, canGoBack, onDes
           <>
             <div className={`${gridStyles.gridColumns} ${gridStyles.gridView1}`}>
               <ProfileColumn
-                column={items.map((item, i) => ({ item, originalIndex: i }))}
+                column={quoteColumn}
                 colIndex={0}
                 scrollRef={null}
-                loadMoreSentinelRef={cursor ? (el) => { (loadMoreSentinelRef as unknown as { current: HTMLDivElement | null }).current = el } : undefined}
+                loadMoreSentinelRef={cursor ? handleLoadMoreSentinelRef : undefined}
                 hasCursor={!!cursor}
                 keyboardFocusIndex={keyboardFocusIndex}
                 actionsMenuOpenForIndex={null}
                 nsfwPreference={nsfwPreference}
                 unblurredUris={unblurredUris}
                 setUnblurred={setUnblurred}
-                likeOverrides={likeOverrides}
                 setLikeOverrides={setLikeOverride}
                 openPostModal={openPostModal}
-                cardRef={(index) => (el) => { cardRefsRef.current[index] = el }}
-                onActionsMenuOpenChange={() => {}}
-                onMouseEnter={(originalIndex) =>
-                  tryHoverSelectCard(
-                    originalIndex,
-                    () => keyboardFocusIndexRef.current,
-                    (idx) => setKeyboardFocusIndex(idx),
-                    { disabled: true }
-                  )
-                }
+                cardRef={handleCardRef}
+                onActionsMenuOpenChange={noopActionsMenuOpenChange}
+                onMouseEnter={handleMouseEnter}
                 suppressHoverNsfwUnblur
-                isSelected={(index) => index === keyboardFocusIndex}
+                isSelected={isSelected}
+                displayContext={postCardDisplayContext}
               />
             </div>
             {loadingMore && <div className={styles.loadingMore}>Loading more…</div>}

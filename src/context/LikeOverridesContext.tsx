@@ -1,19 +1,15 @@
-import { createContext, useContext, useState, useCallback, useMemo, type ReactNode } from 'react'
-
-const MAX_LIKE_OVERRIDE_KEYS = 500
-
-/**
- * Normalized cache for like overrides across the application.
- * This context provides a centralized store for tracking like state changes
- * (optimistic updates) without duplicating state in each component.
- * 
- * Key: post URI
- * Value: like record URI (string) or null (unliked) or undefined (use original post.viewer.like)
- */
-type LikeOverridesCache = Record<string, string | null | undefined>
+import { createContext, useContext, useCallback, useMemo, useSyncExternalStore, type ReactNode } from 'react'
+import {
+  clearLikeOverridesInStore,
+  getLikeOverrideFromStore,
+  getLikeOverridesSnapshot,
+  setLikeOverrideInStore,
+  subscribeLikeOverrides,
+  subscribeLikeOverrideUri,
+  type LikeOverridesCache,
+} from '../lib/likeOverridesStore'
 
 interface LikeOverridesContextValue {
-  likeOverrides: LikeOverridesCache
   setLikeOverride: (postUri: string, likeUri: string | null) => void
   getLikeOverride: (postUri: string) => string | null | undefined
   clearLikeOverrides: () => void
@@ -21,45 +17,26 @@ interface LikeOverridesContextValue {
 
 const LikeOverridesContext = createContext<LikeOverridesContextValue | undefined>(undefined)
 
-interface LikeOverridesProviderProps {
-  children: ReactNode
-}
-
-/**
- * Provider for the normalized like overrides cache.
- * Memoizes context value to prevent unnecessary re-renders.
- */
-export function LikeOverridesProvider({ children }: LikeOverridesProviderProps) {
-  const [likeOverrides, setLikeOverrides] = useState<LikeOverridesCache>({})
-
+export function LikeOverridesProvider({ children }: { children: ReactNode }) {
   const setLikeOverride = useCallback((postUri: string, likeUri: string | null) => {
-    setLikeOverrides((prev) => {
-      const next = { ...prev, [postUri]: likeUri }
-      const keys = Object.keys(next)
-      if (keys.length <= MAX_LIKE_OVERRIDE_KEYS) return next
-      const keep = keys.slice(-MAX_LIKE_OVERRIDE_KEYS)
-      const pruned: LikeOverridesCache = {}
-      for (const k of keep) pruned[k] = next[k]
-      return pruned
-    })
+    setLikeOverrideInStore(postUri, likeUri)
   }, [])
 
   const getLikeOverride = useCallback((postUri: string) => {
-    return likeOverrides[postUri]
-  }, [likeOverrides])
+    return getLikeOverrideFromStore(postUri)
+  }, [])
 
   const clearLikeOverrides = useCallback(() => {
-    setLikeOverrides({})
+    clearLikeOverridesInStore()
   }, [])
 
   const value = useMemo(
     () => ({
-      likeOverrides,
       setLikeOverride,
       getLikeOverride,
       clearLikeOverrides,
     }),
-    [likeOverrides, setLikeOverride, getLikeOverride, clearLikeOverrides]
+    [setLikeOverride, getLikeOverride, clearLikeOverrides],
   )
 
   return (
@@ -69,14 +46,45 @@ export function LikeOverridesProvider({ children }: LikeOverridesProviderProps) 
   )
 }
 
-/**
- * Hook to access the like overrides cache.
- * @throws Error if used outside of LikeOverridesProvider
- */
-export function useLikeOverrides() {
+/** Actions only — does not subscribe to the overrides map (avoids grid re-renders on like). */
+export function useLikeOverridesActions(): LikeOverridesContextValue {
   const context = useContext(LikeOverridesContext)
   if (context === undefined) {
-    throw new Error('useLikeOverrides must be used within a LikeOverridesProvider')
+    throw new Error('useLikeOverridesActions must be used within a LikeOverridesProvider')
   }
   return context
+}
+
+export function useLikeOverrides() {
+  const context = useLikeOverridesActions()
+  const likeOverrides = useSyncExternalStore(
+    subscribeLikeOverrides,
+    getLikeOverridesSnapshot,
+    (): LikeOverridesCache => ({}),
+  )
+  return useMemo(
+    () => ({
+      ...context,
+      likeOverrides,
+    }),
+    [context, likeOverrides],
+  )
+}
+
+/** Subscribe to the full overrides map (for grids that need per-uri lookups). */
+export function useLikeOverridesMap(): LikeOverridesCache {
+  return useSyncExternalStore(
+    subscribeLikeOverrides,
+    getLikeOverridesSnapshot,
+    (): LikeOverridesCache => ({}),
+  )
+}
+
+/** Subscribe to a single post URI — avoids re-renders when unrelated posts are liked. */
+export function useLikeOverrideForUri(postUri: string): string | null | undefined {
+  return useSyncExternalStore(
+    (cb) => subscribeLikeOverrideUri(postUri, cb),
+    () => getLikeOverrideFromStore(postUri),
+    () => undefined,
+  )
 }

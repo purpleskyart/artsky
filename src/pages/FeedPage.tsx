@@ -30,11 +30,13 @@ import { useViewMode } from '../context/ViewModeContext'
 import { useModeration } from '../context/ModerationContext'
 import { useHideReposts } from '../context/HideRepostsContext'
 import { useSeenPosts } from '../context/SeenPostsContext'
-import { useLikeOverrides } from '../context/LikeOverridesContext'
+import { useLikeOverridesActions } from '../context/LikeOverridesContext'
+import { getLikeOverrideFromStore } from '../lib/likeOverridesStore'
 import { usePullToRefresh, PULL_THRESHOLD_PX } from '../hooks/usePullToRefresh'
 import { useStandalonePwa } from '../hooks/useStandalonePwa'
 import { useColumnCount } from '../hooks/useViewportWidth'
 import { usePostCardGridPointerGate } from '../hooks/usePostCardGridPointerGate'
+import { usePostCardDisplayContext } from '../hooks/usePostCardDisplayContext'
 import FeedColumn from '../components/FeedColumn'
 import FeedSelector from '../components/FeedSelector'
 import { GUEST_FEED_SOURCES, GUEST_MIX_ENTRIES } from '../config/feedSources'
@@ -291,7 +293,7 @@ export default function FeedPage() {
   const [source, setSource] = useState<FeedSource>(PRESET_SOURCES[0])
 
   // Use the normalized like overrides cache from context
-  const { likeOverrides, setLikeOverride } = useLikeOverrides()
+  const { setLikeOverride } = useLikeOverridesActions()
   // Use the normalized follow overrides cache from context
   const { setFollowOverride } = useFollowOverrides()
   
@@ -710,6 +712,7 @@ export default function FeedPage() {
   const LOAD_MORE_SHORT_MARGIN_PX = 300
 
   const { mediaMode } = useMediaOnly()
+  const postCardDisplayContext = usePostCardDisplayContext()
   const { nsfwPreference, unblurredUris, setUnblurred } = useModeration()
   const { hideRepostsFromDids } = useHideReposts() ?? { hideRepostsFromDids: [] as string[] }
   const displayItems = useMemo(() =>
@@ -971,7 +974,8 @@ export default function FeedPage() {
   const lastFocusIndexForCardRef = useRef(lastFocusIndexForCard)
   const distributedColumnsRef = useRef(distributedColumns)
   const colsRef = useRef(cols)
-  const likeOverridesRef = useRef(likeOverrides)
+  const getLikeOverrideRef = useRef(getLikeOverrideFromStore)
+  getLikeOverrideRef.current = getLikeOverrideFromStore
   const blockConfirmRefState = useRef(blockConfirm)
   const sessionRef = useRef(session)
   displayEntriesRef.current = displayEntries
@@ -980,7 +984,6 @@ export default function FeedPage() {
   lastFocusIndexForCardRef.current = lastFocusIndexForCard
   distributedColumnsRef.current = distributedColumns
   colsRef.current = cols
-  likeOverridesRef.current = likeOverrides
   blockConfirmRefState.current = blockConfirm
   sessionRef.current = session
 
@@ -1174,7 +1177,7 @@ export default function FeedPage() {
       const currentLastByCard = lastFocusIndexForCardRef.current
       const currentCols = colsRef.current
       const currentDistribution = distributedColumnsRef.current
-      const currentLikeOverrides = likeOverridesRef.current
+      const getLikeOverride = getLikeOverrideRef.current
       const currentSession = sessionRef.current
       const currentBlockConfirm = blockConfirmRefState.current
       const fromNone = i < 0
@@ -1329,7 +1332,8 @@ export default function FeedPage() {
         const item = focusedItem
         if (!item?.post?.uri || !item?.post?.cid) return
         const uri = item.post.uri
-        const currentLikeUri = uri in currentLikeOverrides ? (currentLikeOverrides[uri] ?? undefined) : (item.post as { viewer?: { like?: string } }).viewer?.like
+        const override = getLikeOverride(uri)
+        const currentLikeUri = override !== undefined ? (override ?? undefined) : (item.post as { viewer?: { like?: string } }).viewer?.like
         if (currentLikeUri) {
           unlikePostWithLifecycle(currentLikeUri, uri).then(() => {
             setLikeOverride(uri, null)
@@ -1634,7 +1638,6 @@ export default function FeedPage() {
                   nsfwPreference={nsfwPreference}
                   unblurredUris={unblurredUris}
                   setUnblurred={setUnblurred}
-                  likeOverrides={likeOverrides}
                   setLikeOverrides={setLikeOverride}
                   seenUris={feedState.seenUris}
                   openPostModal={openPostModal}
@@ -1644,6 +1647,7 @@ export default function FeedPage() {
                   onMouseEnter={handleMouseEnter}
                   collectionMenuOpenForIndex={collectionMenuOpenForIndex}
                   collectionMenuOpenSignal={collectionMenuOpenSignal}
+                  displayContext={postCardDisplayContext}
                 />
               ))}
             </div>

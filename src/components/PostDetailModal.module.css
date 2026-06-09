@@ -1,14 +1,9 @@
 .overlay {
   position: fixed;
   inset: 0;
-  /* dvh follows dynamic viewport; lvh (where supported) keeps full screen when the keyboard shrinks dvh so the shell doesn’t jump. */
   min-height: 100vh;
   min-height: 100dvh;
   height: 100dvh;
-  max-height: 100dvh;
-  min-height: 100lvh;
-  height: 100lvh;
-  max-height: 100lvh;
   z-index: 1000;
   display: flex;
   flex-direction: column;
@@ -402,9 +397,9 @@
     /* Match .pane (--surface) so safe-area / keyboard gaps aren’t a different tint than the modal */
     background: var(--surface);
   }
-  /* Shrink pane to stay above the on-screen keyboard; --keyboard-inset is set by AppModal via visualViewport */
+  /* Pane fills overlay; on mobile AppModal sizes the overlay to visualViewport (keyboard + URL bar). */
   .paneExpanded.pane {
-    max-height: calc(100% - var(--keyboard-inset, 0px));
+    max-height: 100%;
   }
   .pane {
     max-height: 100%;

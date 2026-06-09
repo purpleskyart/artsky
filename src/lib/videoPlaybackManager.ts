@@ -1,11 +1,14 @@
+import type Hls from 'hls.js'
 import {
   MODE_PRIORITY,
   PAUSE_VISIBILITY_RATIO,
   PLAY_STAGGER_MS,
   PLAY_VISIBILITY_RATIO,
   HLS_DETACH_DELAY_MS,
+  buildHlsConfig,
   type VideoPlaybackMode,
 } from './videoHlsConfig'
+import { refreshVideoVisibilityObservers } from './videoVisibility'
 
 export type { VideoPlaybackMode } from './videoHlsConfig'
 export {
@@ -38,7 +41,41 @@ type VideoSession = {
 const sessions = new Map<string, VideoSession>()
 const feedSuspendReasons = new Set<string>()
 const visibilityRefreshListeners = new Set<() => void>()
+const hlsInstances = new Map<string, Hls>()
 let staggerGeneration = 0
+let lastBufferTier = -1
+let lastVisibleAutoplayCount = 0
+
+function getBufferTier(visibleCount: number): number {
+  if (visibleCount >= 7) return 2
+  if (visibleCount >= 4) return 1
+  return 0
+}
+
+function applyHlsBufferConfig(hls: Hls, visibleCount: number): void {
+  const config = buildHlsConfig(visibleCount)
+  Object.assign(hls.config, config)
+}
+
+function maybeRetuneHlsBuffers(): void {
+  const visibleCount = getVisibleAutoplayCount()
+  const tier = getBufferTier(visibleCount)
+  if (tier === lastBufferTier && visibleCount === lastVisibleAutoplayCount) return
+  lastBufferTier = tier
+  lastVisibleAutoplayCount = visibleCount
+  for (const hls of hlsInstances.values()) {
+    applyHlsBufferConfig(hls, visibleCount)
+  }
+}
+
+export function registerHlsInstance(id: string, hls: Hls): void {
+  hlsInstances.set(id, hls)
+  applyHlsBufferConfig(hls, getVisibleAutoplayCount())
+}
+
+export function unregisterHlsInstance(id: string): void {
+  hlsInstances.delete(id)
+}
 
 /** Re-measure intersection after layout/images settle (IO often misses the first paint). */
 export function registerVisibilityRefresh(listener: () => void): () => void {
@@ -47,6 +84,7 @@ export function registerVisibilityRefresh(listener: () => void): () => void {
 }
 
 export function refreshAllVideoVisibility(): void {
+  refreshVideoVisibilityObservers()
   for (const listener of visibilityRefreshListeners) listener()
 }
 
@@ -205,8 +243,11 @@ function reconcile(): void {
     }
 
     if (shouldPause(session)) {
+      const wasActive = session.isPlaying || session.wantsPlay
       session.wantsPlay = false
-      session.callbacks.onPause()
+      if (wasActive) {
+        session.callbacks.onPause()
+      }
     } else if (shouldPlay(session)) {
       session.wantsPlay = true
       playCandidates.push(session)
@@ -232,6 +273,8 @@ function reconcile(): void {
       current.callbacks.onPlay()
     }, delay)
   })
+
+  maybeRetuneHlsBuffers()
 }
 
 /** Reset all state (for tests and page unload). */
@@ -241,5 +284,8 @@ export function resetVideoPlaybackManager(): void {
   }
   sessions.clear()
   feedSuspendReasons.clear()
+  hlsInstances.clear()
   staggerGeneration = 0
+  lastBufferTier = -1
+  lastVisibleAutoplayCount = 0
 }

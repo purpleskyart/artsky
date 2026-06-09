@@ -10,6 +10,7 @@ import { createPortal } from 'react-dom'
 import type { AppBskyActorDefs } from '@atproto/api'
 import { searchActorsTypeahead, searchPostsByTag } from '../lib/bsky'
 import { scrollFieldAboveKeyboard } from '../lib/mobileKeyboardFocus'
+import { resizedAvatarUrl } from '../lib/imageUtils'
 import styles from './ComposerSuggestions.module.css'
 
 const TRIGGERS = ['@', '#'] as const
@@ -409,7 +410,7 @@ export default function ComposerSuggestions({
                     {s.type === 'user' && (
                       <>
                         {s.avatar ? (
-                          <img src={s.avatar} alt="" className={styles.avatar} />
+                          <img src={resizedAvatarUrl(s.avatar, 32)} alt="" className={styles.avatar} loading="lazy" decoding="async" />
                         ) : (
                           <span className={styles.avatarPlaceholder}>
                             {(s.displayName ?? s.handle).slice(0, 1).toUpperCase()}

@@ -3,6 +3,7 @@
  */
 
 import { agent, getSession, parseAtUri, publicAgent } from './bsky'
+import { lruMapSet, lruMapTrim } from './lruMap'
 
 export const COLLECTION_LEXICON = 'app.purplesky.collection' as const
 
@@ -36,6 +37,8 @@ const plcPdsBaseCache = new Map<string, string | null>()
 /** Collection metadata cache to avoid re-fetching on navigation. */
 const collectionCache = new Map<string, { view: CollectionView; timestamp: number }>()
 const COLLECTION_CACHE_TTL_MS = 5 * 60 * 1000 // 5 minutes
+const IN_MEMORY_CACHE_MAX = 50
+const PERSISTENT_CACHE_MAX = 200
 
 /** Invalidate cache for a specific collection. */
 function invalidateCollectionCache(uri: string): void {
@@ -76,6 +79,7 @@ function loadPersistentCache<T>(key: string): Map<string, PersistentCacheEntry<T
 
 function savePersistentCache<T>(key: string, cache: Map<string, PersistentCacheEntry<T>>): void {
   try {
+    lruMapTrim(cache, PERSISTENT_CACHE_MAX)
     const entries = Array.from(cache.entries())
     localStorage.setItem(key, JSON.stringify(entries))
   } catch {
@@ -94,7 +98,7 @@ function getCachedWithTTL<T>(cache: Map<string, PersistentCacheEntry<T>>, key: s
 }
 
 function setCachedWithTTL<T>(cache: Map<string, PersistentCacheEntry<T>>, key: string, value: T): void {
-  cache.set(key, { value, timestamp: Date.now() })
+  lruMapSet(cache, key, { value, timestamp: Date.now() }, PERSISTENT_CACHE_MAX)
 }
 
 /** Initialize persistent caches and merge into in-memory caches */
@@ -204,11 +208,11 @@ async function resolveCollectionOwnerToDid(owner: string): Promise<string | null
   try {
     const res = await publicAgent.getProfile({ actor: owner })
     const did = res.data.did ?? null
-    ownerDidCache.set(key, did)
+    lruMapSet(ownerDidCache, key, did, IN_MEMORY_CACHE_MAX)
     saveOwnerDidCache()
     return did
   } catch {
-    ownerDidCache.set(key, null)
+    lruMapSet(ownerDidCache, key, null, IN_MEMORY_CACHE_MAX)
     saveOwnerDidCache()
     return null
   }
@@ -338,7 +342,7 @@ async function findCollectionBySlug(did: string, slugLower: string): Promise<Col
   for (const row of rows) {
     const sl = normalizeStoredSlug((row.value as { slug?: string }).slug)
     if (sl === slugLower) {
-      boardSegmentRkeyCache.set(cacheKey, row.rkey)
+      lruMapSet(boardSegmentRkeyCache, cacheKey, row.rkey, IN_MEMORY_CACHE_MAX)
       saveBoardSegmentCache()
       // Build CollectionView directly from the row data we already have
       const v = row.value as {
@@ -371,7 +375,7 @@ async function findCollectionBySlug(did: string, slugLower: string): Promise<Col
       }
     }
   }
-  boardSegmentRkeyCache.set(cacheKey, null)
+  lruMapSet(boardSegmentRkeyCache, cacheKey, null, IN_MEMORY_CACHE_MAX)
   saveBoardSegmentCache()
   return null
 }
@@ -567,7 +571,7 @@ export async function getCollectionByAtUri(ref: string): Promise<CollectionView 
 
   // Cache the result
   if (view) {
-    collectionCache.set(cacheKey, { view, timestamp: Date.now() })
+    lruMapSet(collectionCache, cacheKey, { view, timestamp: Date.now() }, IN_MEMORY_CACHE_MAX)
   }
 
   return view

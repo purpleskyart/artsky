@@ -5,6 +5,7 @@ import OptimizedPostCard from './OptimizedPostCard'
 import { setInitialPostForUri } from '../lib/postCache'
 import styles from '../styles/postGrid.module.css'
 import { memo, useCallback } from 'react'
+import type { PostCardDisplayContext } from '../hooks/usePostCardDisplayContext'
 
 type ColumnItem = { entry: FeedDisplayEntry; originalIndex: number }
 
@@ -17,7 +18,6 @@ const FeedCard = memo(function FeedCard({
   actionsMenuOpenForIndex,
   nsfwPreference,
   unblurredUris,
-  likeOverrides,
   seenUris,
   onMediaRef,
   onActionsMenuOpenChange,
@@ -28,6 +28,7 @@ const FeedCard = memo(function FeedCard({
   cardRef,
   constrainMediaHeight = false,
   openCollectionMenuSignal,
+  displayContext,
 }: {
   entry: FeedDisplayEntry
   originalIndex: number
@@ -36,7 +37,6 @@ const FeedCard = memo(function FeedCard({
   actionsMenuOpenForIndex: number | null
   nsfwPreference: 'nsfw' | 'sfw' | 'blurred'
   unblurredUris: Set<string>
-  likeOverrides: Record<string, string | null | undefined>
   seenUris: Set<string>
   onMediaRef: (index: number, mediaIndex: number, el: HTMLElement | null) => void
   onActionsMenuOpenChange: (index: number, open: boolean) => void
@@ -47,6 +47,7 @@ const FeedCard = memo(function FeedCard({
   cardRef: (index: number) => (el: HTMLDivElement | null) => void
   constrainMediaHeight?: boolean
   openCollectionMenuSignal?: number
+  displayContext?: PostCardDisplayContext
 }) {
   const key = entry.item.post.uri
   const handleMouseEnter = useCallback(() => onMouseEnter(originalIndex), [onMouseEnter, originalIndex])
@@ -88,13 +89,13 @@ const FeedCard = memo(function FeedCard({
         onNsfwUnblur={() => setUnblurred(entry.item.post.uri, true)}
         setUnblurred={setUnblurred}
         isRevealed={unblurredUris.has(entry.item.post.uri)}
-        likedUriOverride={likeOverrides[entry.item.post.uri]}
         onLikedChange={(uri, likeRecordUri) =>
           setLikeOverrides(uri, likeRecordUri ?? null)
         }
         seen={seenUris.has(entry.item.post.uri)}
         constrainMediaHeight={constrainMediaHeight}
         openCollectionMenuSignal={openCollectionMenuSignal}
+        displayContext={displayContext}
       />
     </div>
   )
@@ -111,9 +112,6 @@ const FeedCard = memo(function FeedCard({
   if (prevProps.focusedMediaIndex !== nextProps.focusedMediaIndex) return false
   if (prevProps.actionsMenuOpenForIndex !== nextProps.actionsMenuOpenForIndex) return false
   if (prevProps.nsfwPreference !== nextProps.nsfwPreference) return false
-  
-  // Check if this card's like status changed
-  if (prevProps.likeOverrides[prevUri] !== nextProps.likeOverrides[nextUri]) return false
   
   // Check if this card's seen status changed
   if (prevProps.seenUris.has(prevUri) !== nextProps.seenUris.has(nextUri)) return false
@@ -143,7 +141,6 @@ export interface FeedColumnProps {
   nsfwPreference: 'nsfw' | 'sfw' | 'blurred'
   unblurredUris: Set<string>
   setUnblurred: (uri: string, revealed: boolean) => void
-  likeOverrides: Record<string, string | null | undefined>
   setLikeOverrides: (postUri: string, likeUri: string | null) => void
   seenUris: Set<string>
   openPostModal: (uri: string, openReply?: boolean, focusUri?: string, authorHandle?: string) => void
@@ -154,6 +151,7 @@ export interface FeedColumnProps {
   constrainMediaHeight?: boolean
   collectionMenuOpenForIndex?: number | null
   collectionMenuOpenSignal?: number
+  displayContext?: PostCardDisplayContext
 }
 
 const FeedColumn = memo(function FeedColumn({
@@ -167,7 +165,6 @@ const FeedColumn = memo(function FeedColumn({
   nsfwPreference,
   unblurredUris,
   setUnblurred,
-  likeOverrides,
   setLikeOverrides,
   seenUris,
   openPostModal,
@@ -178,6 +175,7 @@ const FeedColumn = memo(function FeedColumn({
   constrainMediaHeight = false,
   collectionMenuOpenForIndex,
   collectionMenuOpenSignal,
+  displayContext,
 }: FeedColumnProps) {
   if (column.length === 0) {
     return (
@@ -212,8 +210,8 @@ const FeedColumn = memo(function FeedColumn({
             actionsMenuOpenForIndex={actionsMenuOpenForIndex}
             nsfwPreference={nsfwPreference}
             unblurredUris={unblurredUris}
-            likeOverrides={likeOverrides}
             seenUris={seenUris}
+            displayContext={displayContext}
             onMediaRef={onMediaRef}
             onActionsMenuOpenChange={onActionsMenuOpenChange}
             onMouseEnter={onMouseEnter}

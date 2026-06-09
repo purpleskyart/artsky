@@ -13,11 +13,12 @@ import { useModeration } from '../context/ModerationContext'
 import { useToast } from '../context/ToastContext'
 import { useCollectionSaveActions } from '../context/CollectionSaveContext'
 import { useProfileModal } from '../context/ProfileModalContext'
-import { useLikeOverrides } from '../context/LikeOverridesContext'
+import { useLikeOverridesActions } from '../context/LikeOverridesContext'
 import { useColumnCount } from '../hooks/useViewportWidth'
 import { usePostCardGridPointerGate } from '../hooks/usePostCardGridPointerGate'
 import gridStyles from '../styles/postGrid.module.css'
 import styles from './CollectionPage.module.css'
+import { usePostCardDisplayContext } from '../hooks/usePostCardDisplayContext'
 
 const ESTIMATE_COL_WIDTH = 280
 const CARD_CHROME = 100
@@ -85,7 +86,7 @@ export function CollectionDetailContent({ uri: decodedUri }: CollectionDetailCon
   const [loading, setLoading] = useState(true)
   const [loadingPosts, setLoadingPosts] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const { likeOverrides, setLikeOverride } = useLikeOverrides()
+  const { setLikeOverride } = useLikeOverridesActions()
   const [keyboardFocusIndex, setKeyboardFocusIndex] = useState(0)
   const keyboardFocusIndexRef = useRef(0)
   const displayItemsRef = useRef<TimelineItem[]>([])
@@ -210,6 +211,7 @@ export function CollectionDetailContent({ uri: decodedUri }: CollectionDetailCon
 
   const isOwner = !!(session?.did && ownerDid && session.did === ownerDid)
   const cols = useColumnCount(viewMode, 150)
+  const postCardDisplayContext = usePostCardDisplayContext(true)
 
   const displayItems = useMemo(
     () =>
@@ -294,6 +296,32 @@ export function CollectionDetailContent({ uri: decodedUri }: CollectionDetailCon
     )
   }, [shareUrl, toast])
 
+  const distributedColumns = useMemo(
+    () => distributeByHeight(displayItems, cols),
+    [displayItems, cols],
+  )
+
+  const handleCardRef = useCallback(() => () => {}, [])
+
+  const handleMouseEnter = useCallback(
+    (originalIndex: number) => {
+      tryHoverSelectCard(
+        originalIndex,
+        () => keyboardFocusIndexRef.current,
+        (idx) => setKeyboardFocusIndex(idx),
+        { applyOnTouch: false },
+      )
+    },
+    [tryHoverSelectCard],
+  )
+
+  const isSelected = useCallback(
+    (index: number) => index === keyboardFocusIndex,
+    [keyboardFocusIndex],
+  )
+
+  const noopActionsMenuOpenChange = useCallback(() => {}, [])
+
   const onRemovePostFromCollection = useCallback(
     async (postUri: string) => {
       if (!isOwner || !decodedUri) return
@@ -362,7 +390,7 @@ export function CollectionDetailContent({ uri: decodedUri }: CollectionDetailCon
             {...gridPointerGateProps}
             data-view-mode={viewMode}
           >
-            {distributeByHeight(displayItems, cols).map((column, colIndex) => (
+            {distributedColumns.map((column, colIndex) => (
               <ProfileColumn
                 key={colIndex}
                 column={column}
@@ -373,24 +401,16 @@ export function CollectionDetailContent({ uri: decodedUri }: CollectionDetailCon
                 nsfwPreference={nsfwPreference}
                 unblurredUris={unblurredUris}
                 setUnblurred={setUnblurred}
-                likeOverrides={likeOverrides}
                 setLikeOverrides={setLikeOverride}
-                openPostModal={(uri, openReply, focusUri, authorHandle) =>
-                  openPostModal(uri, openReply, focusUri, authorHandle)
-                }
-                cardRef={() => () => {}}
-                onActionsMenuOpenChange={() => {}}
-                onMouseEnter={(originalIndex) =>
-                  tryHoverSelectCard(
-                    originalIndex,
-                    () => keyboardFocusIndexRef.current,
-                    (idx) => setKeyboardFocusIndex(idx),
-                    { applyOnTouch: false }
-                  )
-                }
-                isSelected={(index) => index === keyboardFocusIndex}
+                openPostModal={openPostModal}
+                cardRef={handleCardRef}
+                onActionsMenuOpenChange={noopActionsMenuOpenChange}
+                onMouseEnter={handleMouseEnter}
+                isSelected={isSelected}
                 onRemovePostFromCollection={isOwner ? onRemovePostFromCollection : undefined}
                 feedPreviewActionRow
+                collectionGridPlayback
+                displayContext={postCardDisplayContext}
               />
             ))}
           </div>

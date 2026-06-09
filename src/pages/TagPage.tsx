@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { searchPostsByTag, getPostMediaInfo, isPostNsfw, likePostWithLifecycle, unlikePostWithLifecycle, followAccountWithLifecycle, unfollowAccountWithLifecycle } from '../lib/bsky'
 import type { TimelineItem } from '../lib/bsky'
@@ -7,7 +7,8 @@ import ProfileColumn from '../components/ProfileColumn'
 import Layout from '../components/Layout'
 import { useSession } from '../context/SessionContext'
 import { useProfileModal } from '../context/ProfileModalContext'
-import { useLikeOverrides } from '../context/LikeOverridesContext'
+import { useLikeOverridesActions } from '../context/LikeOverridesContext'
+import { getLikeOverrideFromStore } from '../lib/likeOverridesStore'
 import { useViewMode } from '../context/ViewModeContext'
 import { useModeration } from '../context/ModerationContext'
 import { useColumnCount } from '../hooks/useViewportWidth'
@@ -16,6 +17,7 @@ import styles from './TagPage.module.css'
 import gridStyles from '../styles/postGrid.module.css'
 import { getPostAppPath } from '../lib/appUrl'
 import { getOverlayBackgroundLocation } from '../lib/overlayNavigation'
+import { usePostCardDisplayContext } from '../hooks/usePostCardDisplayContext'
 
 const ESTIMATE_COL_WIDTH = 280
 const CARD_CHROME = 100
@@ -74,7 +76,7 @@ export function TagContent({ tag, inModal = false, onRegisterRefresh }: { tag: s
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [keyboardFocusIndex, setKeyboardFocusIndex] = useState(0)
-  const { likeOverrides, setLikeOverride } = useLikeOverrides()
+  const { setLikeOverride } = useLikeOverridesActions()
   const cardRefsRef = useRef<(HTMLDivElement | null)[]>([])
   const loadMoreSentinelRef = useRef<HTMLDivElement>(null)
   const loadMoreSentinelRefs = useRef<(HTMLDivElement | null)[]>([])
@@ -117,10 +119,19 @@ export function TagContent({ tag, inModal = false, onRegisterRefresh }: { tag: s
   }, [onRegisterRefresh, load])
 
   const { nsfwPreference, unblurredUris, setUnblurred } = useModeration()
-  const mediaItems = items
-    .filter((item) => getPostMediaInfo(item.post))
-    .filter((item) => nsfwPreference !== 'sfw' || !isPostNsfw(item.post))
+  const postCardDisplayContext = usePostCardDisplayContext(inModal)
+  const mediaItems = useMemo(
+    () =>
+      items
+        .filter((item) => getPostMediaInfo(item.post))
+        .filter((item) => nsfwPreference !== 'sfw' || !isPostNsfw(item.post)),
+    [items, nsfwPreference],
+  )
   const cols = useColumnCount(viewMode, 150)
+  const distributedColumns = useMemo(
+    () => distributeByHeight(mediaItems, cols),
+    [mediaItems, cols],
+  )
   mediaItemsRef.current = mediaItems
   keyboardFocusIndexRef.current = keyboardFocusIndex
 
@@ -289,7 +300,8 @@ export function TagContent({ tag, inModal = false, onRegisterRefresh }: { tag: s
         const item = items[i]
         if (!item?.post?.uri || !item?.post?.cid) return
         const uri = item.post.uri
-        const currentLikeUri = uri in likeOverrides ? (likeOverrides[uri] ?? undefined) : (item.post as { viewer?: { like?: string } }).viewer?.like
+        const override = getLikeOverrideFromStore(uri)
+        const currentLikeUri = override !== undefined ? (override ?? undefined) : (item.post as { viewer?: { like?: string } }).viewer?.like
         if (currentLikeUri) {
           unlikePostWithLifecycle(currentLikeUri, uri).then(() => {
             setLikeOverride(uri, null)
@@ -308,7 +320,57 @@ export function TagContent({ tag, inModal = false, onRegisterRefresh }: { tag: s
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [beginKeyboardNavigation, mediaItems.length, cols, navigate, location, isModalOpen, inModal, openPostModal, likeOverrides, session, setLikeOverride, setItems])
+  }, [beginKeyboardNavigation, mediaItems.length, cols, navigate, location, isModalOpen, inModal, openPostModal, session, setLikeOverride, setItems])
+
+  const handleOpenPostModal = useCallback(
+    (uri: string, openReply?: boolean, focusUri?: string, authorHandle?: string) => {
+      if (inModal) {
+        openPostModal(uri, openReply, focusUri, authorHandle)
+        return
+      }
+      const path = getPostAppPath(uri, authorHandle)
+      const q = new URLSearchParams()
+      if (openReply) q.set('reply', '1')
+      if (focusUri) q.set('focus', focusUri)
+      const qs = q.toString()
+      navigate(
+        { pathname: path, search: qs ? `?${qs}` : '' },
+        { state: { backgroundLocation: getOverlayBackgroundLocation(location) } },
+      )
+    },
+    [inModal, openPostModal, navigate, location],
+  )
+
+  const handleCardRef = useCallback((index: number) => (el: HTMLDivElement | null) => {
+    cardRefsRef.current[index] = el
+  }, [])
+
+  const handleLoadMoreSentinelRef = useCallback(
+    (colIndex: number) => (el: HTMLDivElement | null) => {
+      if (cols >= 2) loadMoreSentinelRefs.current[colIndex] = el
+      else ((loadMoreSentinelRef as unknown) as { current: HTMLDivElement | null }).current = el
+    },
+    [cols],
+  )
+
+  const handleMouseEnter = useCallback(
+    (originalIndex: number) => {
+      tryHoverSelectCard(
+        originalIndex,
+        () => keyboardFocusIndexRef.current,
+        (idx) => setKeyboardFocusIndex(idx),
+        { applyOnTouch: inModal ? false : undefined },
+      )
+    },
+    [tryHoverSelectCard, inModal],
+  )
+
+  const isSelected = useCallback(
+    (index: number) => index === keyboardFocusIndex,
+    [keyboardFocusIndex],
+  )
+
+  const noopActionsMenuOpenChange = useCallback(() => {}, [])
 
   if (!tag) return null
 
@@ -330,55 +392,27 @@ export function TagContent({ tag, inModal = false, onRegisterRefresh }: { tag: s
             {...gridPointerGateProps}
             data-view-mode={viewMode}
           >
-            {distributeByHeight(mediaItems, cols).map((column, colIndex) => (
+            {distributedColumns.map((column, colIndex) => (
               <ProfileColumn
                 key={colIndex}
                 column={column}
                 colIndex={colIndex}
                 scrollRef={null}
-                loadMoreSentinelRef={
-                  cursor
-                    ? (el) => {
-                        if (cols >= 2) loadMoreSentinelRefs.current[colIndex] = el
-                        else ((loadMoreSentinelRef as unknown) as { current: HTMLDivElement | null }).current = el
-                      }
-                    : undefined
-                }
+                loadMoreSentinelRef={cursor ? handleLoadMoreSentinelRef(colIndex) : undefined}
                 hasCursor={!!cursor}
                 keyboardFocusIndex={keyboardFocusIndex}
                 actionsMenuOpenForIndex={null}
                 nsfwPreference={nsfwPreference}
                 unblurredUris={unblurredUris}
                 setUnblurred={setUnblurred}
-                likeOverrides={likeOverrides}
                 setLikeOverrides={setLikeOverride}
-                openPostModal={
-                  inModal
-                    ? openPostModal
-                    : (uri, openReply, focusUri, authorHandle) => {
-                        const path = getPostAppPath(uri, authorHandle)
-                        const q = new URLSearchParams()
-                        if (openReply) q.set('reply', '1')
-                        if (focusUri) q.set('focus', focusUri)
-                        const qs = q.toString()
-                        navigate(
-                          { pathname: path, search: qs ? `?${qs}` : '' },
-                          { state: { backgroundLocation: getOverlayBackgroundLocation(location) } }
-                        )
-                      }
-                }
-                cardRef={(index) => (el) => { cardRefsRef.current[index] = el }}
-                onActionsMenuOpenChange={() => {}}
-                onMouseEnter={(originalIndex) =>
-                  tryHoverSelectCard(
-                    originalIndex,
-                    () => keyboardFocusIndexRef.current,
-                    (idx) => setKeyboardFocusIndex(idx),
-                    { applyOnTouch: inModal ? false : undefined }
-                  )
-                }
+                openPostModal={handleOpenPostModal}
+                cardRef={handleCardRef}
+                onActionsMenuOpenChange={noopActionsMenuOpenChange}
+                onMouseEnter={handleMouseEnter}
                 suppressHoverNsfwUnblur={inModal}
-                isSelected={(index) => index === keyboardFocusIndex}
+                isSelected={isSelected}
+                displayContext={postCardDisplayContext}
               />
             ))}
           </div>
