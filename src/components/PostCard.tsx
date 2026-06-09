@@ -476,11 +476,6 @@ function PostCardInner({
     const img = e.currentTarget
     if (!img.naturalWidth || !img.naturalHeight) return
     const url = currentImageUrl
-    if (!shouldCorrectLayoutAspect(media?.aspectRatio, img.naturalWidth, img.naturalHeight)) {
-      const stable = initialLayoutAspect(url, media?.aspectRatio) ?? img.naturalWidth / img.naturalHeight
-      if (url) setCachedMediaAspect(url, stable)
-      return
-    }
     const resolved = resolveMediaAspect(media?.aspectRatio, img.naturalWidth, img.naturalHeight)
     if (url) setCachedMediaAspect(url, resolved)
     setMediaAspect((prev) => (prev === resolved ? prev : resolved))
@@ -1274,13 +1269,11 @@ function PostCardInner({
                           <ProgressiveImage
                             src={imgItem.url}
                             alt=""
-                            className={styles.mediaGridImg}
-                            aspectRatio={aspectForImageIndex(idx)}
+                            className={`${styles.mediaGridImg} ${styles.mediaGridFill}`}
                             loading="lazy"
                             preloadDistance={cardMediaPreloadDistance}
                             root={modalScrollContainer}
                             onLoad={(e) => handleMultiImageLoad(idx, e)}
-                            objectFit="contain"
                           />
                         </div>
                       )
@@ -1293,13 +1286,11 @@ function PostCardInner({
               <ProgressiveImage
                 src={currentImageUrl}
                 alt=""
-                className={styles.media}
-                aspectRatio={mediaAspect ?? undefined}
+                className={`${styles.media} ${styles.mediaSingleFill}`}
                 loading={isSelected ? 'eager' : 'lazy'}
                 preloadDistance={cardMediaPreloadDistance}
                 root={modalScrollContainer}
                 onLoad={handleImageLoad}
-                objectFit="contain"
               />
             </>
           )}
