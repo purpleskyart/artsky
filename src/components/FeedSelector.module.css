@@ -385,8 +385,31 @@
 }
 
 .wrapDropdown .header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.5rem;
   margin-bottom: 0.4rem;
   padding-bottom: 0.35rem;
+  overflow: visible;
+}
+
+.wrapDropdown .headerTitle {
+  white-space: nowrap;
+}
+
+.wrapDropdown .header > :nth-child(2) {
+  min-width: 0;
+}
+
+.wrapDropdown .header .customForm,
+.wrapDropdown .header .addFeed {
+  width: 100%;
+}
+
+.wrapDropdown .header .input {
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .wrapDropdown .sectionAdd {
@@ -779,7 +802,10 @@
 
 /* Feeds dropdown: suggestions in flow so they don’t get clipped and don’t cover Add/Cancel */
 .wrapDropdown .customInputWrap .customSuggestionsWrap {
-  position: static;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
   margin-top: 4px;
 }
 

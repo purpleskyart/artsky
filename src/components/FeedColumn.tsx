@@ -3,7 +3,7 @@ import { stableCardKey } from '../pages/FeedPage'
 import { getPostAllMediaForDisplay, isPostNsfw } from '../lib/bsky'
 import OptimizedPostCard from './OptimizedPostCard'
 import { setInitialPostForUri } from '../lib/postCache'
-import styles from '../pages/FeedPage.module.css'
+import styles from '../styles/postGrid.module.css'
 import { memo, useCallback } from 'react'
 
 type ColumnItem = { entry: FeedDisplayEntry; originalIndex: number }

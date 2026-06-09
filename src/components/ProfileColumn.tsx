@@ -5,8 +5,7 @@ import { isPostNsfw } from '../lib/bsky'
 import PostCard from './PostCard'
 import { setInitialPostForUri } from '../lib/postCache'
 import { observeVirtualization } from '../lib/cardVirtualization'
-import profileStyles from '../pages/ProfilePage.module.css'
-import feedStyles from '../pages/FeedPage.module.css'
+import styles from '../styles/postGrid.module.css'
 
 const DESKTOP_BREAKPOINT = 768
 function subscribeDesktop(cb: () => void) {
@@ -50,8 +49,6 @@ export interface ProfileColumnProps {
   belowCard?: (ctx: { item: TimelineItem; originalIndex: number }) => ReactNode
   /** When set (e.g. collection page owner), ⋮ menu can remove post from that collection */
   onRemovePostFromCollection?: (postUri: string) => void | Promise<void>
-  /** Use feed column/card spacing (e.g. collection grid) instead of profile/tighter gaps */
-  layout?: 'profile' | 'feed'
   /** Center collect / avatar / like with ⋮ on the right (homepage preview layout) */
   feedPreviewActionRow?: boolean
 }
@@ -116,11 +113,9 @@ function ProfileColumnComponent(props: ProfileColumnProps) {
     onProfileAuthorFollowChange,
     belowCard,
     onRemovePostFromCollection,
-    layout = 'profile',
     feedPreviewActionRow = true,
   } = props
 
-  const styles = layout === 'feed' ? feedStyles : profileStyles
   const isDesktop = useSyncExternalStore(subscribeDesktop, getDesktopSnapshot, () => false)
 
   if (column.length === 0) {

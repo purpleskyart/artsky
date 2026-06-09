@@ -13,7 +13,7 @@ import { useModeration } from '../context/ModerationContext'
 import { useColumnCount } from '../hooks/useViewportWidth'
 import { usePostCardGridPointerGate } from '../hooks/usePostCardGridPointerGate'
 import styles from '../pages/TagPage.module.css'
-import profileGridStyles from '../pages/ProfilePage.module.css'
+import gridStyles from '../styles/postGrid.module.css'
 import { getPostAppPath } from '../lib/appUrl'
 import { getOverlayBackgroundLocation } from '../lib/overlayNavigation'
 import { pickAdjacentCardIndexByViewport } from '../lib/masonryHorizontalNav'
@@ -640,7 +640,7 @@ export function SearchModalGridContent({
         <>
           <div
             ref={gridRef}
-            className={`${profileGridStyles.gridColumns} ${viewMode === 'a' ? profileGridStyles.gridView3 : profileGridStyles[`gridView${viewMode}`]}`}
+            className={`${gridStyles.gridColumns} ${viewMode === 'a' ? gridStyles.gridView3 : gridStyles[`gridView${viewMode}`]}`}
             {...gridPointerGateProps}
             data-view-mode={viewMode}
           >
@@ -697,7 +697,7 @@ export function SearchModalGridContent({
               />
             ))}
           </div>
-          {loadingMore && <div className={profileGridStyles.loadingMore}>Loading…</div>}
+          {loadingMore && <div className={styles.loadingMore}>Loading…</div>}
         </>
       )}
     </div>

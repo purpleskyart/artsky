@@ -1,0 +1,112 @@
+/* Shared masonry / column grid for feed, profile, tag, collections, modals */
+
+.grid {
+  display: grid;
+  grid-auto-rows: auto;
+  gap: 0.4rem;
+  width: 100%;
+  min-width: 0;
+  margin-bottom: 0.25rem;
+  transition: grid-template-columns 0.28s ease, gap 0.28s ease;
+  overflow: visible;
+}
+
+/* Card height follows media aspect ratio — no max-height cap on previews */
+.gridView1 {
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+  grid-auto-rows: auto;
+  gap: 0.4rem;
+}
+
+@media (min-width: 768px) {
+  .gridView1 {
+    max-width: min(600px, calc(100vw - 2rem));
+    margin: 0 auto;
+  }
+}
+
+.gridView2,
+.gridView3 {
+  grid-auto-rows: min-content;
+  align-items: start;
+}
+
+.gridView2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.4rem;
+}
+
+.gridView3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.4rem;
+}
+
+.gridView4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.4rem;
+}
+
+.gridView5 {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.4rem;
+}
+
+@media (min-width: 768px) {
+  .gridView2 {
+    max-width: min(900px, calc(100vw - 2rem));
+    margin: 0 auto;
+  }
+}
+
+.gridColumns {
+  display: flex;
+  flex-direction: row;
+  gap: 0.35rem;
+  align-items: flex-start;
+  width: 100%;
+  min-width: 0;
+  margin-bottom: 1rem;
+  overflow: visible;
+}
+
+@media (min-width: 768px) {
+  .gridColumns.gridView1 .gridColumn {
+    gap: 0.55rem;
+  }
+}
+
+.gridColumn {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: visible;
+}
+
+.gridItem {
+  min-width: 0;
+  margin-bottom: 0.4rem;
+  overflow: visible;
+  position: relative;
+}
+
+.gridItem:hover,
+.gridItem[data-selected] {
+  z-index: 1;
+}
+
+@media (hover: hover) {
+  .gridItem:has(.card:hover),
+  .gridItem:has(.cardSelected),
+  .gridItem[data-selected] {
+    z-index: 10;
+  }
+}
+
+.loadMoreSentinel {
+  height: 1px;
+  width: 100%;
+  pointer-events: none;
+  visibility: hidden;
+  overflow-anchor: none;
+}
