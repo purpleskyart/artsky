@@ -1,6 +1,7 @@
 import { lazy, Suspense, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useProfileModal } from '../context/ProfileModalContext'
+import { HOME_PATH } from '../lib/routes'
 import AppModal from './AppModal'
 
 // Lazy-load ProfileContent to avoid circular dependency
@@ -19,7 +20,7 @@ export default function ProfileModalOverlay() {
   }, [navigate])
 
   const onDesktopBackdrop = useCallback(() => {
-    navigate('/feed', { replace: true })
+    navigate(HOME_PATH, { replace: true })
   }, [navigate])
 
   const h = handle?.trim()

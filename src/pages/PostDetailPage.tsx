@@ -18,6 +18,7 @@ import ComposerSuggestions from '../components/ComposerSuggestions'
 import CharacterCountWithCircle from '../components/CharacterCountWithCircle'
 import { useProfileModal } from '../context/ProfileModalContext'
 import { getPostAppPath } from '../lib/appUrl'
+import { HOME_PATH } from '../lib/routes'
 import { usePostCardGridPointerGate } from '../hooks/usePostCardGridPointerGate'
 import { useLoginModal } from '../context/LoginModalContext'
 import { useFollowOverrides } from '../context/FollowOverridesContext'
@@ -1514,7 +1515,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
         quoteImageAlts.length > 0 ? quoteImageAlts : undefined,
       )
       closeQuoteComposer()
-      navigate('/feed')
+      navigate(HOME_PATH)
     } catch (err: unknown) {
       setQuoteError(err instanceof Error ? err.message : 'Failed to post quote')
     } finally {
@@ -2673,7 +2674,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                       verticalIcon
                       open={openActionsMenuUri === thread.post.uri}
                       onOpenChange={(open) => setOpenActionsMenuUri(open ? thread.post.uri : null)}
-                      onHidden={() => navigate('/feed')}
+                      onHidden={() => navigate(HOME_PATH)}
                       postedAt={(thread.post.record as { createdAt?: string })?.createdAt}
                       onViewQuotes={openQuotesModal}
                     />
@@ -3166,14 +3167,14 @@ export default function PostDetailPage() {
       .then((p) => {
         if (cancelled) return
         if (!p?.did) {
-          navigate('/feed', { replace: true })
+          navigate(HOME_PATH, { replace: true })
           return
         }
         setResolvedUri(`at://${p.did}/app.bsky.feed.post/${rkey}`)
         setResolving(false)
       })
       .catch(() => {
-        if (!cancelled) navigate('/feed', { replace: true })
+        if (!cancelled) navigate(HOME_PATH, { replace: true })
       })
     return () => {
       cancelled = true
@@ -3188,7 +3189,7 @@ export default function PostDetailPage() {
     )
   }
   if (!resolvedUri) {
-    navigate('/feed', { replace: true })
+    navigate(HOME_PATH, { replace: true })
     return null
   }
   const fromState = (location.state as { openReply?: boolean })?.openReply

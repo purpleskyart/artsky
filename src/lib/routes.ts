@@ -1,3 +1,12 @@
+/** Canonical home feed URL (purplesky.art with no path segment). */
+export const HOME_PATH = '/'
+
+/** True when pathname is the home feed (`/` or legacy `/feed` before redirect). */
+export function isHomePath(pathname: string): boolean {
+  const normalized = pathname.replace(/\/$/, '') || '/'
+  return normalized === HOME_PATH || normalized === '/feed'
+}
+
 /**
  * Path segments reserved for first-class app routes.
  * Two-segment paths `/:a/:b` are interpreted as `/:handle/:collectionSlug` only when `a` is not in this set.
@@ -27,7 +36,7 @@ export function isHandleBoardPath(pathname: string): boolean {
 /** Pages that render the multi-column masonry grid (same view-mode “All columns” layout as the home feed). */
 export function isMultiColumnGridRoute(pathname: string): boolean {
   const normalized = pathname.replace(/\/$/, '') || '/'
-  if (normalized === '/feed') return true
+  if (isHomePath(normalized)) return true
   if (normalized.startsWith('/tag/')) return true
   if (/^\/profile\/[^/]+$/.test(normalized)) return true
   return isHandleBoardPath(normalized)

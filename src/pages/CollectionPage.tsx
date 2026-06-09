@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, useParams } from 'react-router-dom'
 import Layout from '../components/Layout'
-import { RESERVED_APP_PATH_SEGMENTS } from '../lib/routes'
+import { HOME_PATH, RESERVED_APP_PATH_SEGMENTS } from '../lib/routes'
 import type { AppBskyFeedDefs } from '@atproto/api'
 import ProfileColumn from '../components/ProfileColumn'
 import { getPostMediaInfo, getPostsBatch, getProfileCached, isPostNsfw, type TimelineItem } from '../lib/bsky'
@@ -409,8 +409,8 @@ export default function CollectionPage() {
   const { handle, boardSlug } = useParams<{ handle: string; boardSlug: string }>()
   const h = handle?.trim()
   const s = boardSlug?.trim()
-  if (!h || !s) return <Navigate to="/feed" replace />
-  if (RESERVED_APP_PATH_SEGMENTS.has(h.toLowerCase())) return <Navigate to="/feed" replace />
+  if (!h || !s) return <Navigate to={HOME_PATH} replace />
+  if (RESERVED_APP_PATH_SEGMENTS.has(h.toLowerCase())) return <Navigate to={HOME_PATH} replace />
   const uri = `${h}/${s}`
   return (
     <Layout title="Collection" showNav>

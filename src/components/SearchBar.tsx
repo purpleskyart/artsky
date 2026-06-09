@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useProfileModal } from '../context/ProfileModalContext'
 import { searchActorsTypeahead, getSuggestedFeeds, getProfileCached } from '../lib/bsky'
 import { scrollFieldAboveKeyboard } from '../lib/mobileKeyboardFocus'
+import { HOME_PATH } from '../lib/routes'
 import type { FeedSource } from '../types'
 import type { AppBskyActorDefs, AppBskyFeedDefs } from '@atproto/api'
 import styles from './SearchBar.module.css'
@@ -259,7 +260,7 @@ export default function SearchBar({
       if (onSelectFeed) {
         onSelectFeed(source)
       } else {
-        navigate('/feed', { state: { feedSource: source } })
+        navigate(HOME_PATH, { state: { feedSource: source } })
       }
       inputRef.current?.blur()
       onClose?.()

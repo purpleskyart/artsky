@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { getProfileCached } from '../lib/bsky'
 import { useProfileModal } from '../context/ProfileModalContext'
+import { HOME_PATH } from '../lib/routes'
 import PostDetailModal from './PostDetailModal'
 
 const handleDidCache = new Map<string, string>()
@@ -47,7 +48,7 @@ export default function PostModalOverlay() {
       .then((p) => {
         if (cancelled) return
         if (!p?.did) {
-          navigate('/feed', { replace: true })
+          navigate(HOME_PATH, { replace: true })
           return
         }
         handleDidCache.set(normalized, p.did)
@@ -55,7 +56,7 @@ export default function PostModalOverlay() {
         setResolving(false)
       })
       .catch(() => {
-        if (!cancelled) navigate('/feed', { replace: true })
+        if (!cancelled) navigate(HOME_PATH, { replace: true })
       })
     return () => {
       cancelled = true
@@ -71,7 +72,7 @@ export default function PostModalOverlay() {
   }, [navigate])
 
   const onDesktopBackdrop = useCallback(() => {
-    navigate('/feed', { replace: true })
+    navigate(HOME_PATH, { replace: true })
   }, [navigate])
 
   if (resolving || (resolvedUri == null && (handle || rkey))) {
