@@ -44,6 +44,7 @@ import { asyncStorage } from '../lib/AsyncStorage'
 import { pickAdjacentCardIndexByViewport } from '../lib/masonryHorizontalNav'
 import { preloadPostOpen } from '../lib/modalPreload'
 import styles from './FeedPage.module.css'
+import gridStyles from '../styles/postGrid.module.css'
 
 /** Dedupe feed items by post URI (keep first). Stops the same post appearing as both original and repost. */
 function dedupeFeedByPostUri(items: TimelineItem[] | undefined | null): TimelineItem[] {
@@ -320,6 +321,7 @@ export default function FeedPage() {
   /** Maximum cooldown after a retry-triggered load to prevent chaining. */
   const RETRY_LOAD_COOLDOWN_MS = 2000
   const { openPostModal, isModalOpen } = useProfileModal()
+  const prevModalOpenRef = useRef(isModalOpen)
   const cardRefsRef = useRef<(HTMLDivElement | null)[]>([])
   /** Refs for focused media elements: [cardIndex][mediaIndex] for scroll-into-view on multi-image posts */
   const mediaRefsRef = useRef<Record<number, Record<number, HTMLElement | null>>>({})
@@ -531,13 +533,22 @@ export default function FeedPage() {
         ])
 
       if (!session) {
-        const { feed, cursor: next } = await withTimeout(getGuestFeed(limit, nextCursor), FEED_LOAD_TIMEOUT_MS)
-        
-        // Check if request was cancelled before updating state
-        if (signal?.aborted) {
-          return
+        let feed: TimelineItem[] = []
+        let next: string | undefined
+        let guestCursor = nextCursor
+
+        // Guest homepage should surface posts: skip empty author batches instead of showing "no posts in this batch".
+        const maxEmptyGuestSkips = 8
+        for (let skip = 0; skip <= maxEmptyGuestSkips; skip++) {
+          const result = await withTimeout(getGuestFeed(limit, guestCursor), FEED_LOAD_TIMEOUT_MS)
+          feed = result.feed
+          next = result.cursor
+          if (signal?.aborted) return
+          if (feed.length > 0 || !next) break
+          if (nextCursor) break
+          guestCursor = next
         }
-        
+
         const apply = () => {
           const merged = dedupeFeedByPostUri(nextCursor ? [...feedItemsRef.current, ...feed] : feed)
           dispatch({ type: 'SET_ITEMS', items: merged, cursor: next })
@@ -648,6 +659,21 @@ export default function FeedPage() {
       }
     }
   }, [source, session, authResolved, mixEntries, mixTotalPercent, cols])
+
+  // Feed stays mounted under modals; restore hidden posts when the overlay closes so the homepage isn't empty.
+  useEffect(() => {
+    const wasOpen = prevModalOpenRef.current
+    prevModalOpenRef.current = isModalOpen
+    if (!wasOpen || isModalOpen) return
+
+    dispatch({ type: 'CLEAR_SEEN_SNAPSHOT' })
+
+    if (!session && feedItemsRef.current.length === 0) {
+      feedMixChangedRef.current = true
+      feedMixChangedVersionRef.current += 1
+      void load(undefined)
+    }
+  }, [isModalOpen, load, session])
 
   useEffect(() => {
     feedMixChangedRef.current = true
@@ -1589,7 +1615,7 @@ export default function FeedPage() {
           <>
             <div
               ref={bindGridRef}
-              className={`${styles.gridColumns} ${viewMode === 'a' ? styles.gridView3 : styles[`gridView${viewMode}`]}`}
+              className={`${gridStyles.gridColumns} ${viewMode === 'a' ? gridStyles.gridView3 : gridStyles[`gridView${viewMode}`]}`}
               {...gridPointerGateProps}
               data-view-mode={viewMode}
             >

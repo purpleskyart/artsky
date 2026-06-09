@@ -16,7 +16,7 @@ import { useProfileModal } from '../context/ProfileModalContext'
 import { useLikeOverrides } from '../context/LikeOverridesContext'
 import { useColumnCount } from '../hooks/useViewportWidth'
 import { usePostCardGridPointerGate } from '../hooks/usePostCardGridPointerGate'
-import feedGridStyles from './FeedPage.module.css'
+import gridStyles from '../styles/postGrid.module.css'
 import styles from './CollectionPage.module.css'
 
 const ESTIMATE_COL_WIDTH = 280
@@ -358,14 +358,13 @@ export function CollectionDetailContent({ uri: decodedUri }: CollectionDetailCon
       ) : (
         <>
           <div
-            className={`${feedGridStyles.gridColumns} ${viewMode === 'a' ? feedGridStyles.gridView3 : feedGridStyles[`gridView${viewMode}`]}`}
+            className={`${gridStyles.gridColumns} ${viewMode === 'a' ? gridStyles.gridView3 : gridStyles[`gridView${viewMode}`]}`}
             {...gridPointerGateProps}
             data-view-mode={viewMode}
           >
             {distributeByHeight(displayItems, cols).map((column, colIndex) => (
               <ProfileColumn
                 key={colIndex}
-                layout="feed"
                 column={column}
                 colIndex={colIndex}
                 scrollRef={null}

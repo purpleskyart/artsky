@@ -1,6 +1,13 @@
 import { useRef, useEffect, useLayoutEffect, useState, useCallback, useMemo, memo } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { getPostMediaInfoForDisplay, getPostAllMediaForDisplay, getPostExternalLink, getReplyParentPostView, getQuotedPostView, POST_MEDIA_FEED_PREVIEW, likePostWithLifecycle, unlikePostWithLifecycle, followAccountWithLifecycle, type TimelineItem } from '../lib/bsky'
+import {
+  resolveMediaAspect,
+  initialLayoutAspect,
+  shouldCorrectLayoutAspect,
+  DEFAULT_PLACEHOLDER_ASPECT,
+} from '../lib/mediaAspect'
+import { setCachedMediaAspect } from '../lib/mediaAspectCache'
 import { useSession } from '../context/SessionContext'
 import { useLoginModal } from '../context/LoginModalContext'
 import { useArtOnly } from '../context/ArtOnlyContext'
@@ -215,8 +222,13 @@ function PostCardInner({
   const isLiked = !!effectiveLikedUri
 
   const [mediaAspect, setMediaAspect] = useState<number | null>(() =>
-    hasMedia && media?.aspectRatio != null ? media.aspectRatio : null,
+    hasMedia && media ? initialLayoutAspect(media.url, media.aspectRatio) : null,
   )
+  /** Per-image layout aspects for multi-image stacks (cache → API, then batched measured correction). */
+  const [imageAspects, setImageAspects] = useState<(number | null)[]>([])
+  const multiLoadCountRef = useRef(0)
+  const multiPendingAspectsRef = useRef<(number | null)[]>([])
+  const multiBatchAppliedRef = useRef(false)
   const [isVideoPlaying, setIsVideoPlaying] = useState(false)
   const [actionsMenuOpen, setActionsMenuOpen] = useState(false)
   const actionsMenuDropdownRef = useRef<HTMLDivElement>(null)
@@ -413,38 +425,134 @@ function PostCardInner({
   )
   const currentImageUrl = isMultipleImages ? imageItems[0]?.url : (media?.url ?? '')
 
+  const aspectForImageIndex = useCallback(
+    (idx: number) => {
+      const resolved = imageAspects[idx]
+      if (resolved != null && resolved > 0) return resolved
+      const item = imageItems[idx]
+      const initial = initialLayoutAspect(item?.url, item?.aspectRatio)
+      if (initial != null) return initial
+      return DEFAULT_PLACEHOLDER_ASPECT
+    },
+    [imageAspects, imageItems],
+  )
+
+  const multiImageCombinedAspect = useMemo(() => {
+    if (!isMultipleImages || imageItems.length === 0) return null
+    const totalInverseAspect = imageItems.reduce((s, _m, idx) => s + 1 / aspectForImageIndex(idx), 0)
+    return 1 / totalInverseAspect
+  }, [isMultipleImages, imageItems, aspectForImageIndex])
+
+  const applyMultiImageAspectBatch = useCallback(() => {
+    if (multiBatchAppliedRef.current) return
+    multiBatchAppliedRef.current = true
+    const next = imageItems.map(
+      (m, i) =>
+        multiPendingAspectsRef.current[i] ?? initialLayoutAspect(m.url, m.aspectRatio),
+    )
+    setImageAspects((prev) => {
+      if (prev.length === next.length && prev.every((v, i) => v === next[i])) return prev
+      return next
+    })
+  }, [imageItems])
+
   const handleImageLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
     const img = e.currentTarget
     if (!img.naturalWidth || !img.naturalHeight) return
-    /* For multi-image posts, set aspect only once (from whichever image loads first)
-       so the container doesn't resize when cycling – keeps prev/next arrow positions fixed. */
-    if (isMultipleImages) {
-      setMediaAspect((prev) => (prev != null ? prev : img.naturalWidth! / img.naturalHeight!))
+    const url = currentImageUrl
+    if (!shouldCorrectLayoutAspect(media?.aspectRatio, img.naturalWidth, img.naturalHeight)) {
+      const stable = initialLayoutAspect(url, media?.aspectRatio) ?? img.naturalWidth / img.naturalHeight
+      if (url) setCachedMediaAspect(url, stable)
       return
     }
-    /* Don't overwrite when we already have API aspect – avoids layout shift when image loads */
-    setMediaAspect((prev) => (prev != null ? prev : img.naturalWidth / img.naturalHeight))
-  }, [isMultipleImages])
+    const resolved = resolveMediaAspect(media?.aspectRatio, img.naturalWidth, img.naturalHeight)
+    if (url) setCachedMediaAspect(url, resolved)
+    setMediaAspect((prev) => (prev === resolved ? prev : resolved))
+  }, [currentImageUrl, media?.aspectRatio])
+
+  const handleMultiImageLoad = useCallback(
+    (idx: number, e: React.SyntheticEvent<HTMLImageElement>) => {
+      const img = e.currentTarget
+      if (!img.naturalWidth || !img.naturalHeight) return
+      const item = imageItems[idx]
+      const url = item?.url ?? ''
+      const api = item?.aspectRatio
+      const aspect = shouldCorrectLayoutAspect(api, img.naturalWidth, img.naturalHeight)
+        ? resolveMediaAspect(api, img.naturalWidth, img.naturalHeight)
+        : (initialLayoutAspect(url, api) ?? img.naturalWidth / img.naturalHeight)
+      if (url) setCachedMediaAspect(url, aspect)
+      multiPendingAspectsRef.current[idx] = aspect
+      multiLoadCountRef.current += 1
+      if (multiLoadCountRef.current >= imageItems.length) {
+        applyMultiImageAspectBatch()
+      }
+    },
+    [imageItems, applyMultiImageAspectBatch],
+  )
+
+  const handleVideoDimensions = useCallback((width: number, height: number) => {
+    const url = media?.url
+    if (!shouldCorrectLayoutAspect(media?.aspectRatio, width, height)) {
+      const stable = initialLayoutAspect(url, media?.aspectRatio) ?? width / height
+      if (url) setCachedMediaAspect(url, stable)
+      return
+    }
+    const resolved = resolveMediaAspect(media?.aspectRatio, width, height)
+    if (url) setCachedMediaAspect(url, resolved)
+    setMediaAspect((prev) => (prev === resolved ? prev : resolved))
+  }, [media?.aspectRatio, media?.url])
 
   useEffect(() => {
     if (!hasMedia) return
-    if (media?.aspectRatio != null) setMediaAspect((prev) => prev ?? media.aspectRatio!)
+    const initial = initialLayoutAspect(media?.url, media?.aspectRatio)
+    if (initial != null) setMediaAspect((prev) => prev ?? initial)
     else if (!isVideo) setMediaAspect((prev) => prev ?? null)
-  }, [hasMedia, media?.aspectRatio, media?.videoPlaylist, isVideo])
+  }, [hasMedia, media?.aspectRatio, media?.url, media?.videoPlaylist, isVideo])
 
   /* When post changes (e.g. virtualized list), reset aspect to new post's so reserved size is correct */
   useEffect(() => {
-    if (!hasMedia) setMediaAspect(null)
-    else if (media?.aspectRatio != null) setMediaAspect(media.aspectRatio)
+    multiLoadCountRef.current = 0
+    multiPendingAspectsRef.current = []
+    multiBatchAppliedRef.current = false
+
+    if (!hasMedia) {
+      setMediaAspect(null)
+      setImageAspects([])
+      return
+    }
+    if (isMultipleImages) {
+      setMediaAspect(null)
+      setImageAspects(imageItems.map((m) => initialLayoutAspect(m.url, m.aspectRatio)))
+      return
+    }
+    setImageAspects([])
+    const initial = initialLayoutAspect(media?.url, media?.aspectRatio)
+    if (initial != null) setMediaAspect(initial)
     else if (!isVideo) setMediaAspect(null)
     else setMediaAspect(null)
   }, [post.uri])
 
+  /* Apply partial multi-image batch if some images never fire onLoad */
+  useEffect(() => {
+    if (!isMultipleImages || imageItems.length === 0) return
+    const timer = setTimeout(() => {
+      if (multiLoadCountRef.current > 0 && multiLoadCountRef.current < imageItems.length) {
+        applyMultiImageAspectBatch()
+      }
+    }, 8000)
+    return () => clearTimeout(timer)
+  }, [post.uri, isMultipleImages, imageItems.length, applyMultiImageAspectBatch])
+
   /* Keep previous aspect when switching images so the container doesn't flash to 3/4 and back */
 
   useEffect(() => {
-    if (mediaAspect != null && onAspectRatio) onAspectRatio(mediaAspect)
-  }, [mediaAspect, onAspectRatio])
+    if (!onAspectRatio) return
+    if (isMultipleImages && multiImageCombinedAspect != null) {
+      onAspectRatio(multiImageCombinedAspect)
+    } else if (mediaAspect != null) {
+      onAspectRatio(mediaAspect)
+    }
+  }, [mediaAspect, multiImageCombinedAspect, isMultipleImages, onAspectRatio])
 
   /* Unblur NSFW when this card gains focus; reblur when it loses selection. Reused across feed, profile, tag, popups. useLayoutEffect so unblur runs before paint (fixes profile modal). Skip unblur on touch devices within 500ms of touch to prevent scroll-induced selection from unblurring. */
   useLayoutEffect(() => {
@@ -1112,6 +1220,7 @@ function PostCardInner({
                 style={{ aspectRatio: mediaAspect != null ? `${mediaAspect}` : undefined }}
                 intersectionRoot={modalScrollContainer}
                 onPlayStateChange={setIsVideoPlaying}
+                onVideoDimensions={handleVideoDimensions}
               />
               {!isVideoPlaying && (
                 <div className={styles.videoIconOverlay}>
@@ -1122,13 +1231,13 @@ function PostCardInner({
           ) : isMultipleImages ? (
             <>
               {/* Spacer height = sum of each image's height at full width so all images fit without cropping */}
-                {(() => {
-                  const totalInverseAspect = imageItems.reduce((s, m) => s + 1 / (m.aspectRatio || 1), 0)
-                  const combinedAspect = 1 / totalInverseAspect
-                  return (
-                    <div className={styles.mediaWrapGridSpacer} style={{ aspectRatio: String(combinedAspect) }} aria-hidden />
-                  )
-                })()}
+                {multiImageCombinedAspect != null && (
+                    <div
+                      className={styles.mediaWrapGridSpacer}
+                      style={{ aspectRatio: String(multiImageCombinedAspect) }}
+                      aria-hidden
+                    />
+                )}
                 <div className={styles.mediaWrapGrid}>
                   <div className={styles.mediaGrid} style={{ minHeight: 0 }}>
                     {imageItems.map((imgItem, idx) => {
@@ -1139,16 +1248,18 @@ function PostCardInner({
                           key={idx}
                           ref={(el) => onMediaRef?.(mediaIndex, el)}
                           className={`${styles.mediaGridCell} ${isFocused ? styles.mediaGridCellFocused : ''}`}
-                          style={{ flex: `${1 / (imgItem.aspectRatio || 1)} 1 0` }}
+                          style={{ flex: `${1 / aspectForImageIndex(idx)} 1 0` }}
                         >
                           <ProgressiveImage
                             src={imgItem.url}
                             alt=""
                             className={styles.mediaGridImg}
+                            aspectRatio={aspectForImageIndex(idx)}
                             loading="lazy"
                             preloadDistance={cardMediaPreloadDistance}
                             root={modalScrollContainer}
-                            onLoad={idx === 0 ? handleImageLoad : undefined}
+                            onLoad={(e) => handleMultiImageLoad(idx, e)}
+                            objectFit="contain"
                           />
                         </div>
                       )
@@ -1162,6 +1273,7 @@ function PostCardInner({
                 src={currentImageUrl}
                 alt=""
                 className={styles.media}
+                aspectRatio={mediaAspect ?? undefined}
                 loading={isSelected ? 'eager' : 'lazy'}
                 preloadDistance={cardMediaPreloadDistance}
                 root={modalScrollContainer}

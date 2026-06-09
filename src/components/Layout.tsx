@@ -33,7 +33,12 @@ import {
 import { signInWithOAuthRedirect } from '../lib/oauth'
 import { requestDeduplicator } from '../lib/RequestDeduplicator'
 import type { FeedSource } from '../types'
-import { GUEST_FEED_SOURCES, GUEST_MIX_ENTRIES } from '../config/feedSources'
+import {
+  FOR_YOU_FEED_SOURCE,
+  FOR_YOU_FEED_URI,
+  GUEST_FEED_SOURCES,
+  GUEST_MIX_ENTRIES,
+} from '../config/feedSources'
 import { HOME_PATH, isHandleBoardPath, isHomePath, isMultiColumnGridRoute } from '../lib/routes'
 import { getPostAppPath, parseBskyFeedPostUri } from '../lib/appUrl'
 import { useFeedMix } from '../context/FeedMixContext'
@@ -49,10 +54,7 @@ import styles from './Layout.module.css'
 const LayoutComposerForm = lazy(() => import('./LayoutComposerForm'))
 const SettingsModalLazy = lazy(() => import('./SettingsModal'))
 
-const PRESET_FEED_SOURCES: FeedSource[] = [
-  { kind: 'timeline', label: 'Following' },
-  { kind: 'custom', label: "What's Hot", uri: 'at://did:plc:z72i7hdynmk6r22z27h6tvur/app.bsky.feed.generator/whats-hot' },
-]
+const PRESET_FEED_SOURCES: FeedSource[] = [{ kind: 'timeline', label: 'Following' }]
 
 const HIDDEN_PRESET_FEEDS_PREFIX = 'artsky-hidden-preset-feeds'
 const FEED_ORDER_PREFIX = 'artsky-feed-order'
@@ -624,7 +626,15 @@ export default function Layout({ title, children, showNav }: Props) {
   const visiblePresets = PRESET_FEED_SOURCES.filter((s) => !s.uri || !hiddenPresetUris.has(s.uri))
   const savedDeduped = savedFeedSources.filter((s) => !s.uri || (!presetUris.has(s.uri) && !guestFeedUris.has(s.uri)))
   const allFeedSources = useMemo(() => {
-    const combined: FeedSource[] = [...visiblePresets, ...savedDeduped]
+    const combined: FeedSource[] = [...visiblePresets]
+    const listedUris = new Set(
+      [...visiblePresets, ...savedDeduped].map((s) => s.uri).filter((uri): uri is string => !!uri)
+    )
+    if (!listedUris.has(FOR_YOU_FEED_URI)) {
+      const followingIdx = combined.findIndex((s) => s.kind === 'timeline')
+      combined.splice(followingIdx >= 0 ? followingIdx + 1 : 0, 0, FOR_YOU_FEED_SOURCE)
+    }
+    combined.push(...savedDeduped)
     if (feedOrder.length === 0) return combined
     const orderMap = new Map(feedOrder.map((id, i) => [id, i]))
     return [...combined].sort((a, b) => {
@@ -635,7 +645,26 @@ export default function Layout({ title, children, showNav }: Props) {
   }, [visiblePresets, savedDeduped, feedOrder])
   const fallbackFeedSource = visiblePresets[0] ?? PRESET_FEED_SOURCES[0]
   const handleFeedsToggleSource = useCallback(
-    (clicked: FeedSource) => {
+    async (clicked: FeedSource) => {
+      if (
+        session &&
+        clicked.uri === FOR_YOU_FEED_URI &&
+        !savedFeedSources.some((s) => s.uri === FOR_YOU_FEED_URI)
+      ) {
+        setFeedAddError(null)
+        try {
+          const uri = await resolveFeedUri(FOR_YOU_FEED_URI)
+          await addSavedFeed(uri)
+          const label =
+            clicked.label ??
+            (await requestDeduplicator.dedupe(`feed-name:${uri}`, () => getFeedDisplayName(uri)))
+          const normalized: FeedSource = { kind: 'custom', label, uri }
+          setSavedFeedSources((prev) => (prev.some((s) => s.uri === uri) ? prev : [...prev, normalized]))
+        } catch (err) {
+          setFeedAddError(err instanceof Error ? err.message : 'Could not add feed. Try again.')
+          return
+        }
+      }
       if (mixEntries.length === 0) {
         addEntry(fallbackFeedSource)
         addEntry(clicked)
@@ -643,7 +672,7 @@ export default function Layout({ title, children, showNav }: Props) {
         toggleSource(clicked)
       }
     },
-    [mixEntries.length, addEntry, toggleSource]
+    [session, savedFeedSources, mixEntries.length, addEntry, toggleSource, fallbackFeedSource]
   )
 
   const handleReorderFeeds = useCallback((ordered: FeedSource[]) => {
@@ -657,8 +686,12 @@ export default function Layout({ title, children, showNav }: Props) {
   }, [did])
 
   const removableSourceUris = useMemo(
-    () => new Set([...savedDeduped.map((s) => s.uri).filter((uri): uri is string => !!uri), ...presetUris]),
-    [savedDeduped]
+    () =>
+      new Set([
+        ...savedFeedSources.map((s) => s.uri).filter((uri): uri is string => !!uri),
+        ...presetUris,
+      ]),
+    [savedFeedSources, presetUris]
   )
 
   const startHomeHold = useCallback(() => {
@@ -938,7 +971,7 @@ export default function Layout({ title, children, showNav }: Props) {
         }
         setSavedFeedSources((prev) => prev.filter((s) => s.uri !== source.uri))
         if (mixEntries.some((e) => e.source.uri === source.uri)) toggleSource(source)
-        if (presetUris.has(source.uri)) {
+        if (presetUris.has(source.uri) && source.uri !== FOR_YOU_FEED_URI) {
           setHiddenPresetUris((prev) => {
             const next = new Set(prev)
             next.add(source.uri!)

@@ -26,7 +26,7 @@ import { usePostCardGridPointerGate } from '../hooks/usePostCardGridPointerGate'
 import { pickAdjacentCardIndexByViewport } from '../lib/masonryHorizontalNav'
 import { ProgressiveImage } from '../components/ProgressiveImage'
 import styles from './ProfilePage.module.css'
-import feedStyles from './FeedPage.module.css'
+import gridStyles from '../styles/postGrid.module.css'
 
 const REASON_REPOST = 'app.bsky.feed.defs#reasonRepost'
 const REASON_PIN = 'app.bsky.feed.defs#reasonPin'
@@ -1270,7 +1270,7 @@ export default function ProfileContent({
               <div className={styles.empty}>No text-only posts (no media, no replies).</div>
             ) : (
               <>
-                <div className={`${styles.grid} ${styles.gridView1}`} data-view-mode="1">
+                <div className={`${gridStyles.grid} ${gridStyles.gridView1}`} data-view-mode="1">
                 {textItems.map((item, index) => (
                   <div key={`${item.post.uri}-${index}`}>
                     <PostCard
@@ -1293,7 +1293,7 @@ export default function ProfileContent({
                   </div>
                 ))}
               </div>
-              {cursor && <div ref={loadMoreSentinelRef} className={styles.loadMoreSentinel} aria-hidden />}
+              {cursor && <div ref={loadMoreSentinelRef} className={gridStyles.loadMoreSentinel} aria-hidden />}
               {loadingMore && <div className={styles.loadingMore}>Loading…</div>}
               {cursor && !loadingMore && (
                 <div style={{ display: 'flex', justifyContent: 'center', padding: '1rem 0' }}>
@@ -1360,9 +1360,7 @@ export default function ProfileContent({
           <>
             <div
               ref={gridRef}
-              className={inModal
-                ? `${feedStyles.gridColumns} ${viewMode === 'a' ? feedStyles.gridView3 : feedStyles[`gridView${viewMode}`]}`
-                : `${styles.gridColumns} ${viewMode === 'a' ? styles.gridView3 : styles[`gridView${viewMode}`]}`}
+              className={`${gridStyles.gridColumns} ${viewMode === 'a' ? gridStyles.gridView3 : gridStyles[`gridView${viewMode}`]}`}
               {...gridPointerGateProps}
               data-view-mode={viewMode}
             >
@@ -1373,7 +1371,6 @@ export default function ProfileContent({
                   colIndex={colIndex}
                   scrollRef={modalScrollRef}
                   feedPreviewActionRow
-                  layout="feed"
                   loadMoreSentinelRef={
                     cursor
                       ? (el) => {

@@ -8,7 +8,7 @@ import { useLikeOverrides } from '../context/LikeOverridesContext'
 import { useModeration } from '../context/ModerationContext'
 import { usePostCardGridPointerGate } from '../hooks/usePostCardGridPointerGate'
 import styles from './QuotesModal.module.css'
-import profileGridStyles from '../pages/ProfilePage.module.css'
+import gridStyles from '../styles/postGrid.module.css'
 
 interface QuotesModalProps {
   postUri: string
@@ -161,7 +161,7 @@ export default function QuotesModal({ postUri, onClose, onBack, canGoBack, onDes
           <div className={styles.empty}>No one has quoted this post yet.</div>
         ) : (
           <>
-            <div className={`${profileGridStyles.gridColumns} ${profileGridStyles.gridView1}`}>
+            <div className={`${gridStyles.gridColumns} ${gridStyles.gridView1}`}>
               <ProfileColumn
                 column={items.map((item, i) => ({ item, originalIndex: i }))}
                 colIndex={0}

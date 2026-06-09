@@ -34,6 +34,18 @@ function isHlsUrl(url: string): boolean {
   return /\.m3u8(\?|$)/i.test(url) || url.includes('m3u8')
 }
 
+/** Enough of the video is visible to start playback. */
+const PLAY_VISIBILITY_RATIO = 0.7
+/** Pause once visibility drops below this (hysteresis avoids play/pause flicker while scrolling). */
+const PAUSE_VISIBILITY_RATIO = 0.45
+
+function attemptPlay(videoId: string, video: HTMLVideoElement): void {
+  registerPlayingVideo(videoId, video)
+  video.play().catch(() => {
+    unregisterPlayingVideo(videoId)
+  })
+}
+
 interface Props {
   playlistUrl: string
   poster?: string
@@ -52,6 +64,8 @@ interface Props {
   onPlayStateChange?: (isPlaying: boolean) => void
   /** When true, force video to be muted regardless of autoPlay setting */
   forceMuted?: boolean
+  /** Called with intrinsic video dimensions when metadata is available */
+  onVideoDimensions?: (width: number, height: number) => void
 }
 
 export default function VideoWithHls({
@@ -68,6 +82,7 @@ export default function VideoWithHls({
   intersectionRoot,
   onPlayStateChange,
   forceMuted = false,
+  onVideoDimensions,
 }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const [showControls, setShowControls] = useState(!controlsHiddenUntilTap)
@@ -192,10 +207,7 @@ export default function VideoWithHls({
 
     const playWhenReady = () => {
       if (autoPlay && video.readyState >= 2) {
-        registerPlayingVideo(videoId, video)
-        video.play().catch(() => {
-          unregisterPlayingVideo(videoId)
-        })
+        attemptPlay(videoId, video)
       }
     }
 
@@ -227,6 +239,23 @@ export default function VideoWithHls({
     }
   }, [onPlayStateChange])
 
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video || !onVideoDimensions) return
+
+    const reportDimensions = () => {
+      const w = video.videoWidth
+      const h = video.videoHeight
+      if (w > 0 && h > 0) onVideoDimensions(w, h)
+    }
+
+    if (video.videoWidth > 0 && video.videoHeight > 0) {
+      reportDimensions()
+    }
+    video.addEventListener('loadedmetadata', reportDimensions)
+    return () => video.removeEventListener('loadedmetadata', reportDimensions)
+  }, [onVideoDimensions, playlistUrl])
+
   // Pause video when not visible to prevent resource contention with multiple videos
   useEffect(() => {
     const video = videoRef.current
@@ -236,25 +265,30 @@ export default function VideoWithHls({
     const observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
-          const isIntersecting = entry.isIntersecting
+          const ratio = entry.intersectionRatio
 
-          if (!isIntersecting) {
+          if (ratio < PAUSE_VISIBILITY_RATIO) {
             // Video is leaving viewport - pause it and remember it was playing
             if (!video.paused) {
               wasPlayingRef.current = true
               video.pause()
               unregisterPlayingVideo(videoId)
             }
-          } else if (autoPlay && video.paused && video.readyState >= 2) {
+          } else if (
+            ratio >= PLAY_VISIBILITY_RATIO &&
+            autoPlay &&
+            video.paused &&
+            video.readyState >= 2
+          ) {
             // Video is entering viewport and autoplay is enabled - play it
-            registerPlayingVideo(videoId, video)
-            video.play().catch(() => {
-              unregisterPlayingVideo(videoId)
-            })
+            attemptPlay(videoId, video)
           }
         }
       },
-      { threshold: 0.70, rootMargin: '-10% 0px -10% 0px', root: intersectionRoot ?? undefined }
+      {
+        threshold: [0, PAUSE_VISIBILITY_RATIO, PLAY_VISIBILITY_RATIO, 1],
+        root: intersectionRoot ?? undefined,
+      }
     )
 
     observer.observe(video)
@@ -278,7 +312,19 @@ export default function VideoWithHls({
       autoPlay={autoPlay}
       muted={forceMuted || autoPlay}
       loop={loop}
-      onClick={controlsHiddenUntilTap && !showControls ? () => setShowControls(true) : undefined}
+      onClick={(e) => {
+        if (controlsHiddenUntilTap && !showControls) {
+          setShowControls(true)
+          return
+        }
+        const video = videoRef.current
+        if (!video || effectiveControls) return
+        // User gesture unlocks playback when autoplay is blocked (e.g. Low Power Mode).
+        if (video.paused) {
+          e.stopPropagation()
+          attemptPlay(videoIdRef.current, video)
+        }
+      }}
       // Hardware acceleration hints for smoother playback
       disablePictureInPicture
       disableRemotePlayback
