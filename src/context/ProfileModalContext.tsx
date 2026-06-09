@@ -4,6 +4,7 @@ import { ChunkLoadError } from '../components/ChunkLoadError'
 import { HOME_PATH, isHandleBoardPath } from '../lib/routes'
 import { getPostOverlayPath, postUriToQuotesParam, quotesParamToPostUri } from '../lib/appUrl'
 import { getOverlayBackgroundLocation, hasPathOverlayStack } from '../lib/overlayNavigation'
+import { VideoAutoplayBootstrap } from '../components/VideoAutoplayBootstrap'
 import { VideoFeedSuspendSync } from '../components/VideoFeedSuspendSync'
 
 const PostDetailModal = lazy(() => import('../components/PostDetailModal'))
@@ -499,6 +500,7 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
   return (
     <ProfileModalContext.Provider value={value}>
       <VideoFeedSuspendSync />
+      <VideoAutoplayBootstrap />
       {children}
       <ChunkLoadError>{modalStackElements}</ChunkLoadError>
     </ProfileModalContext.Provider>

@@ -37,7 +37,18 @@ type VideoSession = {
 
 const sessions = new Map<string, VideoSession>()
 const feedSuspendReasons = new Set<string>()
+const visibilityRefreshListeners = new Set<() => void>()
 let staggerGeneration = 0
+
+/** Re-measure intersection after layout/images settle (IO often misses the first paint). */
+export function registerVisibilityRefresh(listener: () => void): () => void {
+  visibilityRefreshListeners.add(listener)
+  return () => visibilityRefreshListeners.delete(listener)
+}
+
+export function refreshAllVideoVisibility(): void {
+  for (const listener of visibilityRefreshListeners) listener()
+}
 
 export function setFeedSuspendReason(reason: string, active: boolean): void {
   if (active) feedSuspendReasons.add(reason)
@@ -148,7 +159,9 @@ function shouldAttachHls(session: VideoSession): boolean {
 function shouldPlay(session: VideoSession): boolean {
   if (!session.autoPlay) return false
   if (!shouldSessionBeEligible(session)) return false
-  return session.intersectionRatio >= PLAY_VISIBILITY_RATIO
+  if (session.intersectionRatio >= PLAY_VISIBILITY_RATIO) return true
+  // Layout can settle after the first IO callback (ratio 0); allow play once clearly on-screen.
+  return session.nearViewport && session.intersectionRatio >= PAUSE_VISIBILITY_RATIO
 }
 
 function shouldPause(session: VideoSession): boolean {
