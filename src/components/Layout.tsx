@@ -1650,6 +1650,13 @@ export default function Layout({ title, children, showNav }: Props) {
     [currentAccountDid, openChat]
   )
 
+  const handleStartChat = useCallback(
+    (memberDid: string, memberHandle: string) => {
+      openChat(memberDid, memberHandle)
+    },
+    [openChat]
+  )
+
   const messagesPanelContent = (
     <LayoutMessagesPanel
       messagesFilter={messagesFilter}
@@ -1659,6 +1666,7 @@ export default function Layout({ title, children, showNav }: Props) {
       currentAccountDid={currentAccountDid}
       onClose={() => setMessagesPanelOpen(false)}
       onSelectConvo={handleSelectConvo}
+      onStartChat={handleStartChat}
     />
   )
 
