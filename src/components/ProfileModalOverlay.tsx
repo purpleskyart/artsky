@@ -47,6 +47,7 @@ export default function ProfileModalOverlay() {
           openPostModal={openPostModal}
           isModalOpen={false}
           inModal
+          isTopModal
         />
       </AppModal>
     </Suspense>

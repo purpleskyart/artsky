@@ -468,6 +468,38 @@ export const publicAgent = new AtpAgent({ service: PUBLIC_BSKY, fetch: publicAge
 /** Handles for the guest feed (from config). Re-exported for convenience. */
 export const GUEST_FEED_HANDLES = GUEST_FEED_ACCOUNTS.map((a) => a.handle)
 
+const GUEST_FEED_HANDLE_SET = new Set(GUEST_FEED_HANDLES.map((h) => h.toLowerCase()))
+
+const REASON_REPOST = 'app.bsky.feed.defs#reasonRepost'
+
+function isTimelineRepost(item: TimelineItem): boolean {
+  return (item.reason as { $type?: string } | undefined)?.$type === REASON_REPOST
+}
+
+function isGuestFeedHandle(handle: string | undefined): boolean {
+  if (!handle) return false
+  return GUEST_FEED_HANDLE_SET.has(handle.toLowerCase())
+}
+
+/** Drop reposts and quote posts that quote someone outside the guest feed account list. */
+function isEligibleGuestFeedPost(item: TimelineItem): boolean {
+  if (isTimelineRepost(item)) return false
+  const quoted = getQuotedPostView(item.post)
+  if (!quoted) return true
+  return isGuestFeedHandle(quoted.author.handle)
+}
+
+/** Keep eligible posts only; fetch extra upstream so pages stay filled after filtering. */
+function takeEligibleGuestFeedPosts(feed: TimelineItem[], max: number): TimelineItem[] {
+  const out: TimelineItem[] = []
+  for (const item of feed) {
+    if (!isEligibleGuestFeedPost(item)) continue
+    out.push(item)
+    if (out.length >= max) break
+  }
+  return out
+}
+
 function mergeDedupeSortGuestItems(feedArrays: TimelineItem[][]): TimelineItem[] {
   const all = feedArrays.flat()
   const seen = new Set<string>()
@@ -485,16 +517,20 @@ async function fetchGuestAuthorBatch(
 ): Promise<{ data: { feed: TimelineItem[] } }[]> {
   // Fetch all authors in parallel - no artificial delays needed
   // Bluesky's public API handles concurrent requests efficiently
+  const fetchLimit = Math.min(50, Math.max(perHandle, perHandle * 4))
   const results = await Promise.all(
     actors.map((actor) => {
-      const cacheKey = `guest:${actor}:${perHandle}`
+      const cacheKey = `guest:${actor}:${perHandle}:eligible`
       const cached = responseCache.get<{ data: { feed: TimelineItem[] } }>(cacheKey)
       if (cached) return cached
       return publicAgent
-        .getAuthorFeed({ actor, limit: perHandle })
+        .getAuthorFeed({ actor, limit: fetchLimit })
         .then((res) => {
-          responseCache.set(cacheKey, res, 300_000, 300_000)
-          return res
+          const filtered = {
+            data: { feed: takeEligibleGuestFeedPosts((res.data.feed || []) as TimelineItem[], perHandle) },
+          }
+          responseCache.set(cacheKey, filtered, 300_000, 300_000)
+          return filtered
         })
         .catch(() => ({ data: { feed: [] } }))
     }),
@@ -505,6 +541,7 @@ async function fetchGuestAuthorBatch(
 
 /**
  * Fetch and merge author feeds for guest (no login). Uses public API so it works when logged out.
+ * Reposts are excluded. Quote posts are kept only when the quoted author is on the guest feed list.
  * cursor = page number as string (which author group to fetch).
  * To avoid rate limits (60 req/min), we progressively fetch from more authors per page:
  * - Page 0: fetch from first 3 authors, return up to 20 posts
@@ -657,6 +694,43 @@ function feedCacheAccountKey(): string {
 export type TimelineResponse = Awaited<ReturnType<typeof agent.getTimeline>>
 export type TimelineItem = TimelineResponse['data']['feed'][number]
 export type PostView = TimelineItem['post']
+
+type FeedReasonRepost = { $type?: string; by?: unknown; indexedAt?: string; uri?: string }
+
+/** True when this feed row is a repost (someone reshared the post into the feed). */
+export function isFeedItemRepost(item: TimelineItem): boolean {
+  return !!(item.reason as FeedReasonRepost | undefined)?.by
+}
+
+/** When the post appears because of a repost, returns when it was reposted (ISO datetime). */
+export function getFeedItemRepostedAt(item: TimelineItem): string | undefined {
+  if (!isFeedItemRepost(item)) return undefined
+  const indexedAt = (item.reason as FeedReasonRepost).indexedAt
+  return indexedAt || undefined
+}
+
+/** Repost record URI when present (at://…/app.bsky.feed.repost/…). */
+export function getFeedItemRepostRecordUri(item: TimelineItem): string | undefined {
+  if (!isFeedItemRepost(item)) return undefined
+  return (item.reason as FeedReasonRepost).uri
+}
+
+/** Fetch createdAt from a repost record when feed reason lacks indexedAt. */
+export async function getRepostRecordCreatedAt(repostUri: string): Promise<string | undefined> {
+  const parsed = parseAtUri(repostUri)
+  if (!parsed || parsed.collection !== 'app.bsky.feed.repost') return undefined
+  try {
+    const client = getSession() ? agent : publicAgent
+    const res = await client.com.atproto.repo.getRecord({
+      repo: parsed.did,
+      collection: parsed.collection,
+      rkey: parsed.rkey,
+    })
+    return (res.data.value as { createdAt?: string }).createdAt
+  } catch {
+    return undefined
+  }
+}
 
 /** NSFW/adult label values (self-labels or from labeler) that we treat as sensitive. */
 const NSFW_LABEL_VALS = new Set(['porn', 'sexual', 'nudity', 'graphic-media'])
@@ -1297,6 +1371,7 @@ export function getQuotedPostView(post: PostView): QuotedPostView | null {
  * (not blocked/not found). Use for reply card previews in grids and feeds.
  */
 export function getReplyParentPostView(item: TimelineItem): PostView | null {
+  const recordParentUri = (item.post.record as { reply?: { parent?: { uri?: string } } })?.reply?.parent?.uri
   const reply = (item as { reply?: { parent?: unknown } }).reply
   const parent = reply?.parent
   if (!parent || typeof parent !== 'object') return null
@@ -1306,6 +1381,7 @@ export function getReplyParentPostView(item: TimelineItem): PostView | null {
   if (t === 'app.bsky.feed.defs#notFoundPost' || t === 'app.bsky.feed.defs#blockedPost') return null
   const author = p.author as { did?: string } | undefined
   if (typeof p.uri !== 'string' || typeof p.cid !== 'string' || !author?.did) return null
+  if (recordParentUri && p.uri !== recordParentUri) return null
   return parent as PostView
 }
 

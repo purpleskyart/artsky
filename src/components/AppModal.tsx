@@ -11,6 +11,8 @@ import {
   PULL_THRESHOLD_PX,
 } from '../hooks/usePullToRefresh'
 import { useStandalonePwa } from '../hooks/useStandalonePwa'
+import { getMobileSnapshot, subscribeMobile } from '../config/breakpoints'
+import { gateKeyboardShortcutsForEditable } from '../lib/modalKeyboard'
 import styles from './PostDetailModal.module.css'
 
 /** Must match `.overlay` in PostDetailModal.module.css; incremented per stack layer so paint order stays correct when lazy chunks mount after eager siblings. */
@@ -28,17 +30,6 @@ function collectionModalScrollStorageKey(uri: string): string {
   return `artsky-collection-modal-scroll-v1:${encodeURIComponent(uri)}`
 }
 
-const MOBILE_BREAKPOINT = 768
-function subscribeMobile(cb: () => void) {
-  if (typeof window === 'undefined') return () => {}
-  const mq = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`)
-  mq.addEventListener('change', cb)
-  return () => mq.removeEventListener('change', cb)
-}
-function getMobileSnapshot() {
-  return typeof window !== 'undefined' ? window.innerWidth < MOBILE_BREAKPOINT : false
-}
-
 interface AppModalProps {
   /** Accessible name for the dialog */
   ariaLabel: string
@@ -46,7 +37,7 @@ interface AppModalProps {
   onClose: () => void
   onBack: () => void
   canGoBack: boolean
-  /** Desktop (≥768px): dimmed backdrop uses this so stacked query modals dismiss the full stack. Defaults to onClose. */
+  /** Desktop (≥1280px): dimmed backdrop uses this so stacked query modals dismiss the full stack. Defaults to onClose. */
   onDesktopBackdrop?: () => void
   /** When true, top bar has transparent background so content shows through. */
   transparentTopBar?: boolean
@@ -361,14 +352,7 @@ export default function AppModal({
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable) {
-        if (e.key === 'Escape') {
-          e.preventDefault()
-          target.blur()
-        }
-        return
-      }
+      if (gateKeyboardShortcutsForEditable(e)) return
       if (e.key === 'Escape') {
         e.preventDefault()
         e.stopImmediatePropagation()

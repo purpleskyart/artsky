@@ -60,6 +60,7 @@ export default function SearchModal({
       <SearchModalGridContent
         searchQuery={query}
         inModal
+        isTopModal={isTopModal ?? true}
         contentClassName={modalStyles.searchContentBelowModalChrome}
         onRegisterRefresh={handleRegisterRefresh}
       />

@@ -457,7 +457,7 @@ html[data-theme="dark"] [data-view-mode="1"] .card:hover {
   min-width: 0;
 }
 
-@media (max-width: 767px) {
+@media (max-width: 1279px) {
   .card {
     -webkit-user-select: none;
     user-select: none;
@@ -573,7 +573,7 @@ html[data-theme="dark"] [data-view-mode="1"] .card:hover {
 }
 
 /* Desktop preview cards: profile picture in action row a little bigger */
-@media (min-width: 768px) {
+@media (min-width: 1280px) {
   .cardActionRowAvatar,
   .cardActionRowAvatar img {
     width: 1.65rem;
@@ -641,7 +641,7 @@ html[data-theme="dark"] [data-view-mode="1"] .card:hover {
   display: none;
 }
 
-@media (max-width: 767px) {
+@media (max-width: 1279px) {
   /* Stack profile picture centered above username */
   .handleRow {
     flex-direction: column;

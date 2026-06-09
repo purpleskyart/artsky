@@ -4,19 +4,10 @@ import { publicAgent, getFollowers, getFollowsList, type ProfileViewBasic } from
 import type { AtpAgent } from '@atproto/api'
 import { useProfileModal } from '../context/ProfileModalContext'
 import { useSwipeToClose } from '../hooks/useSwipeToClose'
+import { getMobileSnapshot, subscribeMobile } from '../config/breakpoints'
 import styles from './FollowListModal.module.css'
 
 const PAGE_SIZE = 25
-const MOBILE_BREAKPOINT = 768
-function subscribeMobile(cb: () => void) {
-  if (typeof window === 'undefined') return () => {}
-  const mq = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`)
-  mq.addEventListener('change', cb)
-  return () => mq.removeEventListener('change', cb)
-}
-function getMobileSnapshot() {
-  return typeof window !== 'undefined' ? window.innerWidth < MOBILE_BREAKPOINT : false
-}
 
 export type FollowListSortBy = 'handle' | 'displayName' | 'date' | 'followers'
 export type FollowListOrder = 'asc' | 'desc'

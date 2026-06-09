@@ -3,8 +3,10 @@ import { useSyncExternalStore } from 'react'
 import { useSession } from './SessionContext'
 import { useToast } from './ToastContext'
 import { asyncStorage } from '../lib/AsyncStorage'
-
-const DESKTOP_BREAKPOINT = 768
+import {
+  getDesktopSnapshot,
+  subscribeDesktop,
+} from '../config/breakpoints'
 
 /** Legacy global key — migrated once per account into `artsky-view-mode:${did}`. */
 const LEGACY_STORAGE_KEY = 'artsky-view-mode'
@@ -79,16 +81,6 @@ function persistMode(did: string | null, mode: ViewMode) {
   }
 }
 
-function getDesktopSnapshot() {
-  return typeof window !== 'undefined' ? window.innerWidth >= DESKTOP_BREAKPOINT : false
-}
-function subscribeDesktop(cb: () => void) {
-  if (typeof window === 'undefined') return () => {}
-  const mq = window.matchMedia(`(min-width: ${DESKTOP_BREAKPOINT}px)`)
-  mq.addEventListener('change', cb)
-  return () => mq.removeEventListener('change', cb)
-}
-
 export function ViewModeProvider({ children }: { children: React.ReactNode }) {
   const isDesktop = useSyncExternalStore(subscribeDesktop, getDesktopSnapshot, () => false)
   return (
@@ -155,7 +147,7 @@ export function useViewMode() {
   return ctx
 }
 
-/** Matches feed/profile keyboard shortcuts (768px) — use for pointer vs touch behavior. */
+/** Matches feed/profile keyboard shortcuts — use for pointer vs touch behavior. */
 export function useIsDesktop() {
   return useSyncExternalStore(subscribeDesktop, getDesktopSnapshot, () => false)
 }

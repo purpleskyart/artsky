@@ -5,6 +5,7 @@ import { ScrollLockProvider } from './ScrollLockContext'
 import { ToastProvider } from './ToastContext'
 import { FollowOverridesProvider } from './FollowOverridesContext'
 import { PushNotificationsProvider } from './PushNotificationsContext'
+import { MessagesProvider } from './MessagesContext'
 
 interface CoreProvidersGroupProps {
   children: ReactNode
@@ -24,7 +25,9 @@ function CoreProvidersGroupComponent({ children }: CoreProvidersGroupProps) {
         <ScrollLockProvider>
           <ToastProvider>
             <FollowOverridesProvider>
-              <PushNotificationsProvider>{children}</PushNotificationsProvider>
+              <PushNotificationsProvider>
+                <MessagesProvider>{children}</MessagesProvider>
+              </PushNotificationsProvider>
             </FollowOverridesProvider>
           </ToastProvider>
         </ScrollLockProvider>

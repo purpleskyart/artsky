@@ -3,19 +3,11 @@ import { createPortal } from 'react-dom'
 import { agent, getSession, getProfileCached } from '../lib/bsky'
 import { useScrollLock } from '../context/ScrollLockContext'
 import { useProfileModal } from '../context/ProfileModalContext'
+import { getMobileSnapshot, subscribeMobile } from '../config/breakpoints'
+import { gateKeyboardShortcutsForEditable } from '../lib/modalKeyboard'
 import styles from './EditProfileModal.module.css'
 
 const DESCRIPTION_MAX = 256
-const MOBILE_BREAKPOINT = 768
-function subscribeMobile(cb: () => void) {
-  if (typeof window === 'undefined') return () => {}
-  const mq = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`)
-  mq.addEventListener('change', cb)
-  return () => mq.removeEventListener('change', cb)
-}
-function getMobileSnapshot() {
-  return typeof window !== 'undefined' ? window.innerWidth < MOBILE_BREAKPOINT : false
-}
 
 interface EditProfileModalProps {
   onClose: () => void
@@ -73,6 +65,7 @@ export default function EditProfileModal({ onClose, onSaved }: EditProfileModalP
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      if (gateKeyboardShortcutsForEditable(e)) return
       if (e.key === 'Escape') {
         e.preventDefault()
         e.stopImmediatePropagation()

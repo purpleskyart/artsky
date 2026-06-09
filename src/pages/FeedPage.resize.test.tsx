@@ -118,8 +118,9 @@ describe('FeedPage - Viewport Resize Optimization', () => {
     })
 
     it('should calculate responsive column count for all-columns mode on desktop', () => {
+      Object.defineProperty(window, 'innerWidth', { value: 1280, writable: true, configurable: true })
       const { result } = renderHook(() => useColumnCount('a', 150))
-      expect(result.current).toBe(3)
+      expect(result.current).toBe(getRawAutoColumnCount(1280))
     })
 
     it('should not change auto column count on small width jitter near bucket boundaries', () => {

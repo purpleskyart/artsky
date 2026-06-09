@@ -194,7 +194,7 @@ body {
 }
 
 /* Mobile: theme background on html so safe-area strips (notch, home indicator) match theme and don't show through behind cards */
-@media (max-width: 767px) {
+@media (max-width: 1279px) {
   html {
     background: var(--bg);
   }
@@ -292,7 +292,7 @@ html[data-theme="light"] main {
 }
 
 /* Background only on desktop; on mobile #root::before paints grey inside safe area only */
-@media (min-width: 768px) {
+@media (min-width: 1280px) {
   html[data-theme="light"] #root {
     background: var(--bg);
   }
@@ -360,25 +360,4 @@ html[data-theme="light"] main {
     opacity: 1;
     transform: translateX(-50%) translateY(0);
   }
-}
-
-/* Hide floating elements + bottom nav while scrolling down (feed page) */
-.feeds-float-wrap,
-.view-mode-float-wrap,
-.hide-seen-fab,
-.login-float-wrap,
-.notification-float-wrap,
-.nav-outer,
-.nav {
-  transition: opacity 0.2s ease;
-}
-body.feed-scrolling .feeds-float-wrap,
-body.feed-scrolling .view-mode-float-wrap,
-body.feed-scrolling .hide-seen-fab,
-body.feed-scrolling .login-float-wrap,
-body.feed-scrolling .notification-float-wrap,
-body.feed-scrolling .nav-outer,
-body.feed-scrolling .nav {
-  opacity: 0;
-  pointer-events: none;
 }

@@ -1,5 +1,6 @@
 import type { BrowserOAuthClient } from '@atproto/oauth-client-browser'
 import { AtprotoDohHandleResolver } from '@atproto-labs/handle-resolver'
+import { normalizeLoginIdentifier } from './loginIdentifier'
 
 let clientPromise: Promise<BrowserOAuthClient> | null = null
 
@@ -27,7 +28,7 @@ function isLoopback(): boolean {
 
 /** Scope matching client-metadata.json so loopback OAuth gets AppView timeline/feed access. */
 const OAUTH_SCOPE =
-  'atproto transition:generic rpc:app.bsky.feed.getFeed?aud=did:web:api.bsky.app%23bsky_appview rpc:app.bsky.feed.getTimeline?aud=did:web:api.bsky.app%23bsky_appview'
+  'atproto transition:generic transition:chat.bsky rpc:app.bsky.feed.getFeed?aud=did:web:api.bsky.app%23bsky_appview rpc:app.bsky.feed.getTimeline?aud=did:web:api.bsky.app%23bsky_appview'
 
 /**
  * Build loopback client_id (no path). Required by spec so "Log in with Bluesky" works in dev.
@@ -129,5 +130,5 @@ export async function restoreOAuthSession(did: string): Promise<OAuthSession | n
  */
 export async function signInWithOAuthRedirect(handle: string): Promise<void> {
   const oauth = await getOAuthClient()
-  await oauth.signInRedirect(handle)
+  await oauth.signInRedirect(normalizeLoginIdentifier(handle))
 }

@@ -1,8 +1,11 @@
 import { useEffect, useRef } from 'react'
+import { blurEditableOnEscape, shouldBlockGridKeysForEditableTarget } from '../lib/modalKeyboard'
 
 export type ListKeyboardNavOptions = {
   /** When false, the handler does nothing. Use when the popup/list is active. */
   enabled: boolean
+  /** When true, only block grid keys for inputs inside a dialog (not header search behind overlay). */
+  inModal?: boolean
   /** Number of focusable items. */
   itemCount: number
   /** Current focused index (0-based). */
@@ -24,6 +27,7 @@ export type ListKeyboardNavOptions = {
  */
 export function useListKeyboardNav({
   enabled,
+  inModal = false,
   itemCount,
   focusedIndex,
   setFocusedIndex,
@@ -41,11 +45,8 @@ export function useListKeyboardNav({
 
     const onKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable) {
-        if (e.key === 'Escape') {
-          e.preventDefault()
-          target.blur()
-        }
+      if (shouldBlockGridKeysForEditableTarget(target, inModal)) {
+        blurEditableOnEscape(e, target)
         return
       }
       if (e.ctrlKey || e.metaKey) return
@@ -94,5 +95,5 @@ export function useListKeyboardNav({
 
     window.addEventListener('keydown', onKeyDown, useCapture)
     return () => window.removeEventListener('keydown', onKeyDown, useCapture)
-  }, [enabled, itemCount, columns, setFocusedIndex, useCapture])
+  }, [enabled, inModal, itemCount, columns, setFocusedIndex, useCapture])
 }

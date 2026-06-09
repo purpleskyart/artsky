@@ -2,11 +2,22 @@ import { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react
 import { createPortal } from 'react-dom'
 import * as bsky from '../lib/bsky'
 import * as oauth from '../lib/oauth'
+import { normalizeLoginIdentifier } from '../lib/loginIdentifier'
 import type { AppBskyActorDefs } from '@atproto/api'
 import styles from '../pages/LoginPage.module.css'
 
 const BLUESKY_SIGNUP_URL = 'https://bsky.app'
 const DEBOUNCE_MS = 250
+const DROPDOWN_GAP = 2
+const MAX_DROPDOWN_HEIGHT = 280
+const MIN_DROPDOWN_HEIGHT = 80
+
+type DropdownPosition = {
+  top: number
+  left: number
+  width: number
+  maxHeight: number
+}
 
 /** Turn technical login/OAuth errors into messages users can understand. */
 function toFriendlyLoginError(err: unknown): string {
@@ -61,7 +72,8 @@ export default function LoginCard({ onSuccess, onClose }: LoginCardProps) {
   const [suggestionsLoading, setSuggestionsLoading] = useState(false)
   const [activeIndex, setActiveIndex] = useState(0)
   const wrapperRef = useRef<HTMLDivElement>(null)
-  const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number; width: number } | null>(null)
+  const portalRef = useRef<HTMLDivElement>(null)
+  const [dropdownPosition, setDropdownPosition] = useState<DropdownPosition | null>(null)
 
   const fetchSuggestions = useCallback(async (q: string) => {
     const term = q.trim().replace(/^@/, '')
@@ -98,33 +110,53 @@ export default function LoginCard({ onSuccess, onClose }: LoginCardProps) {
     }
     const el = wrapperRef.current
     if (!el) return
-    const rect = el.getBoundingClientRect()
-    const dropdownHeight = Math.min(280, window.innerHeight * 0.5) // max-height from CSS
-    const spaceBelow = window.innerHeight - rect.bottom
-    const spaceAbove = rect.top
-    
-    // Position below if there's enough space, otherwise above
-    let top: number
-    if (spaceBelow >= dropdownHeight || spaceBelow >= spaceAbove) {
-      top = rect.bottom + 2
-    } else {
-      top = rect.top - dropdownHeight - 2
-      // Ensure it doesn't go above viewport
-      if (top < 0) top = 8
+
+    const updatePosition = () => {
+      const rect = el.getBoundingClientRect()
+      const maxPreferred = Math.min(MAX_DROPDOWN_HEIGHT, window.innerHeight * 0.5)
+      const spaceBelow = Math.max(0, window.innerHeight - rect.bottom - DROPDOWN_GAP)
+      const spaceAbove = Math.max(0, rect.top - DROPDOWN_GAP)
+
+      let top: number
+      let maxHeight: number
+
+      const placeBelow = spaceBelow >= spaceAbove
+      if (placeBelow) {
+        top = rect.bottom + DROPDOWN_GAP
+        maxHeight = Math.min(maxPreferred, spaceBelow)
+      } else {
+        maxHeight = Math.min(maxPreferred, spaceAbove)
+        if (maxHeight < MIN_DROPDOWN_HEIGHT && spaceBelow >= MIN_DROPDOWN_HEIGHT) {
+          top = rect.bottom + DROPDOWN_GAP
+          maxHeight = Math.min(maxPreferred, spaceBelow)
+        } else {
+          maxHeight = Math.max(Math.min(maxHeight, maxPreferred), Math.min(MIN_DROPDOWN_HEIGHT, spaceAbove))
+          top = rect.top - maxHeight - DROPDOWN_GAP
+        }
+      }
+
+      setDropdownPosition({
+        top,
+        left: rect.left,
+        width: rect.width,
+        maxHeight,
+      })
     }
-    
-    setDropdownPosition({
-      top,
-      left: rect.left,
-      width: rect.width,
-    })
+
+    updatePosition()
+    window.addEventListener('resize', updatePosition)
+    window.addEventListener('scroll', updatePosition, true)
+    return () => {
+      window.removeEventListener('resize', updatePosition)
+      window.removeEventListener('scroll', updatePosition, true)
+    }
   }, [suggestionsOpen, suggestions.length, suggestionsLoading])
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
-        setSuggestionsOpen(false)
-      }
+      const target = e.target as Node
+      if (wrapperRef.current?.contains(target) || portalRef.current?.contains(target)) return
+      setSuggestionsOpen(false)
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
@@ -133,8 +165,11 @@ export default function LoginCard({ onSuccess, onClose }: LoginCardProps) {
   async function handleSignIn(e: React.FormEvent) {
     e.preventDefault()
     setError('')
-    const id = identifier.trim().replace(/^@/, '')
+    const id = normalizeLoginIdentifier(identifier)
     if (!id) return
+    if (id !== identifier.trim().replace(/^@/, '')) {
+      setIdentifier(id)
+    }
 
     setLoading(true)
     try {
@@ -203,6 +238,7 @@ export default function LoginCard({ onSuccess, onClose }: LoginCardProps) {
           {dropdownPosition &&
             createPortal(
               <div
+                ref={portalRef}
                 className={styles.suggestionsPortal}
                 style={{
                   position: 'fixed',
@@ -212,7 +248,11 @@ export default function LoginCard({ onSuccess, onClose }: LoginCardProps) {
                   zIndex: 1402,
                 }}
               >
-                <ul className={styles.suggestions} role="listbox">
+                <ul
+                  className={styles.suggestions}
+                  role="listbox"
+                  style={{ maxHeight: dropdownPosition.maxHeight }}
+                >
                   {suggestionsLoading && suggestions.length === 0 ? (
                     <li className={styles.suggestion} role="option" aria-disabled>
                       <span className={styles.suggestionsLoading}>Searching…</span>

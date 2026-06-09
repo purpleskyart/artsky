@@ -19,6 +19,9 @@ import { usePostCardGridPointerGate } from '../hooks/usePostCardGridPointerGate'
 import gridStyles from '../styles/postGrid.module.css'
 import styles from './CollectionPage.module.css'
 import { usePostCardDisplayContext } from '../hooks/usePostCardDisplayContext'
+import { useModalScroll } from '../context/ModalScrollContext'
+import { useModalGridKeyboardShell, useModalScrollKeyboardFocus } from '../hooks/useModalGridKeyboardShell'
+import { shouldUnderlayHandleGridKeys } from '../lib/modalKeyboard'
 
 const ESTIMATE_COL_WIDTH = 280
 const CARD_CHROME = 100
@@ -66,17 +69,22 @@ function distributeByHeight(
 
 export interface CollectionDetailContentProps {
   uri: string
+  inModal?: boolean
+  isTopModal?: boolean
 }
 
 /** Body only — used inside AppModal */
-export function CollectionDetailContent({ uri: decodedUri }: CollectionDetailContentProps) {
-  const { openPostModal } = useProfileModal()
+export function CollectionDetailContent({ uri: decodedUri, inModal = false, isTopModal = true }: CollectionDetailContentProps) {
+  const { openPostModal, isModalOpen } = useProfileModal()
   const { session } = useSession()
   const { viewMode } = useViewMode()
   const toast = useToast()
   const { nsfwPreference, unblurredUris, setUnblurred } = useModeration()
   const { refreshUnionFromPds } = useCollectionSaveActions()
   const { beginKeyboardNavigation, tryHoverSelectCard, gridPointerGateProps } = usePostCardGridPointerGate()
+  const modalScrollRef = useModalScroll()
+  const keyboardShell = useModalGridKeyboardShell(inModal, isTopModal)
+  useModalScrollKeyboardFocus(modalScrollRef, inModal && isTopModal, decodedUri)
 
   const [title, setTitle] = useState('')
   const [isPrivate, setIsPrivate] = useState(false)
@@ -230,13 +238,16 @@ export function CollectionDetailContent({ uri: decodedUri }: CollectionDetailCon
   }, [displayItems.length])
 
   useEffect(() => {
+    if (!keyboardShell.registerKeys) return
+
+    const { useCapture, claimKey, shouldBlockEditable, blurEditableOnEscape } = keyboardShell
+
     const onKeyDown = (e: KeyboardEvent) => {
-      /* Don't steal keys if any modal is open AND the event came from outside the modal (page behind).
-         This prevents shortcuts when Login, EditProfile, etc. are open, but allows shortcuts within modals. */
+      if (!inModal && isModalOpen) return
       const target = e.target as HTMLElement
-      const anyModal = typeof document !== 'undefined' ? document.querySelector('[role="dialog"][aria-modal="true"]') : null
-      if (anyModal && !anyModal.contains(target)) return
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable) {
+      if (!shouldUnderlayHandleGridKeys(target, inModal)) return
+      if (shouldBlockEditable(target)) {
+        blurEditableOnEscape(e, target)
         return
       }
       if (e.ctrlKey || e.metaKey) return
@@ -255,31 +266,37 @@ export function CollectionDetailContent({ uri: decodedUri }: CollectionDetailCon
       if (key === 'w' || key === 'i' || e.key === 'ArrowUp') {
         beginKeyboardNavigation()
         setKeyboardFocusIndex((idx) => Math.max(0, idx - cols))
+        claimKey(e)
         return
       }
       if (key === 's' || key === 'k' || e.key === 'ArrowDown') {
         beginKeyboardNavigation()
         setKeyboardFocusIndex((idx) => Math.min(list.length - 1, idx + cols))
+        claimKey(e)
         return
       }
       if (key === 'a' || key === 'j' || e.key === 'ArrowLeft') {
         beginKeyboardNavigation()
         setKeyboardFocusIndex((idx) => Math.max(0, idx - 1))
+        claimKey(e)
         return
       }
       if (key === 'd' || key === 'l' || e.key === 'ArrowRight') {
         beginKeyboardNavigation()
         setKeyboardFocusIndex((idx) => Math.min(list.length - 1, idx + 1))
+        claimKey(e)
         return
       }
       if (key === 'e' || key === 'o' || key === 'enter') {
         const item = list[i]
         if (item) openPostModal(item.post.uri, undefined, undefined, item.post.author?.handle)
+        claimKey(e)
+        return
       }
     }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [beginKeyboardNavigation, displayItems.length, cols, openPostModal])
+    window.addEventListener('keydown', onKeyDown, useCapture)
+    return () => window.removeEventListener('keydown', onKeyDown, useCapture)
+  }, [beginKeyboardNavigation, displayItems.length, cols, openPostModal, inModal, isTopModal, isModalOpen, keyboardShell])
 
   const shareUrl = useMemo(() => {
     if (!decodedUri || !isLikelyCollectionRefParam(decodedUri)) return ''
@@ -395,7 +412,7 @@ export function CollectionDetailContent({ uri: decodedUri }: CollectionDetailCon
                 key={colIndex}
                 column={column}
                 colIndex={colIndex}
-                scrollRef={null}
+                scrollRef={inModal ? modalScrollRef : null}
                 keyboardFocusIndex={keyboardFocusIndex}
                 actionsMenuOpenForIndex={null}
                 nsfwPreference={nsfwPreference}

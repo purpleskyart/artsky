@@ -52,6 +52,7 @@ export default function PostDetailModal({ uri, openReply, focusUri, onClose, onB
         initialOpenReply={openReply}
         initialFocusedCommentUri={focusUri}
         onClose={onClose}
+        isTopModal={isTopModal ?? true}
         onAuthorHandle={setAuthorHandle}
         onRegisterRefresh={handleRegisterRefresh}
       />

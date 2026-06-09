@@ -8,6 +8,7 @@ import {
   useIsPostSavedToAnyCollection,
 } from '../context/CollectionSaveContext'
 import { listCollectionsWithMembership, type CollectionPickerRow } from '../lib/collections'
+import { gateKeyboardShortcutsForEditable } from '../lib/modalKeyboard'
 import styles from './CollectionSaveMenu.module.css'
 
 function BookmarkIcon({ filled }: { filled?: boolean }) {
@@ -178,15 +179,12 @@ export default function CollectionSaveMenu({ postUri, openSignal, variant = 'ico
   useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => {
+      if (gateKeyboardShortcutsForEditable(e)) return
       const key = e.key.toLowerCase()
       if (key === 'escape' || key === 'q' || key === 'u') {
         e.preventDefault()
         setOpen(false)
         triggerRef.current?.focus()
-        return
-      }
-      const target = e.target as HTMLElement | null
-      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
         return
       }
       if (key === 'backspace') {

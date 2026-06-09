@@ -51,7 +51,7 @@
 }
 
 /* In modal on mobile: media takes full width of popup */
-@media (max-width: 767px) {
+@media (max-width: 1279px) {
   .wrapInModal.wrap {
     padding-left: 0;
     padding-right: 0;
@@ -589,7 +589,7 @@
 }
 
 /* Desktop: profile picture on its own row centered above the follow button */
-@media (min-width: 768px) {
+@media (min-width: 1280px) {
   .rootPostDescription .postHead {
     flex-direction: column;
     align-items: center;
@@ -975,7 +975,7 @@
 }
 
 /* Desktop: allow right-click on image for native "Save image as..." */
-@media (min-width: 768px) {
+@media (min-width: 1280px) {
   .galleryImageBtn .galleryMedia {
     pointer-events: auto;
   }
@@ -1051,6 +1051,13 @@
   margin-top: 0.75rem;
 }
 
+/* Top-level comment: show a thread line for real nested replies (not sibling comments). */
+.repliesContainerTopLevel {
+  margin-left: 0.75rem;
+  padding-left: 0.65rem;
+  border-left: 2px solid color-mix(in srgb, var(--accent) 40%, var(--border));
+}
+
 .repliesCollapsed {
   padding: 0.35rem 0.5rem;
   background: none;
@@ -1119,6 +1126,13 @@
 
 .repliesTopLevel > .topLevelCommentWrap {
   margin-bottom: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+}
+
+.repliesTopLevel > .topLevelCommentWrap:first-child {
+  padding-top: 0;
+  border-top: none;
 }
 
 .repliesTopLevel > .topLevelCommentWrap:last-child {
@@ -1747,7 +1761,7 @@
   color: var(--muted);
 }
 
-@media (max-width: 767px) {
+@media (max-width: 1279px) {
   .hint {
     display: none;
   }

@@ -16,31 +16,79 @@
   padding: 0;
 }
 
-/* In profile popup: no border/shadow on header; square top so it meets the modal pane under the floating back; no bottom margin so surface runs into tabs row */
+/* In profile popup: no border/shadow on header; center content; menu pinned top-right */
 .wrapInModal .profileHeader {
+  position: relative;
+  justify-content: center;
   border: none;
   box-shadow: none;
   border-radius: 0;
   margin-bottom: 0;
 }
 
-/* Profile popup: slightly smaller profile picture on desktop */
+/* Profile popup: slightly smaller profile picture */
 .wrapInModal .avatar {
   width: 52px;
   height: 52px;
 }
 
-/* Profile popup: keep follow/unfollow + bell inline to the right of @handle */
+.wrapInModal .profileHeaderMain {
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  width: 100%;
+}
+
+.wrapInModal .profileMeta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+
 .wrapInModal .profileMeta .handleRow {
-  flex-wrap: nowrap;
-  gap: 0.35rem;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  order: -1;
+  margin-bottom: 0.5rem;
+}
+
+.wrapInModal .profileMeta .handleRow .followBtn,
+.wrapInModal .profileMeta .handleRow .blockedMutedBtn,
+.wrapInModal .profileMeta .handleRow .followNotifyRow {
+  order: -1;
+}
+
+.wrapInModal .profileMeta .handleRow .handle {
+  order: 0;
+}
+
+.wrapInModal .profileMeta .displayName {
+  margin-top: 0.25rem;
+}
+
+.wrapInModal .followListRow {
+  justify-content: center;
+}
+
+.wrapInModal .followedByFollowsPreview {
+  justify-content: center;
+  text-align: center;
+}
+
+.wrapInModal .profileMenu {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
 }
 
 .wrapInModal .followNotifyRow {
   gap: 0.25rem;
 }
 
-.wrapInModal .followNotifyRow .followBtn {
+.wrapInModal .followNotifyRow .followBtn,
+.wrapInModal .followNotifyRow .messageBtn {
   padding: 0 0.5rem;
   font-size: 0.75rem;
   height: 1.625rem;
@@ -62,37 +110,6 @@
 .wrapInModal .followNotifyRow .notificationBellIcon {
   width: 0.875rem;
   height: 0.875rem;
-}
-
-@media (min-width: 768px) {
-  .wrapInModal .profileHeaderMain {
-    flex-direction: row;
-    align-items: flex-start;
-    text-align: left;
-  }
-
-  .wrapInModal .profileMeta {
-    align-items: flex-start;
-  }
-
-  .wrapInModal .profileMeta .handleRow {
-    flex-direction: row;
-    align-items: center;
-    justify-content: flex-start;
-    order: unset;
-    margin-bottom: 0.25rem;
-  }
-
-  .wrapInModal .profileMeta .handleRow .handle,
-  .wrapInModal .profileMeta .handleRow .followBtn,
-  .wrapInModal .profileMeta .handleRow .blockedMutedBtn,
-  .wrapInModal .profileMeta .handleRow .followNotifyRow {
-    order: unset;
-  }
-
-  .wrapInModal .profileMeta .displayName {
-    margin-top: 0;
-  }
 }
 
 .profileHeader {
@@ -133,7 +150,7 @@
 }
 
 /* Desktop: profile picture on its own row centered above the follow button */
-@media (min-width: 768px) {
+@media (min-width: 1280px) {
   .profileHeaderMain {
     flex-direction: column;
     align-items: center;
@@ -204,6 +221,31 @@
 .followBtnFollowing {
   color: var(--text);
   border-color: var(--border);
+}
+
+.messageBtn {
+  flex-shrink: 0;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .messageBtn:hover:not(:disabled) {
+    background: var(--accent-muted);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+}
+
+.messageBtn:disabled {
+  opacity: 0.7;
+  cursor: default;
 }
 
 @media (hover: hover) {
@@ -463,7 +505,7 @@
   padding: 0.25rem 0 0.5rem;
 }
 
-@media (max-width: 767px) {
+@media (max-width: 1279px) {
   .tabsSticky {
     top: 3.25rem;
     overflow: visible;

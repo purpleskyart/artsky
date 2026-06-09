@@ -1,6 +1,6 @@
 import { memo, useCallback, useRef } from 'react'
 import { useProfileModal } from '../context/ProfileModalContext'
-import { preloadProfileOpen, preloadProfileFeed } from '../lib/modalPreload'
+import { preloadProfileOpen } from '../lib/modalPreload'
 
 interface ProfileLinkProps {
   handle: string
@@ -25,7 +25,6 @@ function ProfileLink({ handle, className, title, 'aria-label': ariaLabel, onClic
     e.nativeEvent.stopPropagation()
     e.nativeEvent.stopImmediatePropagation()
     preloadProfileOpen(handle)
-    preloadProfileFeed(handle)
     openProfileModal(handle)
     onClick?.(e)
   }, [openProfileModal, handle, onClick])
@@ -65,7 +64,6 @@ function ProfileLink({ handle, className, title, 'aria-label': ariaLabel, onClic
       }
     }
     preloadProfileOpen(handle)
-    preloadProfileFeed(handle)
     openProfileModal(handle)
     onClick?.(e as any)
     // Clean up the attribute after a short delay to prevent the synthetic click from triggering post open
@@ -87,10 +85,7 @@ function ProfileLink({ handle, className, title, 'aria-label': ariaLabel, onClic
       rel="noopener noreferrer"
       data-profile-link="true"
       onMouseEnter={() => preloadProfileOpen(handle)}
-      onPointerDown={() => {
-        preloadProfileOpen(handle)
-        preloadProfileFeed(handle)
-      }}
+      onPointerDown={() => preloadProfileOpen(handle)}
       onClick={handleClick}
       onTouchStart={stopTouchBubble}
       onTouchEnd={handleTouchEnd}

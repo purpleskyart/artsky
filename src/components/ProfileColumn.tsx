@@ -6,18 +6,8 @@ import PostCard from './PostCard'
 import type { PostCardDisplayContext } from '../hooks/usePostCardDisplayContext'
 import { setInitialPostForUri } from '../lib/postCache'
 import { observeVirtualization } from '../lib/cardVirtualization'
+import { getDesktopSnapshot, subscribeDesktop } from '../config/breakpoints'
 import styles from '../styles/postGrid.module.css'
-
-const DESKTOP_BREAKPOINT = 768
-function subscribeDesktop(cb: () => void) {
-  if (typeof window === 'undefined') return () => {}
-  const mq = window.matchMedia(`(min-width: ${DESKTOP_BREAKPOINT}px)`)
-  mq.addEventListener('change', cb)
-  return () => mq.removeEventListener('change', cb)
-}
-function getDesktopSnapshot() {
-  return typeof window !== 'undefined' ? window.innerWidth >= DESKTOP_BREAKPOINT : false
-}
 
 type ColumnItem = { item: TimelineItem; originalIndex: number }
 

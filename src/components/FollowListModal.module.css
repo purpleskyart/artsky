@@ -10,7 +10,7 @@
 }
 
 /* Mobile: align backdrop to bottom so panel doesn't reach too high or low */
-@media (max-width: 767px) {
+@media (max-width: 1279px) {
   .backdrop {
     align-items: flex-end;
     padding: 0;

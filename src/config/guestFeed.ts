@@ -15,6 +15,7 @@ export const GUEST_FEED_ACCOUNTS = [
   { handle: 'shio-to-no.bsky.social', label: 'Shio To No' },
   { handle: 'asteroidill.bsky.social', label: 'Asteroidill' },
   { handle: 'kianamai.bsky.social', label: 'Kianamai' },
+  { handle: 'catsuka.bsky.social', label: 'Catsuka' },
   { handle: 'discountvillain.bsky.social', label: 'Discount Villain' },
   { handle: 'gaya20001026.bsky.social', label: 'Ga Ya' },
   { handle: 'onepiececolor.bsky.social', label: '𝐎𝐍𝐄 𝐏𝐈𝐄𝐂𝐄' },

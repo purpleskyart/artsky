@@ -27,7 +27,7 @@
 }
 
 /* Desktop: don't take full width so user can click overlay (backdrop) to close; minimal bottom padding so pane uses full height */
-@media (min-width: 768px) {
+@media (min-width: 1280px) {
   .overlay:not(.overlayExpanded) {
     padding-left: max(0rem, env(safe-area-inset-left));
     padding-right: max(0rem, env(safe-area-inset-right));
@@ -65,7 +65,7 @@
 }
 
 /* Mobile PWA: align back button with gear (same top/left as Layout .gearFloatWrap) so they sit in a row */
-@media (max-width: 767px) {
+@media (max-width: 1279px) {
   .modalFloatingBack {
     top: max(var(--space-md), env(safe-area-inset-top, 59px));
     left: max(var(--space-sm), env(safe-area-inset-left));
@@ -186,7 +186,7 @@
   padding-top: calc(2.5rem + max(var(--space-md), env(safe-area-inset-top, 0px)) + var(--space-sm));
 }
 
-@media (min-width: 768px) {
+@media (min-width: 1280px) {
   .scrollWithFloatingBack.scroll {
     padding-top: calc(2rem + max(var(--space-md), env(safe-area-inset-top, 0px)) + var(--space-sm));
   }
@@ -381,7 +381,7 @@
 }
 
 /* Mobile: use full height; only safe-area insets so content reaches bottom of screen */
-@media (max-width: 767px) {
+@media (max-width: 1279px) {
   .overlay {
     padding-top: max(0.5rem, env(safe-area-inset-top));
     padding-bottom: env(safe-area-inset-bottom);
