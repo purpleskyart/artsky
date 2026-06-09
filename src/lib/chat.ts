@@ -1,10 +1,31 @@
-import type { Agent, ChatBskyConvoDefs } from '@atproto/api'
+import type { Agent, AppBskyActorDefs, ChatBskyConvoDefs } from '@atproto/api'
 import { getAgent, getSession, isAgentAuthenticated } from './bsky'
 import { responseCache } from './ResponseCache'
 
 const CHAT_SERVICE_DID = 'did:web:api.bsky.chat'
+const CHAT_DECLARATION = 'chat.bsky.actor.declaration'
 const CONVOS_CACHE_TTL_MS = 30_000
 const UNREAD_COUNT_CACHE_TTL_MS = 30_000
+
+export type ChatAllowIncoming = 'all' | 'following' | 'none'
+
+const DEFAULT_ALLOW_INCOMING: ChatAllowIncoming = 'following'
+
+/** Whether the logged-in user can start a new chat with this profile (matches Bluesky app). */
+export function canBeMessaged(profile: AppBskyActorDefs.ProfileViewBasic): boolean {
+  const allowIncoming = profile.associated?.chat?.allowIncoming
+  switch (allowIncoming) {
+    case 'none':
+      return false
+    case 'all':
+      return true
+    case 'following':
+    case undefined:
+      return Boolean(profile.viewer?.followedBy)
+    default:
+      return false
+  }
+}
 
 export type ChatConvoView = ChatBskyConvoDefs.ConvoView
 export type ChatMessageView = ChatBskyConvoDefs.MessageView
@@ -86,6 +107,53 @@ export async function getUnreadConvoCount(): Promise<number> {
 export function invalidateChatCache(): void {
   responseCache.invalidatePattern(/^chatConvos:/)
   responseCache.invalidate('chatUnreadCount')
+}
+
+function parseChatAllowIncoming(value: unknown): ChatAllowIncoming {
+  if (value === 'all' || value === 'following' || value === 'none') return value
+  return DEFAULT_ALLOW_INCOMING
+}
+
+export async function getChatAllowIncoming(): Promise<ChatAllowIncoming> {
+  const session = getSession()
+  if (!session?.did) throw new Error('Not logged in')
+  try {
+    const res = await getAgent().com.atproto.repo.getRecord({
+      repo: session.did,
+      collection: CHAT_DECLARATION,
+      rkey: 'self',
+    })
+    return parseChatAllowIncoming((res.data.value as { allowIncoming?: unknown }).allowIncoming)
+  } catch {
+    return DEFAULT_ALLOW_INCOMING
+  }
+}
+
+export async function setChatAllowIncoming(allowIncoming: ChatAllowIncoming): Promise<void> {
+  const session = getSession()
+  if (!session?.did) throw new Error('Not logged in')
+  let swapRecord: string | undefined
+  try {
+    const existing = await getAgent().com.atproto.repo.getRecord({
+      repo: session.did,
+      collection: CHAT_DECLARATION,
+      rkey: 'self',
+    })
+    swapRecord = existing.data.cid
+  } catch {
+    // First-time declaration — no record to swap.
+  }
+  await getAgent().com.atproto.repo.putRecord({
+    repo: session.did,
+    collection: CHAT_DECLARATION,
+    rkey: 'self',
+    record: {
+      $type: CHAT_DECLARATION,
+      allowIncoming,
+    },
+    swapRecord,
+    validate: false,
+  })
 }
 
 export async function getConvoAvailability(members: string[]): Promise<{ canChat: boolean; convo?: ChatConvoView }> {
