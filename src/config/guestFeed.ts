@@ -12,7 +12,6 @@ export const GUEST_FEED_ACCOUNTS = [
   { handle: 'oseanworld.bsky.social', label: 'Osean World' },
   { handle: 'sssvvv.bsky.social', label: 'sssvvv' },
   { handle: 'shio-to-no.bsky.social', label: 'Shio To No' },
-  { handle: 'anatofinnstark.bsky.social', label: 'Anatofinnstark' },
   { handle: 'asteroidill.bsky.social', label: 'Asteroidill' },
   { handle: 'discountvillain.bsky.social', label: 'Discount Villain' },
   { handle: 'poiandkeely.bsky.social', label: 'Poi and Keely' },

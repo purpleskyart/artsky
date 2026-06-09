@@ -2,7 +2,7 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
 
-// Start loading the feed route chunk in parallel with the first React render (default route is /feed).
+// Start loading the feed route chunk in parallel with the first React render (default route is /).
 void import('./pages/FeedPage')
 
 // Listen for messages from service worker (e.g., navigation on notification click)

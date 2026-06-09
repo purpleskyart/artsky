@@ -2,6 +2,7 @@ import { useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import AppModal from './AppModal'
 import { CollectionsIndexContent } from '../pages/CollectionsIndexPage'
+import { HOME_PATH } from '../lib/routes'
 
 /** Collections index opened as overlay from feed (backgroundLocation state). */
 export default function CollectionsIndexModalOverlay() {
@@ -11,7 +12,7 @@ export default function CollectionsIndexModalOverlay() {
   }, [navigate])
 
   const onDesktopBackdrop = useCallback(() => {
-    navigate('/feed', { replace: true })
+    navigate(HOME_PATH, { replace: true })
   }, [navigate])
 
   return (

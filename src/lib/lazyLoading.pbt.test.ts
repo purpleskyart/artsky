@@ -245,14 +245,14 @@ describe('Property 4: Lazy Loading of Heavy Dependencies', () => {
       fc.asyncProperty(
         fc.record({
           route: fc.constantFrom(
-            '/feed',
+            '/',
             '/post/:id',
             '/profile/:handle',
             '/tag/:tag',
             '/consensus/:id'
           ),
           currentRoute: fc.constantFrom(
-            '/feed',
+            '/',
             '/post/:id',
             '/profile/:handle',
             '/tag/:tag',

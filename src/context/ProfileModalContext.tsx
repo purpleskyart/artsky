@@ -1,7 +1,7 @@
 import { createContext, lazy, Suspense, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useLocation, useNavigate, type Location } from 'react-router-dom'
 import { ChunkLoadError } from '../components/ChunkLoadError'
-import { isHandleBoardPath } from '../lib/routes'
+import { HOME_PATH, isHandleBoardPath } from '../lib/routes'
 import { getPostOverlayPath, postUriToQuotesParam, quotesParamToPostUri } from '../lib/appUrl'
 import { getOverlayBackgroundLocation, hasPathOverlayStack } from '../lib/overlayNavigation'
 
@@ -136,13 +136,13 @@ function modalItemToSearch(item: ModalItem): string {
 /**
  * Full-page post URLs use `/profile/:handle/post/:rkey` or encoded `/post/:uri`. Modal stacks encode the
  * post in `?post=`; keeping both would show the path post while query pointed elsewhere — so modal
- * navigation must use `/feed` when leaving those paths.
+ * navigation must use home (`/`) when leaving those paths.
  */
 function pathForModalNavigation(pathname: string): string {
-  if (pathname.startsWith('/post/')) return '/feed'
-  if (/^\/profile\/[^/]+\/post\//.test(pathname)) return '/feed'
-  if (/^\/profile\/[^/]+$/.test(pathname)) return '/feed'
-  if (pathname === '/collections' || isHandleBoardPath(pathname)) return '/feed'
+  if (pathname.startsWith('/post/')) return HOME_PATH
+  if (/^\/profile\/[^/]+\/post\//.test(pathname)) return HOME_PATH
+  if (/^\/profile\/[^/]+$/.test(pathname)) return HOME_PATH
+  if (pathname === '/collections' || isHandleBoardPath(pathname)) return HOME_PATH
   return pathname
 }
 
@@ -345,7 +345,7 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
   }, [location, navigate])
 
   const closeAllModals = useCallback(() => {
-    navigate('/feed', { replace: true })
+    navigate(HOME_PATH, { replace: true })
   }, [navigate])
 
   const isModalOpen = modalStack.length > 0 || hasPathOverlayStack(location)
@@ -363,7 +363,7 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
       }
       e.preventDefault()
       // Close all modals and go to homescreen
-      navigate('/feed', { replace: true })
+      navigate(HOME_PATH, { replace: true })
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)

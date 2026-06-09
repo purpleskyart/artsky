@@ -34,7 +34,7 @@ import { signInWithOAuthRedirect } from '../lib/oauth'
 import { requestDeduplicator } from '../lib/RequestDeduplicator'
 import type { FeedSource } from '../types'
 import { GUEST_FEED_SOURCES, GUEST_MIX_ENTRIES } from '../config/feedSources'
-import { isHandleBoardPath, isMultiColumnGridRoute } from '../lib/routes'
+import { HOME_PATH, isHandleBoardPath, isHomePath, isMultiColumnGridRoute } from '../lib/routes'
 import { getPostAppPath, parseBskyFeedPostUri } from '../lib/appUrl'
 import { useFeedMix } from '../context/FeedMixContext'
 import { FeedSwipeProvider } from '../context/FeedSwipeContext'
@@ -528,7 +528,7 @@ export default function Layout({ title, children, showNav }: Props) {
   const mainAllColumnsWidth = viewMode === 'a' && isMultiColumnGridRoute(path)
   /** Mobile gear FAB: same view/theme/column controls as the home feed */
   const showFeedStyleSettingsFloat =
-    path === '/feed' || path === '/collections' || isHandleBoardPath(path)
+    isHomePath(path) || path === '/collections' || isHandleBoardPath(path)
   const isDesktop = useSyncExternalStore(subscribeDesktop, getDesktopSnapshot, () => false)
   const scrollLock = useScrollLock()
   const [, setAccountSheetOpen] = useState(false)
@@ -700,7 +700,7 @@ export default function Layout({ title, children, showNav }: Props) {
       return
     }
     seenPosts?.onHideSeenOnly(e?.currentTarget ?? undefined)
-    if (path !== '/feed') navigate('/feed')
+    if (!isHomePath(path)) navigate(HOME_PATH)
   }, [seenPosts, path, navigate])
 
   const homeBtnClick = useCallback((e: React.MouseEvent) => {
@@ -710,10 +710,10 @@ export default function Layout({ title, children, showNav }: Props) {
       return
     }
     e.preventDefault()
-    const onFeed = path === '/feed' || path === '/'
+    const onFeed = isHomePath(path)
     /* Always route logo clicks to home instead of stepping back in modal/history stacks. */
     if (!onFeed || isModalOpen) {
-      navigate('/feed', { replace: true })
+      navigate(HOME_PATH, { replace: true })
       return
     }
     seenPosts?.onHomeClick()
@@ -744,7 +744,7 @@ export default function Layout({ title, children, showNav }: Props) {
       }
       if (key !== 'q' && e.key !== 'Backspace') return
       /* On feed, Q / Backspace are for chrome and menus; don't treat as browser back */
-      if (loc.pathname === '/' || loc.pathname.startsWith('/feed')) return
+      if (isHomePath(loc.pathname)) return
       e.preventDefault()
       navigate(-1)
     }
@@ -903,11 +903,11 @@ export default function Layout({ title, children, showNav }: Props) {
   const handleSelectFeedFromSearch = useCallback(
     async (source: FeedSource) => {
       if (!source.uri) {
-        navigate('/feed', { state: { feedSource: source } })
+        navigate(HOME_PATH, { state: { feedSource: source } })
         return
       }
       if (!session) {
-        navigate('/feed', { state: { feedSource: source } })
+        navigate(HOME_PATH, { state: { feedSource: source } })
         return
       }
       setFeedAddError(null)
@@ -918,10 +918,10 @@ export default function Layout({ title, children, showNav }: Props) {
         const normalized: FeedSource = { kind: 'custom', label, uri }
         setSavedFeedSources((prev) => (prev.some((s) => s.uri === uri) ? prev : [...prev, normalized]))
         handleFeedsToggleSource(normalized)
-        navigate('/feed', { state: { feedSource: normalized } })
+        navigate(HOME_PATH, { state: { feedSource: normalized } })
       } catch (err) {
         setFeedAddError(err instanceof Error ? err.message : 'Could not add feed. Try again.')
-        navigate('/feed', { state: { feedSource: source } })
+        navigate(HOME_PATH, { state: { feedSource: source } })
       }
     },
     [session, navigate, handleFeedsToggleSource]
@@ -1508,7 +1508,7 @@ export default function Layout({ title, children, showNav }: Props) {
           navigate(getPostAppPath(rootUri))
         })
       }
-      navigate('/feed')
+      navigate(HOME_PATH)
     } catch (err) {
       setComposeError(err instanceof Error ? err.message : 'Failed to post')
       toast?.showToast('Failed to post. Please try again.')
@@ -1547,7 +1547,7 @@ export default function Layout({ title, children, showNav }: Props) {
 
   /* Mobile nav: Home, [Collections], New, Search, Profile. Desktop tray: Home, New, Search, [Collections]. */
   const searchActive = mobileSearchOpen && !isDesktop
-  const homeActive = path === '/feed' && !isModalOpen && !searchActive
+  const homeActive = isHomePath(path) && !isModalOpen && !searchActive
   const collectionsActive =
     !!showAccountFeedUi &&
     !searchActive &&
@@ -1866,15 +1866,15 @@ export default function Layout({ title, children, showNav }: Props) {
 
   const feedPullRefreshContextValue = useMemo(
     () => ({
-      wrapperRef: showNav && path === '/feed' ? feedPullRefreshWrapperRef : null,
-      setHandlers: showNav && path === '/feed' ? setFeedPullRefreshHandlers : null,
-      setPullOffsetPx: showNav && path === '/feed' ? setFeedPullOffsetPx : null,
+      wrapperRef: showNav && isHomePath(path) ? feedPullRefreshWrapperRef : null,
+      setHandlers: showNav && isHomePath(path) ? setFeedPullRefreshHandlers : null,
+      setPullOffsetPx: showNav && isHomePath(path) ? setFeedPullOffsetPx : null,
     }),
     [showNav, path]
   )
 
   useEffect(() => {
-    if (path !== '/feed') setFeedPullOffsetPx(0)
+    if (!isHomePath(path)) setFeedPullOffsetPx(0)
   }, [path])
 
   return (
@@ -1986,10 +1986,10 @@ export default function Layout({ title, children, showNav }: Props) {
                 </div>
               )}
               <Link
-                to="/feed"
+                to={HOME_PATH}
                 className={styles.logoLink}
                 aria-label="PurpleSky – back to feed"
-                title={path === '/feed' ? 'Home (hold to show all read posts)' : 'Back to feed'}
+                title={isHomePath(path) ? 'Home (hold to show all read posts)' : 'Back to feed'}
                 onPointerDown={startHomeHold}
                 onPointerUp={endHomeHold}
                 onPointerLeave={endHomeHold}
@@ -2472,7 +2472,7 @@ export default function Layout({ title, children, showNav }: Props) {
         className={`${styles.main} ${mainAllColumnsWidth ? styles.mainAllColumns : ''}`}
         aria-label="Main content"
       >
-        {showNav && path === '/feed' ? (
+        {showNav && isHomePath(path) ? (
           <div
             ref={feedPullRefreshWrapperRef}
             style={

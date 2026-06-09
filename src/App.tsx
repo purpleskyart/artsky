@@ -2,10 +2,10 @@
 import { Component, lazy, Suspense, useEffect } from 'react'
 import type { ErrorInfo, ReactNode } from 'react'
 import { BrowserRouter, Navigate, Route, Routes, useLocation, type Location } from 'react-router-dom'
+import { HOME_PATH } from './lib/routes'
 import { REPO_URL } from './config/repo'
 import { initPerformanceMetrics } from './lib/performanceMetrics'
 import { appAbsoluteUrl } from './lib/appUrl'
-import { hasOAuthCallbackSearch } from './lib/oauth'
 import { CoreProvidersGroup } from './context/CoreProvidersGroup'
 import { FeedProvidersGroup } from './context/FeedProvidersGroup'
 import { ModalProvidersGroup } from './context/ModalProvidersGroup'
@@ -50,7 +50,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
     const isSessionError = /session was deleted by another process|TokenRefreshError/i.test(error.message)
     if (isSessionError) {
       // Immediately redirect without rendering error page
-      window.location.assign(appAbsoluteUrl('/feed'))
+      window.location.assign(appAbsoluteUrl(HOME_PATH))
       return { error: null }
     }
     return { error }
@@ -124,19 +124,6 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
   }
 }
 
-/**
- * OAuth redirects to the registered redirect_uri (app root), e.g. /artsky/?code=…&state=… .
- * That maps to router path "/" under basename. We must not redirect to /feed here — Navigate
- * would drop the query string before SessionContext runs the OAuth callback.
- */
-function RootIndexRoute() {
-  const { search } = useLocation()
-  if (hasOAuthCallbackSearch(search)) {
-    return <FeedPage />
-  }
-  return <Navigate to="/feed" replace />
-}
-
 function AppRoutes() {
   useScrollRestoration()
   const location = useLocation()
@@ -146,15 +133,15 @@ function AppRoutes() {
     <ChunkLoadError>
       <Suspense fallback={null}>
         <Routes location={backgroundLocation ?? location}>
-          <Route path="/feed" element={<FeedPage />} />
+          <Route path="/feed" element={<Navigate to={HOME_PATH} replace />} />
           <Route path="/collections" element={<ModalErrorBoundary><CollectionsIndexPage /></ModalErrorBoundary>} />
           <Route path="/profile/:handle/post/:rkey" element={<ModalErrorBoundary><PostDetailPage /></ModalErrorBoundary>} />
           <Route path="/post/:uri" element={<ModalErrorBoundary><PostDetailPage /></ModalErrorBoundary>} />
           <Route path="/profile/:handle" element={<ModalErrorBoundary><ProfilePage /></ModalErrorBoundary>} />
           <Route path="/tag/:tag" element={<ModalErrorBoundary><TagPage /></ModalErrorBoundary>} />
           <Route path="/:handle/:boardSlug" element={<ModalErrorBoundary><CollectionPage /></ModalErrorBoundary>} />
-          <Route path="/" element={<RootIndexRoute />} />
-          <Route path="*" element={<Navigate to="/feed" replace />} />
+          <Route path="/" element={<FeedPage />} />
+          <Route path="*" element={<Navigate to={HOME_PATH} replace />} />
         </Routes>
         {backgroundLocation && (
           <Routes>
