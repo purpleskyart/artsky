@@ -103,6 +103,7 @@ export default function AppModal({
   const isMobile = useSyncExternalStore(subscribeMobile, getMobileSnapshot, () => false)
   const isStandalonePwa = useStandalonePwa()
   const [isRestoringScroll, setIsRestoringScroll] = useState(false)
+  const [keyboardOpen, setKeyboardOpen] = useState(false)
   const pullRefresh = usePullToRefresh({
     scrollRef,
     touchTargetRef: scrollRef,
@@ -145,6 +146,10 @@ export default function AppModal({
       el.style.height = `${vv.height}px`
       el.style.right = 'auto'
       el.style.bottom = 'auto'
+      const ih = window.innerHeight
+      const shrunk = vv.height < ih * 0.75
+      const panned = vv.offsetTop > 48
+      setKeyboardOpen(shrunk || panned)
     }
     update()
     vv.addEventListener('resize', update)
@@ -158,6 +163,7 @@ export default function AppModal({
       el.style.removeProperty('height')
       el.style.removeProperty('right')
       el.style.removeProperty('bottom')
+      setKeyboardOpen(false)
     }
   }, [isMobile])
 
@@ -396,7 +402,8 @@ export default function AppModal({
     <ModalTopBarSlotContext.Provider value={{ centerSlot: topBarSlotEl, rightSlot: topBarRightSlotEl, isMobile }}>
       <div
         ref={overlayRef}
-        className={`${styles.overlay}${!isTopModal ? ` ${styles.overlayStackedUnder}` : ''}${transparentTopBar ? ` ${styles.overlayFlushTop}` : ''}${expanded ? ` ${styles.overlayExpanded}` : ''}`}
+        className={`${styles.overlay}${!isTopModal ? ` ${styles.overlayStackedUnder}` : ''}${transparentTopBar ? ` ${styles.overlayFlushTop}` : ''}${expanded ? ` ${styles.overlayExpanded}` : ''}${keyboardOpen ? ` ${styles.overlayKeyboardOpen}` : ''}`}
+        data-keyboard-open={keyboardOpen || undefined}
         style={stackIndex !== undefined ? { zIndex: MODAL_OVERLAY_Z_BASE + stackIndex } : undefined}
         onClick={handleBackdropClick}
         role="dialog"

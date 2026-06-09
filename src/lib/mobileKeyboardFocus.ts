@@ -40,9 +40,14 @@ function alignFieldInModalScrollRoot(el: HTMLElement, scrollRoot: HTMLElement) {
   // Already in view — no adjustment needed.
   if (rect.top >= visibleTop - tol && effectiveBottom <= visibleBottom + tol) return
   if (effectiveBottom - rect.top > visibleBottom - visibleTop && rect.top >= visibleTop - tol && rect.bottom <= visibleBottom + tol) return
-  const targetMid = (visibleTop + visibleBottom) / 2
-  const mid = (rect.top + effectiveBottom) / 2
-  const delta = mid - targetMid
+  // Minimal scroll: only move enough to keep the field (and submit row) above the keyboard.
+  let delta = 0
+  if (effectiveBottom > visibleBottom + tol) {
+    delta = effectiveBottom - visibleBottom
+  } else if (rect.top < visibleTop - tol) {
+    delta = rect.top - visibleTop
+  }
+  if (delta === 0) return
   const maxScroll = Math.max(0, scrollRoot.scrollHeight - scrollRoot.clientHeight)
   scrollRoot.scrollTop = Math.min(Math.max(0, scrollRoot.scrollTop + delta), maxScroll)
 }
@@ -107,9 +112,8 @@ export function scrollFieldAboveKeyboard(el: HTMLElement): () => void {
     if (cancelled) return
     if (rafId !== null) cancelAnimationFrame(rafId)
     // Double-rAF: the first frame lets concurrent resize handlers run
-    // (AppModal sets --keyboard-inset which changes pane max-height);
-    // the second frame fires after the browser has reflowed those CSS
-    // changes, so getBoundingClientRect measurements are accurate.
+    // (AppModal resizes the overlay to visualViewport height); the second
+    // frame fires after reflow so getBoundingClientRect is accurate.
     rafId = requestAnimationFrame(() => {
       if (cancelled) return
       rafId = requestAnimationFrame(() => {

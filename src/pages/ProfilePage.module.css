@@ -30,6 +30,71 @@
   height: 52px;
 }
 
+/* Profile popup: keep follow/unfollow + bell inline to the right of @handle */
+.wrapInModal .profileMeta .handleRow {
+  flex-wrap: nowrap;
+  gap: 0.35rem;
+}
+
+.wrapInModal .followNotifyRow {
+  gap: 0.25rem;
+}
+
+.wrapInModal .followNotifyRow .followBtn {
+  padding: 0 0.5rem;
+  font-size: 0.75rem;
+  height: 1.625rem;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  border-radius: 0.35rem;
+}
+
+.wrapInModal .followNotifyRow .notificationBellBtn {
+  width: 1.625rem;
+  height: 1.625rem;
+  min-width: 1.625rem;
+  border-radius: 0.35rem;
+}
+
+.wrapInModal .followNotifyRow .notificationBellIcon {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+@media (min-width: 768px) {
+  .wrapInModal .profileHeaderMain {
+    flex-direction: row;
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .wrapInModal .profileMeta {
+    align-items: flex-start;
+  }
+
+  .wrapInModal .profileMeta .handleRow {
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    order: unset;
+    margin-bottom: 0.25rem;
+  }
+
+  .wrapInModal .profileMeta .handleRow .handle,
+  .wrapInModal .profileMeta .handleRow .followBtn,
+  .wrapInModal .profileMeta .handleRow .blockedMutedBtn,
+  .wrapInModal .profileMeta .handleRow .followNotifyRow {
+    order: unset;
+  }
+
+  .wrapInModal .profileMeta .displayName {
+    margin-top: 0;
+  }
+}
+
 .profileHeader {
   display: flex;
   align-items: flex-start;
@@ -148,23 +213,6 @@
     background: var(--error-bg);
   }
 }
-
-.followLabelHover {
-  display: none;
-}
-
-@media (hover: hover) {
-  .followBtnFollowing:hover:not(:disabled) .followLabelDefault {
-    display: none;
-  }
-}
-
-@media (hover: hover) {
-  .followBtnFollowing:hover:not(:disabled) .followLabelHover {
-    display: inline;
-  }
-}
-
 .notificationBellBtn {
   flex-shrink: 0;
   display: flex;

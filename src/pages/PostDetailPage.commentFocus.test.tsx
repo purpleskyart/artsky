@@ -4,28 +4,30 @@ describe('PostDetailPage - Comment Focus', () => {
   it('comment content wrapper should be separate from nested replies', () => {
     // This test verifies the DOM structure for proper focus behavior
     const mockCommentStructure = {
-      article: {
-        'data-comment-uri': 'comment-1',
-        children: {
-          commentContentWrap: {
-            'data-comment-content': 'comment-1',
-            tabIndex: -1,
-            contains: ['postHead', 'media', 'text', 'actions'],
+      threadBranch: {
+        article: {
+          'data-comment-uri': 'comment-1',
+          children: {
+            commentContentWrap: {
+              'data-comment-content': 'comment-1',
+              tabIndex: -1,
+              contains: ['postHead', 'media', 'text', 'actions'],
+            },
           },
-          repliesContainer: {
-            contains: ['nested-comment-1', 'nested-comment-2'],
-          },
+        },
+        repliesContainer: {
+          contains: ['nested-comment-1', 'nested-comment-2'],
         },
       },
     }
 
     // When focusing a comment with replies, we should focus the commentContentWrap
     // not the entire article which includes nested replies
-    expect(mockCommentStructure.article.children.commentContentWrap['data-comment-content']).toBe('comment-1')
-    expect(mockCommentStructure.article.children.commentContentWrap.tabIndex).toBe(-1)
+    expect(mockCommentStructure.threadBranch.article.children.commentContentWrap['data-comment-content']).toBe('comment-1')
+    expect(mockCommentStructure.threadBranch.article.children.commentContentWrap.tabIndex).toBe(-1)
     
-    // The replies container should be separate
-    expect(mockCommentStructure.article.children.repliesContainer).toBeDefined()
+    // Replies render in a sibling branch container, not inside the comment article
+    expect(mockCommentStructure.threadBranch.repliesContainer).toBeDefined()
   })
 
   it('focus target selection logic', () => {

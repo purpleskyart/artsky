@@ -407,6 +407,14 @@
   .scroll {
     padding-bottom: calc(var(--nav-height) + env(safe-area-inset-bottom));
   }
+  /* Keyboard open: nav is hidden and overlay already shrinks — drop nav padding to avoid a gap. */
+  .overlayKeyboardOpen.overlay {
+    padding-bottom: 0;
+  }
+  .overlayKeyboardOpen .scroll,
+  .overlayKeyboardOpen .scrollWithTransparentBar {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
   /* Transparent bar on mobile: keep at top */
   .modalTopBarTransparent {
     top: 0;

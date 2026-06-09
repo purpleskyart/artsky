@@ -29,6 +29,8 @@ import { useLikeOverrideForUri } from '../context/LikeOverridesContext'
 import styles from './PostDetailPage.module.css'
 
 const REPLY_VIRTUALIZE_THRESHOLD = 20
+/** Inline layout depth before showing "+ Read More" (resets indent when expanded). */
+const REPLY_THREAD_MAX_LAYOUT_DEPTH = 4
 
 const ACTION_ICON_SIZE = 18
 
@@ -184,20 +186,66 @@ function isThreadViewPost(node: unknown): node is AppBskyFeedDefs.ThreadViewPost
   )
 }
 
+function getThreadReplies(node: AppBskyFeedDefs.ThreadViewPost): AppBskyFeedDefs.ThreadViewPost[] {
+  if (!('replies' in node) || !Array.isArray(node.replies)) return []
+  return (node.replies as unknown[]).filter((x): x is AppBskyFeedDefs.ThreadViewPost => isThreadViewPost(x))
+}
+
+function countThreadNodes(node: unknown): number {
+  if (!isThreadViewPost(node)) return 0
+  return 1 + getThreadReplies(node).reduce((sum, r) => sum + countThreadNodes(r), 0)
+}
+
+/** URIs that must be expanded so `targetUri` is visible in a deep reply chain. */
+function findRequiredDeepExpansionsInNode(
+  node: AppBskyFeedDefs.ThreadViewPost,
+  targetUri: string,
+  layoutDepth: number,
+  expandedAlongPath: Set<string>,
+): Set<string> | null {
+  if (node.post.uri === targetUri) return expandedAlongPath
+  for (const child of getThreadReplies(node)) {
+    const childUri = child.post.uri
+    const childLayoutDepth = expandedAlongPath.has(node.post.uri) ? 1 : layoutDepth + 1
+    if (childLayoutDepth >= REPLY_THREAD_MAX_LAYOUT_DEPTH && !expandedAlongPath.has(childUri)) {
+      const withExpand = new Set(expandedAlongPath)
+      withExpand.add(childUri)
+      const found = findRequiredDeepExpansionsInNode(child, targetUri, 0, withExpand)
+      if (found) return found
+    } else {
+      const found = findRequiredDeepExpansionsInNode(child, targetUri, childLayoutDepth, expandedAlongPath)
+      if (found) return found
+    }
+  }
+  return null
+}
+
+function findRequiredDeepExpansions(
+  replies: AppBskyFeedDefs.ThreadViewPost[],
+  targetUri: string,
+): Set<string> {
+  for (const r of replies) {
+    const found = findRequiredDeepExpansionsInNode(r, targetUri, 0, new Set())
+    if (found) return found
+  }
+  return new Set()
+}
+
 /** Flatten visible comments in display order (expanded threads include nested replies). */
 function flattenVisibleReplies(
   replies: AppBskyFeedDefs.ThreadViewPost[],
-  collapsed: Set<string>
+  collapsed: Set<string>,
+  expandedDeep: Set<string>,
+  layoutDepth = 0,
 ): { uri: string; handle: string }[] {
   return replies.flatMap((r) => {
     const uri = r.post.uri
     const handle = r.post.author?.handle ?? r.post.author?.did ?? ''
     if (collapsed.has(uri)) return [{ uri, handle }]
-    const nested =
-      'replies' in r && Array.isArray(r.replies)
-        ? (r.replies as unknown[]).filter((x): x is AppBskyFeedDefs.ThreadViewPost => isThreadViewPost(x as Parameters<typeof isThreadViewPost>[0]))
-        : []
-    return [{ uri, handle }, ...flattenVisibleReplies(nested, collapsed)]
+    if (layoutDepth >= REPLY_THREAD_MAX_LAYOUT_DEPTH && !expandedDeep.has(uri)) return []
+    const nested = getThreadReplies(r)
+    const childLayoutDepth = expandedDeep.has(uri) ? 1 : layoutDepth + 1
+    return [{ uri, handle }, ...flattenVisibleReplies(nested, collapsed, expandedDeep, childLayoutDepth)]
   })
 }
 
@@ -416,6 +464,7 @@ function MediaGallery({
                   playlistUrl={m.videoPlaylist}
                   poster={m.url || undefined}
                   className={styles.galleryVideo}
+                  loop
                   autoPlay={i === firstVideoIndex}
                   preload={i === firstVideoIndex ? 'metadata' : 'none'}
                   controlsHiddenUntilTap={hideVideoControlsUntilTap}
@@ -441,6 +490,7 @@ function MediaGallery({
                   playlistUrl={m.url || ''}
                   poster={m.url || undefined}
                   className={styles.galleryVideo}
+                  loop
                   autoPlay={i === firstVideoIndex}
                   preload={i === firstVideoIndex ? 'metadata' : 'none'}
                   controlsHiddenUntilTap={hideVideoControlsUntilTap}
@@ -494,8 +544,10 @@ function MediaGallery({
 
 function PostBlock({
   node,
-  depth = 0,
+  layoutDepth = 0,
   collapsedThreads,
+  expandedDeepThreads,
+  onExpandDeepThread,
   onToggleCollapse,
   onReply,
   rootPostUri,
@@ -527,8 +579,10 @@ function PostBlock({
   onImageClick,
 }: {
   node: AppBskyFeedDefs.ThreadViewPost | AppBskyFeedDefs.NotFoundPost | AppBskyFeedDefs.BlockedPost | { $type: string }
-  depth?: number
+  layoutDepth?: number
   collapsedThreads?: Set<string>
+  expandedDeepThreads?: Set<string>
+  onExpandDeepThread?: (uri: string) => void
   onToggleCollapse?: (uri: string) => void
   onReply?: (parentUri: string, parentCid: string, handle: string) => void
   rootPostUri?: string
@@ -683,19 +737,46 @@ function PostBlock({
   const replies = rawReplies
   const hasReplies = replies.length > 0
   const isCollapsed = hasReplies && collapsedThreads?.has(post.uri)
-  const canCollapse = !!onToggleCollapse
+  const canCollapse = hasReplies && !!onToggleCollapse
+  const isDeepGated = layoutDepth >= REPLY_THREAD_MAX_LAYOUT_DEPTH && !expandedDeepThreads?.has(post.uri)
+  const displayLayoutDepth = expandedDeepThreads?.has(post.uri) ? 0 : layoutDepth
+  const threadIndentPx = displayLayoutDepth > 0 ? Math.min(displayLayoutDepth * 8, 32) : 0
+  const threadIndentStyle = threadIndentPx > 0
+    ? { marginLeft: threadIndentPx, width: `calc(100% - ${threadIndentPx}px)`, boxSizing: 'border-box' as const }
+    : undefined
+  const childLayoutDepth = expandedDeepThreads?.has(post.uri) ? 1 : layoutDepth + 1
   const isReplyTarget = replyingTo?.uri === post.uri
   const isFocused = focusedCommentUri === post.uri
   const likeLoading = likeLoadingUri === post.uri
   const downvoteLoading = downvoteLoadingUri === post.uri
   const showCommentCounts = true
 
+  if (isDeepGated) {
+    const hiddenCount = countThreadNodes(node)
+    return (
+      <div className={styles.readMoreWrap} style={threadIndentStyle}>
+        <button
+          type="button"
+          className={styles.readMoreBtn}
+          onClick={() => onExpandDeepThread?.(post.uri)}
+          data-comment-uri={post.uri}
+          aria-label={hiddenCount > 1 ? `Read ${hiddenCount} more replies in this chain` : 'Read more replies in this chain'}
+        >
+          <span className={styles.readMoreIcon} aria-hidden>+</span>
+          <span className={styles.readMoreLabel}>Read More</span>
+          {hiddenCount > 1 && (
+            <span className={styles.readMoreCount}>{hiddenCount} replies</span>
+          )}
+        </button>
+      </div>
+    )
+  }
+
   return (
-    <article
-      className={`${styles.postBlock} ${styles.threadedCommentArticle} ${isFocused ? styles.commentFocused : ''}`}
-      data-thread-depth={depth}
-      data-comment-uri={post.uri}
-      tabIndex={-1}
+    <div
+      className={styles.threadBranch}
+      style={threadIndentStyle}
+      data-thread-depth={displayLayoutDepth}
     >
       {canCollapse && (
         <div className={styles.collapseColumn}>
@@ -717,6 +798,12 @@ function PostBlock({
           />
         </div>
       )}
+      <div className={styles.threadBranchBody}>
+    <article
+      className={`${styles.postBlock} ${styles.threadedCommentArticle} ${isFocused ? styles.commentFocused : ''}`}
+      data-comment-uri={post.uri}
+      tabIndex={-1}
+    >
       <div className={styles.postBlockContent}>
       <div className={styles.commentContentWrap} data-comment-content={post.uri} tabIndex={-1}>
       <div className={styles.postHead}>
@@ -904,97 +991,6 @@ function PostBlock({
         </div>
       )}
       </div>
-      {hasReplies && (
-        <div className={styles.repliesContainer}>
-          {isCollapsed ? (
-            <button
-              type="button"
-              className={styles.repliesCollapsed}
-              onClick={() => onToggleCollapse?.(post.uri)}
-            >
-              {replies.length} reply{replies.length !== 1 ? 's' : ''}
-            </button>
-          ) : (
-            <div className={styles.replies}>
-              {replies.map((r, rIndex) => {
-                if (!isThreadViewPost(r)) return null
-                const replyDepth = depth + 1
-                const virtualizeReplies = replies.length >= REPLY_VIRTUALIZE_THRESHOLD
-                if (collapsedThreads?.has(r.post.uri)) {
-                  const replyCount = 'replies' in r && Array.isArray(r.replies) ? (r.replies as unknown[]).length : 0
-                  const label = replyCount === 0 ? 'Comment' : `${replyCount} reply${replyCount !== 1 ? 's' : ''}`
-                  const replyHandle = r.post.author?.handle ?? r.post.author?.did ?? ''
-                  const collapsedNode = (
-                    <div
-                      className={styles.collapsedCommentWrap}
-                      style={{ marginLeft: Math.min(replyDepth * 6, 28) }}
-                      data-comment-uri={r.post.uri}
-                      tabIndex={-1}
-                    >
-                      <button type="button" className={styles.collapsedCommentBtn} onClick={() => onToggleCollapse?.(r.post.uri)}>
-                        <span className={styles.collapsedCommentExpandIcon} aria-hidden>+</span>
-                        {r.post.author?.avatar ? (
-                          <img src={r.post.author.avatar} alt="" className={styles.collapsedCommentAvatar} loading="lazy" />
-                        ) : (
-                          <span className={styles.collapsedCommentAvatarPlaceholder} aria-hidden>{replyHandle.slice(0, 1).toUpperCase()}</span>
-                        )}
-                        <span className={styles.collapsedCommentHandle}>@{replyHandle}</span>
-                        <span className={styles.collapsedCommentLabel}>{label}</span>
-                      </button>
-                    </div>
-                  )
-                  return virtualizeReplies ? (
-                    <VirtualizedCell key={`${r.post.uri}-${rIndex}`}>{collapsedNode}</VirtualizedCell>
-                  ) : (
-                    <div key={`${r.post.uri}-${rIndex}`}>{collapsedNode}</div>
-                  )
-                }
-                const replyBlock = (
-                  <PostBlock
-                    node={r}
-                    depth={replyDepth}
-                    collapsedThreads={collapsedThreads}
-                    onToggleCollapse={onToggleCollapse}
-                    onReply={onReply}
-                    rootPostUri={rootPostUri}
-                    rootPostCid={rootPostCid}
-                    replyingTo={replyingTo}
-                    replyComment={replyComment}
-                    setReplyComment={setReplyComment}
-                    onReplySubmit={onReplySubmit}
-                    replyPosting={replyPosting}
-                    clearReplyingTo={clearReplyingTo}
-                    commentFormRef={commentFormRef}
-                    replyAs={replyAs}
-                    sessionsList={sessionsList}
-                    switchAccount={switchAccount}
-                    currentDid={currentDid}
-                    focusedCommentUri={focusedCommentUri}
-                    onCommentMediaFocus={onCommentMediaFocus}
-                    onLike={onLike}
-                    onDownvote={onDownvote}
-                    likeOverrides={likeOverrides}
-                    myDownvotes={myDownvotes}
-                    downvoteCounts={downvoteCounts}
-                    downvoteCountOptimisticDelta={downvoteCountOptimisticDelta}
-                    likeLoadingUri={likeLoadingUri}
-                    downvoteLoadingUri={downvoteLoadingUri}
-                    openActionsMenuCommentUri={openActionsMenuCommentUri}
-                    onActionsMenuOpenChange={onActionsMenuOpenChange}
-                    onViewQuotes={onViewQuotes}
-                    onImageClick={onImageClick}
-                  />
-                )
-                return virtualizeReplies ? (
-                  <VirtualizedCell key={`${r.post.uri}-${rIndex}`}>{replyBlock}</VirtualizedCell>
-                ) : (
-                  <div key={`${r.post.uri}-${rIndex}`}>{replyBlock}</div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-      )}
       </div>
       {showQuoteComposer && isThreadViewPost(node) && (() => {
         const post = node.post
@@ -1188,6 +1184,101 @@ function PostBlock({
         )
       })()}
     </article>
+    {hasReplies && (
+      <div className={styles.repliesContainer}>
+        {isCollapsed ? (
+          <button
+            type="button"
+            className={styles.repliesCollapsed}
+            onClick={() => onToggleCollapse?.(post.uri)}
+          >
+            {replies.length} reply{replies.length !== 1 ? 's' : ''}
+          </button>
+        ) : (
+          <div className={styles.replies}>
+            {replies.map((r, rIndex) => {
+              if (!isThreadViewPost(r)) return null
+              const replyIndentPx = Math.min(childLayoutDepth * 8, 32)
+              const virtualizeReplies = replies.length >= REPLY_VIRTUALIZE_THRESHOLD
+              if (collapsedThreads?.has(r.post.uri)) {
+                const replyCount = 'replies' in r && Array.isArray(r.replies) ? (r.replies as unknown[]).length : 0
+                const label = replyCount === 0 ? 'Comment' : `${replyCount} reply${replyCount !== 1 ? 's' : ''}`
+                const replyHandle = r.post.author?.handle ?? r.post.author?.did ?? ''
+                const collapsedNode = (
+                  <div
+                    className={styles.collapsedCommentWrap}
+                    style={{ marginLeft: replyIndentPx, width: replyIndentPx > 0 ? `calc(100% - ${replyIndentPx}px)` : undefined, boxSizing: 'border-box' }}
+                    data-comment-uri={r.post.uri}
+                    tabIndex={-1}
+                  >
+                    <button type="button" className={styles.collapsedCommentBtn} onClick={() => onToggleCollapse?.(r.post.uri)}>
+                      <span className={styles.collapsedCommentExpandIcon} aria-hidden>+</span>
+                      {r.post.author?.avatar ? (
+                        <img src={r.post.author.avatar} alt="" className={styles.collapsedCommentAvatar} loading="lazy" />
+                      ) : (
+                        <span className={styles.collapsedCommentAvatarPlaceholder} aria-hidden>{replyHandle.slice(0, 1).toUpperCase()}</span>
+                      )}
+                      <span className={styles.collapsedCommentHandle}>@{replyHandle}</span>
+                      <span className={styles.collapsedCommentLabel}>{label}</span>
+                    </button>
+                  </div>
+                )
+                return virtualizeReplies ? (
+                  <VirtualizedCell key={`${r.post.uri}-${rIndex}`}>{collapsedNode}</VirtualizedCell>
+                ) : (
+                  <div key={`${r.post.uri}-${rIndex}`}>{collapsedNode}</div>
+                )
+              }
+              const replyBlock = (
+                <PostBlock
+                  node={r}
+                  layoutDepth={childLayoutDepth}
+                  collapsedThreads={collapsedThreads}
+                  expandedDeepThreads={expandedDeepThreads}
+                  onExpandDeepThread={onExpandDeepThread}
+                  onToggleCollapse={onToggleCollapse}
+                  onReply={onReply}
+                  rootPostUri={rootPostUri}
+                  rootPostCid={rootPostCid}
+                  replyingTo={replyingTo}
+                  replyComment={replyComment}
+                  setReplyComment={setReplyComment}
+                  onReplySubmit={onReplySubmit}
+                  replyPosting={replyPosting}
+                  clearReplyingTo={clearReplyingTo}
+                  commentFormRef={commentFormRef}
+                  replyAs={replyAs}
+                  sessionsList={sessionsList}
+                  switchAccount={switchAccount}
+                  currentDid={currentDid}
+                  focusedCommentUri={focusedCommentUri}
+                  onCommentMediaFocus={onCommentMediaFocus}
+                  onLike={onLike}
+                  onDownvote={onDownvote}
+                  likeOverrides={likeOverrides}
+                  myDownvotes={myDownvotes}
+                  downvoteCounts={downvoteCounts}
+                  downvoteCountOptimisticDelta={downvoteCountOptimisticDelta}
+                  likeLoadingUri={likeLoadingUri}
+                  downvoteLoadingUri={downvoteLoadingUri}
+                  openActionsMenuCommentUri={openActionsMenuCommentUri}
+                  onActionsMenuOpenChange={onActionsMenuOpenChange}
+                  onViewQuotes={onViewQuotes}
+                  onImageClick={onImageClick}
+                />
+              )
+              return virtualizeReplies ? (
+                <VirtualizedCell key={`${r.post.uri}-${rIndex}`}>{replyBlock}</VirtualizedCell>
+              ) : (
+                <div key={`${r.post.uri}-${rIndex}`}>{replyBlock}</div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    )}
+      </div>
+    </div>
   )
 }
 
@@ -1220,6 +1311,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
   const [comment, setComment] = useState('')
   const [posting, setPosting] = useState(false)
   const [collapsedThreads, setCollapsedThreads] = useState<Set<string>>(() => new Set())
+  const [expandedDeepThreads, setExpandedDeepThreads] = useState<Set<string>>(() => new Set())
   const [followLoading, setFollowLoading] = useState(false)
   const [authorFollowed, setAuthorFollowed] = useState(false)
   const [followUriOverride, setFollowUriOverride] = useState<string | null>(null)
@@ -1325,6 +1417,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
 
   useEffect(() => {
     setLikeUriOverride(undefined)
+    setExpandedDeepThreads(new Set())
   }, [decodedUri])
 
   // Update Open Graph meta tags for link previews when post data loads
@@ -1390,6 +1483,15 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
       const next = new Set(prev)
       if (next.has(uri)) next.delete(uri)
       else next.add(uri)
+      return next
+    })
+  }
+
+  function expandDeepThread(uri: string) {
+    setExpandedDeepThreads((prev) => {
+      if (prev.has(uri)) return prev
+      const next = new Set(prev)
+      next.add(uri)
       return next
     })
   }
@@ -1921,8 +2023,8 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
   }, [threadReplies, commentSortOrder, getReplyLikeCount, getReplyDownvoteCount, wilsonLower])
 
   const threadRepliesFlat = useMemo(
-    () => flattenVisibleReplies(threadRepliesVisible, collapsedThreads),
-    [threadRepliesVisible, collapsedThreads]
+    () => flattenVisibleReplies(threadRepliesVisible, collapsedThreads, expandedDeepThreads),
+    [threadRepliesVisible, collapsedThreads, expandedDeepThreads]
   )
   const threadRepliesFlatRef = useRef(threadRepliesFlat)
   threadRepliesFlatRef.current = threadRepliesFlat
@@ -2276,13 +2378,31 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
     }
   }, [threadRepliesFlat.length])
 
+  /* Auto-expand deep reply chains when navigating to a nested comment (e.g. from notification). */
+  useEffect(() => {
+    if (!initialFocusedCommentUri || threadRepliesVisible.length === 0) return
+    const required = findRequiredDeepExpansions(threadRepliesVisible, initialFocusedCommentUri)
+    if (required.size === 0) return
+    setExpandedDeepThreads((prev) => {
+      let changed = false
+      const next = new Set(prev)
+      for (const u of required) {
+        if (!next.has(u)) {
+          next.add(u)
+          changed = true
+        }
+      }
+      return changed ? next : prev
+    })
+  }, [initialFocusedCommentUri, threadRepliesVisible])
+
   /* When opened with initialFocusedCommentUri (e.g. from notification), scroll to that reply */
   useEffect(() => {
     if (!initialFocusedCommentUri || !thread || !isThreadViewPost(thread) || threadRepliesFlat.length === 0) return
     if (appliedInitialFocusUriRef.current === initialFocusedCommentUri) return
-    appliedInitialFocusUriRef.current = initialFocusedCommentUri
     const commentIdx = threadRepliesFlat.findIndex((f) => f.uri === initialFocusedCommentUri)
     if (commentIdx < 0) return
+    appliedInitialFocusUriRef.current = initialFocusedCommentUri
     setFocusedCommentIndex(commentIdx)
     const focusIdx = focusItems.findIndex((it) => (it.type === 'comment' || it.type === 'commentMedia') && it.commentUri === initialFocusedCommentUri)
     if (focusIdx >= 0) setKeyboardFocusIndex(focusIdx)
@@ -2487,8 +2607,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                           disabled={followLoading}
                           title="Unfollow"
                         >
-                          <span className={styles.followLabelDefault}>Following</span>
-                          <span className={styles.followLabelHover}>Unfollow</span>
+                          Unfollow
                         </button>
                       ) : (
                         <button
@@ -2857,8 +2976,10 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                     >
                     <PostBlock
                         node={r}
-                        depth={0}
+                        layoutDepth={0}
                         collapsedThreads={collapsedThreads}
+                        expandedDeepThreads={expandedDeepThreads}
+                        onExpandDeepThread={expandDeepThread}
                         onToggleCollapse={toggleCollapse}
                         onReply={handleReplyTo}
                         rootPostUri={thread.post.uri}

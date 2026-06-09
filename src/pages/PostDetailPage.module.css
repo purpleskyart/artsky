@@ -90,7 +90,20 @@
   margin-bottom: 0.75rem;
 }
 
-/* Nested replies: depth-based indentation is handled via inline style in PostDetailPage.tsx */
+/* Nested replies: depth-based indent from PostDetailPage.tsx; replies sit outside comment content so width does not compound per level. */
+.threadBranch {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  min-width: 0;
+}
+
+.threadBranchBody {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
 
 /* Comments: darkened area under each comment (no border) */
 .postBlock:not(.rootPostBlock) {
@@ -651,23 +664,6 @@
     background: var(--error-bg);
   }
 }
-
-.followLabelHover {
-  display: none;
-}
-
-@media (hover: hover) {
-  .followBtnFollowing:hover:not(:disabled) .followLabelDefault {
-    display: none;
-  }
-}
-
-@media (hover: hover) {
-  .followBtnFollowing:hover:not(:disabled) .followLabelHover {
-    display: inline;
-  }
-}
-
 .postTimestamp {
   font-size: 0.8rem;
   color: var(--muted);
@@ -1129,13 +1125,13 @@
   margin-bottom: 0;
 }
 
-.repliesTopLevel .topLevelCommentWrap > .postBlock {
+.repliesTopLevel .topLevelCommentWrap > .threadBranch > .threadBranchBody > .postBlock {
   padding-left: 4px;
   padding-right: 0;
   margin-bottom: 0.35rem;
 }
 
-.repliesContainer .replies .postBlock {
+.repliesContainer .replies .threadBranch > .threadBranchBody > .postBlock {
   padding-left: 0;
   padding-right: 0;
   padding-top: 0.45rem;
@@ -1144,36 +1140,84 @@
 }
 
 /* Nested thread: thinner collapse rail so deep replies keep more text width */
-.repliesContainer .replies .collapseColumn {
+.repliesContainer .replies .threadBranch > .collapseColumn {
   margin-right: 0.2rem;
 }
 
-.repliesContainer .replies .collapseBtn {
+.repliesContainer .replies .threadBranch > .collapseColumn .collapseBtn {
   width: 1rem;
   height: 1rem;
 }
 
-.repliesContainer .replies .collapseStrip {
+.repliesContainer .replies .threadBranch > .collapseColumn .collapseStrip {
   width: 1rem;
   min-height: 1.25rem;
 }
 
-.repliesContainer .replies .collapseIcon {
+.repliesContainer .replies .threadBranch > .collapseColumn .collapseIcon {
   font-size: 0.875rem;
 }
 
 .wrapInModal .replies {
   padding-right: 0.5rem;
 }
-.wrapInModal .repliesTopLevel .topLevelCommentWrap > .postBlock {
+.wrapInModal .repliesTopLevel .topLevelCommentWrap > .threadBranch > .threadBranchBody > .postBlock {
   padding-right: 0.5rem;
 }
-.wrapInModal .repliesContainer .replies .postBlock {
+.wrapInModal .repliesContainer .replies .threadBranch > .threadBranchBody > .postBlock {
   padding-right: 0.5rem;
 }
 
 .collapsedCommentWrap {
   margin-bottom: 0.5rem;
+}
+
+.readMoreWrap {
+  margin-bottom: 0.5rem;
+}
+
+.readMoreBtn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.45rem 0.5rem;
+  background: none;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 500;
+  text-align: left;
+  border-radius: 0.35rem;
+}
+
+.readMoreIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  font-size: 1rem;
+  line-height: 1;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.readMoreLabel {
+  flex-shrink: 0;
+}
+
+.readMoreCount {
+  color: var(--muted);
+  font-weight: 400;
+  font-size: 0.85rem;
+}
+
+@media (hover: hover) {
+  .readMoreBtn:hover {
+    background: var(--glass-highlight);
+  }
 }
 
 .collapsedCommentBtn {
@@ -1291,9 +1335,11 @@
   flex-shrink: 0;
 }
 
-.likeRepostBtn:hover:not(:disabled) {
-  color: var(--accent);
-  border-color: var(--accent);
+@media (hover: hover) {
+  .likeRepostBtn:hover:not(:disabled) {
+    color: var(--accent);
+    border-color: var(--accent);
+  }
 }
 
 .likeRepostBtnActive {
@@ -1305,15 +1351,19 @@
 }
 /* Mobile: use solid pink color for better compatibility */
 @media (hover: none) {
-  .likeRepostBtnActive {
+  .likeRepostBtnActive,
+  .likeRepostBtnActive:hover:not(:disabled) {
     background: none;
     color: #ec4899;
     -webkit-background-clip: unset;
     background-clip: unset;
+    filter: none;
   }
 }
-.likeRepostBtnActive:hover:not(:disabled) {
-  filter: brightness(1.15);
+@media (hover: hover) {
+  .likeRepostBtnActive:hover:not(:disabled) {
+    filter: brightness(1.15);
+  }
 }
 .likeRepostBtnActive .likeRepostBtnIcon {
   color: #ec4899;
