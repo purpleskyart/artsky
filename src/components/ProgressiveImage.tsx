@@ -324,6 +324,7 @@ export function ProgressiveImage({
           alt=""
           className={styles.placeholder}
           aria-hidden="true"
+          decoding="async"
           onError={handlePlaceholderError}
         />
       )}
@@ -335,6 +336,7 @@ export function ProgressiveImage({
         sizes={canShowFullImage && srcSet ? finalSizesAttr : undefined}
         alt={alt}
         loading={loading === 'eager' || canShowFullImage ? 'eager' : 'lazy'}
+        decoding="async"
         onLoad={handleImageLoad}
         onError={handleImageError}
         className={styles.fullImage}

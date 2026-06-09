@@ -1,10 +1,13 @@
 import { useState, useCallback } from 'react'
+import { resizedAvatarUrl } from '../lib/imageUtils'
 
 interface AvatarProps {
   src: string | undefined | null
   alt?: string
   className?: string
   loading?: 'lazy' | 'eager'
+  /** Display size in CSS pixels; used to request a CDN-resized avatar. */
+  sizePx?: number
   fallback?: React.ReactNode
 }
 
@@ -16,7 +19,7 @@ interface AvatarProps {
  * 
  * If a fallback is provided, it will be shown instead of the broken image.
  */
-export function Avatar({ src, alt = '', className, loading = 'lazy', fallback }: AvatarProps) {
+export function Avatar({ src, alt = '', className, loading = 'lazy', sizePx = 40, fallback }: AvatarProps) {
   const [hasError, setHasError] = useState(false)
 
   const handleError = useCallback(() => {
@@ -31,10 +34,11 @@ export function Avatar({ src, alt = '', className, loading = 'lazy', fallback }:
 
   return (
     <img
-      src={src}
+      src={resizedAvatarUrl(src, sizePx)}
       alt={alt}
       className={className}
       loading={loading}
+      decoding="async"
       onError={handleError}
     />
   )

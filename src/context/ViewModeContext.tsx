@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useRef, useState } from 'react'
+import { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react'
 import { useSyncExternalStore } from 'react'
 import { useSession } from './SessionContext'
 import { useToast } from './ToastContext'
@@ -135,12 +135,12 @@ function ViewModeProviderInner({
     })
   }, [did, toast])
 
-  const value: ViewModeContextValue = {
+  const value = useMemo<ViewModeContextValue>(() => ({
     viewMode,
     setViewMode,
     cycleViewMode,
     viewOptions: VIEW_OPTIONS,
-  }
+  }), [viewMode, setViewMode, cycleViewMode])
 
   return (
     <ViewModeContext.Provider value={value}>

@@ -8,6 +8,7 @@ import {
   setVideoHlsAttached,
   resetVideoPlaybackManager,
   isFeedSuspended,
+  PAUSE_VISIBILITY_RATIO,
 } from './videoPlaybackManager'
 
 describe('videoPlaybackManager', () => {
@@ -90,6 +91,19 @@ describe('videoPlaybackManager', () => {
     vi.runAllTimers()
     expect(order[0]).toBe('preview')
     expect(order[1]).toBe('feed')
+  })
+
+  it('plays when near viewport above pause threshold', () => {
+    const onPlay = vi.fn()
+    registerVideoSession('a', 'feed', true, {
+      onPlay,
+      onPause: vi.fn(),
+      onAttach: vi.fn(),
+      onDetach: vi.fn(),
+    })
+    updateVideoVisibility('a', PAUSE_VISIBILITY_RATIO, true)
+    vi.runAllTimers()
+    expect(onPlay).toHaveBeenCalled()
   })
 
   it('reconciles play when HLS attach completes while visible', () => {

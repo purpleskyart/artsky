@@ -1,9 +1,10 @@
-import { useRef, useEffect, useState, useCallback } from 'react'
+import { useRef, useEffect, useLayoutEffect, useState, useCallback } from 'react'
 import { loadHls } from '../lib/loadHls'
 import { buildHlsConfig, PAUSE_VISIBILITY_RATIO, PLAY_VISIBILITY_RATIO, type VideoPlaybackMode } from '../lib/videoHlsConfig'
 import {
   getVisibleAutoplayCount,
   registerVideoSession,
+  registerVisibilityRefresh,
   retryAutoplayIfWanted,
   setVideoHlsAttached,
   setVideoPlaying,
@@ -171,6 +172,8 @@ export default function VideoWithHls({
     if (shouldMute) {
       video.muted = true
       video.defaultMuted = true
+      video.setAttribute('muted', '')
+      video.volume = 0
     }
 
     const attempt = () => {
@@ -202,8 +205,8 @@ export default function VideoWithHls({
     videoRef.current?.pause()
   }, [])
 
-  // Manager-driven autoplay sessions
-  useEffect(() => {
+  // Manager-driven autoplay sessions (layout effect so registration precedes visibility observer)
+  useLayoutEffect(() => {
     if (!autoPlay) return
     const id = videoIdRef.current
     registerVideoSession(id, playbackMode, true, {
@@ -219,7 +222,7 @@ export default function VideoWithHls({
   }, [autoPlay, playbackMode, requestPlay, requestPause, attachHls, destroyHls])
 
   // Visibility observer for manager (autoplay) or local pause (manual)
-  useEffect(() => {
+  useLayoutEffect(() => {
     const video = videoRef.current
     const visibilityTarget = visibilityRef.current ?? video
     if (!video || !visibilityTarget) return
@@ -244,11 +247,39 @@ export default function VideoWithHls({
       root: intersectionRoot ?? undefined,
     })
 
+    const forceIntersectionUpdate = () => {
+      observer.unobserve(visibilityTarget)
+      observer.observe(visibilityTarget)
+      const pending = observer.takeRecords()
+      if (pending.length > 0) handleEntries(pending)
+    }
+
     observer.observe(visibilityTarget)
     const pending = observer.takeRecords()
     if (pending.length > 0) handleEntries(pending)
-    return () => observer.disconnect()
-  }, [intersectionRoot, autoPlay, playlistUrl])
+
+    const raf1 = requestAnimationFrame(() => {
+      forceIntersectionUpdate()
+      requestAnimationFrame(forceIntersectionUpdate)
+    })
+
+    const resizeObserver =
+      typeof ResizeObserver !== 'undefined'
+        ? new ResizeObserver(() => forceIntersectionUpdate())
+        : null
+    resizeObserver?.observe(visibilityTarget)
+
+    const unregisterRefresh = autoPlay
+      ? registerVisibilityRefresh(forceIntersectionUpdate)
+      : () => {}
+
+    return () => {
+      cancelAnimationFrame(raf1)
+      resizeObserver?.disconnect()
+      unregisterRefresh()
+      observer.disconnect()
+    }
+  }, [intersectionRoot, autoPlay, playlistUrl, style])
 
   // Track play/pause state for overlays and manager
   useEffect(() => {

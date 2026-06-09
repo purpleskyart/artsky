@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react'
 import { useToast } from './ToastContext'
 import { useSession } from './SessionContext'
 import { asyncStorage } from '../lib/AsyncStorage'
@@ -71,8 +71,14 @@ function MediaOnlyProviderInner({
     })
   }, [toast])
 
+  const value = useMemo<MediaOnlyContextValue>(() => ({
+    mediaMode,
+    setMediaMode,
+    cycleMediaMode,
+  }), [mediaMode, setMediaMode, cycleMediaMode])
+
   return (
-    <MediaOnlyContext.Provider value={{ mediaMode, setMediaMode, cycleMediaMode }}>
+    <MediaOnlyContext.Provider value={value}>
       {children}
     </MediaOnlyContext.Provider>
   )
