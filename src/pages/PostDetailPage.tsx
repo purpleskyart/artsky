@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import type { AppBskyFeedDefs } from '@atproto/api'
 import type { AtpSessionData } from '@atproto/api'
 import { agent, publicAgent, postReply, getPostAllMedia, getQuotedPostView, getPostExternalLink, getSession, createQuotePost, createDownvote, deleteDownvote, listMyDownvotes, getPostThreadCached, getProfilesBatch, getProfileCached, getPostsBatch, likePostWithLifecycle, unlikePostWithLifecycle, repostPostWithLifecycle, deleteRepostWithLifecycle, followAccountWithLifecycle, unfollowAccountWithLifecycle, POST_MEDIA_FULL, POST_MEDIA_FEED_PREVIEW, COMPOSE_IMAGE_MAX, type PostView } from '../lib/bsky'
 import { getApiErrorMessage } from '../lib/apiErrors'
-import { takeInitialPostForUri, getCachedThread, invalidateThreadCache } from '../lib/postCache'
+import { takeInitialPostForUri, setInitialPostForUri, getCachedThread, invalidateThreadCache } from '../lib/postCache'
 import { getDownvoteCounts } from '../lib/constellation'
 import { useSession } from '../context/SessionContext'
 import { formatRelativeTime, formatExactDateTime } from '../lib/date'
@@ -20,17 +20,20 @@ import { useProfileModal } from '../context/ProfileModalContext'
 import { getPostAppPath } from '../lib/appUrl'
 import { HOME_PATH } from '../lib/routes'
 import { usePostCardGridPointerGate } from '../hooks/usePostCardGridPointerGate'
+import { useModalGridKeyboardShell, useModalScrollKeyboardFocus } from '../hooks/useModalGridKeyboardShell'
+import { shouldUnderlayHandleGridKeys } from '../lib/modalKeyboard'
+import { useModalScroll } from '../context/ModalScrollContext'
 import { useLoginModal } from '../context/LoginModalContext'
 import { useFollowOverrides } from '../context/FollowOverridesContext'
 import { useToast } from '../context/ToastContext'
 import ImageLightbox from '../components/ImageLightbox'
 import { VirtualizedCell } from '../components/ProfileColumn'
+import { getDesktopSnapshot, subscribeDesktop } from '../config/breakpoints'
 import { useLikeOverrideForUri } from '../context/LikeOverridesContext'
+import { shouldGateReplyThread } from '../lib/replyThreadLayout'
 import styles from './PostDetailPage.module.css'
 
 const REPLY_VIRTUALIZE_THRESHOLD = 20
-/** Inline layout depth before showing "+ Read More" (resets indent when expanded). */
-const REPLY_THREAD_MAX_LAYOUT_DEPTH = 4
 
 const ACTION_ICON_SIZE = 18
 
@@ -196,56 +199,20 @@ function countThreadNodes(node: unknown): number {
   return 1 + getThreadReplies(node).reduce((sum, r) => sum + countThreadNodes(r), 0)
 }
 
-/** URIs that must be expanded so `targetUri` is visible in a deep reply chain. */
-function findRequiredDeepExpansionsInNode(
-  node: AppBskyFeedDefs.ThreadViewPost,
-  targetUri: string,
-  layoutDepth: number,
-  expandedAlongPath: Set<string>,
-): Set<string> | null {
-  if (node.post.uri === targetUri) return expandedAlongPath
-  for (const child of getThreadReplies(node)) {
-    const childUri = child.post.uri
-    const childLayoutDepth = expandedAlongPath.has(node.post.uri) ? 1 : layoutDepth + 1
-    if (childLayoutDepth >= REPLY_THREAD_MAX_LAYOUT_DEPTH && !expandedAlongPath.has(childUri)) {
-      const withExpand = new Set(expandedAlongPath)
-      withExpand.add(childUri)
-      const found = findRequiredDeepExpansionsInNode(child, targetUri, 0, withExpand)
-      if (found) return found
-    } else {
-      const found = findRequiredDeepExpansionsInNode(child, targetUri, childLayoutDepth, expandedAlongPath)
-      if (found) return found
-    }
-  }
-  return null
-}
-
-function findRequiredDeepExpansions(
-  replies: AppBskyFeedDefs.ThreadViewPost[],
-  targetUri: string,
-): Set<string> {
-  for (const r of replies) {
-    const found = findRequiredDeepExpansionsInNode(r, targetUri, 0, new Set())
-    if (found) return found
-  }
-  return new Set()
-}
-
-/** Flatten visible comments in display order (expanded threads include nested replies). */
+/** Flatten visible comments in display order (gated deep chains are omitted until opened as subthreads). */
 function flattenVisibleReplies(
   replies: AppBskyFeedDefs.ThreadViewPost[],
   collapsed: Set<string>,
-  expandedDeep: Set<string>,
+  threadAreaWidth: number,
   layoutDepth = 0,
 ): { uri: string; handle: string }[] {
   return replies.flatMap((r) => {
     const uri = r.post.uri
     const handle = r.post.author?.handle ?? r.post.author?.did ?? ''
     if (collapsed.has(uri)) return [{ uri, handle }]
-    if (layoutDepth >= REPLY_THREAD_MAX_LAYOUT_DEPTH && !expandedDeep.has(uri)) return []
+    if (shouldGateReplyThread(threadAreaWidth, layoutDepth)) return []
     const nested = getThreadReplies(r)
-    const childLayoutDepth = expandedDeep.has(uri) ? 1 : layoutDepth + 1
-    return [{ uri, handle }, ...flattenVisibleReplies(nested, collapsed, expandedDeep, childLayoutDepth)]
+    return [{ uri, handle }, ...flattenVisibleReplies(nested, collapsed, threadAreaWidth, layoutDepth + 1)]
   })
 }
 
@@ -299,11 +266,12 @@ function collectThreadAncestors(
   return ancestors
 }
 
-/** Insert a new reply under `parentUri` (or at root replies if parent not found in subtree). */
+/** Insert a new reply under `parentUri` (or under the displayed post if parent not found in subtree). */
 function mergeReplyIntoThread(
   thread: AppBskyFeedDefs.ThreadViewPost,
   newReply: AppBskyFeedDefs.ThreadViewPost,
   parentUri: string,
+  isDisplayedRoot = true,
 ): AppBskyFeedDefs.ThreadViewPost {
   if (collectThreadPostUris(thread).includes(newReply.post.uri)) return thread
   if (thread.post.uri === parentUri) {
@@ -313,12 +281,13 @@ function mergeReplyIntoThread(
   const replies = filterThreadReplies(thread)
   let childChanged = false
   const nextReplies = replies.map((r) => {
-    const merged = mergeReplyIntoThread(r, newReply, parentUri)
+    const merged = mergeReplyIntoThread(r, newReply, parentUri, false)
     if (merged !== r) childChanged = true
     return merged
   })
   if (childChanged) return { ...thread, replies: nextReplies } as AppBskyFeedDefs.ThreadViewPost
-  return { ...thread, replies: [...replies, newReply] } as AppBskyFeedDefs.ThreadViewPost
+  if (isDisplayedRoot) return { ...thread, replies: [...replies, newReply] } as AppBskyFeedDefs.ThreadViewPost
+  return thread
 }
 
 async function fetchNewPostViewAfterComment(postUri: string): Promise<PostView | null> {
@@ -376,17 +345,6 @@ function rootPostNeedsCanonicalHydration(post: AppBskyFeedDefs.PostView): boolea
     if (media?.$type === 'app.bsky.embed.gallery#view' && hasMissingFullsize(media.items)) return true
   }
   return false
-}
-
-const DESKTOP_BREAKPOINT = 768
-function subscribeDesktop(cb: () => void) {
-  if (typeof window === 'undefined') return () => {}
-  const mq = window.matchMedia(`(min-width: ${DESKTOP_BREAKPOINT}px)`)
-  mq.addEventListener('change', cb)
-  return () => mq.removeEventListener('change', cb)
-}
-function getDesktopSnapshot() {
-  return typeof window !== 'undefined' ? window.innerWidth >= DESKTOP_BREAKPOINT : false
 }
 
 function MediaGallery({
@@ -549,9 +507,9 @@ function MediaGallery({
 function PostBlock({
   node,
   layoutDepth = 0,
+  threadAreaWidth = 0,
   collapsedThreads,
-  expandedDeepThreads,
-  onExpandDeepThread,
+  onOpenSubthread,
   onToggleCollapse,
   onReply,
   rootPostUri,
@@ -584,9 +542,11 @@ function PostBlock({
 }: {
   node: AppBskyFeedDefs.ThreadViewPost | AppBskyFeedDefs.NotFoundPost | AppBskyFeedDefs.BlockedPost | { $type: string }
   layoutDepth?: number
+  /** Measured width of the top-level replies column; gates deep threads when text space is too narrow. */
+  threadAreaWidth?: number
   collapsedThreads?: Set<string>
-  expandedDeepThreads?: Set<string>
-  onExpandDeepThread?: (uri: string) => void
+  /** Open a gated deep reply chain as its own post view (ancestors + full width). */
+  onOpenSubthread?: (uri: string, handle: string, post?: PostView) => void
   onToggleCollapse?: (uri: string) => void
   onReply?: (parentUri: string, parentCid: string, handle: string) => void
   rootPostUri?: string
@@ -737,17 +697,17 @@ function PostBlock({
   const avatar = post.author.avatar ?? undefined
   const createdAt = (post.record as { createdAt?: string })?.createdAt
   const rawReplies = 'replies' in node && Array.isArray(node.replies) ? (node.replies as (typeof node)[]) : []
-  const replies = rawReplies
+  const replies = rawReplies.filter(isThreadViewPost)
   const hasReplies = replies.length > 0
   const isCollapsed = hasReplies && collapsedThreads?.has(post.uri)
-  const canCollapse = hasReplies && !!onToggleCollapse
-  const isDeepGated = layoutDepth >= REPLY_THREAD_MAX_LAYOUT_DEPTH && !expandedDeepThreads?.has(post.uri)
-  const displayLayoutDepth = expandedDeepThreads?.has(post.uri) ? 0 : layoutDepth
-  const threadIndentPx = displayLayoutDepth > 0 ? Math.min(displayLayoutDepth * 8, 32) : 0
+  /** Collapse rail only on nested comments — avoids chaining top-level siblings visually. */
+  const canCollapse = hasReplies && !!onToggleCollapse && layoutDepth > 0
+  const isDeepGated = shouldGateReplyThread(threadAreaWidth, layoutDepth)
+  const threadIndentPx = layoutDepth > 0 ? Math.min(layoutDepth * 8, 32) : 0
   const threadIndentStyle = threadIndentPx > 0
     ? { marginLeft: threadIndentPx, width: `calc(100% - ${threadIndentPx}px)`, boxSizing: 'border-box' as const }
     : undefined
-  const childLayoutDepth = expandedDeepThreads?.has(post.uri) ? 1 : layoutDepth + 1
+  const childLayoutDepth = layoutDepth + 1
   const isReplyTarget = replyingTo?.uri === post.uri
   const isFocused = focusedCommentUri === post.uri
   const likeLoading = likeLoadingUri === post.uri
@@ -761,9 +721,9 @@ function PostBlock({
         <button
           type="button"
           className={styles.readMoreBtn}
-          onClick={() => onExpandDeepThread?.(post.uri)}
+          onClick={() => onOpenSubthread?.(post.uri, handle, post)}
           data-comment-uri={post.uri}
-          aria-label={hiddenCount > 1 ? `Read ${hiddenCount} more replies in this chain` : 'Read more replies in this chain'}
+          aria-label={hiddenCount > 1 ? `Open ${hiddenCount} replies in this chain` : 'Open replies in this chain'}
         >
           <span className={styles.readMoreIcon} aria-hidden>+</span>
           <span className={styles.readMoreLabel}>Read More</span>
@@ -779,7 +739,7 @@ function PostBlock({
     <div
       className={styles.threadBranch}
       style={threadIndentStyle}
-      data-thread-depth={displayLayoutDepth}
+      data-thread-depth={layoutDepth}
     >
       {canCollapse && (
         <div className={styles.collapseColumn}>
@@ -1188,7 +1148,7 @@ function PostBlock({
       })()}
     </article>
     {hasReplies && (
-      <div className={styles.repliesContainer}>
+      <div className={`${styles.repliesContainer}${layoutDepth === 0 ? ` ${styles.repliesContainerTopLevel}` : ''}`}>
         {isCollapsed ? (
           <button
             type="button"
@@ -1236,9 +1196,9 @@ function PostBlock({
                 <PostBlock
                   node={r}
                   layoutDepth={childLayoutDepth}
+                  threadAreaWidth={threadAreaWidth}
                   collapsedThreads={collapsedThreads}
-                  expandedDeepThreads={expandedDeepThreads}
-                  onExpandDeepThread={onExpandDeepThread}
+                  onOpenSubthread={onOpenSubthread}
                   onToggleCollapse={onToggleCollapse}
                   onReply={onReply}
                   rootPostUri={rootPostUri}
@@ -1294,18 +1254,24 @@ export interface PostDetailContentProps {
   initialFocusedCommentUri?: string
   /** When provided, render in modal mode (no Layout). Call when uri is empty to close. */
   onClose?: () => void
+  /** When in a modal stack, only handle shortcuts while this post layer is the visible top modal. */
+  isTopModal?: boolean
   /** Called when thread loads with the root post author handle (e.g. for swipe-left-to-open-profile). */
   onAuthorHandle?: (handle: string) => void
   /** When in a modal, call with a function that refreshes the thread (used for pull-to-refresh). */
   onRegisterRefresh?: (refresh: () => void | Promise<void>) => void
 }
 
-export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocusedCommentUri, onClose, onAuthorHandle, onRegisterRefresh }: PostDetailContentProps) {
+export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocusedCommentUri, onClose, isTopModal = true, onAuthorHandle, onRegisterRefresh }: PostDetailContentProps) {
   const navigate = useNavigate()
   const { openProfileModal, openPostModal, openQuotesModal } = useProfileModal()
   const { beginKeyboardNavigation, gridPointerGateProps } = usePostCardGridPointerGate()
-  const isDesktop = useSyncExternalStore(subscribeDesktop, getDesktopSnapshot, () => false)
   const decodedUri = uriProp
+  const inModal = !!onClose
+  const modalScrollRef = useModalScroll()
+  const keyboardShell = useModalGridKeyboardShell(inModal, isTopModal)
+  useModalScrollKeyboardFocus(modalScrollRef, inModal && isTopModal, decodedUri)
+  const isDesktop = useSyncExternalStore(subscribeDesktop, getDesktopSnapshot, () => false)
   const [thread, setThread] = useState<
     AppBskyFeedDefs.ThreadViewPost | AppBskyFeedDefs.NotFoundPost | AppBskyFeedDefs.BlockedPost | { $type: string } | null
   >(null)
@@ -1314,7 +1280,6 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
   const [comment, setComment] = useState('')
   const [posting, setPosting] = useState(false)
   const [collapsedThreads, setCollapsedThreads] = useState<Set<string>>(() => new Set())
-  const [expandedDeepThreads, setExpandedDeepThreads] = useState<Set<string>>(() => new Set())
   const [followLoading, setFollowLoading] = useState(false)
   const [authorFollowed, setAuthorFollowed] = useState(false)
   const [followUriOverride, setFollowUriOverride] = useState<string | null>(null)
@@ -1352,6 +1317,9 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
   const parentPostCardRef = useRef<HTMLDivElement>(null)
   const quotedPostCardRef = useRef<HTMLDivElement>(null)
   const commentsSectionRef = useRef<HTMLDivElement>(null)
+  const [threadAreaWidth, setThreadAreaWidth] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth : 0,
+  )
   const downvoteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   /** Invalidates in-flight load() when URI changes or the effect cleans up — avoids wrong thread after rapid post switches. */
   const loadGenRef = useRef(0)
@@ -1364,6 +1332,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
   const keyboardFocusIndexRef = useRef(0)
   const scrollIntoViewFromKeyboardRef = useRef(false)
   const appliedInitialFocusUriRef = useRef<string | null>(null)
+  const appliedInitialFocusRedirectRef = useRef<string | null>(null)
   const prevSectionIndexRef = useRef(0)
   const session = getSession()
   const { session: sessionFromContext, sessionsList, switchAccount } = useSession()
@@ -1420,7 +1389,8 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
 
   useEffect(() => {
     setLikeUriOverride(undefined)
-    setExpandedDeepThreads(new Set())
+    appliedInitialFocusUriRef.current = null
+    appliedInitialFocusRedirectRef.current = null
   }, [decodedUri])
 
   // Update Open Graph meta tags for link previews when post data loads
@@ -1490,14 +1460,14 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
     })
   }
 
-  function expandDeepThread(uri: string) {
-    setExpandedDeepThreads((prev) => {
-      if (prev.has(uri)) return prev
-      const next = new Set(prev)
-      next.add(uri)
-      return next
-    })
-  }
+  const openSubthread = useCallback((uri: string, handle: string, post?: PostView) => {
+    if (post) setInitialPostForUri(uri, post)
+    if (inModal) {
+      openPostModal(uri, undefined, undefined, handle)
+    } else {
+      navigate(getPostAppPath(uri, handle))
+    }
+  }, [inModal, openPostModal, navigate])
 
   async function handleFollowAuthor() {
     if (!thread || !isThreadViewPost(thread) || followLoading || alreadyFollowing) return
@@ -1652,6 +1622,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
 
   const load = useCallback(async () => {
     if (!decodedUri) return
+    const uriAtStart = decodedUri
     const gen = ++loadGenRef.current
     if (downvoteTimerRef.current != null) {
       clearTimeout(downvoteTimerRef.current)
@@ -1662,7 +1633,11 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
     let hadInstantData = false
     const initialPost = takeInitialPostForUri(decodedUri)
     const cached = getCachedThread(decodedUri)
-    if (initialPost) {
+    if (cached && isThreadViewPost(cached as AppBskyFeedDefs.ThreadViewPost)) {
+      setThread(cached as AppBskyFeedDefs.ThreadViewPost)
+      setLoading(false)
+      hadInstantData = true
+    } else if (initialPost) {
       const post = (initialPost as { post?: unknown }).post ?? initialPost
       if (post && typeof post === 'object' && (post as { uri?: string }).uri === decodedUri) {
         const minimal: AppBskyFeedDefs.ThreadViewPost = {
@@ -1671,20 +1646,15 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
           replies: [],
         }
         setThread(minimal)
-        // Keep loading true if this is a reply so we show parent skeleton
-        const isReply = (post as { record?: { reply?: unknown } }).record?.reply
-        setLoading(isReply ? true : false)
+        // Feed snapshot has no replies — keep loading until getPostThread returns the full thread.
+        setLoading(true)
         hadInstantData = true
       }
-    } else if (cached && isThreadViewPost(cached as AppBskyFeedDefs.ThreadViewPost)) {
-      setThread(cached as AppBskyFeedDefs.ThreadViewPost)
-      setLoading(false)
-      hadInstantData = true
     }
     if (!hadInstantData) setLoading(true)
     try {
       const threadRes = await getPostThreadCached(decodedUri, api)
-      if (gen !== loadGenRef.current) return
+      if (gen !== loadGenRef.current || decodedUri !== uriAtStart) return
       const threadData = threadRes.data.thread as AppBskyFeedDefs.ThreadViewPost | AppBskyFeedDefs.NotFoundPost | AppBskyFeedDefs.BlockedPost | { $type: string }
       setThread(threadData)
       /* Canonical post view: only fetch when snapshot embed lacks image fullsize URLs. */
@@ -1761,7 +1731,6 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
   useEffect(() => {
     load()
     return () => {
-      loadGenRef.current += 1
       if (downvoteTimerRef.current != null) {
         clearTimeout(downvoteTimerRef.current)
         downvoteTimerRef.current = null
@@ -1835,10 +1804,13 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
       return
     }
     const rootPost = thread.post
+    const recordReply = (rootPost.record as { reply?: { root?: { uri: string; cid: string } } })?.reply
+    const threadRootUri = recordReply?.root?.uri ?? rootPost.uri
+    const threadRootCid = recordReply?.root?.cid ?? rootPost.cid
     const text = comment.trim()
     setPosting(true)
     try {
-      const res = await postReply(rootPost.uri, rootPost.cid, parentUri, parentCid, text)
+      const res = await postReply(threadRootUri, threadRootCid, parentUri, parentCid, text)
       setComment('')
       setReplyingTo(null)
       invalidateThreadCache(decodedUri)
@@ -1951,9 +1923,10 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
     Array.isArray(thread.replies) && thread.replies.length > 0
   const postSectionCount = (hasMediaSection ? 1 : 0) + 1 + (hasRepliesSection ? 1 : 0)
 
-  const threadReplies = thread && isThreadViewPost(thread) && 'replies' in thread && Array.isArray(thread.replies)
-    ? (thread.replies as (typeof thread)[]).filter((r): r is AppBskyFeedDefs.ThreadViewPost => isThreadViewPost(r))
-    : []
+  const threadReplies =
+    thread && isThreadViewPost(thread) && 'replies' in thread && Array.isArray(thread.replies)
+      ? (thread.replies as (typeof thread)[]).filter((r): r is AppBskyFeedDefs.ThreadViewPost => isThreadViewPost(r))
+      : []
 
   const getReplyLikeCount = useCallback((r: AppBskyFeedDefs.ThreadViewPost) => {
     const postViewer = r.post as { viewer?: { like?: string }; likeCount?: number }
@@ -2025,9 +1998,20 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
   }, [threadReplies, commentSortOrder, getReplyLikeCount, getReplyDownvoteCount, wilsonLower])
 
   const threadRepliesFlat = useMemo(
-    () => flattenVisibleReplies(threadRepliesVisible, collapsedThreads, expandedDeepThreads),
-    [threadRepliesVisible, collapsedThreads, expandedDeepThreads]
+    () => flattenVisibleReplies(threadRepliesVisible, collapsedThreads, threadAreaWidth),
+    [threadRepliesVisible, collapsedThreads, threadAreaWidth]
   )
+
+  useLayoutEffect(() => {
+    const el = commentsSectionRef.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const updateWidth = () => setThreadAreaWidth(el.clientWidth)
+    updateWidth()
+    const ro = new ResizeObserver(updateWidth)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [hasRepliesSection, threadRepliesVisible.length])
+
   const threadRepliesFlatRef = useRef(threadRepliesFlat)
   threadRepliesFlatRef.current = threadRepliesFlat
   keyboardFocusIndexRef.current = keyboardFocusIndex
@@ -2100,19 +2084,20 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
   }, [navTotalItems])
 
   useEffect(() => {
+    if (!keyboardShell.registerKeys) return
+
+    const { useCapture, claimKey, shouldBlockEditable, blurEditableOnEscape } = keyboardShell
+
     const onKeyDown = (e: KeyboardEvent) => {
-      /* When standalone (not in a modal), block shortcuts if any modal is open on top.
-         When in a modal (onClose exists), always allow shortcuts to work within the modal. */
+      /* When standalone (not in a modal), block shortcuts if any modal is open on top. */
       if (!onClose) {
         const anyModal = typeof document !== 'undefined' ? document.querySelector('[role="dialog"][aria-modal="true"]') : null
         if (anyModal) return
       }
       const target = e.target as HTMLElement
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable) {
-        if (e.key === 'Escape') {
-          e.preventDefault()
-          target.blur()
-        }
+      if (!shouldUnderlayHandleGridKeys(target, inModal)) return
+      if (shouldBlockEditable(target)) {
+        blurEditableOnEscape(e, target)
         return
       }
       if (e.ctrlKey || e.metaKey) return
@@ -2131,6 +2116,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
         } else if (thread && isThreadViewPost(thread)) {
           handleLike()
         }
+        claimKey(e)
         return
       }
       if (key === 'r') {
@@ -2146,6 +2132,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
           const handle = t.post.author?.handle ?? t.post.author?.did ?? ''
           handleReplyTo(t.post.uri, t.post.cid, handle)
         }
+        claimKey(e)
         return
       }
 
@@ -2353,9 +2340,9 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
         focusItemAtIndex(next, current)
       }
     }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [postSectionCount, postSectionIndex, hasRepliesSection, threadRepliesFlat, focusedCommentIndex, commentFormFocused, thread, hasMediaSection, handleReplyTo, rootMediaForNav.length, openProfileModal, focusItems, handleLike, handleCommentLike, commentLikeOverrides, openActionsMenuUri, threadRepliesVisible, topLevelCommentFirstFocusIndices, threadReplies, findReplyByUri, onClose])
+    window.addEventListener('keydown', onKeyDown, useCapture)
+    return () => window.removeEventListener('keydown', onKeyDown, useCapture)
+  }, [postSectionCount, postSectionIndex, hasRepliesSection, threadRepliesFlat, focusedCommentIndex, commentFormFocused, thread, hasMediaSection, handleReplyTo, rootMediaForNav.length, openProfileModal, focusItems, handleLike, handleCommentLike, commentLikeOverrides, openActionsMenuUri, threadRepliesVisible, topLevelCommentFirstFocusIndices, threadReplies, findReplyByUri, onClose, isTopModal, inModal, keyboardShell])
 
   useEffect(() => {
     if (postSectionCount <= 1) return
@@ -2380,23 +2367,24 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
     }
   }, [threadRepliesFlat.length])
 
-  /* Auto-expand deep reply chains when navigating to a nested comment (e.g. from notification). */
+  /* Deep-linked focus behind a Read More gate: open that comment as its own subthread view. */
   useEffect(() => {
-    if (!initialFocusedCommentUri || threadRepliesVisible.length === 0) return
-    const required = findRequiredDeepExpansions(threadRepliesVisible, initialFocusedCommentUri)
-    if (required.size === 0) return
-    setExpandedDeepThreads((prev) => {
-      let changed = false
-      const next = new Set(prev)
-      for (const u of required) {
-        if (!next.has(u)) {
-          next.add(u)
-          changed = true
-        }
-      }
-      return changed ? next : prev
-    })
-  }, [initialFocusedCommentUri, threadRepliesVisible])
+    if (!initialFocusedCommentUri || initialFocusedCommentUri === decodedUri) return
+    if (!thread || !isThreadViewPost(thread) || threadRepliesVisible.length === 0) return
+    if (appliedInitialFocusRedirectRef.current === initialFocusedCommentUri) return
+    const inFlat = threadRepliesFlat.some((f) => f.uri === initialFocusedCommentUri)
+    if (inFlat) return
+    const node = findReplyByUri(threadRepliesVisible, initialFocusedCommentUri)
+    if (!node) return
+    const handle = node.post.author?.handle ?? node.post.author?.did ?? ''
+    appliedInitialFocusRedirectRef.current = initialFocusedCommentUri
+    setInitialPostForUri(initialFocusedCommentUri, node.post)
+    if (inModal) {
+      openPostModal(initialFocusedCommentUri, undefined, undefined, handle)
+    } else {
+      navigate(getPostAppPath(initialFocusedCommentUri, handle), { replace: true })
+    }
+  }, [initialFocusedCommentUri, decodedUri, thread, threadRepliesVisible, threadRepliesFlat, inModal, openPostModal, navigate])
 
   /* When opened with initialFocusedCommentUri (e.g. from notification), scroll to that reply */
   useEffect(() => {
@@ -2979,9 +2967,9 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                     <PostBlock
                         node={r}
                         layoutDepth={0}
+                        threadAreaWidth={threadAreaWidth}
                         collapsedThreads={collapsedThreads}
-                        expandedDeepThreads={expandedDeepThreads}
-                        onExpandDeepThread={expandDeepThread}
+                        onOpenSubthread={openSubthread}
                         onToggleCollapse={toggleCollapse}
                         onReply={handleReplyTo}
                         rootPostUri={thread.post.uri}

@@ -32,7 +32,7 @@ export default function TagModal({ tag, onClose, onBack, canGoBack, onDesktopBac
       isTopModal={isTopModal}
       stackIndex={stackIndex}
     >
-      <TagContent tag={tag} inModal onRegisterRefresh={handleRegisterRefresh} />
+      <TagContent tag={tag} inModal isTopModal={isTopModal ?? true} onRegisterRefresh={handleRegisterRefresh} />
     </AppModal>
   )
 }

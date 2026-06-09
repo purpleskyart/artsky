@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect, useLayoutEffect, memo, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { blockAccount, unblockAccount, reportPost, muteThread, deletePost, getProfileCached, sendFeedInteractions, muteAccountWithLifecycle, unmuteAccountWithLifecycle } from '../lib/bsky'
+import { blockAccount, unblockAccount, reportPost, muteThread, deletePost, getProfileCached, sendFeedInteractions, muteAccountWithLifecycle, unmuteAccountWithLifecycle, getRepostRecordCreatedAt } from '../lib/bsky'
 import { getShareablePostUrl } from '../lib/appUrl'
 import { formatRelativeTimeTitle, formatExactDateTime } from '../lib/date'
 import { useSession } from '../context/SessionContext'
@@ -144,6 +144,10 @@ interface PostActionsMenuProps {
   feedAcceptsInteractions?: boolean
   /** Post creation time (ISO string); when set, show relative time e.g. "Posted 2h ago" */
   postedAt?: string
+  /** Repost time (ISO string); when set, show relative time e.g. "Reposted 2h ago" */
+  repostedAt?: string
+  /** Repost record URI; when repostedAt is missing, fetch createdAt when the menu opens */
+  repostRecordUri?: string
   /** Controlled open state (when set, menu open is controlled by parent) */
   open?: boolean
   /** Called when menu should close (escape, click outside) or open (trigger click); use with open for controlled mode */
@@ -178,6 +182,8 @@ function PostActionsMenu({
   feedUri,
   feedAcceptsInteractions,
   postedAt,
+  repostedAt,
+  repostRecordUri,
   open: openControlled,
   onOpenChange,
   verticalIcon,
@@ -205,9 +211,27 @@ function PostActionsMenu({
   const triggerRef = useRef<HTMLButtonElement>(null)
   /** Fixed position for portaled dropdown so it appears above the trigger and isn't clipped by overflow */
   const [dropdownPosition, setDropdownPosition] = useState<{ bottom: number; right: number; left: number; flipH: boolean } | null>(null)
+  const [resolvedRepostedAt, setResolvedRepostedAt] = useState<string | undefined>()
 
   const isControlled = openControlled !== undefined && onOpenChange !== undefined
   const open = isControlled ? openControlled : openUncontrolled
+  const displayRepostedAt = repostedAt ?? resolvedRepostedAt
+  const showRepostedAt = !!displayRepostedAt && displayRepostedAt !== postedAt
+
+  useEffect(() => {
+    if (!open) {
+      setResolvedRepostedAt(undefined)
+      return
+    }
+    if (repostedAt || !repostRecordUri) return
+    let cancelled = false
+    void getRepostRecordCreatedAt(repostRecordUri).then((createdAt) => {
+      if (!cancelled && createdAt) setResolvedRepostedAt(createdAt)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [open, repostedAt, repostRecordUri])
   function setOpen(value: boolean) {
     if (isControlled) onOpenChange?.(value)
     else setOpenUncontrolled(value)
@@ -610,6 +634,11 @@ function PostActionsMenu({
           >
             {feedLabel ? (
             <div className={styles.feedLabel} role="presentation">From: {feedLabel}</div>
+          ) : null}
+            {showRepostedAt ? (
+            <div className={styles.postedAt} role="presentation" title={formatExactDateTime(displayRepostedAt!)}>
+              Reposted {formatRelativeTimeTitle(displayRepostedAt!)}
+            </div>
           ) : null}
             {postedAt ? (
             <div className={styles.postedAt} role="presentation" title={formatExactDateTime(postedAt)}>

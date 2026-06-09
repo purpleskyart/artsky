@@ -897,7 +897,7 @@
 }
 
 /* Mobile: scale down so feed selector fits without overflowing; ? button last in row */
-@media (max-width: 767px) {
+@media (max-width: 1279px) {
   .wrap {
     margin-bottom: 0.3rem;
   }

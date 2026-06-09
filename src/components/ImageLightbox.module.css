@@ -144,7 +144,7 @@
 }
 
 /* Mobile adjustments */
-@media (max-width: 767px) {
+@media (max-width: 1279px) {
   .topBar {
     top: 1.5rem;
     padding: 0.75rem;

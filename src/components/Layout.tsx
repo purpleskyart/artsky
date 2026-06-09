@@ -14,8 +14,13 @@ import { useScrollLock } from '../context/ScrollLockContext'
 import { useSeenPosts } from '../context/SeenPostsContext'
 import { useToast } from '../context/ToastContext'
 import { setFeedSuspendReason } from '../lib/videoPlaybackManager'
+import { gateKeyboardShortcutsForEditable } from '../lib/modalKeyboard'
 import LayoutNavItems from './LayoutNavItems'
 import LayoutNotificationsPanel from './LayoutNotificationsPanel'
+import LayoutMessagesPanel, { type MessagesFilter } from './LayoutMessagesPanel'
+import ChatModal from './ChatModal'
+import { useMessages } from '../context/MessagesContext'
+import { listConvos, getUnreadConvoCount, getConvoPeer, type ChatConvoView } from '../lib/chat'
 import { resizedAvatarUrl } from '../lib/imageUtils'
 import {
   createPost,
@@ -44,6 +49,7 @@ import {
   GUEST_FEED_SOURCES,
   GUEST_MIX_ENTRIES,
 } from '../config/feedSources'
+import { getDesktopSnapshot, subscribeDesktop } from '../config/breakpoints'
 import { HOME_PATH, isHandleBoardPath, isHomePath, isMultiColumnGridRoute } from '../lib/routes'
 import { getPostAppPath } from '../lib/appUrl'
 import { useFeedMix } from '../context/FeedMixContext'
@@ -51,7 +57,7 @@ import { FeedSwipeProvider } from '../context/FeedSwipeContext'
 import SearchBar from './SearchBar'
 import FeedSelector from './FeedSelector'
 import type { ComposeSegment } from './LayoutComposerForm'
-import { CardDefaultIcon, CardMinimalistIcon, CardArtOnlyIcon, EyeOpenIcon, EyeHalfIcon, EyeClosedIcon } from './Icons'
+import { CardDefaultIcon, CardMinimalistIcon, CardArtOnlyIcon, EyeOpenIcon, EyeHalfIcon, EyeClosedIcon, MessageIcon } from './Icons'
 import SWUpdateToast from './SWUpdateToast'
 import PurpleSkyLogo from './PurpleSkyLogo'
 import styles from './Layout.module.css'
@@ -411,17 +417,6 @@ function MediaModeGlyph({ mode }: { mode: MediaMode }) {
   )
 }
 
-const DESKTOP_BREAKPOINT = 768
-function getDesktopSnapshot() {
-  return typeof window !== 'undefined' ? window.innerWidth >= DESKTOP_BREAKPOINT : false
-}
-function subscribeDesktop(cb: () => void) {
-  if (typeof window === 'undefined') return () => {}
-  const mq = window.matchMedia(`(min-width: ${DESKTOP_BREAKPOINT}px)`)
-  mq.addEventListener('change', cb)
-  return () => mq.removeEventListener('change', cb)
-}
-
 export default function Layout({ title, children, showNav }: Props) {
   const loc = useLocation()
   const navigate = useNavigate()
@@ -488,6 +483,11 @@ export default function Layout({ title, children, showNav }: Props) {
   const [, setAccountSheetOpen] = useState(false)
   const [accountMenuOpen, setAccountMenuOpen] = useState(false)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
+  const [messagesFilter, setMessagesFilter] = useState<MessagesFilter>('all')
+  const [convos, setConvos] = useState<ChatConvoView[]>([])
+  const [convosLoading, setConvosLoading] = useState(false)
+  const [unreadConvoCount, setUnreadConvoCount] = useState(0)
+  const unreadConvoCountInitialFetchDoneRef = useRef(false)
   const feedPullRefreshWrapperRef = useRef<HTMLDivElement>(null)
   const [feedPullRefreshHandlers, setFeedPullRefreshHandlers] = useState<FeedPullRefreshHandlers | null>(null)
   const [feedPullOffsetPx, setFeedPullOffsetPx] = useState(0)
@@ -559,6 +559,8 @@ export default function Layout({ title, children, showNav }: Props) {
   const accountMenuRef = useRef<HTMLDivElement>(null)
   const notificationsMenuRef = useRef<HTMLDivElement>(null)
   const notificationsBtnRef = useRef<HTMLButtonElement>(null)
+  const messagesMenuRef = useRef<HTMLDivElement>(null)
+  const messagesBtnRef = useRef<HTMLButtonElement>(null)
   const lastSeenAtSyncedRef = useRef<string>('')
   const maxSeenInViewRef = useRef<string>('')
   const markSeenDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -569,6 +571,7 @@ export default function Layout({ title, children, showNav }: Props) {
   const seenHoldTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const seenPosts = useSeenPosts()
   const toast = useToast()
+  const { messagesPanelOpen, setMessagesPanelOpen, toggleMessagesPanel, activeChat, openChat, closeChat } = useMessages()
   const previousSessionDidRef = useRef<string | null>(session?.did ?? null)
   const userInitiatedLogoutRef = useRef(false)
   const HOME_HOLD_MS = 500
@@ -708,23 +711,22 @@ export default function Layout({ title, children, showNav }: Props) {
     document.title = title ? `${title} · PurpleSky` : 'PurpleSky'
   }, [title])
 
-  /* Global keyboard: Q / Backspace = back, N = notifications. Do not handle when a popup is open so the popup gets shortcuts and scroll. */
+  /* Global keyboard: Q / Backspace = back, N = notifications, M = messages. Do not handle when a popup is open so the popup gets shortcuts and scroll. */
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (isModalOpen || notificationsOpen) return
-      const target = e.target as HTMLElement
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable) {
-        if (e.key === 'Escape') {
-          e.preventDefault()
-          target.blur()
-        }
-        return
-      }
+      if (isModalOpen || notificationsOpen || messagesPanelOpen || activeChat) return
+      if (gateKeyboardShortcutsForEditable(e)) return
       if (e.ctrlKey || e.metaKey) return
       const key = e.key.toLowerCase()
       if (key === 'n' && session) {
         e.preventDefault()
         setNotificationsOpen((prev) => !prev)
+        return
+      }
+      if (key === 'm' && session) {
+        e.preventDefault()
+        if (!messagesPanelOpen) setNotificationsOpen(false)
+        toggleMessagesPanel()
         return
       }
       if (key !== 'q' && e.key !== 'Backspace') return
@@ -735,7 +737,7 @@ export default function Layout({ title, children, showNav }: Props) {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [navigate, isModalOpen, setViewMode, loc.pathname, session, notificationsOpen])
+  }, [navigate, isModalOpen, setViewMode, loc.pathname, session, notificationsOpen, messagesPanelOpen, activeChat, toggleMessagesPanel])
 
   useEffect(() => {
     if (!accountMenuOpen) return
@@ -838,15 +840,12 @@ export default function Layout({ title, children, showNav }: Props) {
 
     // Keyboard navigation for notifications
     const onKeyDown = (e: KeyboardEvent) => {
+      if (gateKeyboardShortcutsForEditable(e)) return
       const key = e.key.toLowerCase()
       if (key === 'escape' || key === 'q' || key === 'u' || key === 'backspace') {
         e.preventDefault()
         setNotificationsOpen(false)
         notificationsBtnRef.current?.focus()
-        return
-      }
-      const target = e.target as HTMLElement
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable) {
         return
       }
       if (e.ctrlKey || e.metaKey) return
@@ -882,6 +881,75 @@ export default function Layout({ title, children, showNav }: Props) {
       window.removeEventListener('keydown', onKeyDown)
     }
   }, [notificationsOpen])
+
+  useEffect(() => {
+    if (!messagesPanelOpen) return
+    const isInsideMessagesMenu = (target: EventTarget | null) => {
+      const node = target as Node | null
+      if (!node) return false
+      if (messagesMenuRef.current?.contains(node)) return true
+      if (messagesBtnRef.current?.contains(node)) return true
+      return false
+    }
+    const onPointerDown = (e: PointerEvent) => {
+      if (isInsideMessagesMenu(e.target)) return
+      setMessagesPanelOpen(false)
+    }
+    const onTouchStart = (e: TouchEvent) => {
+      if (isInsideMessagesMenu(e.target)) return
+      setMessagesPanelOpen(false)
+    }
+    const onScroll = (e: Event) => {
+      if (isInsideMessagesMenu(e.target)) return
+      setMessagesPanelOpen(false)
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    document.addEventListener('touchstart', onTouchStart)
+    window.addEventListener('scroll', onScroll, true)
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (gateKeyboardShortcutsForEditable(e)) return
+      const key = e.key.toLowerCase()
+      if (key === 'escape' || key === 'q' || key === 'u' || key === 'backspace') {
+        e.preventDefault()
+        setMessagesPanelOpen(false)
+        messagesBtnRef.current?.focus()
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown)
+      document.removeEventListener('touchstart', onTouchStart)
+      window.removeEventListener('scroll', onScroll, true)
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [messagesPanelOpen, setMessagesPanelOpen])
+
+  useEffect(() => {
+    if (!messagesPanelOpen || !session) return
+    setConvosLoading(true)
+    listConvos({ limit: 50 })
+      .then(({ convos: list }) => setConvos(list))
+      .catch(() => setConvos([]))
+      .finally(() => setConvosLoading(false))
+  }, [messagesPanelOpen, session])
+
+  useEffect(() => {
+    if (!session) {
+      unreadConvoCountInitialFetchDoneRef.current = false
+      setUnreadConvoCount(0)
+      return
+    }
+    getUnreadConvoCount()
+      .then((count) => {
+        if (!unreadConvoCountInitialFetchDoneRef.current) {
+          unreadConvoCountInitialFetchDoneRef.current = true
+          setUnreadConvoCount(0)
+        } else {
+          setUnreadConvoCount(count)
+        }
+      })
+      .catch(() => setUnreadConvoCount(0))
+  }, [session, messagesPanelOpen, activeChat])
 
 
   /** When user selects a feed from the header search bar: add to saved list, enable it, then go to feed so the pill appears. */
@@ -1174,9 +1242,9 @@ export default function Layout({ title, children, showNav }: Props) {
   prevNotificationsOpenRef.current = notificationsOpen
 
   /* When any full-screen popup is open, lock body scroll so only the popup scrolls */
-  const anyPopupOpen = isModalOpen || (mobileSearchOpen && !isDesktop) || composeOpen || aboutOpen || settingsOpen
+  const anyPopupOpen = isModalOpen || (mobileSearchOpen && !isDesktop) || composeOpen || aboutOpen || settingsOpen || !!activeChat
   const layoutPopupOpen =
-    (mobileSearchOpen && !isDesktop) || composeOpen || aboutOpen || settingsOpen
+    (mobileSearchOpen && !isDesktop) || composeOpen || aboutOpen || settingsOpen || !!activeChat
   useEffect(() => {
     setFeedSuspendReason('layout-popup', layoutPopupOpen)
     return () => setFeedSuspendReason('layout-popup', false)
@@ -1185,6 +1253,10 @@ export default function Layout({ title, children, showNav }: Props) {
     setFeedSuspendReason('notifications', notificationsOpen)
     return () => setFeedSuspendReason('notifications', false)
   }, [notificationsOpen])
+  useEffect(() => {
+    setFeedSuspendReason('messages', messagesPanelOpen || !!activeChat)
+    return () => setFeedSuspendReason('messages', false)
+  }, [messagesPanelOpen, activeChat])
   useEffect(() => {
     if (!scrollLock || !anyPopupOpen) return
     scrollLock.lockScroll()
@@ -1565,6 +1637,28 @@ export default function Layout({ title, children, showNav }: Props) {
       onClose={() => setNotificationsOpen(false)}
       openProfileModal={openProfileModal}
       openPostModal={openPostModal}
+    />
+  )
+
+  const handleSelectConvo = useCallback(
+    (convo: ChatConvoView) => {
+      if (!currentAccountDid) return
+      const peer = getConvoPeer(convo, currentAccountDid)
+      if (!peer) return
+      openChat(peer.did, peer.handle, convo.id)
+    },
+    [currentAccountDid, openChat]
+  )
+
+  const messagesPanelContent = (
+    <LayoutMessagesPanel
+      messagesFilter={messagesFilter}
+      onFilterChange={setMessagesFilter}
+      convosLoading={convosLoading}
+      convos={convos}
+      currentAccountDid={currentAccountDid}
+      onClose={() => setMessagesPanelOpen(false)}
+      onSelectConvo={handleSelectConvo}
     />
   )
 
@@ -1955,10 +2049,39 @@ export default function Layout({ title, children, showNav }: Props) {
               {showAccountFeedUi && (
                 <div className={styles.headerBtnWrap}>
                   <button
+                    ref={messagesBtnRef}
+                    type="button"
+                    className={styles.headerBtn}
+                    onClick={() => {
+                      toggleMessagesPanel()
+                      setNotificationsOpen(false)
+                    }}
+                    aria-label="Messages"
+                    aria-expanded={messagesPanelOpen}
+                    title="Messages"
+                  >
+                    <MessageIcon />
+                  </button>
+                  {unreadConvoCount > 0 && (
+                    <span className={styles.notificationUnreadDot} aria-hidden />
+                  )}
+                  {messagesPanelOpen && (
+                    <div ref={messagesMenuRef} className={styles.notificationsMenu} role="dialog" aria-label="Messages">
+                      {messagesPanelContent}
+                    </div>
+                  )}
+                </div>
+              )}
+              {showAccountFeedUi && (
+                <div className={styles.headerBtnWrap}>
+                  <button
                     ref={notificationsBtnRef}
                     type="button"
                     className={styles.headerBtn}
-                    onClick={() => setNotificationsOpen((o) => !o)}
+                    onClick={() => {
+                      setNotificationsOpen((o) => !o)
+                      setMessagesPanelOpen(false)
+                    }}
                     aria-label="Notifications"
                     aria-expanded={notificationsOpen}
                     title="Notifications"
@@ -2248,20 +2371,47 @@ export default function Layout({ title, children, showNav }: Props) {
       )}
       {showNav && !isDesktop && showAccountFeedUi && (
         <div className={`${styles.notificationFloatWrap} notification-float-wrap ${isModalOpen ? styles.notificationFloatWrapAboveModal : ''} ${mobileNavScrollHidden || (isModalOpen && modalScrollHidden) ? styles.notificationFloatWrapScrollHidden : ''}`}>
-          <button
-            ref={notificationsBtnRef}
-            type="button"
-            className={`${styles.notificationFloatBtn} float-btn`}
-            onClick={() => setNotificationsOpen((o) => !o)}
-            aria-label="Notifications"
-            aria-expanded={notificationsOpen}
-            title="Notifications"
-          >
-            <BellIcon />
-            {unreadNotificationCount > 0 && (
-              <span className={styles.notificationUnreadDot} aria-hidden />
-            )}
-          </button>
+          <div className={styles.headerChromeFloatRow}>
+            <button
+              ref={messagesBtnRef}
+              type="button"
+              className={`${styles.notificationFloatBtn} float-btn`}
+              onClick={() => {
+                toggleMessagesPanel()
+                setNotificationsOpen(false)
+              }}
+              aria-label="Messages"
+              aria-expanded={messagesPanelOpen}
+              title="Messages"
+            >
+              <MessageIcon />
+              {unreadConvoCount > 0 && (
+                <span className={styles.notificationUnreadDot} aria-hidden />
+              )}
+            </button>
+            <button
+              ref={notificationsBtnRef}
+              type="button"
+              className={`${styles.notificationFloatBtn} float-btn`}
+              onClick={() => {
+                setNotificationsOpen((o) => !o)
+                setMessagesPanelOpen(false)
+              }}
+              aria-label="Notifications"
+              aria-expanded={notificationsOpen}
+              title="Notifications"
+            >
+              <BellIcon />
+              {unreadNotificationCount > 0 && (
+                <span className={styles.notificationUnreadDot} aria-hidden />
+              )}
+            </button>
+          </div>
+          {messagesPanelOpen && (
+            <div ref={messagesMenuRef} className={styles.notificationsMenu} role="dialog" aria-label="Messages">
+              {messagesPanelContent}
+            </div>
+          )}
           {notificationsOpen && (
             <div ref={notificationsMenuRef} className={styles.notificationsMenu} role="dialog" aria-label="Notifications">
               {notificationsPanelContent}
@@ -2309,7 +2459,7 @@ export default function Layout({ title, children, showNav }: Props) {
                 {!isModalOpen && (
                   <button
                     type="button"
-                    className={`${styles.seenPostsFloatBtn} hide-seen-fab float-btn`}
+                    className={`${styles.seenPostsFloatBtn} float-btn`}
                     onPointerDown={(e) => startSeenHold(e)}
                     onPointerUp={endSeenHold}
                     onPointerLeave={endSeenHold}
@@ -2462,6 +2612,14 @@ export default function Layout({ title, children, showNav }: Props) {
                 showToast={toast.showToast}
               />
             </Suspense>
+          )}
+          {activeChat && (
+            <ChatModal
+              memberDid={activeChat.memberDid}
+              memberHandle={activeChat.memberHandle}
+              initialConvoId={activeChat.convoId}
+              onClose={closeChat}
+            />
           )}
           {aboutOpen && (
             <>

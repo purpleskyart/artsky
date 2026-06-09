@@ -68,8 +68,8 @@
   }
 }
 
-/* Match Layout account/search “above nav” offset — floating pill is hidden at 768px+ */
-@media (max-width: 767px) {
+/* Match Layout account/search “above nav” offset — floating pill is hidden at desktop breakpoint (1280px+) */
+@media (max-width: 1279px) {
   .toast {
     bottom: calc(max(0.75rem, env(safe-area-inset-bottom)) + 4rem);
   }

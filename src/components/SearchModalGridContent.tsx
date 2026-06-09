@@ -13,6 +13,9 @@ import { useViewMode } from '../context/ViewModeContext'
 import { useModeration } from '../context/ModerationContext'
 import { useColumnCount } from '../hooks/useViewportWidth'
 import { usePostCardGridPointerGate } from '../hooks/usePostCardGridPointerGate'
+import { useModalGridKeyboardShell, useModalScrollKeyboardFocus } from '../hooks/useModalGridKeyboardShell'
+import { shouldUnderlayHandleGridKeys } from '../lib/modalKeyboard'
+import { useModalScroll } from '../context/ModalScrollContext'
 import styles from '../pages/TagPage.module.css'
 import gridStyles from '../styles/postGrid.module.css'
 import { getPostAppPath } from '../lib/appUrl'
@@ -130,6 +133,8 @@ export interface SearchModalGridContentProps {
   searchQuery: string
   /** Same contract as TagContent: modal uses context openPostModal + modal scroll; page would use navigate. */
   inModal?: boolean
+  /** When inModal, only handle grid shortcuts while this layer is the visible top modal. */
+  isTopModal?: boolean
   onRegisterRefresh?: (refresh: () => void | Promise<void>) => void
   /** Extra class on the outer wrap (e.g. modal chrome offset). */
   contentClassName?: string
@@ -141,6 +146,7 @@ export interface SearchModalGridContentProps {
 export function SearchModalGridContent({
   searchQuery,
   inModal = false,
+  isTopModal = true,
   onRegisterRefresh,
   contentClassName,
 }: SearchModalGridContentProps) {
@@ -247,6 +253,9 @@ export function SearchModalGridContent({
 
   const { nsfwPreference, unblurredUris, setUnblurred } = useModeration()
   const postCardDisplayContext = usePostCardDisplayContext(inModal)
+  const modalScrollRef = useModalScroll()
+  const keyboardShell = useModalGridKeyboardShell(inModal, isTopModal)
+  useModalScrollKeyboardFocus(modalScrollRef, inModal && isTopModal, trimmedQuery)
   const mediaItems = useMemo(
     () =>
       items
@@ -385,14 +394,16 @@ export function SearchModalGridContent({
   }, [keyboardFocusIndex, focusTargets])
 
   useEffect(() => {
+    if (!keyboardShell.registerKeys) return
+
+    const { useCapture, claimKey, shouldBlockEditable, blurEditableOnEscape } = keyboardShell
+
     const onKeyDown = (e: KeyboardEvent) => {
       if (!inModal && isModalOpen) return
       const target = e.target as HTMLElement
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable) {
-        if (e.key === 'Escape') {
-          e.preventDefault()
-          target.blur()
-        }
+      if (!shouldUnderlayHandleGridKeys(target, inModal)) return
+      if (shouldBlockEditable(target)) {
+        blurEditableOnEscape(e, target)
         return
       }
       if (e.ctrlKey || e.metaKey) return
@@ -445,6 +456,7 @@ export function SearchModalGridContent({
             scrollIntoViewFromKeyboardRef.current = true
             setKeyboardFocusIndex(0)
           }
+          claimKey(e)
           return
         }
         beginKeyboardNavigation()
@@ -459,6 +471,7 @@ export function SearchModalGridContent({
             })()
         if (next === null) return
         setKeyboardFocusIndex(next)
+        claimKey(e)
         return
       }
       if (key === 's' || key === 'k' || e.key === 'ArrowDown') {
@@ -468,6 +481,7 @@ export function SearchModalGridContent({
             scrollIntoViewFromKeyboardRef.current = true
             setKeyboardFocusIndex(0)
           }
+          claimKey(e)
           return
         }
         beginKeyboardNavigation()
@@ -482,6 +496,7 @@ export function SearchModalGridContent({
             })()
         if (next === null) return
         setKeyboardFocusIndex(next)
+        claimKey(e)
         return
       }
       if (key === 'a' || key === 'j' || e.key === 'ArrowLeft' || key === 'd' || key === 'l' || e.key === 'ArrowRight') {
@@ -491,6 +506,7 @@ export function SearchModalGridContent({
             scrollIntoViewFromKeyboardRef.current = true
             setKeyboardFocusIndex(0)
           }
+          claimKey(e)
           return
         }
         beginKeyboardNavigation()
@@ -522,6 +538,7 @@ export function SearchModalGridContent({
         }
         if (next !== i) setActionsMenuOpenForIndex(null)
         setKeyboardFocusIndex(next)
+        claimKey(e)
         return
       }
       if ((key === 'm' || key === '`') && i >= 0) {
@@ -530,6 +547,7 @@ export function SearchModalGridContent({
         } else {
           setActionsMenuOpenForIndex(currentCardIndex)
         }
+        claimKey(e)
         return
       }
       if (key === 'e' || key === 'o' || key === 'enter') {
@@ -540,6 +558,7 @@ export function SearchModalGridContent({
             navigate(path, { state: { backgroundLocation: getOverlayBackgroundLocation(location) } })
           }
         }
+        claimKey(e)
         return
       }
       if (key === 'r') {
@@ -555,12 +574,14 @@ export function SearchModalGridContent({
             )
           }
         }
+        claimKey(e)
         return
       }
       if (key === 'c') {
         if (i >= 0) {
           setActionsMenuOpenForIndex(currentCardIndex)
         }
+        claimKey(e)
         return
       }
       if (e.code === 'Space' && inModal) {
@@ -577,6 +598,7 @@ export function SearchModalGridContent({
             setLikeOverride(uri, res.uri)
           }).catch(() => {})
         }
+        claimKey(e)
         return
       }
       if (key === 'f' && currentSession) {
@@ -630,12 +652,13 @@ export function SearchModalGridContent({
             )
           }).catch(() => {})
         }
+        claimKey(e)
         return
       }
     }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [beginKeyboardNavigation, mediaItems.length, cols, navigate, location, isModalOpen, inModal, openPostModal, session, setLikeOverride, setItems, setFollowOverride, setActionsMenuOpenForIndex, setBlockConfirm])
+    window.addEventListener('keydown', onKeyDown, useCapture)
+    return () => window.removeEventListener('keydown', onKeyDown, useCapture)
+  }, [beginKeyboardNavigation, mediaItems.length, cols, navigate, location, isModalOpen, inModal, isTopModal, openPostModal, session, setLikeOverride, setItems, setFollowOverride, setActionsMenuOpenForIndex, setBlockConfirm, keyboardShell])
 
   const handleOpenPostModal = useCallback(
     (uri: string, openReply?: boolean, focusUri?: string, authorHandle?: string) => {
@@ -707,7 +730,7 @@ export function SearchModalGridContent({
                 key={colIndex}
                 column={column}
                 colIndex={colIndex}
-                scrollRef={null}
+                scrollRef={inModal ? modalScrollRef : null}
                 loadMoreSentinelRef={cursor ? handleLoadMoreSentinelRef(colIndex) : undefined}
                 hasCursor={!!cursor}
                 keyboardFocusIndex={keyboardFocusIndex}

@@ -1,6 +1,6 @@
 import { useRef, useEffect, useLayoutEffect, useState, useCallback, useMemo, memo } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { getPostMediaInfoForDisplay, getPostAllMediaForDisplay, getPostExternalLink, getReplyParentPostView, getQuotedPostView, POST_MEDIA_FEED_PREVIEW, likePostWithLifecycle, unlikePostWithLifecycle, followAccountWithLifecycle, type TimelineItem } from '../lib/bsky'
+import { getPostMediaInfoForDisplay, getPostAllMediaForDisplay, getPostExternalLink, getReplyParentPostView, getQuotedPostView, POST_MEDIA_FEED_PREVIEW, likePostWithLifecycle, unlikePostWithLifecycle, followAccountWithLifecycle, getFeedItemRepostedAt, getFeedItemRepostRecordUri, type TimelineItem } from '../lib/bsky'
 import {
   resolveMediaAspect,
   initialLayoutAspect,
@@ -169,7 +169,7 @@ function PostCardInner({
   const location = useLocation()
   const modalScrollRef = useModalScroll()
   const mediaWrapRef = useRef<HTMLDivElement>(null)
-  const { post, reason } = item as { post: typeof item.post; reason?: { $type?: string; by?: { handle?: string; did?: string } } }
+  const { post, reason } = item as { post: typeof item.post; reason?: { $type?: string; by?: { handle?: string; did?: string }; indexedAt?: string } }
   const feedSource = (item as { _feedSource?: { kind?: string; label?: string; uri?: string; acceptsInteractions?: boolean } })._feedSource
   const feedLabel = feedSource?.label ?? (feedSource?.kind === 'timeline' ? 'Following' : undefined)
   const feedUri = feedSource?.uri
@@ -202,6 +202,8 @@ function PostCardInner({
   }, [post, quotedPost])
   const handle = post.author.handle ?? post.author.did
   const repostedByHandle = reason?.by ? (reason.by.handle ?? reason.by.did) : null
+  const repostedAt = getFeedItemRepostedAt(item)
+  const repostRecordUri = getFeedItemRepostRecordUri(item)
   const isQuotePost = (() => {
     const embed = (post as { embed?: { $type?: string } })?.embed
     return !!embed && (embed.$type === 'app.bsky.embed.record#view' || embed.$type === 'app.bsky.embed.recordWithMedia#view')
@@ -1375,6 +1377,8 @@ function PostCardInner({
               feedUri={feedUri}
               feedAcceptsInteractions={feedAcceptsInteractions}
               postedAt={(post.record as { createdAt?: string })?.createdAt}
+              repostedAt={repostedAt}
+              repostRecordUri={repostRecordUri}
               onViewQuotes={openQuotesModal}
               onRemoveFromThisCollection={
                 onRemovePostFromCollection ? () => onRemovePostFromCollection(post.uri) : undefined
@@ -1474,6 +1478,8 @@ function PostCardInner({
                 feedUri={feedUri}
                 feedAcceptsInteractions={feedAcceptsInteractions}
                 postedAt={(post.record as { createdAt?: string })?.createdAt}
+                repostedAt={repostedAt}
+                repostRecordUri={repostRecordUri}
                 onViewQuotes={openQuotesModal}
                 onRemoveFromThisCollection={
                   onRemovePostFromCollection ? () => onRemovePostFromCollection(post.uri) : undefined

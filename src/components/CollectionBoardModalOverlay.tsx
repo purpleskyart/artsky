@@ -35,7 +35,7 @@ export default function CollectionBoardModalOverlay() {
       isTopModal
       stackIndex={0}
     >
-      <CollectionDetailContent uri={uri} />
+      <CollectionDetailContent uri={uri} inModal isTopModal />
     </AppModal>
   )
 }

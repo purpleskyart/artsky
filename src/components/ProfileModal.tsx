@@ -42,6 +42,7 @@ export default function ProfileModal({ handle, onClose, onBack, canGoBack, onDes
           openPostModal={openPostModal}
           isModalOpen={isModalOpen}
           inModal
+          isTopModal={isTopModal ?? true}
           onRegisterRefresh={(fn) => setRefreshFn(() => fn)}
         />
       </Suspense>

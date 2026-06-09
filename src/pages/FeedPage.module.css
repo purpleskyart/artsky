@@ -62,14 +62,14 @@
 }
 
 /* Side inset: keep safe-area but give preview cards more width for media */
-@media (min-width: 768px) {
+@media (min-width: 1280px) {
   .wrap {
     padding-left: max(0.65rem, env(safe-area-inset-left));
     padding-right: max(0.65rem, env(safe-area-inset-right));
   }
 }
 
-@media (max-width: 767px) {
+@media (max-width: 1279px) {
   .wrap {
     padding-left: max(0.35rem, env(safe-area-inset-left));
     padding-right: max(0.35rem, env(safe-area-inset-right));

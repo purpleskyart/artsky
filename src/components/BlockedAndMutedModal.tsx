@@ -9,18 +9,8 @@ import {
 } from '../lib/bsky'
 import { useScrollLock } from '../context/ScrollLockContext'
 import { useProfileModal } from '../context/ProfileModalContext'
+import { getMobileSnapshot, subscribeMobile } from '../config/breakpoints'
 import styles from './BlockedAndMutedModal.module.css'
-
-const MOBILE_BREAKPOINT = 768
-function subscribeMobile(cb: () => void) {
-  if (typeof window === 'undefined') return () => {}
-  const mq = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`)
-  mq.addEventListener('change', cb)
-  return () => mq.removeEventListener('change', cb)
-}
-function getMobileSnapshot() {
-  return typeof window !== 'undefined' ? window.innerWidth < MOBILE_BREAKPOINT : false
-}
 
 type BlockedEntry = { blockUri: string; did: string; handle?: string; displayName?: string; avatar?: string }
 type MutedEntry = { did: string; handle: string; displayName?: string; avatar?: string }

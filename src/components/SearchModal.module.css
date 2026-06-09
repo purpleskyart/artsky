@@ -3,7 +3,7 @@
   padding-top: calc(2.5rem + max(var(--space-md), env(safe-area-inset-top, 0px)) + var(--space-sm));
 }
 
-@media (min-width: 768px) {
+@media (min-width: 1280px) {
   .searchContentBelowModalChrome {
     padding-top: calc(2rem + max(var(--space-md), env(safe-area-inset-top, 0px)) + var(--space-sm));
   }
@@ -22,7 +22,7 @@
 }
 
 /* Mobile: query lives in Layout floating search bar (replaces Feeds) */
-@media (max-width: 767px) {
+@media (max-width: 1279px) {
   .searchQueryCenter {
     display: none;
   }

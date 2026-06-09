@@ -3,19 +3,10 @@ import { createPortal } from 'react-dom'
 import type { FeedSource, FeedMixEntry } from '../types'
 import { getActorFeeds, getSuggestedFeeds } from '../lib/bsky'
 import { useSession } from '../context/SessionContext'
+import { getDesktopSnapshot, subscribeDesktop } from '../config/breakpoints'
 import styles from './FeedSelector.module.css'
 
 const REMIX_EXPLANATION = 'Use + or - to change how many posts you see from each feed.'
-const DESKTOP_BREAKPOINT = 768
-function subscribeDesktop(cb: () => void) {
-  if (typeof window === 'undefined') return () => {}
-  const mq = window.matchMedia(`(min-width: ${DESKTOP_BREAKPOINT}px)`)
-  mq.addEventListener('change', cb)
-  return () => mq.removeEventListener('change', cb)
-}
-function getDesktopSnapshot() {
-  return typeof window !== 'undefined' ? window.innerWidth >= DESKTOP_BREAKPOINT : false
-}
 
 function sameSource(a: FeedSource, b: FeedSource): boolean {
   return (a.uri ?? a.label) === (b.uri ?? b.label)

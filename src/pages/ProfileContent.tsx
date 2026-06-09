@@ -5,6 +5,8 @@ import { useSession } from '../context/SessionContext'
 import { useEditProfile } from '../context/EditProfileContext'
 import { useModalTopBarSlot } from '../context/ModalTopBarSlotContext'
 import { agent, publicAgent, isAgentAuthenticated, getPostMediaInfo, getPostMediaInfoForDisplay, getActorFeeds, listActivitySubscriptions, putActivitySubscription, isPostNsfw, getProfileCached, likePostWithLifecycle, unlikePostWithLifecycle, followAccountWithLifecycle, unfollowAccountWithLifecycle, type TimelineItem, type ProfileViewBasic } from '../lib/bsky'
+import { getConvoAvailability } from '../lib/chat'
+import { useMessages } from '../context/MessagesContext'
 import { setInitialPostForUri } from '../lib/postCache'
 import { getPreloadedProfileSnapshot, getPreloadedFeedSnapshot, preloadPostOpen } from '../lib/modalPreload'
 import PostCard from '../components/PostCard'
@@ -23,6 +25,8 @@ import { useFollowOverrides } from '../context/FollowOverridesContext'
 import { useToast } from '../context/ToastContext'
 import { EyeOpenIcon, EyeHalfIcon, EyeClosedIcon } from '../components/Icons'
 import { useColumnCount } from '../hooks/useViewportWidth'
+import { useModalGridKeyboardShell, useModalScrollKeyboardFocus } from '../hooks/useModalGridKeyboardShell'
+import { shouldUnderlayHandleGridKeys } from '../lib/modalKeyboard'
 import { usePostCardGridPointerGate } from '../hooks/usePostCardGridPointerGate'
 import { usePostCardDisplayContext } from '../hooks/usePostCardDisplayContext'
 import { pickAdjacentCardIndexByViewport } from '../lib/masonryHorizontalNav'
@@ -32,6 +36,24 @@ import gridStyles from '../styles/postGrid.module.css'
 
 const REASON_REPOST = 'app.bsky.feed.defs#reasonRepost'
 const REASON_PIN = 'app.bsky.feed.defs#reasonPin'
+
+/** Drop chronological duplicates when includePins adds the same post with reasonPin at the top. */
+function dedupeAuthorFeedPins(items: TimelineItem[]): TimelineItem[] {
+  const pinnedUris = new Set<string>()
+  for (const item of items) {
+    const uri = item.post?.uri
+    if (uri && (item.reason as { $type?: string })?.$type === REASON_PIN) pinnedUris.add(uri)
+  }
+  const seen = new Set<string>()
+  return items.filter((item) => {
+    const uri = item.post?.uri
+    if (!uri) return false
+    if ((item.reason as { $type?: string })?.$type !== REASON_PIN && pinnedUris.has(uri)) return false
+    if (seen.has(uri)) return false
+    seen.add(uri)
+    return true
+  })
+}
 
 const VIEW_MODE_CYCLE: ViewMode[] = ['1', '2', '3', 'a']
 
@@ -198,14 +220,17 @@ export default function ProfileContent({
   openPostModal,
   isModalOpen,
   inModal = false,
+  isTopModal = true,
   onRegisterRefresh,
 }: {
   handle: string
   openProfileModal: (h: string) => void
   openPostModal: (uri: string, openReply?: boolean, focusUri?: string, authorHandle?: string) => void
   isModalOpen: boolean
-  /** When true, we are the profile popup content so keyboard shortcuts always apply. When false, skip if another modal (e.g. post) is open. */
+  /** When true, we are the profile popup content so keyboard shortcuts apply when isTopModal. When false, skip if another modal (e.g. post) is open. */
   inModal?: boolean
+  /** When inModal, only handle grid shortcuts while this profile layer is the visible top modal. */
+  isTopModal?: boolean
   /** When in a modal, call with a function that refreshes this view (used for pull-to-refresh). */
   onRegisterRefresh?: (refresh: () => void | Promise<void>) => void
 }) {
@@ -216,7 +241,7 @@ export default function ProfileContent({
   const [likedItems, setLikedItems] = useState<TimelineItem[]>([])
   const [likedCursor, setLikedCursor] = useState<string | undefined>()
   const [feeds, setFeeds] = useState<GeneratorView[]>([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(() => !inModal)
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [profile, setProfile] = useState<ProfileState | null>(
@@ -249,8 +274,14 @@ export default function ProfileContent({
   const [, setFolloweesWhoFollowLoading] = useState(false)
   const { setLikeOverride } = useLikeOverridesActions()
   const { setFollowOverride } = useFollowOverrides()
+  const { openChat } = useMessages()
+  const [messageLoading, setMessageLoading] = useState(false)
+  const [canMessage, setCanMessage] = useState<boolean | null>(null)
+  const existingConvoIdRef = useRef<string | undefined>(undefined)
   // openPostModal and isModalOpen are now passed as props to avoid circular dependency
   const modalScrollRef = useModalScroll()
+  const keyboardShell = useModalGridKeyboardShell(inModal, isTopModal)
+  useModalScrollKeyboardFocus(modalScrollRef, inModal && isTopModal, handle)
   const postCardDisplayContext = usePostCardDisplayContext(inModal)
   const gridRef = useRef<HTMLDivElement | null>(null)
   const editProfileCtx = useEditProfile()
@@ -311,6 +342,27 @@ export default function ProfileContent({
     notificationStatusFetchedRef.current = false
   }, [session?.did, profile?.did])
 
+  useEffect(() => {
+    if (!session || !profile || session.did === profile.did) {
+      setCanMessage(null)
+      existingConvoIdRef.current = undefined
+      return
+    }
+    let cancelled = false
+    setCanMessage(null)
+    existingConvoIdRef.current = undefined
+    getConvoAvailability([profile.did])
+      .then(({ canChat, convo }) => {
+        if (cancelled) return
+        setCanMessage(canChat)
+        existingConvoIdRef.current = convo?.id
+      })
+      .catch(() => {
+        if (!cancelled) setCanMessage(false)
+      })
+    return () => { cancelled = true }
+  }, [session?.did, profile?.did, profile?.viewer?.following, followUriOverride])
+
   // REMOVED: getFolloweesWhoFollowTarget API call to reduce profile load requests
   // This was fetching "Followed by X, Y you follow" preview - not essential for initial load
   useEffect(() => {
@@ -330,7 +382,7 @@ export default function ProfileContent({
       if (!nextCursor) {
         const preloaded = getPreloadedFeedSnapshot(handle)
         if (preloaded) {
-          setItems(preloaded.feed)
+          setItems(dedupeAuthorFeedPins(preloaded.feed))
           setCursor(preloaded.cursor)
           setLoading(false)
           return
@@ -339,7 +391,7 @@ export default function ProfileContent({
 
       const res = await readAgent.getAuthorFeed({ actor: handle, limit: 20, cursor: nextCursor, includePins: true })
       const feed = (res.data.feed ?? []) as TimelineItem[]
-      setItems((prev) => (nextCursor ? [...prev, ...feed] : feed))
+      setItems((prev) => dedupeAuthorFeedPins(nextCursor ? [...prev, ...feed] : feed))
       setCursor(res.data.cursor ?? undefined)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to load profile')
@@ -387,22 +439,28 @@ export default function ProfileContent({
   }, [handle, profile?.did, session?.did])
 
   const prevAuthorFeedHandleRef = useRef<string | undefined>(undefined)
+  const profileReady = !!profile?.did
   // Initial / refetch author feed: depend on handle and live agent auth (not React session alone — storage can be ahead of the agent after refresh).
+  // In modals, wait for profile metadata before loading posts so the header paints first.
   useEffect(() => {
     if (!handle) return
     const prev = prevAuthorFeedHandleRef.current
     prevAuthorFeedHandleRef.current = handle
     const handleChanged = prev !== undefined && prev !== handle
     if (handleChanged) {
-      setProfile(null)
+      setProfile((getPreloadedProfileSnapshot(handle) as ProfileState | null) ?? null)
       setFollowUriOverride(null)
       setTab('posts')
       setProfilePostsFilter('all')
       setLikedItems([])
       setLikedCursor(undefined)
+      setItems([])
+      setCursor(undefined)
+      setLoading(inModal ? false : true)
     }
+    if (inModal && !profileReady) return
     loadRef.current()
-  }, [handle, hasLiveBskyAuth])
+  }, [handle, hasLiveBskyAuth, inModal, profileReady])
 
   useEffect(() => {
     if (profilePostsFilter === 'liked' && handle && session && profile && session.did === profile.did) {
@@ -752,22 +810,17 @@ export default function ProfileContent({
   }, [keyboardFocusIndex])
 
   useEffect(() => {
+    if (!keyboardShell.registerKeys) return
+
+    const { useCapture, claimKey, shouldBlockEditable, blurEditableOnEscape } = keyboardShell
+
     const onKeyDown = (e: KeyboardEvent) => {
-      /* When on full page, don't steal keys if another modal (e.g. post) is open. When we are the profile popup (inModal), always handle. */
+      /* When on full page, don't steal keys if another modal (e.g. post) is open. */
       if (!inModal && isModalOpen) return
-      /* Also check if any modal is open AND the event came from outside the modal (page behind).
-         This prevents shortcuts when Login, EditProfile, etc. are open, but allows shortcuts within modals. */
-      if (!inModal) {
-        const target = e.target as HTMLElement
-        const anyModal = typeof document !== 'undefined' ? document.querySelector('[role="dialog"][aria-modal="true"]') : null
-        if (anyModal && !anyModal.contains(target)) return
-      }
       const target = e.target as HTMLElement
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable) {
-        if (e.key === 'Escape') {
-          e.preventDefault()
-          target.blur()
-        }
+      if (!shouldUnderlayHandleGridKeys(target, inModal)) return
+      if (shouldBlockEditable(target)) {
+        blurEditableOnEscape(e, target)
         return
       }
       if (e.ctrlKey || e.metaKey) return
@@ -793,6 +846,7 @@ export default function ProfileContent({
         } else {
           setKeyboardFocusIndex((idx) => Math.max(0, idx - 1))
         }
+        claimKey(e)
         return
       }
       if (key === 's' || key === 'k' || e.key === 'ArrowDown') {
@@ -803,6 +857,7 @@ export default function ProfileContent({
         } else {
           setKeyboardFocusIndex((idx) => Math.min(items.length - 1, idx + 1))
         }
+        claimKey(e)
         return
       }
       if (key === 'a' || key === 'j' || e.key === 'ArrowLeft' || key === 'd' || key === 'l' || e.key === 'ArrowRight') {
@@ -828,6 +883,7 @@ export default function ProfileContent({
             goLeft ? Math.max(0, idx - 1) : Math.min(items.length - 1, idx + 1),
           )
         }
+        claimKey(e)
         return
       }
       if ((key === 'm' || key === '`') && i >= 0) {
@@ -837,11 +893,13 @@ export default function ProfileContent({
         } else {
           setActionsMenuOpenForIndex(i)
         }
+        claimKey(e)
         return
       }
       if (key === 'e' || key === 'o' || key === 'enter') {
         const item = items[i]
         if (item) openPostModal(item.post.uri, undefined, undefined, item.post.author?.handle)
+        claimKey(e)
         return
       }
       if (key === 'f') {
@@ -891,6 +949,7 @@ export default function ProfileContent({
             )
           }).catch(() => {})
         }
+        claimKey(e)
         return
       }
       if (e.code === 'Space' && inModal) {
@@ -908,12 +967,13 @@ export default function ProfileContent({
             setLikeOverride(uri, res.uri)
           }).catch(() => {})
         }
+        claimKey(e)
         return
       }
     }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [beginKeyboardNavigation, tab, cols, isModalOpen, openPostModal, inModal, actionsMenuOpenForIndex, setLikeOverride, session, setItems])
+    window.addEventListener('keydown', onKeyDown, useCapture)
+    return () => window.removeEventListener('keydown', onKeyDown, useCapture)
+  }, [beginKeyboardNavigation, tab, cols, isModalOpen, openPostModal, inModal, isTopModal, actionsMenuOpenForIndex, setLikeOverride, session, setItems, keyboardShell])
 
   const postText = (post: TimelineItem['post']) => (post.record as { text?: string })?.text?.trim() ?? ''
   const textItems = authorFeedItems.filter(
@@ -978,9 +1038,20 @@ export default function ProfileContent({
     }
   }
 
+  async function handleMessage() {
+    if (!profile || messageLoading || !canMessage) return
+    setMessageLoading(true)
+    try {
+      openChat(profile.did, handle, existingConvoIdRef.current)
+    } finally {
+      setMessageLoading(false)
+    }
+  }
+
   const hideReposts = useHideReposts()
   const hideRepostsFromThisUser = !!profile && hideReposts?.isHidingRepostsFrom(profile.did)
   const showNotificationBell = !!session && !!profile && !isOwnProfile && isFollowing
+  const showMessageButton = canMessage === true
 
   return (
     <>
@@ -988,7 +1059,7 @@ export default function ProfileContent({
         <header className={styles.profileHeader}>
           <div className={styles.profileHeaderMain}>
             {profile?.avatar ? (
-              <ProgressiveImage src={profile.avatar} alt="" className={styles.avatar} loading="lazy" root={modalScrollRef} />
+              <ProgressiveImage src={profile.avatar} alt="" className={styles.avatar} loading={inModal ? 'eager' : 'lazy'} root={modalScrollRef} />
             ) : (
               <div className={styles.avatar} style={{ backgroundColor: 'var(--glass-border)' }} aria-hidden />
             )}
@@ -1056,6 +1127,17 @@ export default function ProfileContent({
                         {followLoading ? 'Following…' : 'Follow'}
                       </button>
                     ))}
+                  {showMessageButton && (
+                    <button
+                      type="button"
+                      className={styles.messageBtn}
+                      onClick={() => void handleMessage()}
+                      disabled={messageLoading}
+                      title="Send a direct message"
+                    >
+                      {messageLoading ? 'Opening…' : 'Message'}
+                    </button>
+                  )}
                   {showNotificationBell && (
                     <button
                       type="button"
@@ -1237,7 +1319,7 @@ export default function ProfileContent({
             </nav>
           </div>
         )}
-        {inModal && (
+        {inModal && profileReady && (
           <div className={styles.tabsRowInModal}>
             <nav className={`${styles.tabs} ${styles.tabsInModal}`} aria-label="Profile sections">
               {visibleTabs.map((t) => (
@@ -1266,8 +1348,8 @@ export default function ProfileContent({
             </nav>
           </div>
         )}
-        {error && <p className={styles.error}>{error}</p>}
-        <div className={styles.profileContent}>
+        {(!inModal || profileReady) && error && <p className={styles.error}>{error}</p>}
+        {(!inModal || profileReady) && <div className={styles.profileContent}>
           {tab === 'text' ? (
             textItems.length === 0 ? (
               <div className={styles.empty}>No text-only posts (no media, no replies).</div>
@@ -1429,7 +1511,7 @@ export default function ProfileContent({
             )}
           </>
         )}
-        </div>
+        </div>}
       </div>
     </>
   )

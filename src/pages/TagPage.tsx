@@ -13,6 +13,9 @@ import { useViewMode } from '../context/ViewModeContext'
 import { useModeration } from '../context/ModerationContext'
 import { useColumnCount } from '../hooks/useViewportWidth'
 import { usePostCardGridPointerGate } from '../hooks/usePostCardGridPointerGate'
+import { useModalGridKeyboardShell, useModalScrollKeyboardFocus } from '../hooks/useModalGridKeyboardShell'
+import { shouldUnderlayHandleGridKeys } from '../lib/modalKeyboard'
+import { useModalScroll } from '../context/ModalScrollContext'
 import styles from './TagPage.module.css'
 import gridStyles from '../styles/postGrid.module.css'
 import { getPostAppPath } from '../lib/appUrl'
@@ -64,7 +67,17 @@ function distributeByHeight(
   return columns
 }
 
-export function TagContent({ tag, inModal = false, onRegisterRefresh }: { tag: string; inModal?: boolean; onRegisterRefresh?: (refresh: () => void | Promise<void>) => void }) {
+export function TagContent({
+  tag,
+  inModal = false,
+  isTopModal = true,
+  onRegisterRefresh,
+}: {
+  tag: string
+  inModal?: boolean
+  isTopModal?: boolean
+  onRegisterRefresh?: (refresh: () => void | Promise<void>) => void
+}) {
   const navigate = useNavigate()
   const location = useLocation()
   const { session } = useSession()
@@ -120,6 +133,9 @@ export function TagContent({ tag, inModal = false, onRegisterRefresh }: { tag: s
 
   const { nsfwPreference, unblurredUris, setUnblurred } = useModeration()
   const postCardDisplayContext = usePostCardDisplayContext(inModal)
+  const modalScrollRef = useModalScroll()
+  const keyboardShell = useModalGridKeyboardShell(inModal, isTopModal)
+  useModalScrollKeyboardFocus(modalScrollRef, inModal && isTopModal, tag)
   const mediaItems = useMemo(
     () =>
       items
@@ -178,21 +194,16 @@ export function TagContent({ tag, inModal = false, onRegisterRefresh }: { tag: s
   }, [keyboardFocusIndex])
 
   useEffect(() => {
+    if (!keyboardShell.registerKeys) return
+
+    const { useCapture, claimKey, shouldBlockEditable, blurEditableOnEscape } = keyboardShell
+
     const onKeyDown = (e: KeyboardEvent) => {
       if (!inModal && isModalOpen) return
-      /* Also check if any modal is open AND the event came from outside the modal (page behind).
-         This prevents shortcuts when Login, EditProfile, etc. are open, but allows shortcuts within modals. */
-      if (!inModal) {
-        const target = e.target as HTMLElement
-        const anyModal = typeof document !== 'undefined' ? document.querySelector('[role="dialog"][aria-modal="true"]') : null
-        if (anyModal && !anyModal.contains(target)) return
-      }
       const target = e.target as HTMLElement
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable) {
-        if (e.key === 'Escape') {
-          e.preventDefault()
-          target.blur()
-        }
+      if (!shouldUnderlayHandleGridKeys(target, inModal)) return
+      if (shouldBlockEditable(target)) {
+        blurEditableOnEscape(e, target)
         return
       }
       if (e.ctrlKey || e.metaKey) return
@@ -212,24 +223,28 @@ export function TagContent({ tag, inModal = false, onRegisterRefresh }: { tag: s
         beginKeyboardNavigation()
         scrollIntoViewFromKeyboardRef.current = true
         setKeyboardFocusIndex((idx) => Math.max(0, idx - cols))
+        claimKey(e)
         return
       }
       if (key === 's' || key === 'k' || e.key === 'ArrowDown') {
         beginKeyboardNavigation()
         scrollIntoViewFromKeyboardRef.current = true
         setKeyboardFocusIndex((idx) => Math.min(items.length - 1, idx + cols))
+        claimKey(e)
         return
       }
       if (key === 'a' || key === 'j' || e.key === 'ArrowLeft') {
         beginKeyboardNavigation()
         scrollIntoViewFromKeyboardRef.current = true
         setKeyboardFocusIndex((idx) => Math.max(0, idx - 1))
+        claimKey(e)
         return
       }
       if (key === 'd' || key === 'l' || e.key === 'ArrowRight') {
         beginKeyboardNavigation()
         scrollIntoViewFromKeyboardRef.current = true
         setKeyboardFocusIndex((idx) => Math.min(items.length - 1, idx + 1))
+        claimKey(e)
         return
       }
       if (key === 'e' || key === 'o' || key === 'enter') {
@@ -241,6 +256,7 @@ export function TagContent({ tag, inModal = false, onRegisterRefresh }: { tag: s
             navigate(path, { state: { backgroundLocation: getOverlayBackgroundLocation(location) } })
           }
         }
+        claimKey(e)
         return
       }
       if (key === 'f' && session) {
@@ -294,6 +310,7 @@ export function TagContent({ tag, inModal = false, onRegisterRefresh }: { tag: s
             console.warn('Failed to unfollow/follow/like/unlike:', err)
           })
         }
+        claimKey(e)
         return
       }
       if (e.code === 'Space' && inModal) {
@@ -315,12 +332,13 @@ export function TagContent({ tag, inModal = false, onRegisterRefresh }: { tag: s
             console.warn('Failed to unfollow/follow/like/unlike:', err)
           })
         }
+        claimKey(e)
         return
       }
     }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [beginKeyboardNavigation, mediaItems.length, cols, navigate, location, isModalOpen, inModal, openPostModal, session, setLikeOverride, setItems])
+    window.addEventListener('keydown', onKeyDown, useCapture)
+    return () => window.removeEventListener('keydown', onKeyDown, useCapture)
+  }, [beginKeyboardNavigation, mediaItems.length, cols, navigate, location, isModalOpen, inModal, isTopModal, openPostModal, session, setLikeOverride, setItems, keyboardShell])
 
   const handleOpenPostModal = useCallback(
     (uri: string, openReply?: boolean, focusUri?: string, authorHandle?: string) => {
@@ -397,7 +415,7 @@ export function TagContent({ tag, inModal = false, onRegisterRefresh }: { tag: s
                 key={colIndex}
                 column={column}
                 colIndex={colIndex}
-                scrollRef={null}
+                scrollRef={inModal ? modalScrollRef : null}
                 loadMoreSentinelRef={cursor ? handleLoadMoreSentinelRef(colIndex) : undefined}
                 hasCursor={!!cursor}
                 keyboardFocusIndex={keyboardFocusIndex}

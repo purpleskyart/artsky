@@ -1,4 +1,4 @@
-import { createContext, lazy, Suspense, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { createContext, lazy, Suspense, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useLocation, useNavigate, type Location } from 'react-router-dom'
 import { ChunkLoadError } from '../components/ChunkLoadError'
 import { HOME_PATH, isHandleBoardPath } from '../lib/routes'
@@ -6,6 +6,7 @@ import { getPostOverlayPath, postUriToQuotesParam, quotesParamToPostUri } from '
 import { getOverlayBackgroundLocation, hasPathOverlayStack } from '../lib/overlayNavigation'
 import { VideoAutoplayBootstrap } from '../components/VideoAutoplayBootstrap'
 import { VideoFeedSuspendSync } from '../components/VideoFeedSuspendSync'
+import { blurEditableOnEscape, getFocusedEditableElement } from '../lib/modalKeyboard'
 
 const PostDetailModal = lazy(() => import('../components/PostDetailModal'))
 const ProfileModal = lazy(() => import('../components/ProfileModal'))
@@ -158,6 +159,7 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
   const [modalScrollHidden, setModalScrollHidden] = useState(false)
   const location = useLocation()
   const navigate = useNavigate()
+  const directLinkSeededForKeyRef = useRef<string | null>(null)
   /** Same render as router URL — avoids one-frame (or stuck) stale stack when useEffect lagged behind navigate(). */
   const modalStack = useMemo(() => parseSearchToModalStack(location.search), [location.search])
   const searchModalTopQuery = useMemo(() => {
@@ -169,6 +171,35 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
     const t = requestAnimationFrame(() => setModalScrollHidden(false))
     return () => cancelAnimationFrame(t)
   }, [location.search, location.pathname])
+
+  /**
+   * Direct modal URLs (e.g. `/?profile=&post=`) have no prior in-app history entry, so POP would leave
+   * the site. Seed feed underneath once so in-modal back and browser back both return to the homepage.
+   */
+  useLayoutEffect(() => {
+    const stack = parseSearchToModalStack(location.search)
+    if (stack.length === 0) return
+    if (hasPathOverlayStack(location)) return
+    const hasPost = stack.some((item) => item.type === 'post')
+    const hasProfile = stack.some((item) => item.type === 'profile')
+    /* Only seed for direct post share links that include profile as URL context. */
+    if (!hasPost || !hasProfile) return
+    if (directLinkSeededForKeyRef.current === location.key) return
+
+    directLinkSeededForKeyRef.current = location.key
+    const feedBg: Location = {
+      pathname: pathForModalNavigation(location.pathname),
+      search: '',
+      hash: '',
+      key: `${location.key}-feed-seed`,
+      state: null,
+    }
+    navigate({ pathname: feedBg.pathname, search: feedBg.search, hash: feedBg.hash }, { replace: true })
+    navigate(
+      { pathname: location.pathname, search: location.search, hash: location.hash ?? '' },
+      { replace: false, state: { backgroundLocation: feedBg } },
+    )
+  }, [location, navigate])
 
   /** Opens post via URI path with optional `reply` / `focus` query for instant modal resolution. */
   const openPostModal = useCallback((uri: string, openReply?: boolean, focusUri?: string, authorHandle?: string) => {
@@ -321,13 +352,20 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
     const stack = parseSearchToModalStack(location.search)
     const preserve = overlayBackgroundNavigateState(location)
     if (stack.length > 1) {
-      const bg = getOverlayBackgroundLocation(location)
-      /* Same history entry the feed uses for post overlays: POP so in-modal back matches browser back. */
-      if (location.pathname === bg.pathname) {
-        navigate(-1)
-        return
+      if (hasPathOverlayStack(location)) {
+        const bg = getOverlayBackgroundLocation(location)
+        /* Same history entry the feed uses for post overlays: POP so in-modal back matches browser back. */
+        if (location.pathname === bg.pathname) {
+          navigate(-1)
+          return
+        }
       }
       const next = stack.slice(0, -1)
+      /* Direct share links include profile as URL context only — back from post goes to feed, not profile. */
+      if (!hasPathOverlayStack(location) && next.length === 1 && next[0].type === 'profile') {
+        navigate(HOME_PATH, { replace: true })
+        return
+      }
       const search = next.length > 0 ? `?${modalStackToSearch(next)}` : ''
       navigate(
         { pathname: pathForModalNavigation(location.pathname), search },
@@ -358,9 +396,9 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return
       if (!isModalOpen) return
-      // If an input/textarea is focused, let Escape blur it first
-      const target = e.target as HTMLElement
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable) {
+      const editable = getFocusedEditableElement()
+      if (editable) {
+        blurEditableOnEscape(e, editable)
         return
       }
       e.preventDefault()

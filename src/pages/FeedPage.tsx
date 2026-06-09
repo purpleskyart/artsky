@@ -26,6 +26,7 @@ import { useMediaOnly } from '../context/MediaOnlyContext'
 import { useFeedMix } from '../context/FeedMixContext'
 import { useFeedSwipe } from '../context/FeedSwipeContext'
 import { blockAccount } from '../lib/bsky'
+import { gateKeyboardShortcutsForEditable } from '../lib/modalKeyboard'
 import { useViewMode } from '../context/ViewModeContext'
 import { useModeration } from '../context/ModerationContext'
 import { useHideReposts } from '../context/HideRepostsContext'
@@ -45,6 +46,7 @@ import { debounce } from '../lib/utils'
 import { asyncStorage } from '../lib/AsyncStorage'
 import { pickAdjacentCardIndexByViewport } from '../lib/masonryHorizontalNav'
 import { preloadPostOpen } from '../lib/modalPreload'
+import { getDesktopSnapshot, subscribeDesktop } from '../config/breakpoints'
 import styles from './FeedPage.module.css'
 import gridStyles from '../styles/postGrid.module.css'
 
@@ -83,16 +85,6 @@ const PRESET_SOURCES: FeedSource[] = [
 const CARD_CHROME = 100
 
 const REASON_REPOST = 'app.bsky.feed.defs#reasonRepost'
-const DESKTOP_BREAKPOINT = 768
-function subscribeDesktop(cb: () => void) {
-  if (typeof window === 'undefined') return () => {}
-  const mq = window.matchMedia(`(min-width: ${DESKTOP_BREAKPOINT}px)`)
-  mq.addEventListener('change', cb)
-  return () => mq.removeEventListener('change', cb)
-}
-function getDesktopSnapshot() {
-  return typeof window !== 'undefined' ? window.innerWidth >= DESKTOP_BREAKPOINT : false
-}
 
 export type FeedDisplayEntry = { type: 'post'; item: TimelineItem; entryIndex: number }
 
@@ -392,59 +384,6 @@ export default function FeedPage() {
       seenPostsContext.setHideSeenOnlyHandler(null)
     }
   }, [seenPostsContext])
-
-  // Purplesky-style: hide floating buttons + nav when scrolling down; show on scroll up or stop
-  // Debounce scroll handler to reduce layout work during rapid scroll events
-  useEffect(() => {
-    let timeoutId: ReturnType<typeof setTimeout> | undefined
-    const stopScrollDelay = 200
-    const scrollThreshold = 48
-    let scrollYAtRest = typeof window !== 'undefined' ? window.scrollY : 0
-    let lastY = scrollYAtRest
-    const onScroll = () => {
-      const y = window.scrollY
-      const isHidden = document.body.classList.contains('feed-scrolling')
-      const goingUp = y < lastY
-      lastY = y
-
-      if (goingUp) {
-        if (isHidden) {
-          document.body.classList.remove('feed-scrolling')
-          if (timeoutId) {
-            clearTimeout(timeoutId)
-            timeoutId = undefined
-          }
-        }
-        scrollYAtRest = y
-        return
-      }
-
-      if (isHidden) {
-        if (timeoutId) clearTimeout(timeoutId)
-        timeoutId = setTimeout(() => {
-          document.body.classList.remove('feed-scrolling')
-          scrollYAtRest = window.scrollY
-          timeoutId = undefined
-        }, stopScrollDelay)
-      } else if (y - scrollYAtRest >= scrollThreshold) {
-        document.body.classList.add('feed-scrolling')
-        if (timeoutId) clearTimeout(timeoutId)
-        timeoutId = setTimeout(() => {
-          document.body.classList.remove('feed-scrolling')
-          scrollYAtRest = window.scrollY
-          timeoutId = undefined
-        }, stopScrollDelay)
-      }
-    }
-    // Debounce scroll handler to reduce frequency of classList operations during rapid scrolling
-    const debouncedOnScroll = debounce(onScroll, 16) // ~60fps
-    window.addEventListener('scroll', debouncedOnScroll, { passive: true })
-    return () => {
-      window.removeEventListener('scroll', debouncedOnScroll)
-      if (timeoutId) clearTimeout(timeoutId)
-      document.body.classList.remove('feed-scrolling')
-    }
-  }, [])
 
   // When landing on the feed (refresh or logo/feed button): scroll to top. Don't auto-hide read posts.
   useEffect(() => {
@@ -1160,14 +1099,7 @@ export default function FeedPage() {
         if (anyModal && !anyModal.contains(target)) return
       }
       if (isModalOpen || hasContentModalInUrl) return
-      const eventTarget = e.target as HTMLElement
-      if (eventTarget.tagName === 'INPUT' || eventTarget.tagName === 'TEXTAREA' || eventTarget.tagName === 'SELECT' || eventTarget.isContentEditable) {
-        if (e.key === 'Escape') {
-          e.preventDefault()
-          eventTarget.blur()
-        }
-        return
-      }
+      if (gateKeyboardShortcutsForEditable(e)) return
       if (e.ctrlKey || e.metaKey) return
 
       const i = keyboardFocusIndexRef.current

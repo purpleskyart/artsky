@@ -7,6 +7,9 @@ import { useProfileModal } from '../context/ProfileModalContext'
 import { useLikeOverridesActions } from '../context/LikeOverridesContext'
 import { useModeration } from '../context/ModerationContext'
 import { usePostCardGridPointerGate } from '../hooks/usePostCardGridPointerGate'
+import { useModalGridKeyboardShell, useModalScrollKeyboardFocus } from '../hooks/useModalGridKeyboardShell'
+import { shouldUnderlayHandleGridKeys } from '../lib/modalKeyboard'
+import { useModalScroll } from '../context/ModalScrollContext'
 import styles from './QuotesModal.module.css'
 import gridStyles from '../styles/postGrid.module.css'
 import { usePostCardDisplayContext } from '../hooks/usePostCardDisplayContext'
@@ -36,6 +39,10 @@ export default function QuotesModal({ postUri, onClose, onBack, canGoBack, onDes
   const cardRefsRef = useRef<(HTMLDivElement | null)[]>([])
   const loadMoreSentinelRef = useRef<HTMLDivElement>(null)
   const { beginKeyboardNavigation, tryHoverSelectCard, gridPointerGateProps } = usePostCardGridPointerGate()
+  const modalScrollRef = useModalScroll()
+  const inModal = true
+  const keyboardShell = useModalGridKeyboardShell(inModal, isTopModal ?? true)
+  useModalScrollKeyboardFocus(modalScrollRef, inModal && (isTopModal ?? true), postUri)
 
   const load = useCallback(
     async (nextCursor?: string) => {
@@ -88,13 +95,15 @@ export default function QuotesModal({ postUri, onClose, onBack, canGoBack, onDes
   }, [keyboardFocusIndex])
 
   useEffect(() => {
+    if (!keyboardShell.registerKeys) return
+
+    const { useCapture, claimKey, shouldBlockEditable, blurEditableOnEscape } = keyboardShell
+
     const onKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable) {
-        if (e.key === 'Escape') {
-          e.preventDefault()
-          target.blur()
-        }
+      if (!shouldUnderlayHandleGridKeys(target, inModal)) return
+      if (shouldBlockEditable(target)) {
+        blurEditableOnEscape(e, target)
         return
       }
       if (e.ctrlKey || e.metaKey) return
@@ -109,11 +118,13 @@ export default function QuotesModal({ postUri, onClose, onBack, canGoBack, onDes
             beginKeyboardNavigation()
             setKeyboardFocusIndex(0)
           }
+          claimKey(e)
           return
         }
         e.preventDefault()
         beginKeyboardNavigation()
         setKeyboardFocusIndex((idx) => Math.max(0, idx - 1))
+        claimKey(e)
         return
       }
       if (key === 's' || key === 'k' || e.key === 'ArrowDown') {
@@ -123,11 +134,29 @@ export default function QuotesModal({ postUri, onClose, onBack, canGoBack, onDes
             beginKeyboardNavigation()
             setKeyboardFocusIndex(0)
           }
+          claimKey(e)
           return
         }
         e.preventDefault()
         beginKeyboardNavigation()
         setKeyboardFocusIndex((idx) => Math.min(items.length - 1, idx + 1))
+        claimKey(e)
+        return
+      }
+      if (key === 'a' || key === 'j' || e.key === 'ArrowLeft') {
+        if (fromNone || items.length === 0) return
+        e.preventDefault()
+        beginKeyboardNavigation()
+        setKeyboardFocusIndex((idx) => Math.max(0, idx - 1))
+        claimKey(e)
+        return
+      }
+      if (key === 'd' || key === 'l' || e.key === 'ArrowRight') {
+        if (fromNone || items.length === 0) return
+        e.preventDefault()
+        beginKeyboardNavigation()
+        setKeyboardFocusIndex((idx) => Math.min(items.length - 1, idx + 1))
+        claimKey(e)
         return
       }
       if (key === 'e' || key === 'o' || key === 'enter') {
@@ -135,12 +164,13 @@ export default function QuotesModal({ postUri, onClose, onBack, canGoBack, onDes
         e.preventDefault()
         const item = items[i]
         if (item) openPostModal(item.post.uri)
+        claimKey(e)
         return
       }
     }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [beginKeyboardNavigation, items.length, openPostModal])
+    window.addEventListener('keydown', onKeyDown, useCapture)
+    return () => window.removeEventListener('keydown', onKeyDown, useCapture)
+  }, [beginKeyboardNavigation, items.length, openPostModal, keyboardShell, isTopModal])
 
   const postCardDisplayContext = usePostCardDisplayContext(true)
 
@@ -200,7 +230,7 @@ export default function QuotesModal({ postUri, onClose, onBack, canGoBack, onDes
               <ProfileColumn
                 column={quoteColumn}
                 colIndex={0}
-                scrollRef={null}
+                scrollRef={modalScrollRef}
                 loadMoreSentinelRef={cursor ? handleLoadMoreSentinelRef : undefined}
                 hasCursor={!!cursor}
                 keyboardFocusIndex={keyboardFocusIndex}
