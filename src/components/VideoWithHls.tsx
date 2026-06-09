@@ -1,27 +1,23 @@
 import { useRef, useEffect, useLayoutEffect, useState, useCallback } from 'react'
 import { loadHls } from '../lib/loadHls'
-import { buildHlsConfig, PAUSE_VISIBILITY_RATIO, PLAY_VISIBILITY_RATIO, type VideoPlaybackMode } from '../lib/videoHlsConfig'
+import { buildHlsConfig, PAUSE_VISIBILITY_RATIO, type VideoPlaybackMode } from '../lib/videoHlsConfig'
 import {
   getVisibleAutoplayCount,
+  registerHlsInstance,
   registerVideoSession,
   registerVisibilityRefresh,
   retryAutoplayIfWanted,
   setVideoHlsAttached,
   setVideoPlaying,
+  unregisterHlsInstance,
   unregisterVideoSession,
   updateVideoVisibility,
 } from '../lib/videoPlaybackManager'
+import { observeVideoVisibility } from '../lib/videoVisibility'
 import type Hls from 'hls.js'
 
 function isHlsUrl(url: string): boolean {
   return /\.m3u8(\?|$)/i.test(url) || url.includes('m3u8')
-}
-
-function getNearViewportMargin(): string {
-  if (typeof window === 'undefined') return '50% 0px 50% 0px'
-  const vh = window.innerHeight
-  const margin = Math.floor(vh * 0.5)
-  return `${margin}px 0px ${margin}px 0px`
 }
 
 interface Props {
@@ -37,6 +33,8 @@ interface Props {
   style?: React.CSSProperties
   intersectionRoot?: Element | null
   onPlayStateChange?: (isPlaying: boolean) => void
+  /** True while attaching HLS, waiting to play, or re-buffering (suppress play-icon flash). */
+  onPlaybackPendingChange?: (pending: boolean) => void
   forceMuted?: boolean
   onVideoDimensions?: (width: number, height: number) => void
   /** Tunes buffer sizes and suspend behavior. Feed videos pause when overlays are open. */
@@ -56,6 +54,7 @@ export default function VideoWithHls({
   style,
   intersectionRoot,
   onPlayStateChange,
+  onPlaybackPendingChange,
   forceMuted = false,
   onVideoDimensions,
   playbackMode = 'detail',
@@ -80,6 +79,7 @@ export default function VideoWithHls({
       playRetryTimerRef.current = null
     }
     if (hlsRef.current) {
+      unregisterHlsInstance(videoIdRef.current)
       hlsRef.current.destroy()
       hlsRef.current = null
     }
@@ -99,6 +99,7 @@ export default function VideoWithHls({
     if (!video || !playlistUrl || hlsRef.current || attachingRef.current) return
 
     attachingRef.current = true
+    onPlaybackPendingChange?.(true)
     const generation = attachGenerationRef.current
 
     if (isHlsUrl(playlistUrl)) {
@@ -131,6 +132,7 @@ export default function VideoWithHls({
             }
           })
           hlsRef.current = hls
+          registerHlsInstance(videoIdRef.current, hls)
           attachingRef.current = false
           setVideoHlsAttached(videoIdRef.current, true)
         } else if (videoEl.canPlayType('application/vnd.apple.mpegurl')) {
@@ -164,7 +166,7 @@ export default function VideoWithHls({
       attachingRef.current = false
       setVideoHlsAttached(videoIdRef.current, true)
     }
-  }, [playlistUrl])
+  }, [playlistUrl, onPlaybackPendingChange])
 
   const requestPlay = useCallback(() => {
     const video = videoRef.current
@@ -221,63 +223,49 @@ export default function VideoWithHls({
     }
   }, [autoPlay, playbackMode, requestPlay, requestPause, attachHls, destroyHls])
 
-  // Visibility observer for manager (autoplay) or local pause (manual)
+  // Shared visibility observer for manager (autoplay) or local pause (manual)
   useLayoutEffect(() => {
     const video = videoRef.current
     const visibilityTarget = visibilityRef.current ?? video
     if (!video || !visibilityTarget) return
     const id = videoIdRef.current
+    let unobserve: (() => void) | null = null
 
-    const handleEntries = (entries: IntersectionObserverEntry[]) => {
-      for (const entry of entries) {
-        const ratio = entry.intersectionRatio
-        const nearViewport = entry.isIntersecting
-
-        if (autoPlay) {
-          updateVideoVisibility(id, ratio, nearViewport)
-        } else if (ratio < PAUSE_VISIBILITY_RATIO && !video.paused) {
-          video.pause()
-        }
+    const handleVisibility = (ratio: number, nearViewport: boolean) => {
+      if (autoPlay) {
+        updateVideoVisibility(id, ratio, nearViewport)
+      } else if (ratio < PAUSE_VISIBILITY_RATIO && !video.paused) {
+        video.pause()
       }
     }
 
-    const observer = new IntersectionObserver(handleEntries, {
-      threshold: [0, PAUSE_VISIBILITY_RATIO, PLAY_VISIBILITY_RATIO, 0.75, 1],
-      rootMargin: getNearViewportMargin(),
-      root: intersectionRoot ?? undefined,
-    })
-
-    const forceIntersectionUpdate = () => {
-      observer.unobserve(visibilityTarget)
-      observer.observe(visibilityTarget)
-      const pending = observer.takeRecords()
-      if (pending.length > 0) handleEntries(pending)
+    const bind = () => {
+      unobserve?.()
+      const target = visibilityRef.current ?? videoRef.current
+      if (!target) return
+      unobserve = observeVideoVisibility(target, handleVisibility, intersectionRoot ?? undefined)
     }
 
-    observer.observe(visibilityTarget)
-    const pending = observer.takeRecords()
-    if (pending.length > 0) handleEntries(pending)
+    bind()
 
     const raf1 = requestAnimationFrame(() => {
-      forceIntersectionUpdate()
-      requestAnimationFrame(forceIntersectionUpdate)
+      bind()
+      requestAnimationFrame(bind)
     })
 
     const resizeObserver =
       typeof ResizeObserver !== 'undefined'
-        ? new ResizeObserver(() => forceIntersectionUpdate())
+        ? new ResizeObserver(bind)
         : null
     resizeObserver?.observe(visibilityTarget)
 
-    const unregisterRefresh = autoPlay
-      ? registerVisibilityRefresh(forceIntersectionUpdate)
-      : () => {}
+    const unregisterRefresh = autoPlay ? registerVisibilityRefresh(bind) : () => {}
 
     return () => {
       cancelAnimationFrame(raf1)
       resizeObserver?.disconnect()
       unregisterRefresh()
-      observer.disconnect()
+      unobserve?.()
     }
   }, [intersectionRoot, autoPlay, playlistUrl, style])
 
@@ -290,19 +278,26 @@ export default function VideoWithHls({
     const handlePlay = () => {
       setVideoPlaying(id, true)
       onPlayStateChange?.(true)
+      onPlaybackPendingChange?.(false)
     }
     const handlePause = () => {
       setVideoPlaying(id, false)
       onPlayStateChange?.(false)
     }
+    const handleWaiting = () => onPlaybackPendingChange?.(true)
+    const handlePlaying = () => onPlaybackPendingChange?.(false)
 
     video.addEventListener('play', handlePlay)
     video.addEventListener('pause', handlePause)
+    video.addEventListener('waiting', handleWaiting)
+    video.addEventListener('playing', handlePlaying)
     return () => {
       video.removeEventListener('play', handlePlay)
       video.removeEventListener('pause', handlePause)
+      video.removeEventListener('waiting', handleWaiting)
+      video.removeEventListener('playing', handlePlaying)
     }
-  }, [onPlayStateChange])
+  }, [onPlayStateChange, onPlaybackPendingChange])
 
   useEffect(() => {
     const video = videoRef.current

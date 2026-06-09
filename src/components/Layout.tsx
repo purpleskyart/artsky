@@ -14,6 +14,9 @@ import { useScrollLock } from '../context/ScrollLockContext'
 import { useSeenPosts } from '../context/SeenPostsContext'
 import { useToast } from '../context/ToastContext'
 import { setFeedSuspendReason } from '../lib/videoPlaybackManager'
+import LayoutNavItems from './LayoutNavItems'
+import LayoutNotificationsPanel from './LayoutNotificationsPanel'
+import { resizedAvatarUrl } from '../lib/imageUtils'
 import {
   createPost,
   postReply,
@@ -41,7 +44,7 @@ import {
   GUEST_MIX_ENTRIES,
 } from '../config/feedSources'
 import { HOME_PATH, isHandleBoardPath, isHomePath, isMultiColumnGridRoute } from '../lib/routes'
-import { getPostAppPath, parseBskyFeedPostUri } from '../lib/appUrl'
+import { getPostAppPath } from '../lib/appUrl'
 import { useFeedMix } from '../context/FeedMixContext'
 import { FeedSwipeProvider } from '../context/FeedSwipeContext'
 import SearchBar from './SearchBar'
@@ -176,65 +179,12 @@ export const FeedPullRefreshContext = React.createContext<{
   setPullOffsetPx: ((px: number) => void) | null
 }>({ wrapperRef: null, setHandlers: null, setPullOffsetPx: null })
 
-/** Home icon (purplesky-style: roof house); filled when selected like other nav icons */
-function HomeIcon({ active }: { active?: boolean }) {
-  if (active) {
-    return (
-      <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden>
-        <path
-          fill="currentColor"
-          fillRule="evenodd"
-          clipRule="evenodd"
-          d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM9 12h6v10H9z"
-        />
-      </svg>
-    )
-  }
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-      <polyline points="9 22 9 12 15 12 15 22" />
-    </svg>
-  )
-}
-
 /** Eye-off icon for read-posts button (tap = hide read, hold = show read) */
 function SeenPostsIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
       <line x1="1" y1="1" x2="23" y2="23" />
-    </svg>
-  )
-}
-
-function SearchIcon({ active }: { active?: boolean }) {
-  const sw = active ? 2.5 : 2
-  return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <circle cx="11" cy="11" r="8" />
-      <path d="m21 21-4.35-4.35" />
-    </svg>
-  )
-}
-
-/** Same bookmark shape as post “save to collection” (CollectionSaveMenu) */
-function CollectionsBookmarkNavIcon({ active }: { active?: boolean }) {
-  const sw = active ? 2.5 : 2
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden>
-      {active ? (
-        <path fill="currentColor" d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2v16z" />
-      ) : (
-        <path
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={sw}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2v16z"
-        />
-      )}
     </svg>
   )
 }
@@ -1231,6 +1181,10 @@ export default function Layout({ title, children, showNav }: Props) {
     return () => setFeedSuspendReason('layout-popup', false)
   }, [layoutPopupOpen])
   useEffect(() => {
+    setFeedSuspendReason('notifications', notificationsOpen)
+    return () => setFeedSuspendReason('notifications', false)
+  }, [notificationsOpen])
+  useEffect(() => {
     if (!scrollLock || !anyPopupOpen) return
     scrollLock.lockScroll()
     return () => scrollLock.unlockScroll()
@@ -1599,204 +1553,19 @@ export default function Layout({ title, children, showNav }: Props) {
     }
     openCollectionsModal()
   }
-  const navTrayItems = (
-    <>
-      <button
-        type="button"
-        className={homeActive ? styles.navActive : ''}
-        aria-current={homeActive ? 'page' : undefined}
-        onPointerDown={startHomeHold}
-        onPointerUp={endHomeHold}
-        onPointerLeave={endHomeHold}
-        onPointerCancel={endHomeHold}
-        onClick={homeBtnClick}
-        title="Home (hold to show all seen posts)"
-      >
-        <span className={styles.navIcon}><HomeIcon active={homeActive} /></span>
-        <span className={styles.navLabel}>Home</span>
-      </button>
-      <button
-        type="button"
-        className={styles.navBtn}
-        onClick={openCompose}
-        aria-label="New post"
-      >
-        <span className={styles.navIcon}><PlusIcon /></span>
-        <span className={styles.navLabel}>New</span>
-      </button>
-      <button type="button" className={searchActive ? styles.navActive : styles.navBtn} onClick={focusSearch} aria-label="Search" aria-pressed={searchActive}>
-        <span className={styles.navIcon}><SearchIcon active={searchActive} /></span>
-        <span className={styles.navLabel}>Search</span>
-      </button>
-      <button
-        type="button"
-        className={collectionsActive ? styles.navActive : styles.navBtn}
-        onClick={handleCollectionsNavClick}
-        aria-current={collectionsActive ? 'page' : undefined}
-        aria-label="Collections"
-        title="Collections"
-      >
-        <span className={styles.navIcon}><CollectionsBookmarkNavIcon active={collectionsActive} /></span>
-        <span className={styles.navLabel}>Collections</span>
-      </button>
-    </>
-  )
-
-  const navItems = (
-    <>
-      {isDesktop ? (
-        /* Desktop: Home, New, Search, [Collections] */
-        navTrayItems
-      ) : (
-        /* Mobile: Home, Collections, New, Search, Profile (right). Seen-posts button floats above Home. */
-        <>
-          <div className={styles.navHomeWrap}>
-            <button
-              type="button"
-              className={homeActive ? styles.navActive : ''}
-              aria-current={homeActive ? 'page' : undefined}
-              onPointerDown={startHomeHold}
-              onPointerUp={endHomeHold}
-              onPointerLeave={endHomeHold}
-              onPointerCancel={endHomeHold}
-              onClick={homeBtnClick}
-              title="Home (hold to show all read posts)"
-            >
-              <span className={styles.navIcon}><HomeIcon active={homeActive} /></span>
-            </button>
-          </div>
-          <button
-            type="button"
-            className={collectionsActive ? styles.navActive : styles.navBtn}
-            onClick={handleCollectionsNavClick}
-            aria-current={collectionsActive ? 'page' : undefined}
-            aria-label="Collections"
-            title="Collections"
-          >
-            <span className={styles.navIcon}><CollectionsBookmarkNavIcon active={collectionsActive} /></span>
-          </button>
-          <button type="button" className={styles.navBtn} onClick={openCompose} aria-label="New post">
-            <span className={styles.navIcon}><PlusIcon /></span>
-          </button>
-          <button type="button" className={searchActive ? styles.navActive : styles.navBtn} onClick={focusSearch} aria-label="Search" aria-pressed={searchActive}>
-            <span className={styles.navIcon}><SearchIcon active={searchActive} /></span>
-          </button>
-          <div className={styles.navProfileWrap}>
-            <button
-              ref={accountBtnRef}
-              type="button"
-              className={styles.navProfileBtn}
-              onClick={accountBtnClick}
-              aria-label="Account menu"
-              aria-expanded={accountMenuOpen}
-              title="Account menu"
-            >
-              <span className={styles.navIcon}>
-                {currentAccountAvatar ? (
-                  <img
-                    src={currentAccountAvatar}
-                    alt=""
-                    className={styles.navProfileAvatar}
-                    loading="lazy"
-                    onContextMenu={(e) => e.preventDefault()}
-                    draggable={false}
-                  />
-                ) : (
-                  <span className={styles.navProfileIcon} aria-hidden><AccountIcon /></span>
-                )}
-              </span>
-            </button>
-          </div>
-        </>
-      )}
-    </>
-  )
-
   const notificationsPanelContent = (
-    <>
-      <h2 className={styles.menuTitle}>Notifications</h2>
-      <div className={styles.notificationFilters}>
-        <button type="button" className={notificationFilter === 'all' ? styles.notificationFilterActive : styles.notificationFilter} onClick={() => setNotificationFilter('all')}>All</button>
-        <button type="button" className={notificationFilter === 'reply' ? styles.notificationFilterActive : styles.notificationFilter} onClick={() => setNotificationFilter('reply')}>Replies</button>
-        <button type="button" className={notificationFilter === 'follow' ? styles.notificationFilterActive : styles.notificationFilter} onClick={() => setNotificationFilter('follow')}>Follows</button>
-      </div>
-      {notificationsLoading ? (
-        <p className={styles.notificationsLoading}>Loading…</p>
-      ) : (() => {
-        const filtered = notificationFilter === 'all' ? notifications : notifications.filter((n) => n.reason === notificationFilter)
-        return filtered.length === 0 ? (
-          <p className={styles.notificationsEmpty}>
-            {notificationFilter === 'all' ? 'No notifications yet.' : 'No matching notifications.'}
-          </p>
-        ) : (
-          <ul className={styles.notificationsList} data-notifications-list>
-            {filtered.map((n) => {
-              const handle = n.author.handle ?? n.author.did
-              const isFollow = n.reason === 'follow'
-              const isReplyOrLike = n.reason === 'reply' || n.reason === 'like'
-              const postUriForLink = n.reasonSubject ?? n.uri
-              const parsedPost = parseBskyFeedPostUri(postUriForLink)
-              let postAuthorHandle: string | undefined
-              if (parsedPost && currentAccountDid && parsedPost.did === currentAccountDid) {
-                postAuthorHandle = accountProfiles[currentAccountDid]?.handle
-              } else if (parsedPost && n.author.did === parsedPost.did) {
-                postAuthorHandle = n.author.handle
-              }
-              const href = isFollow
-                ? `/profile/${encodeURIComponent(handle)}`
-                : getPostAppPath(postUriForLink, postAuthorHandle)
-              const reasonLabel =
-                n.reason === 'like' ? 'liked your post' :
-                n.reason === 'repost' ? 'reposted your post' :
-                n.reason === 'follow' ? 'followed you' :
-                n.reason === 'mention' ? 'mentioned you' :
-                n.reason === 'reply' ? 'replied to you' :
-                n.reason === 'quote' ? 'quoted your post' :
-                n.reason
-              const useModalOnClick = !isDesktop && (isFollow || isReplyOrLike || n.reason === 'repost' || n.reason === 'mention' || n.reason === 'quote')
-              return (
-                <li key={n.uri} data-indexed-at={n.indexedAt}>
-                  <Link
-                    to={href}
-                    className={styles.notificationItem}
-                    onClick={(e) => {
-                      setNotificationsOpen(false)
-                      if (useModalOnClick) {
-                        e.preventDefault()
-                        if (isFollow) {
-                          openProfileModal(handle)
-                        } else if (isReplyOrLike) {
-                          openPostModal(n.uri, undefined, n.uri, n.author?.handle)
-                        } else {
-                          openPostModal(n.reasonSubject ?? n.uri, undefined, undefined, postAuthorHandle)
-                        }
-                      } else if (isFollow) {
-                        e.preventDefault()
-                        openProfileModal(handle)
-                      }
-                    }}
-                  >
-                    {n.author.avatar ? (
-                      <img src={n.author.avatar} alt="" className={styles.notificationAvatar} loading="lazy" />
-                    ) : (
-                      <span className={styles.notificationAvatarPlaceholder} aria-hidden>{handle.slice(0, 1).toUpperCase()}</span>
-                    )}
-                    <span className={styles.notificationTextWrap}>
-                      <span className={styles.notificationText}>
-                        <strong>@{handle}</strong> {reasonLabel}
-                      </span>
-                      {n.replyPreview && (
-                        <span className={styles.notificationReplyPreview}>{n.replyPreview}</span>
-                      )}
-                    </span>
-                  </Link>
-                </li>
-              )
-            })}
-          </ul>
-        )
-      })()}
-    </>
+    <LayoutNotificationsPanel
+      notificationFilter={notificationFilter}
+      onFilterChange={setNotificationFilter}
+      notificationsLoading={notificationsLoading}
+      notifications={notifications}
+      isDesktop={isDesktop}
+      currentAccountDid={currentAccountDid}
+      accountProfiles={accountProfiles}
+      onClose={() => setNotificationsOpen(false)}
+      openProfileModal={openProfileModal}
+      openPostModal={openPostModal}
+    />
   )
 
   const accountPanelContent = (
@@ -1837,7 +1606,7 @@ export default function Layout({ title, children, showNav }: Props) {
                 title={isCurrent ? 'View my profile' : `Switch to @${handle}`}
               >
                 {profile?.avatar ? (
-                  <img src={profile.avatar} alt="" className={styles.accountMenuAvatar} loading="lazy" />
+                  <img src={resizedAvatarUrl(profile.avatar, 40)} alt="" className={styles.accountMenuAvatar} loading="lazy" decoding="async" />
                 ) : (
                   <span className={styles.accountMenuAvatarPlaceholder} aria-hidden>{(handle || getSafeHandle(s)).slice(0, 1).toUpperCase()}</span>
                 )}
@@ -2229,7 +1998,7 @@ export default function Layout({ title, children, showNav }: Props) {
                     >
                       <span className={styles.navIcon}>
                         {currentAccountAvatar ? (
-                          <img src={currentAccountAvatar} alt="" className={styles.headerAccountAvatar} loading="lazy" />
+                          <img src={resizedAvatarUrl(currentAccountAvatar, 32)} alt="" className={styles.headerAccountAvatar} loading="lazy" decoding="async" />
                         ) : (
                           <span className={styles.headerAccountIcon} aria-hidden><AccountIcon /></span>
                         )}
@@ -2267,7 +2036,7 @@ export default function Layout({ title, children, showNav }: Props) {
                     >
                       <span className={styles.navIcon}>
                         {currentAccountAvatar ? (
-                          <img src={currentAccountAvatar} alt="" className={styles.headerAccountAvatar} loading="lazy" />
+                          <img src={resizedAvatarUrl(currentAccountAvatar, 32)} alt="" className={styles.headerAccountAvatar} loading="lazy" decoding="async" />
                         ) : (
                           <span className={styles.headerAccountIcon} aria-hidden><AccountIcon /></span>
                         )}
@@ -2556,7 +2325,22 @@ export default function Layout({ title, children, showNav }: Props) {
                   className={`${styles.nav} nav`}
                   aria-label="Main navigation"
                 >
-                  {navItems}
+                  <LayoutNavItems
+                    isDesktop={isDesktop}
+                    homeActive={homeActive}
+                    searchActive={searchActive}
+                    collectionsActive={collectionsActive}
+                    currentAccountAvatar={currentAccountAvatar}
+                    accountBtnRef={accountBtnRef}
+                    startHomeHold={startHomeHold}
+                    endHomeHold={endHomeHold}
+                    homeBtnClick={homeBtnClick}
+                    openCompose={openCompose}
+                    focusSearch={focusSearch}
+                    handleCollectionsNavClick={handleCollectionsNavClick}
+                    accountBtnClick={accountBtnClick}
+                    accountMenuOpen={accountMenuOpen}
+                  />
                 </nav>
               </div>,
               document.body

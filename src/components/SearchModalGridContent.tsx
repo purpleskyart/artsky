@@ -6,7 +6,8 @@ import type { AppBskyFeedDefs } from '@atproto/api'
 import ProfileColumn from './ProfileColumn'
 import { useSession } from '../context/SessionContext'
 import { useProfileModal } from '../context/ProfileModalContext'
-import { useLikeOverrides } from '../context/LikeOverridesContext'
+import { useLikeOverridesActions } from '../context/LikeOverridesContext'
+import { getLikeOverrideFromStore } from '../lib/likeOverridesStore'
 import { useFollowOverrides } from '../context/FollowOverridesContext'
 import { useViewMode } from '../context/ViewModeContext'
 import { useModeration } from '../context/ModerationContext'
@@ -17,6 +18,7 @@ import gridStyles from '../styles/postGrid.module.css'
 import { getPostAppPath } from '../lib/appUrl'
 import { getOverlayBackgroundLocation } from '../lib/overlayNavigation'
 import { pickAdjacentCardIndexByViewport } from '../lib/masonryHorizontalNav'
+import { usePostCardDisplayContext } from '../hooks/usePostCardDisplayContext'
 
 const ESTIMATE_COL_WIDTH = 280
 const CARD_CHROME = 100
@@ -147,7 +149,7 @@ export function SearchModalGridContent({
   const { session } = useSession()
   const { viewMode } = useViewMode()
   const { isModalOpen, openPostModal } = useProfileModal()
-  const { likeOverrides, setLikeOverride } = useLikeOverrides()
+  const { setLikeOverride } = useLikeOverridesActions()
   const { setFollowOverride } = useFollowOverrides()
   const [items, setItems] = useState<TimelineItem[]>([])
   const [cursor, setCursor] = useState<string | undefined>()
@@ -169,7 +171,8 @@ export function SearchModalGridContent({
   const lastScrollIntoViewIndexRef = useRef(-1)
   const gridRef = useRef<HTMLDivElement | null>(null)
   const sessionRef = useRef(session)
-  const likeOverridesRef = useRef(likeOverrides)
+  const getLikeOverrideRef = useRef(getLikeOverrideFromStore)
+  getLikeOverrideRef.current = getLikeOverrideFromStore
   const actionsMenuOpenForIndexRef = useRef<number | null>(null)
   const blockConfirmRefState = useRef(blockConfirm)
   const distributedColumnsRef = useRef<Array<Array<{ originalIndex: number }>>>([])
@@ -243,14 +246,23 @@ export function SearchModalGridContent({
   }, [session])
 
   const { nsfwPreference, unblurredUris, setUnblurred } = useModeration()
-  const mediaItems = items
-    .filter((item) => getPostMediaInfo(item.post))
-    .filter((item) => nsfwPreference !== 'sfw' || !isPostNsfw(item.post))
-    .filter((item) => {
-      const authorDid = item.post.author?.did
-      if (!authorDid) return true
-      return !blockedDids.has(authorDid) && !mutedDids.has(authorDid)
-    })
+  const postCardDisplayContext = usePostCardDisplayContext(inModal)
+  const mediaItems = useMemo(
+    () =>
+      items
+        .filter((item) => getPostMediaInfo(item.post))
+        .filter((item) => nsfwPreference !== 'sfw' || !isPostNsfw(item.post))
+        .filter((item) => {
+          const authorDid = item.post.author?.did
+          if (!authorDid) return true
+          return !blockedDids.has(authorDid) && !mutedDids.has(authorDid)
+        }),
+    [items, nsfwPreference, blockedDids, mutedDids],
+  )
+  const distributedColumns = useMemo(
+    () => distributeByHeight(mediaItems, cols),
+    [mediaItems, cols],
+  )
   mediaItemsRef.current = mediaItems
   keyboardFocusIndexRef.current = keyboardFocusIndex
 
@@ -295,9 +307,6 @@ export function SearchModalGridContent({
   useEffect(() => {
     sessionRef.current = session
   }, [session])
-  useEffect(() => {
-    likeOverridesRef.current = likeOverrides
-  }, [likeOverrides])
   useEffect(() => {
     actionsMenuOpenForIndexRef.current = actionsMenuOpenForIndex
   }, [actionsMenuOpenForIndex])
@@ -392,7 +401,7 @@ export function SearchModalGridContent({
       const items = mediaItemsRef.current
       const i = keyboardFocusIndexRef.current
       const currentSession = sessionRef.current
-      const currentLikeOverrides = likeOverridesRef.current
+      const getLikeOverride = getLikeOverrideRef.current
       const currentBlockConfirm = blockConfirmRefState.current
       const currentFocusTargets = focusTargetsRef.current
       const currentFirstByCard = firstFocusIndexForCardRef.current
@@ -557,7 +566,8 @@ export function SearchModalGridContent({
       if (e.code === 'Space' && inModal) {
         if (!focusedItem?.post?.uri || !focusedItem?.post?.cid) return
         const uri = focusedItem.post.uri
-        const currentLikeUri = uri in currentLikeOverrides ? (currentLikeOverrides[uri] ?? undefined) : (focusedItem.post as { viewer?: { like?: string } }).viewer?.like
+        const override = getLikeOverride(uri)
+        const currentLikeUri = override !== undefined ? (override ?? undefined) : (focusedItem.post as { viewer?: { like?: string } }).viewer?.like
         if (currentLikeUri) {
           unlikePostWithLifecycle(currentLikeUri, uri).then(() => {
             setLikeOverride(uri, null)
@@ -625,7 +635,55 @@ export function SearchModalGridContent({
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [beginKeyboardNavigation, mediaItems.length, cols, navigate, location, isModalOpen, inModal, openPostModal, likeOverrides, session, setLikeOverride, setItems, setFollowOverride, setActionsMenuOpenForIndex, setBlockConfirm])
+  }, [beginKeyboardNavigation, mediaItems.length, cols, navigate, location, isModalOpen, inModal, openPostModal, session, setLikeOverride, setItems, setFollowOverride, setActionsMenuOpenForIndex, setBlockConfirm])
+
+  const handleOpenPostModal = useCallback(
+    (uri: string, openReply?: boolean, focusUri?: string, authorHandle?: string) => {
+      if (inModal) {
+        openPostModal(uri, openReply, focusUri, authorHandle)
+        return
+      }
+      const path = getPostAppPath(uri, authorHandle)
+      const q = new URLSearchParams()
+      if (openReply) q.set('reply', '1')
+      if (focusUri) q.set('focus', focusUri)
+      const qs = q.toString()
+      navigate(
+        { pathname: path, search: qs ? `?${qs}` : '' },
+        { state: { backgroundLocation: getOverlayBackgroundLocation(location) } },
+      )
+    },
+    [inModal, openPostModal, navigate, location],
+  )
+
+  const handleLoadMoreSentinelRef = useCallback(
+    (colIndex: number) => (el: HTMLDivElement | null) => {
+      if (cols >= 2) loadMoreSentinelRefs.current[colIndex] = el
+      else ((loadMoreSentinelRef as unknown) as { current: HTMLDivElement | null }).current = el
+    },
+    [cols],
+  )
+
+  const handleActionsMenuOpenChange = useCallback((index: number, open: boolean) => {
+    setActionsMenuOpenForIndex(open ? index : null)
+  }, [])
+
+  const handleMouseEnter = useCallback(
+    (originalIndex: number) => {
+      tryHoverSelectCard(
+        originalIndex,
+        () => keyboardFocusIndexRef.current,
+        (idx) => setKeyboardFocusIndex(idx),
+        { applyOnTouch: false },
+      )
+    },
+    [tryHoverSelectCard],
+  )
+
+  const isSelected = useCallback(
+    (index: number) => index === keyboardFocusIndex,
+    [keyboardFocusIndex],
+  )
 
   if (!trimmedQuery) return null
 
@@ -644,56 +702,26 @@ export function SearchModalGridContent({
             {...gridPointerGateProps}
             data-view-mode={viewMode}
           >
-            {distributeByHeight(mediaItems, cols).map((column, colIndex) => (
+            {distributedColumns.map((column, colIndex) => (
               <ProfileColumn
                 key={colIndex}
                 column={column}
                 colIndex={colIndex}
                 scrollRef={null}
-                loadMoreSentinelRef={
-                  cursor
-                    ? (el) => {
-                        if (cols >= 2) loadMoreSentinelRefs.current[colIndex] = el
-                        else ((loadMoreSentinelRef as unknown) as { current: HTMLDivElement | null }).current = el
-                      }
-                    : undefined
-                }
+                loadMoreSentinelRef={cursor ? handleLoadMoreSentinelRef(colIndex) : undefined}
                 hasCursor={!!cursor}
                 keyboardFocusIndex={keyboardFocusIndex}
                 actionsMenuOpenForIndex={actionsMenuOpenForIndex}
                 nsfwPreference={nsfwPreference}
                 unblurredUris={unblurredUris}
                 setUnblurred={setUnblurred}
-                likeOverrides={likeOverrides}
                 setLikeOverrides={setLikeOverride}
-                openPostModal={
-                  inModal
-                    ? openPostModal
-                    : (uri, openReply, focusUri, authorHandle) => {
-                        const path = getPostAppPath(uri, authorHandle)
-                        const q = new URLSearchParams()
-                        if (openReply) q.set('reply', '1')
-                        if (focusUri) q.set('focus', focusUri)
-                        const qs = q.toString()
-                        navigate(
-                          { pathname: path, search: qs ? `?${qs}` : '' },
-                          { state: { backgroundLocation: getOverlayBackgroundLocation(location) } }
-                        )
-                      }
-                }
+                openPostModal={handleOpenPostModal}
                 cardRef={handleCardRef}
-                onActionsMenuOpenChange={(index, open) => {
-                  setActionsMenuOpenForIndex(open ? index : null)
-                }}
-                onMouseEnter={(originalIndex) =>
-                  tryHoverSelectCard(
-                    originalIndex,
-                    () => keyboardFocusIndexRef.current,
-                    (idx) => setKeyboardFocusIndex(idx),
-                    { applyOnTouch: false }
-                  )
-                }
-                isSelected={(index) => index === keyboardFocusIndex}
+                onActionsMenuOpenChange={handleActionsMenuOpenChange}
+                onMouseEnter={handleMouseEnter}
+                isSelected={isSelected}
+                displayContext={postCardDisplayContext}
               />
             ))}
           </div>

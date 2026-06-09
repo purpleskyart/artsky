@@ -1,6 +1,7 @@
 import { useRef, useState, memo, useCallback, useEffect } from 'react'
 import PostCard from './PostCard'
 import type { TimelineItem } from '../lib/bsky'
+import type { PostCardDisplayContext } from '../hooks/usePostCardDisplayContext'
 import { observeVirtualization } from '../lib/cardVirtualization'
 import styles from './OptimizedPostCard.module.css'
 
@@ -24,6 +25,7 @@ interface OptimizedPostCardProps {
   seen: boolean
   constrainMediaHeight?: boolean
   openCollectionMenuSignal?: number
+  displayContext?: PostCardDisplayContext
 }
 
 /**

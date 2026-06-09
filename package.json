@@ -33,7 +33,11 @@
     "@types/react": "^19.2.5",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",
-    "@vitest/ui": "^4.0.18",
+    "@vitest/expect": "^4.1.8",
+    "@vitest/mocker": "^4.1.8",
+    "@vitest/runner": "^4.1.8",
+    "@vitest/ui": "^4.1.8",
+    "@vitest/utils": "^4.1.8",
     "depcheck": "^1.4.7",
     "eslint": "^9.39.1",
     "eslint-plugin-react-hooks": "^7.0.1",
@@ -48,7 +52,7 @@
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.46.4",
     "vite": "^7.2.4",
-    "vitest": "^4.0.18"
+    "vitest": "^4.1.8"
   },
   "license": "AGPL-3.0-or-later"
 }

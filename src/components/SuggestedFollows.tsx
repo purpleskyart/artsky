@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { getSession, followAccountWithLifecycle, type SuggestedFollow, type SuggestedFollowDetail } from '../lib/bsky'
 import { markRecommendationsShown } from '../lib/recommendationStorage'
 import { useProfileModal } from '../context/ProfileModalContext'
+import { resizedAvatarUrl } from '../lib/imageUtils'
 import styles from './SuggestedFollows.module.css'
 
 export type SuggestedFollowSort = 'count' | 'mutuals'
@@ -95,7 +96,7 @@ export default function SuggestedFollows() {
               aria-label={`View @${s.handle} profile`}
             >
               {s.avatar ? (
-                <img src={s.avatar} alt="" className={styles.avatar} loading="lazy" />
+                <img src={resizedAvatarUrl(s.avatar, 40)} alt="" className={styles.avatar} loading="lazy" decoding="async" />
               ) : (
                 <span className={styles.avatarPlaceholder} aria-hidden>
                   {(s.displayName ?? s.handle).slice(0, 1).toUpperCase()}
@@ -190,7 +191,7 @@ export default function SuggestedFollows() {
                         onClick={() => { openProfileModal(acc.handle); setInfoOpenForDid(null); }}
                       >
                         {acc.avatar ? (
-                          <img src={acc.avatar} alt="" className={styles.detailAvatar} loading="lazy" />
+                          <img src={resizedAvatarUrl(acc.avatar, 48)} alt="" className={styles.detailAvatar} loading="lazy" decoding="async" />
                         ) : (
                           <span className={styles.detailAvatarPlaceholder} aria-hidden>
                             {(acc.displayName ?? acc.handle).slice(0, 1).toUpperCase()}

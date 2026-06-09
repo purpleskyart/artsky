@@ -3,6 +3,7 @@ import { useSyncExternalStore } from 'react'
 import type { TimelineItem } from '../lib/bsky'
 import { isPostNsfw } from '../lib/bsky'
 import PostCard from './PostCard'
+import type { PostCardDisplayContext } from '../hooks/usePostCardDisplayContext'
 import { setInitialPostForUri } from '../lib/postCache'
 import { observeVirtualization } from '../lib/cardVirtualization'
 import styles from '../styles/postGrid.module.css'
@@ -31,7 +32,6 @@ export interface ProfileColumnProps {
   nsfwPreference: 'nsfw' | 'sfw' | 'blurred'
   unblurredUris: Set<string>
   setUnblurred: (uri: string, revealed: boolean) => void
-  likeOverrides: Record<string, string | null | undefined>
   setLikeOverrides: (postUri: string, likeUri: string | null) => void
   openPostModal: (uri: string, openReply?: boolean, focusUri?: string, authorHandle?: string) => void
   cardRef: (index: number) => (el: HTMLDivElement | null) => void
@@ -51,6 +51,10 @@ export interface ProfileColumnProps {
   onRemovePostFromCollection?: (postUri: string) => void | Promise<void>
   /** Center collect / avatar / like with ⋮ on the right (homepage preview layout) */
   feedPreviewActionRow?: boolean
+  /** Pre-resolved display context from page (avoids per-card context hooks). */
+  displayContext?: PostCardDisplayContext
+  /** Collection board grid: preview-priority video autoplay. */
+  collectionGridPlayback?: boolean
 }
 
 interface VirtualizedCellProps {
@@ -62,7 +66,7 @@ interface VirtualizedCellProps {
  * Lightweight virtualization wrapper: replaces children with a fixed-height
  * placeholder when far off-screen, freeing images/video/observers from memory.
  */
-const VirtualizedCell = memo(function VirtualizedCell({ children, root }: VirtualizedCellProps) {
+export const VirtualizedCell = memo(function VirtualizedCell({ children, root }: VirtualizedCellProps) {
   const ref = useRef<HTMLDivElement | null>(null)
   const heightRef = useRef(0)
   const showingRef = useRef(true)
@@ -99,7 +103,6 @@ function ProfileColumnComponent(props: ProfileColumnProps) {
     nsfwPreference,
     unblurredUris,
     setUnblurred,
-    likeOverrides,
     setLikeOverrides,
     openPostModal,
     cardRef,
@@ -114,6 +117,8 @@ function ProfileColumnComponent(props: ProfileColumnProps) {
     belowCard,
     onRemovePostFromCollection,
     feedPreviewActionRow = true,
+    displayContext,
+    collectionGridPlayback = false,
   } = props
 
   const isDesktop = useSyncExternalStore(subscribeDesktop, getDesktopSnapshot, () => false)
@@ -171,7 +176,6 @@ function ProfileColumnComponent(props: ProfileColumnProps) {
                 onNsfwUnblur={() => setUnblurred(item.post.uri, true)}
                 setUnblurred={setUnblurred}
                 isRevealed={unblurredUris.has(item.post.uri)}
-                likedUriOverride={likeOverrides[item.post.uri]}
                 onLikedChange={(uri, likeRecordUri) => setLikeOverrides(uri, likeRecordUri ?? null)}
                 onActionsMenuOpenChange={(open) => onActionsMenuOpenChange(originalIndex, open)}
                 cardIndex={originalIndex}
@@ -183,6 +187,8 @@ function ProfileColumnComponent(props: ProfileColumnProps) {
                 feedPreviewActionRow={feedPreviewActionRow}
                 suppressHoverNsfwUnblur={suppressHoverNsfwUnblur}
                 seen={false}
+                displayContext={displayContext}
+                collectionGridPlayback={collectionGridPlayback}
               />
             </VirtualizedCell>
           {belowCard ? belowCard({ item, originalIndex }) : null}

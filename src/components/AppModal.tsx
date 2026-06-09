@@ -130,24 +130,34 @@ export default function AppModal({
     return () => scrollLock?.unlockScroll()
   }, [scrollLock])
 
-  /* Mobile: track on-screen keyboard via visualViewport and set --keyboard-inset on the overlay so the pane stays above the keyboard (CSS uses the variable for max-height).
-   * Only listens to resize (keyboard open/close). Listening to visualViewport
-   * scroll caused a feedback loop: adjusting scroll inside the modal fires a
-   * viewport scroll event which re-runs this handler which changes pane height
-   * which shifts content which triggers more scroll adjustments. */
-  useEffect(() => {
+  /* Mobile: pin overlay to the visual viewport so modals cover the full screen when the
+   * URL bar is visible (100lvh/dvh alone leave gaps on Safari). Overlay height already
+   * shrinks with the on-screen keyboard, so the pane can fill 100% without a separate inset. */
+  useLayoutEffect(() => {
     if (!isMobile || typeof window === 'undefined') return
     const vv = window.visualViewport
     const el = overlayRef.current
     if (!vv || !el) return
     const update = () => {
-      const inset = Math.max(0, Math.round(window.innerHeight - (vv.offsetTop + vv.height)))
-      el.style.setProperty('--keyboard-inset', `${inset}px`)
+      el.style.top = `${vv.offsetTop}px`
+      el.style.left = `${vv.offsetLeft}px`
+      el.style.width = `${vv.width}px`
+      el.style.height = `${vv.height}px`
+      el.style.right = 'auto'
+      el.style.bottom = 'auto'
     }
+    update()
     vv.addEventListener('resize', update)
+    vv.addEventListener('scroll', update, { passive: true })
     return () => {
       vv.removeEventListener('resize', update)
-      el.style.removeProperty('--keyboard-inset')
+      vv.removeEventListener('scroll', update)
+      el.style.removeProperty('top')
+      el.style.removeProperty('left')
+      el.style.removeProperty('width')
+      el.style.removeProperty('height')
+      el.style.removeProperty('right')
+      el.style.removeProperty('bottom')
     }
   }, [isMobile])
 

@@ -8,7 +8,7 @@ import { agent, publicAgent, isAgentAuthenticated, getPostMediaInfo, getPostMedi
 import { setInitialPostForUri } from '../lib/postCache'
 import { getPreloadedProfileSnapshot, getPreloadedFeedSnapshot, preloadPostOpen } from '../lib/modalPreload'
 import PostCard from '../components/PostCard'
-import ProfileColumn from '../components/ProfileColumn'
+import ProfileColumn, { VirtualizedCell } from '../components/ProfileColumn'
 import { useModalScroll } from '../context/ModalScrollContext'
 import PostText from '../components/PostText'
 import ProfileActionsMenu from '../components/ProfileActionsMenu'
@@ -17,12 +17,14 @@ import { FollowListModal } from '../components/FollowListModal'
 import { useViewMode, type ViewMode } from '../context/ViewModeContext'
 import { useModeration, type NsfwPreference } from '../context/ModerationContext'
 import { useHideReposts } from '../context/HideRepostsContext'
-import { useLikeOverrides } from '../context/LikeOverridesContext'
+import { useLikeOverridesActions } from '../context/LikeOverridesContext'
+import { getLikeOverrideFromStore } from '../lib/likeOverridesStore'
 import { useFollowOverrides } from '../context/FollowOverridesContext'
 import { useToast } from '../context/ToastContext'
 import { EyeOpenIcon, EyeHalfIcon, EyeClosedIcon } from '../components/Icons'
 import { useColumnCount } from '../hooks/useViewportWidth'
 import { usePostCardGridPointerGate } from '../hooks/usePostCardGridPointerGate'
+import { usePostCardDisplayContext } from '../hooks/usePostCardDisplayContext'
 import { pickAdjacentCardIndexByViewport } from '../lib/masonryHorizontalNav'
 import { ProgressiveImage } from '../components/ProgressiveImage'
 import styles from './ProfilePage.module.css'
@@ -245,10 +247,11 @@ export default function ProfileContent({
   const [followListModal, setFollowListModal] = useState<'followers' | 'following' | 'mutuals' | 'followedByFollows' | null>(null)
   const [followeesWhoFollowPreview, setFolloweesWhoFollowPreview] = useState<ProfileViewBasic[] | null>(null)
   const [, setFolloweesWhoFollowLoading] = useState(false)
-  const { likeOverrides, setLikeOverride } = useLikeOverrides()
+  const { setLikeOverride } = useLikeOverridesActions()
   const { setFollowOverride } = useFollowOverrides()
   // openPostModal and isModalOpen are now passed as props to avoid circular dependency
   const modalScrollRef = useModalScroll()
+  const postCardDisplayContext = usePostCardDisplayContext(inModal)
   const gridRef = useRef<HTMLDivElement | null>(null)
   const editProfileCtx = useEditProfile()
   const topBarSlots = useModalTopBarSlot()
@@ -894,7 +897,8 @@ export default function ProfileContent({
         const item = items[i]
         if (!item?.post?.uri || !item?.post?.cid) return
         const uri = item.post.uri
-        const currentLikeUri = uri in likeOverrides ? (likeOverrides[uri] ?? undefined) : (item.post as { viewer?: { like?: string } }).viewer?.like
+        const override = getLikeOverrideFromStore(uri)
+        const currentLikeUri = override !== undefined ? (override ?? undefined) : (item.post as { viewer?: { like?: string } }).viewer?.like
         if (currentLikeUri) {
           unlikePostWithLifecycle(currentLikeUri, uri).then(() => {
             setLikeOverride(uri, null)
@@ -909,7 +913,7 @@ export default function ProfileContent({
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [beginKeyboardNavigation, tab, cols, isModalOpen, openPostModal, inModal, likeOverrides, actionsMenuOpenForIndex, setLikeOverride, session, setItems])
+  }, [beginKeyboardNavigation, tab, cols, isModalOpen, openPostModal, inModal, actionsMenuOpenForIndex, setLikeOverride, session, setItems])
 
   const postText = (post: TimelineItem['post']) => (post.record as { text?: string })?.text?.trim() ?? ''
   const textItems = authorFeedItems.filter(
@@ -1272,7 +1276,7 @@ export default function ProfileContent({
               <>
                 <div className={`${gridStyles.grid} ${gridStyles.gridView1}`} data-view-mode="1">
                 {textItems.map((item, index) => (
-                  <div key={`${item.post.uri}-${index}`}>
+                  <VirtualizedCell key={`${item.post.uri}-${index}`} root={modalScrollRef}>
                     <PostCard
                       item={item}
                       fillCell={false}
@@ -1284,13 +1288,13 @@ export default function ProfileContent({
                       onNsfwUnblur={() => setUnblurred(item.post.uri, true)}
                       setUnblurred={setUnblurred}
                       isRevealed={unblurredUris.has(item.post.uri)}
-                      likedUriOverride={likeOverrides[item.post.uri]}
                       onLikedChange={(uri, likeRecordUri) => setLikeOverride(uri, likeRecordUri ?? null)}
                       profileAuthorDid={profile?.did}
                       profileAuthorFollowingUri={profile != null ? followingUri ?? null : undefined}
                       onProfileAuthorFollowChange={onProfileAuthorFollowChange}
+                      displayContext={postCardDisplayContext}
                     />
-                  </div>
+                  </VirtualizedCell>
                 ))}
               </div>
               {cursor && <div ref={loadMoreSentinelRef} className={gridStyles.loadMoreSentinel} aria-hidden />}
@@ -1385,7 +1389,6 @@ export default function ProfileContent({
                   nsfwPreference={nsfwPreference}
                   unblurredUris={unblurredUris}
                   setUnblurred={setUnblurred}
-                  likeOverrides={likeOverrides}
                   setLikeOverrides={setLikeOverride}
                   openPostModal={openPostModal}
                   cardRef={(index) => (el) => { cardRefsRef.current[index] = el }}
@@ -1403,6 +1406,7 @@ export default function ProfileContent({
                   profileAuthorDid={profile?.did}
                   profileAuthorFollowingUri={profile != null ? followingUri ?? null : undefined}
                   onProfileAuthorFollowChange={onProfileAuthorFollowChange}
+                  displayContext={postCardDisplayContext}
                 />
               ))}
             </div>

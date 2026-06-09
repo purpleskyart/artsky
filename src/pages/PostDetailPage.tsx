@@ -24,7 +24,11 @@ import { useLoginModal } from '../context/LoginModalContext'
 import { useFollowOverrides } from '../context/FollowOverridesContext'
 import { useToast } from '../context/ToastContext'
 import ImageLightbox from '../components/ImageLightbox'
+import { VirtualizedCell } from '../components/ProfileColumn'
+import { useLikeOverrideForUri } from '../context/LikeOverridesContext'
 import styles from './PostDetailPage.module.css'
+
+const REPLY_VIRTUALIZE_THRESHOLD = 20
 
 const ACTION_ICON_SIZE = 18
 
@@ -654,7 +658,13 @@ function PostBlock({
   if (!isThreadViewPost(node)) return null
   const { post } = node
   const postViewer = post as { viewer?: { like?: string }; likeCount?: number; downvoteCount?: number }
-  const likedUri = likeOverrides?.[post.uri] !== undefined ? likeOverrides[post.uri] : postViewer.viewer?.like
+  const storeLikeOverride = useLikeOverrideForUri(post.uri)
+  const likedUri =
+    likeOverrides?.[post.uri] !== undefined
+      ? likeOverrides[post.uri]
+      : storeLikeOverride !== undefined
+        ? storeLikeOverride
+        : postViewer.viewer?.like
   const downvotedUri = myDownvotes?.[post.uri]
   const baseLikeCount = postViewer.likeCount ?? 0
   const wasLikedByApi = !!postViewer.viewer?.like
@@ -909,13 +919,13 @@ function PostBlock({
               {replies.map((r, rIndex) => {
                 if (!isThreadViewPost(r)) return null
                 const replyDepth = depth + 1
+                const virtualizeReplies = replies.length >= REPLY_VIRTUALIZE_THRESHOLD
                 if (collapsedThreads?.has(r.post.uri)) {
                   const replyCount = 'replies' in r && Array.isArray(r.replies) ? (r.replies as unknown[]).length : 0
                   const label = replyCount === 0 ? 'Comment' : `${replyCount} reply${replyCount !== 1 ? 's' : ''}`
                   const replyHandle = r.post.author?.handle ?? r.post.author?.did ?? ''
-                  return (
+                  const collapsedNode = (
                     <div
-                      key={`${r.post.uri}-${rIndex}`}
                       className={styles.collapsedCommentWrap}
                       style={{ marginLeft: Math.min(replyDepth * 6, 28) }}
                       data-comment-uri={r.post.uri}
@@ -933,10 +943,14 @@ function PostBlock({
                       </button>
                     </div>
                   )
+                  return virtualizeReplies ? (
+                    <VirtualizedCell key={`${r.post.uri}-${rIndex}`}>{collapsedNode}</VirtualizedCell>
+                  ) : (
+                    <div key={`${r.post.uri}-${rIndex}`}>{collapsedNode}</div>
+                  )
                 }
-                return (
+                const replyBlock = (
                   <PostBlock
-                    key={`${r.post.uri}-${rIndex}`}
                     node={r}
                     depth={replyDepth}
                     collapsedThreads={collapsedThreads}
@@ -970,6 +984,11 @@ function PostBlock({
                     onViewQuotes={onViewQuotes}
                     onImageClick={onImageClick}
                   />
+                )
+                return virtualizeReplies ? (
+                  <VirtualizedCell key={`${r.post.uri}-${rIndex}`}>{replyBlock}</VirtualizedCell>
+                ) : (
+                  <div key={`${r.post.uri}-${rIndex}`}>{replyBlock}</div>
                 )
               })}
             </div>

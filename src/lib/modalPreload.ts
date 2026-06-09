@@ -1,4 +1,8 @@
 import { getProfileCached, getPostsBatch, agent, publicAgent, isAgentAuthenticated, type TimelineItem } from './bsky'
+import { lruMapSet } from './lruMap'
+
+const PRELOAD_PROFILE_CACHE_MAX = 30
+const PRELOAD_FEED_CACHE_MAX = 30
 
 let postOverlayPreloaded = false
 let postDetailPagePreloaded = false
@@ -96,7 +100,7 @@ export function preloadProfileOpen(handle: string): void {
   // Prefetch profile metadata (lightweight, safe for hover)
   void getProfileCached(normalized)
     .then((data) => {
-      preloadedProfileByHandle.set(normalized.toLowerCase(), data)
+      lruMapSet(preloadedProfileByHandle, normalized.toLowerCase(), data, PRELOAD_PROFILE_CACHE_MAX)
     })
     .catch(() => {
       // Best-effort prefetch only.
@@ -115,10 +119,10 @@ export function preloadProfileFeed(handle: string): void {
   const readAgent = isAgentAuthenticated() ? agent : publicAgent
   void readAgent.getAuthorFeed({ actor: normalized, limit: 5, includePins: true })
     .then((res) => {
-      preloadedFeedByHandle.set(normalized.toLowerCase(), {
+      lruMapSet(preloadedFeedByHandle, normalized.toLowerCase(), {
         feed: (res.data.feed ?? []) as TimelineItem[],
         cursor: res.data.cursor ?? undefined,
-      })
+      }, PRELOAD_FEED_CACHE_MAX)
     })
     .catch(() => {
       // Best-effort prefetch only.

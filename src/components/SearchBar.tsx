@@ -6,6 +6,7 @@ import { scrollFieldAboveKeyboard } from '../lib/mobileKeyboardFocus'
 import { HOME_PATH } from '../lib/routes'
 import type { FeedSource } from '../types'
 import type { AppBskyActorDefs, AppBskyFeedDefs } from '@atproto/api'
+import { resizedAvatarUrl } from '../lib/imageUtils'
 import styles from './SearchBar.module.css'
 
 const DEBOUNCE_MS = 200
@@ -468,7 +469,7 @@ export default function SearchBar({
                   className={`${styles.item} ${i === activeIndex ? styles.itemActive : ''}`}
                   onClick={() => handleSelect(i)}
                 >
-                  {opt.avatar ? <img src={opt.avatar} alt="" className={styles.itemAvatar} loading="lazy" /> : <div className={styles.itemAvatar} style={{ backgroundColor: 'var(--glass-border)' }} aria-hidden />}
+                  {opt.avatar ? <img src={resizedAvatarUrl(opt.avatar, 32)} alt="" className={styles.itemAvatar} loading="lazy" decoding="async" /> : <div className={styles.itemAvatar} style={{ backgroundColor: 'var(--glass-border)' }} aria-hidden />}
                   <span className={styles.itemLabel}>
                     {opt.displayName ? `${opt.displayName} ` : ''}@{opt.handle}
                   </span>
@@ -485,7 +486,7 @@ export default function SearchBar({
                   className={`${styles.item} ${i === activeIndex ? styles.itemActive : ''}`}
                   onClick={() => handleSelect(i)}
                 >
-                  {v.avatar ? <img src={v.avatar} alt="" className={styles.itemAvatar} loading="lazy" /> : <div className={styles.itemAvatar} style={{ backgroundColor: 'var(--glass-border)' }} aria-hidden />}
+                  {v.avatar ? <img src={resizedAvatarUrl(v.avatar, 32)} alt="" className={styles.itemAvatar} loading="lazy" decoding="async" /> : <div className={styles.itemAvatar} style={{ backgroundColor: 'var(--glass-border)' }} aria-hidden />}
                   <span className={styles.itemLabel}>{v.displayName ?? v.uri}</span>
                 </button>
               )
