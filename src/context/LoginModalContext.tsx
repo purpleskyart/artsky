@@ -1,5 +1,6 @@
-import { createContext, lazy, Suspense, useCallback, useContext, useMemo, useState, type ReactNode } from 'react'
+import { createContext, lazy, Suspense, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { ChunkLoadError } from '../components/ChunkLoadError'
+import { setFeedSuspendReason } from '../lib/videoPlaybackManager'
 
 const LoginModal = lazy(() => import('../components/LoginModal'))
 
@@ -20,6 +21,11 @@ export function LoginModalProvider({ children }: { children: ReactNode }) {
   const closeLoginModal = useCallback(() => {
     setIsOpen(false)
   }, [])
+
+  useEffect(() => {
+    setFeedSuspendReason('login', isOpen)
+    return () => setFeedSuspendReason('login', false)
+  }, [isOpen])
 
   const value: LoginModalContextValue = useMemo(() => ({
     openLoginModal,

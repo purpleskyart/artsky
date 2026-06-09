@@ -743,7 +743,7 @@ export default function ProfileContent({
     const index = keyboardFocusIndex
     const raf = requestAnimationFrame(() => {
       const el = cardRefsRef.current[index]
-      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' })
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' })
     })
     return () => cancelAnimationFrame(raf)
   }, [keyboardFocusIndex])

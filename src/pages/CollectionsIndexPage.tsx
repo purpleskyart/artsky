@@ -102,6 +102,7 @@ function LazyPreviewStrip({
                 forceMuted={true}
                 preload="metadata"
                 controlsHiddenUntilTap
+                playbackMode="preview"
               />
             ) : src ? (
               <ProgressiveImage src={src} alt="" className={styles.previewImg} loading="lazy" />

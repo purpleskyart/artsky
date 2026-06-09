@@ -4,8 +4,8 @@
   "description": "A Bluesky client focused on art",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0f0f1a",
-  "theme_color": "#0f0f1a",
+  "background_color": "#5b21b6",
+  "theme_color": "#7c3aed",
   "orientation": "portrait",
   "scope": "/",
   "icons": [

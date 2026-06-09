@@ -1,49 +1,26 @@
-import { useRef, useEffect, useState } from 'react'
+import { useRef, useEffect, useState, useCallback } from 'react'
 import { loadHls } from '../lib/loadHls'
-
-// Global video manager to limit concurrent playing videos
-// Reduced from 8 to 4 for better performance with multiple videos
-const MAX_CONCURRENT_VIDEOS = 7
-const playingVideos = new Map<string, HTMLVideoElement>()
-let playQueue: string[] = []
-
-function registerPlayingVideo(id: string, video: HTMLVideoElement) {
-  playingVideos.set(id, video)
-  playQueue = playQueue.filter((v) => v !== id)
-  playQueue.push(id)
-  
-  // If we exceed the limit, pause the oldest playing video
-  if (playingVideos.size > MAX_CONCURRENT_VIDEOS) {
-    const oldestId = playQueue.shift()
-    if (oldestId) {
-      const oldestVideo = playingVideos.get(oldestId)
-      if (oldestVideo && !oldestVideo.paused) {
-        oldestVideo.pause()
-        playingVideos.delete(oldestId)
-      }
-    }
-  }
-}
-
-function unregisterPlayingVideo(id: string) {
-  playingVideos.delete(id)
-  playQueue = playQueue.filter((v) => v !== id)
-}
+import { buildHlsConfig, PAUSE_VISIBILITY_RATIO, PLAY_VISIBILITY_RATIO, type VideoPlaybackMode } from '../lib/videoHlsConfig'
+import {
+  getVisibleAutoplayCount,
+  registerVideoSession,
+  retryAutoplayIfWanted,
+  setVideoHlsAttached,
+  setVideoPlaying,
+  unregisterVideoSession,
+  updateVideoVisibility,
+} from '../lib/videoPlaybackManager'
+import type Hls from 'hls.js'
 
 function isHlsUrl(url: string): boolean {
   return /\.m3u8(\?|$)/i.test(url) || url.includes('m3u8')
 }
 
-/** Enough of the video is visible to start playback. */
-const PLAY_VISIBILITY_RATIO = 0.7
-/** Pause once visibility drops below this (hysteresis avoids play/pause flicker while scrolling). */
-const PAUSE_VISIBILITY_RATIO = 0.45
-
-function attemptPlay(videoId: string, video: HTMLVideoElement): void {
-  registerPlayingVideo(videoId, video)
-  video.play().catch(() => {
-    unregisterPlayingVideo(videoId)
-  })
+function getNearViewportMargin(): string {
+  if (typeof window === 'undefined') return '50% 0px 50% 0px'
+  const vh = window.innerHeight
+  const margin = Math.floor(vh * 0.5)
+  return `${margin}px 0px ${margin}px 0px`
 }
 
 interface Props {
@@ -55,17 +32,14 @@ interface Props {
   preload?: string
   autoPlay?: boolean
   loop?: boolean
-  /** When true, start with controls hidden; first tap on video shows native controls (for mobile post detail). */
   controlsHiddenUntilTap?: boolean
   style?: React.CSSProperties
-  /** Root element for IntersectionObserver (e.g., modal scroll container) */
   intersectionRoot?: Element | null
-  /** Callback when video play state changes (for showing play icon overlay) */
   onPlayStateChange?: (isPlaying: boolean) => void
-  /** When true, force video to be muted regardless of autoPlay setting */
   forceMuted?: boolean
-  /** Called with intrinsic video dimensions when metadata is available */
   onVideoDimensions?: (width: number, height: number) => void
+  /** Tunes buffer sizes and suspend behavior. Feed videos pause when overlays are open. */
+  playbackMode?: VideoPlaybackMode
 }
 
 export default function VideoWithHls({
@@ -83,156 +57,216 @@ export default function VideoWithHls({
   onPlayStateChange,
   forceMuted = false,
   onVideoDimensions,
+  playbackMode = 'detail',
 }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null)
+  const visibilityRef = useRef<HTMLDivElement>(null)
   const [showControls, setShowControls] = useState(!controlsHiddenUntilTap)
   const effectiveControls = controlsHiddenUntilTap ? showControls : controls
-  const wasPlayingRef = useRef(false)
   const videoIdRef = useRef(`video-${crypto.randomUUID()}`)
+  const hlsRef = useRef<Hls | null>(null)
+  const nativeCleanupRef = useRef<(() => void) | null>(null)
+  const attachGenerationRef = useRef(0)
+  const attachingRef = useRef(false)
+  const playRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const shouldMute = forceMuted || autoPlay
 
-  // Clear stale module-level state on first mount only (fixes refresh issues)
-  // Use a ref to track if we've already cleared to avoid clearing on every component mount
-  const hasClearedStateRef = useRef(false)
-  useEffect(() => {
-    if (!hasClearedStateRef.current) {
-      playingVideos.clear()
-      playQueue = []
-      hasClearedStateRef.current = true
+  const destroyHls = useCallback(() => {
+    attachGenerationRef.current++
+    attachingRef.current = false
+    if (playRetryTimerRef.current != null) {
+      clearTimeout(playRetryTimerRef.current)
+      playRetryTimerRef.current = null
     }
+    if (hlsRef.current) {
+      hlsRef.current.destroy()
+      hlsRef.current = null
+    }
+    nativeCleanupRef.current?.()
+    nativeCleanupRef.current = null
+    const video = videoRef.current
+    if (video) {
+      video.pause()
+      video.removeAttribute('src')
+      video.load()
+    }
+    setVideoHlsAttached(videoIdRef.current, false)
   }, [])
 
-  useEffect(() => {
-    if (!playlistUrl || !videoRef.current) return
+  const attachHls = useCallback(() => {
     const video = videoRef.current
-    
-    let cleanup: (() => void) | undefined
-    
+    if (!video || !playlistUrl || hlsRef.current || attachingRef.current) return
+
+    attachingRef.current = true
+    const generation = attachGenerationRef.current
+
     if (isHlsUrl(playlistUrl)) {
-      loadHls().then((Hls) => {
-        if (!videoRef.current) return
-        if (Hls.isSupported()) {
-          const hls = new Hls({
-            // Reduced buffer sizes for better performance with multiple videos
-            maxBufferLength: 15, // Reduced from 30 to 15 seconds
-            maxMaxBufferLength: 30, // Reduced from 60 to 30 seconds
-            maxBufferSize: 15 * 1024 * 1024, // Reduced from 30MB to 15MB
-            // Optimize quality switching
-            enableWorker: true,
-            lowLatencyMode: false, // Disable low latency for better performance
-            backBufferLength: 5, // Reduced from 10 to 5 seconds to save memory
-            // Performance optimizations
-            maxBufferHole: 0.5, // More aggressive buffer hole detection
-            // Prefer lower quality for smoother playback with multiple videos
-            abrEwmaDefaultEstimate: 500000, // Start with 500kbps estimate
-            abrEwmaFastLive: 3, // Faster adaptation to network changes
-            abrEwmaSlowLive: 9, // Slower adaptation for stability
-            abrEwmaFastVoD: 3,
-            abrEwmaSlowVoD: 9,
-            // Error recovery
-            fragLoadPolicy: {
-              default: {
-                maxTimeToFirstByteMs: 10000,
-                maxLoadTimeMs: 20000,
-                timeoutRetry: {
-                  maxNumRetry: 2, // Reduced from 3 to 2
-                  retryDelayMs: 1000,
-                  maxRetryDelayMs: 5000, // Reduced from 8000
-                },
-                errorRetry: {
-                  maxNumRetry: 2, // Reduced from 3 to 2
-                  retryDelayMs: 1000,
-                  maxRetryDelayMs: 5000, // Reduced from 8000
-                },
-              },
-            },
-          })
+      loadHls().then((HlsModule) => {
+        if (generation !== attachGenerationRef.current || !videoRef.current) {
+          attachingRef.current = false
+          setVideoHlsAttached(videoIdRef.current, false)
+          return
+        }
+        const videoEl = videoRef.current
+        if (HlsModule.isSupported()) {
+          const visibleCount = Math.max(1, getVisibleAutoplayCount())
+          const hls = new HlsModule(buildHlsConfig(visibleCount))
           hls.loadSource(playlistUrl)
-          hls.attachMedia(video)
-          hls.on(Hls.Events.ERROR, (_event, data) => {
-            // eslint-disable-next-line no-console
-            console.error('HLS error:', data)
-            if (data.fatal) {
-              switch (data.type) {
-                case Hls.ErrorTypes.NETWORK_ERROR:
-                  hls.startLoad()
-                  break
-                case Hls.ErrorTypes.MEDIA_ERROR:
-                  hls.recoverMediaError()
-                  break
-                default:
-                  hls.destroy()
-                  break
-              }
+          hls.attachMedia(videoEl)
+          hls.on(HlsModule.Events.ERROR, (_event, data) => {
+            if (!data.fatal) return
+            switch (data.type) {
+              case HlsModule.ErrorTypes.NETWORK_ERROR:
+                hls.startLoad()
+                break
+              case HlsModule.ErrorTypes.MEDIA_ERROR:
+                hls.recoverMediaError()
+                break
+              default:
+                hls.destroy()
+                hlsRef.current = null
+                setVideoHlsAttached(videoIdRef.current, false)
+                break
             }
           })
-          cleanup = () => {
-            hls.destroy()
-          }
-        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-          video.src = playlistUrl
+          hlsRef.current = hls
+          attachingRef.current = false
+          setVideoHlsAttached(videoIdRef.current, true)
+        } else if (videoEl.canPlayType('application/vnd.apple.mpegurl')) {
+          videoEl.src = playlistUrl
           const handleError = () => {
-            // eslint-disable-next-line no-console
             console.error('Native HLS playback error for:', playlistUrl)
           }
-          video.addEventListener('error', handleError)
-          cleanup = () => {
-            video.removeEventListener('error', handleError)
-            video.removeAttribute('src')
+          videoEl.addEventListener('error', handleError)
+          nativeCleanupRef.current = () => {
+            videoEl.removeEventListener('error', handleError)
+            videoEl.removeAttribute('src')
           }
+          attachingRef.current = false
+          setVideoHlsAttached(videoIdRef.current, true)
+        } else {
+          attachingRef.current = false
         }
       }).catch((err) => {
-        // Fallback to native playback if hls.js fails to load
+        attachingRef.current = false
         console.warn('HLS.js failed to load, falling back to native playback:', err)
-        if (video.canPlayType('application/vnd.apple.mpegurl')) {
-          video.src = playlistUrl
+        if (videoRef.current?.canPlayType('application/vnd.apple.mpegurl')) {
+          videoRef.current.src = playlistUrl
+          setVideoHlsAttached(videoIdRef.current, true)
         }
       })
     } else {
       video.src = playlistUrl
-      cleanup = () => {
+      nativeCleanupRef.current = () => {
         video.removeAttribute('src')
       }
-    }
-    
-    return () => {
-      cleanup?.()
+      attachingRef.current = false
+      setVideoHlsAttached(videoIdRef.current, true)
     }
   }, [playlistUrl])
 
-  // Handle initial autoplay when video is ready
-  useEffect(() => {
-    if (!autoPlay || !videoRef.current) return
+  const requestPlay = useCallback(() => {
     const video = videoRef.current
-    const videoId = videoIdRef.current
+    if (!video) return
+    if (shouldMute) {
+      video.muted = true
+      video.defaultMuted = true
+    }
 
-    const playWhenReady = () => {
-      if (autoPlay && video.readyState >= 2) {
-        attemptPlay(videoId, video)
+    const attempt = () => {
+      video.play().catch(() => {
+        setVideoPlaying(videoIdRef.current, false)
+        if (playRetryTimerRef.current != null) return
+        playRetryTimerRef.current = setTimeout(() => {
+          playRetryTimerRef.current = null
+          if (!video.paused) return
+          retryAutoplayIfWanted(videoIdRef.current)
+        }, 300)
+      })
+    }
+
+    if (video.readyState < 2) {
+      const onReady = () => {
+        video.removeEventListener('loadeddata', onReady)
+        video.removeEventListener('canplay', onReady)
+        attempt()
+      }
+      video.addEventListener('loadeddata', onReady, { once: true })
+      video.addEventListener('canplay', onReady, { once: true })
+      return
+    }
+    attempt()
+  }, [shouldMute])
+
+  const requestPause = useCallback(() => {
+    videoRef.current?.pause()
+  }, [])
+
+  // Manager-driven autoplay sessions
+  useEffect(() => {
+    if (!autoPlay) return
+    const id = videoIdRef.current
+    registerVideoSession(id, playbackMode, true, {
+      onPlay: requestPlay,
+      onPause: requestPause,
+      onAttach: attachHls,
+      onDetach: destroyHls,
+    })
+    return () => {
+      unregisterVideoSession(id)
+      destroyHls()
+    }
+  }, [autoPlay, playbackMode, requestPlay, requestPause, attachHls, destroyHls])
+
+  // Visibility observer for manager (autoplay) or local pause (manual)
+  useEffect(() => {
+    const video = videoRef.current
+    const visibilityTarget = visibilityRef.current ?? video
+    if (!video || !visibilityTarget) return
+    const id = videoIdRef.current
+
+    const handleEntries = (entries: IntersectionObserverEntry[]) => {
+      for (const entry of entries) {
+        const ratio = entry.intersectionRatio
+        const nearViewport = entry.isIntersecting
+
+        if (autoPlay) {
+          updateVideoVisibility(id, ratio, nearViewport)
+        } else if (ratio < PAUSE_VISIBILITY_RATIO && !video.paused) {
+          video.pause()
+        }
       }
     }
 
-    if (video.readyState >= 2) {
-      playWhenReady()
-    } else {
-      video.addEventListener('loadeddata', playWhenReady, { once: true })
-    }
+    const observer = new IntersectionObserver(handleEntries, {
+      threshold: [0, PAUSE_VISIBILITY_RATIO, PLAY_VISIBILITY_RATIO, 0.75, 1],
+      rootMargin: getNearViewportMargin(),
+      root: intersectionRoot ?? undefined,
+    })
 
-    return () => {
-      video.removeEventListener('loadeddata', playWhenReady)
-    }
-  }, [autoPlay, playlistUrl])
+    observer.observe(visibilityTarget)
+    const pending = observer.takeRecords()
+    if (pending.length > 0) handleEntries(pending)
+    return () => observer.disconnect()
+  }, [intersectionRoot, autoPlay, playlistUrl])
 
-  // Track play/pause state changes
+  // Track play/pause state for overlays and manager
   useEffect(() => {
     const video = videoRef.current
     if (!video) return
+    const id = videoIdRef.current
 
-    const handlePlay = () => onPlayStateChange?.(true)
-    const handlePause = () => onPlayStateChange?.(false)
+    const handlePlay = () => {
+      setVideoPlaying(id, true)
+      onPlayStateChange?.(true)
+    }
+    const handlePause = () => {
+      setVideoPlaying(id, false)
+      onPlayStateChange?.(false)
+    }
 
     video.addEventListener('play', handlePlay)
     video.addEventListener('pause', handlePause)
-
     return () => {
       video.removeEventListener('play', handlePlay)
       video.removeEventListener('pause', handlePause)
@@ -249,85 +283,50 @@ export default function VideoWithHls({
       if (w > 0 && h > 0) onVideoDimensions(w, h)
     }
 
-    if (video.videoWidth > 0 && video.videoHeight > 0) {
-      reportDimensions()
-    }
+    if (video.videoWidth > 0 && video.videoHeight > 0) reportDimensions()
     video.addEventListener('loadedmetadata', reportDimensions)
     return () => video.removeEventListener('loadedmetadata', reportDimensions)
   }, [onVideoDimensions, playlistUrl])
 
-  // Pause video when not visible to prevent resource contention with multiple videos
+  // Non-autoplay: attach source on mount
   useEffect(() => {
-    const video = videoRef.current
-    if (!video) return
-    const videoId = videoIdRef.current
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          const ratio = entry.intersectionRatio
-
-          if (ratio < PAUSE_VISIBILITY_RATIO) {
-            // Video is leaving viewport - pause it and remember it was playing
-            if (!video.paused) {
-              wasPlayingRef.current = true
-              video.pause()
-              unregisterPlayingVideo(videoId)
-            }
-          } else if (
-            ratio >= PLAY_VISIBILITY_RATIO &&
-            autoPlay &&
-            video.paused &&
-            video.readyState >= 2
-          ) {
-            // Video is entering viewport and autoplay is enabled - play it
-            attemptPlay(videoId, video)
-          }
-        }
-      },
-      {
-        threshold: [0, PAUSE_VISIBILITY_RATIO, PLAY_VISIBILITY_RATIO, 1],
-        root: intersectionRoot ?? undefined,
-      }
-    )
-
-    observer.observe(video)
-
-    return () => {
-      observer.disconnect()
-      unregisterPlayingVideo(videoId)
-    }
-  }, [intersectionRoot, autoPlay, playlistUrl])
+    if (autoPlay) return
+    attachHls()
+    return () => destroyHls()
+  }, [autoPlay, attachHls, destroyHls, playlistUrl])
 
   return (
-    <video
-      ref={videoRef}
-      className={className}
-      style={style}
-      data-controls-hidden={controlsHiddenUntilTap && !showControls ? true : undefined}
-      poster={poster}
-      controls={effectiveControls}
-      playsInline={playsInline}
-      preload={preload}
-      autoPlay={autoPlay}
-      muted={forceMuted || autoPlay}
-      loop={loop}
-      onClick={(e) => {
-        if (controlsHiddenUntilTap && !showControls) {
-          setShowControls(true)
-          return
-        }
-        const video = videoRef.current
-        if (!video || effectiveControls) return
-        // User gesture unlocks playback when autoplay is blocked (e.g. Low Power Mode).
-        if (video.paused) {
-          e.stopPropagation()
-          attemptPlay(videoIdRef.current, video)
-        }
-      }}
-      // Hardware acceleration hints for smoother playback
-      disablePictureInPicture
-      disableRemotePlayback
-    />
+    <div
+      ref={visibilityRef}
+      style={{ width: '100%', height: '100%', minWidth: 0, minHeight: 0 }}
+    >
+      <video
+        ref={videoRef}
+        className={className}
+        style={style}
+        data-controls-hidden={controlsHiddenUntilTap && !showControls ? true : undefined}
+        poster={poster}
+        controls={effectiveControls}
+        playsInline={playsInline}
+        preload={preload}
+        autoPlay={false}
+        muted={shouldMute}
+        loop={loop}
+        onClick={(e) => {
+          if (controlsHiddenUntilTap && !showControls) {
+            setShowControls(true)
+            return
+          }
+          const video = videoRef.current
+          if (!video || effectiveControls) return
+          if (video.paused) {
+            e.stopPropagation()
+            requestPlay()
+          }
+        }}
+        disablePictureInPicture
+        disableRemotePlayback
+      />
+    </div>
   )
 }
