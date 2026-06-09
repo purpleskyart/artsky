@@ -30,6 +30,11 @@ for (const [name, size] of iosIcons) {
     .toFile(join(root, 'public', name))
 }
 
+await sharp(iosSvg, { density: 300 })
+  .resize(32, 32)
+  .png()
+  .toFile(join(root, 'public', 'favicon.ico'))
+
 // Android icons - Material Design 3 style
 const androidSvgPath = join(root, 'public', 'icon-android.svg')
 const androidSvg = readFileSync(androidSvgPath)
@@ -48,5 +53,5 @@ for (const [name, size] of androidIcons) {
     .toFile(join(root, 'public', name))
 }
 
-console.log('Wrote iOS icons: icon-ios-180.png, icon-ios-120.png, apple-touch-icon.png')
+console.log('Wrote iOS icons: icon-ios-180.png, icon-ios-120.png, apple-touch-icon.png, favicon.ico')
 console.log('Wrote Android icons: icon-android-192.png, icon-android-512.png, icon-192.png, icon-512.png')

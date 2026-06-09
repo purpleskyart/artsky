@@ -416,6 +416,7 @@ function MediaGallery({
                   preload={i === firstVideoIndex ? 'metadata' : 'none'}
                   controlsHiddenUntilTap={hideVideoControlsUntilTap}
                   forceMuted={forEmbeddedPreview}
+                  playbackMode={forEmbeddedPreview ? 'thumbnail' : 'detail'}
                 />
               </div>
             )
@@ -440,6 +441,7 @@ function MediaGallery({
                   preload={i === firstVideoIndex ? 'metadata' : 'none'}
                   controlsHiddenUntilTap={hideVideoControlsUntilTap}
                   forceMuted={forEmbeddedPreview}
+                  playbackMode={forEmbeddedPreview ? 'thumbnail' : 'detail'}
                 />
               </div>
             )
@@ -1028,6 +1030,7 @@ function PostBlock({
                                   autoPlay
                                   forceMuted={true}
                                   preload="none"
+                                  playbackMode="thumbnail"
                                 />
                               </div>
                             ) : firstMedia.type === 'video' ? (
@@ -1040,6 +1043,7 @@ function PostBlock({
                                   autoPlay
                                   forceMuted={true}
                                   preload="none"
+                                  playbackMode="thumbnail"
                                 />
                               </div>
                             ) : null}
@@ -2989,6 +2993,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                                       autoPlay
                                       forceMuted={true}
                                       preload="none"
+                                      playbackMode="thumbnail"
                                     />
                                   </div>
                                 ) : firstMedia.type === 'video' ? (
@@ -3001,6 +3006,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                                       autoPlay
                                       forceMuted={true}
                                       preload="none"
+                                      playbackMode="thumbnail"
                                     />
                                   </div>
                                 ) : null}

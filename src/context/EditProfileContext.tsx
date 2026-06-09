@@ -1,5 +1,6 @@
-import { createContext, lazy, Suspense, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react'
+import { createContext, lazy, Suspense, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { ChunkLoadError } from '../components/ChunkLoadError'
+import { setFeedSuspendReason } from '../lib/videoPlaybackManager'
 
 const EditProfileModal = lazy(() => import('../components/EditProfileModal'))
 
@@ -35,6 +36,11 @@ export function EditProfileProvider({ children }: { children: ReactNode }) {
     registerOnSaved,
     editSavedVersion,
   }), [openEditProfile, registerOnSaved, editSavedVersion])
+
+  useEffect(() => {
+    setFeedSuspendReason('edit-profile', editProfileOpen)
+    return () => setFeedSuspendReason('edit-profile', false)
+  }, [editProfileOpen])
 
   return (
     <EditProfileContext.Provider value={value}>

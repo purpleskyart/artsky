@@ -506,7 +506,8 @@ function PostCardInner({
     if (!hasMedia) return
     const initial = initialLayoutAspect(media?.url, media?.aspectRatio)
     if (initial != null) setMediaAspect((prev) => prev ?? initial)
-    else if (!isVideo) setMediaAspect((prev) => prev ?? null)
+    else if (isVideo) setMediaAspect((prev) => prev ?? DEFAULT_PLACEHOLDER_ASPECT)
+    else setMediaAspect((prev) => prev ?? null)
   }, [hasMedia, media?.aspectRatio, media?.url, media?.videoPlaylist, isVideo])
 
   /* When post changes (e.g. virtualized list), reset aspect to new post's so reserved size is correct */
@@ -528,7 +529,7 @@ function PostCardInner({
     setImageAspects([])
     const initial = initialLayoutAspect(media?.url, media?.aspectRatio)
     if (initial != null) setMediaAspect(initial)
-    else if (!isVideo) setMediaAspect(null)
+    else if (isVideo) setMediaAspect(DEFAULT_PLACEHOLDER_ASPECT)
     else setMediaAspect(null)
   }, [post.uri])
 
@@ -1217,6 +1218,7 @@ function PostCardInner({
                 preload="none"
                 controls={false}
                 forceMuted={true}
+                playbackMode={modalScrollContainer ? 'detail' : 'feed'}
                 style={{ aspectRatio: mediaAspect != null ? `${mediaAspect}` : undefined }}
                 intersectionRoot={modalScrollContainer}
                 onPlayStateChange={setIsVideoPlaying}

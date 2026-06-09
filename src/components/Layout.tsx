@@ -13,6 +13,7 @@ import { useMediaOnly, MEDIA_MODE_LABELS, type MediaMode } from '../context/Medi
 import { useScrollLock } from '../context/ScrollLockContext'
 import { useSeenPosts } from '../context/SeenPostsContext'
 import { useToast } from '../context/ToastContext'
+import { setFeedSuspendReason } from '../lib/videoPlaybackManager'
 import {
   createPost,
   postReply,
@@ -1223,6 +1224,12 @@ export default function Layout({ title, children, showNav }: Props) {
 
   /* When any full-screen popup is open, lock body scroll so only the popup scrolls */
   const anyPopupOpen = isModalOpen || (mobileSearchOpen && !isDesktop) || composeOpen || aboutOpen || settingsOpen
+  const layoutPopupOpen =
+    (mobileSearchOpen && !isDesktop) || composeOpen || aboutOpen || settingsOpen
+  useEffect(() => {
+    setFeedSuspendReason('layout-popup', layoutPopupOpen)
+    return () => setFeedSuspendReason('layout-popup', false)
+  }, [layoutPopupOpen])
   useEffect(() => {
     if (!scrollLock || !anyPopupOpen) return
     scrollLock.lockScroll()
@@ -1926,7 +1933,7 @@ export default function Layout({ title, children, showNav }: Props) {
                 <div ref={headerGearWrapRef} className={styles.headerGearWrap}>
                   <button
                     type="button"
-                    className={`${styles.headerGearBtn} float-btn ${feedFloatButtonsExpanded ? styles.feedFloatGearActive : ''}`}
+                    className={`${styles.headerGearBtn} float-btn`}
                     onClick={() => setFeedFloatButtonsExpanded((e) => !e)}
                     title={feedFloatButtonsExpanded ? 'Hide view options' : 'Show view options'}
                     aria-label={feedFloatButtonsExpanded ? 'Hide view options' : 'Show view options'}
@@ -2365,7 +2372,7 @@ export default function Layout({ title, children, showNav }: Props) {
         <div ref={gearFloatWrapRef} className={`${styles.gearFloatWrap} ${isModalOpen ? styles.gearFloatWrapModalOpen : ''} ${mobileNavScrollHidden || (isModalOpen && modalScrollHidden) ? styles.gearFloatWrapScrollHidden : ''}`}>
           <button
             type="button"
-            className={`${styles.feedFloatBtn} float-btn ${feedFloatButtonsExpanded ? styles.feedFloatGearActive : ''}`}
+            className={`${styles.feedFloatBtn} float-btn`}
             onClick={() => setFeedFloatButtonsExpanded((e) => !e)}
             title={feedFloatButtonsExpanded ? 'Hide view options' : 'Show view options'}
             aria-label={feedFloatButtonsExpanded ? 'Hide view options' : 'Show view options'}

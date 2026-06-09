@@ -88,6 +88,8 @@
   margin-bottom: 0.4rem;
   overflow: visible;
   position: relative;
+  /* Match .card scroll-margin so keyboard scrollIntoView on this wrapper clears the fixed header */
+  scroll-margin-top: 5rem;
 }
 
 .gridItem:hover,
