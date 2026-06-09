@@ -1,3 +1,20 @@
+/** Read pixel dimensions from a local image file (for gallery embed aspectRatio). */
+export function readImageDimensions(file: File): Promise<{ width: number; height: number }> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file)
+    const img = new Image()
+    img.onload = () => {
+      URL.revokeObjectURL(url)
+      resolve({ width: img.naturalWidth, height: img.naturalHeight })
+    }
+    img.onerror = () => {
+      URL.revokeObjectURL(url)
+      reject(new Error('Failed to read image dimensions'))
+    }
+    img.src = url
+  })
+}
+
 /**
  * Image URL helpers for performance on low-end devices and poor connections.
  * - Resized avatars: avoid loading full-size images when displaying small

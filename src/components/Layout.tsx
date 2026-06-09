@@ -19,6 +19,7 @@ import LayoutNotificationsPanel from './LayoutNotificationsPanel'
 import { resizedAvatarUrl } from '../lib/imageUtils'
 import {
   createPost,
+  COMPOSE_IMAGE_MAX,
   postReply,
   getNotifications,
   getUnreadNotificationCount,
@@ -1396,7 +1397,6 @@ export default function Layout({ title, children, showNav }: Props) {
     setComposeError(null)
   }
 
-  const COMPOSE_IMAGE_MAX = 4
   const COMPOSE_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
 
   function setCurrentSegmentText(value: string) {

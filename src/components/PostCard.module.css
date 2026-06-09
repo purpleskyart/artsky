@@ -752,11 +752,14 @@ html[data-theme="dark"] [data-view-mode="1"] .card:hover {
   border-radius: 50%;
   cursor: pointer;
   outline: none;
+  -webkit-tap-highlight-color: transparent;
   transition: transform 0.2s ease, color 0.15s ease;
 }
 
-.cardLikeRepostBtn:hover:not(:disabled) {
-  color: var(--accent);
+@media (hover: hover) {
+  .cardLikeRepostBtn:hover:not(:disabled) {
+    color: var(--accent);
+  }
 }
 
 .cardLikeRepostBtn:focus-visible {
@@ -770,9 +773,25 @@ html[data-theme="dark"] [data-view-mode="1"] .card:hover {
   background-clip: text;
   color: transparent;
 }
-.cardLikeRepostBtnActive:hover:not(:disabled) {
-  color: transparent;
-  filter: brightness(0.85);
+@media (hover: hover) {
+  .cardLikeRepostBtnActive:hover:not(:disabled) {
+    color: transparent;
+    filter: brightness(0.85);
+  }
+}
+/* Touch: solid pink instantly — no purple hover flash, no gradient text quirks */
+@media (hover: none) {
+  .cardLikeRepostBtn {
+    transition: transform 0.2s ease;
+  }
+  .cardLikeRepostBtnActive,
+  .cardLikeRepostBtnActive:hover:not(:disabled) {
+    background: none;
+    color: #ec4899;
+    -webkit-background-clip: unset;
+    background-clip: unset;
+    filter: none;
+  }
 }
 .cardLikeRepostBtnActive::selection {
   color: #fff;

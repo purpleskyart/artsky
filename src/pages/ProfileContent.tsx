@@ -1044,8 +1044,7 @@ export default function ProfileContent({
                         disabled={followLoading}
                         title="Unfollow"
                       >
-                        <span className={styles.followLabelDefault}>Following</span>
-                        <span className={styles.followLabelHover}>Unfollow</span>
+                        Unfollow
                       </button>
                     ) : (
                       <button
