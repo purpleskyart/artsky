@@ -15,7 +15,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Main branch: build and deploy to this repo's GitHub Pages (slrgt.github.io/artsky/)
+  # Main branch: build and deploy to purplesky.art (GitHub Pages custom domain)
   build-main:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
@@ -35,14 +35,17 @@ jobs:
         env:
           CI: true
           NODE_OPTIONS: '--max-old-space-size=4096'
-          # OAuth: use repo owner + repo name so forks work without changes
-          VITE_APP_ORIGIN: "https://${{ github.repository_owner }}.github.io"
-          VITE_BASE_PATH: "/${{ github.event.repository.name }}/"
+          VITE_APP_ORIGIN: "https://purplesky.art"
+          VITE_BASE_PATH: "/"
 
       - name: Verify build output
         run: |
           if [ ! -f dist/index.html ]; then
             echo "::error::Build failed: dist/index.html not found"
+            exit 1
+          fi
+          if [ ! -f dist/CNAME ]; then
+            echo "::error::Build failed: dist/CNAME not found (required for purplesky.art)"
             exit 1
           fi
 

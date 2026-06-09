@@ -2,12 +2,12 @@
   "name": "PurpleSky",
   "short_name": "PurpleSky",
   "description": "A Bluesky client focused on art",
-  "start_url": "/artsky/",
+  "start_url": "/",
   "display": "standalone",
   "background_color": "#0f0f1a",
   "theme_color": "#0f0f1a",
   "orientation": "portrait",
-  "scope": "/artsky/",
+  "scope": "/",
   "icons": [
     {
       "src": "/icon-android-192.png",
