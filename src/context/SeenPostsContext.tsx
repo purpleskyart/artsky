@@ -1,4 +1,4 @@
-import { createContext, useCallback, useRef, useContext, useEffect, type ReactNode } from 'react'
+import { createContext, useCallback, useRef, useContext, useEffect, useMemo, type ReactNode } from 'react'
 import { useToast } from './ToastContext'
 
 type SeenPostsContextValue = {
@@ -64,7 +64,7 @@ export function SeenPostsProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  const value: SeenPostsContextValue = {
+  const value = useMemo<SeenPostsContextValue>(() => ({
     setClearSeenHandler,
     clearSeenAndShowAll,
     setHomeClickHandler,
@@ -72,7 +72,7 @@ export function SeenPostsProvider({ children }: { children: ReactNode }) {
     setHideSeenOnlyHandler,
     onHideSeenOnly,
     announceShowSeen,
-  }
+  }), [setClearSeenHandler, clearSeenAndShowAll, setHomeClickHandler, onHomeClick, setHideSeenOnlyHandler, onHideSeenOnly, announceShowSeen])
 
   return (
     <SeenPostsContext.Provider value={value}>

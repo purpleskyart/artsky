@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useRef, useState } from 'react'
+import { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react'
 import { getSession } from '../lib/bsky'
 import { useToast } from './ToastContext'
 import { useSession } from './SessionContext'
@@ -107,13 +107,13 @@ export function ArtOnlyProvider({ children }: { children: React.ReactNode }) {
   const artOnly = cardViewMode !== 'default'
   const minimalist = cardViewMode === 'minimalist'
 
-  const value: ArtOnlyContextValue = {
+  const value = useMemo<ArtOnlyContextValue>(() => ({
     cardViewMode,
     setCardViewMode,
     cycleCardView,
     artOnly,
     minimalist,
-  }
+  }), [cardViewMode, setCardViewMode, cycleCardView, artOnly, minimalist])
 
   return (
     <ArtOnlyContext.Provider value={value}>

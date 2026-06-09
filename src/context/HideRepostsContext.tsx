@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useState } from 'react'
+import { createContext, useCallback, useContext, useMemo, useState } from 'react'
 import { asyncStorage } from '../lib/AsyncStorage'
 
 const STORAGE_KEY = 'artsky-hide-reposts-from'
@@ -55,13 +55,13 @@ export function HideRepostsProvider({ children }: { children: React.ReactNode })
     [hideRepostsFromDids]
   )
 
-  const value: HideRepostsContextValue = {
+  const value = useMemo<HideRepostsContextValue>(() => ({
     hideRepostsFromDids,
     addHideRepostsFrom,
     removeHideRepostsFrom,
     toggleHideRepostsFrom,
     isHidingRepostsFrom,
-  }
+  }), [hideRepostsFromDids, addHideRepostsFrom, removeHideRepostsFrom, toggleHideRepostsFrom, isHidingRepostsFrom])
 
   return (
     <HideRepostsContext.Provider value={value}>

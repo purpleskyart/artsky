@@ -1,4 +1,4 @@
-import { createContext, useContext, type ReactNode } from 'react'
+import { createContext, useContext, useMemo, type ReactNode } from 'react'
 import type { FeedSource } from '../types'
 
 type FeedSwipeContextValue = {
@@ -21,8 +21,13 @@ export function FeedSwipeProvider({
   setSingleFeed: (source: FeedSource) => void
   children: ReactNode
 }) {
+  const value = useMemo<FeedSwipeContextValue>(() => ({
+    feedSources,
+    setSingleFeed,
+  }), [feedSources, setSingleFeed])
+
   return (
-    <FeedSwipeContext.Provider value={{ feedSources, setSingleFeed }}>
+    <FeedSwipeContext.Provider value={value}>
       {children}
     </FeedSwipeContext.Provider>
   )
