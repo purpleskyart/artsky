@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import type { AppBskyFeedDefs } from '@atproto/api'
 import type { AtpSessionData } from '@atproto/api'
-import { agent, publicAgent, postReply, getPostAllMedia, getQuotedPostView, getPostExternalLink, getSession, createQuotePost, createDownvote, deleteDownvote, listMyDownvotes, getPostThreadCached, getProfilesBatch, getProfileCached, getPostsBatch, likePostWithLifecycle, unlikePostWithLifecycle, repostPostWithLifecycle, deleteRepostWithLifecycle, followAccountWithLifecycle, unfollowAccountWithLifecycle, POST_MEDIA_FULL, POST_MEDIA_FEED_PREVIEW, type PostView } from '../lib/bsky'
+import { agent, publicAgent, postReply, getPostAllMedia, getQuotedPostView, getPostExternalLink, getSession, createQuotePost, createDownvote, deleteDownvote, listMyDownvotes, getPostThreadCached, getProfilesBatch, getProfileCached, getPostsBatch, likePostWithLifecycle, unlikePostWithLifecycle, repostPostWithLifecycle, deleteRepostWithLifecycle, followAccountWithLifecycle, unfollowAccountWithLifecycle, POST_MEDIA_FULL, POST_MEDIA_FEED_PREVIEW, COMPOSE_IMAGE_MAX, type PostView } from '../lib/bsky'
 import { getApiErrorMessage } from '../lib/apiErrors'
 import { takeInitialPostForUri, getCachedThread, invalidateThreadCache } from '../lib/postCache'
 import { getDownvoteCounts } from '../lib/constellation'
@@ -355,21 +355,25 @@ function rootPostNeedsCanonicalHydration(post: AppBskyFeedDefs.PostView): boolea
     | {
         $type?: string
         images?: Array<{ fullsize?: string; thumb?: string }>
+        items?: Array<{ fullsize?: string; thumb?: string; thumbnail?: string }>
         media?: {
           $type?: string
           images?: Array<{ fullsize?: string; thumb?: string }>
+          items?: Array<{ fullsize?: string; thumb?: string; thumbnail?: string }>
         }
       }
     | undefined
   if (!embed) return false
 
-  const hasMissingFullsize = (images: Array<{ fullsize?: string; thumb?: string }> | undefined): boolean =>
-    Array.isArray(images) && images.some((img) => !!img?.thumb && !img?.fullsize)
+  const hasMissingFullsize = (images: Array<{ fullsize?: string; thumb?: string; thumbnail?: string }> | undefined): boolean =>
+    Array.isArray(images) && images.some((img) => !!(img?.thumb ?? img?.thumbnail) && !img?.fullsize)
 
   if (embed.$type === 'app.bsky.embed.images#view' && hasMissingFullsize(embed.images)) return true
+  if (embed.$type === 'app.bsky.embed.gallery#view' && hasMissingFullsize(embed.items)) return true
   if (embed.$type === 'app.bsky.embed.recordWithMedia#view') {
     const media = embed.media
     if (media?.$type === 'app.bsky.embed.images#view' && hasMissingFullsize(media.images)) return true
+    if (media?.$type === 'app.bsky.embed.gallery#view' && hasMissingFullsize(media.items)) return true
   }
   return false
 }
@@ -629,7 +633,6 @@ function PostBlock({
   const quoteFileInputRef = useRef<HTMLInputElement>(null)
   const repostDropdownRef = useRef<HTMLDivElement>(null)
   const QUOTE_MAX_LENGTH = 300
-  const QUOTE_IMAGE_MAX = 4
   const QUOTE_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
 
   useEffect(() => {
@@ -669,7 +672,7 @@ function PostBlock({
 
   function addQuoteImages(files: FileList) {
     const newImages = Array.from(files).filter((f) => QUOTE_IMAGE_TYPES.includes(f.type))
-    setQuoteImages((prev) => [...prev, ...newImages].slice(0, 4))
+    setQuoteImages((prev) => [...prev, ...newImages].slice(0, COMPOSE_IMAGE_MAX))
     setQuoteImageAlts((prev) => [...prev, ...new Array(newImages.length).fill('')])
   }
 
@@ -1153,7 +1156,7 @@ function PostBlock({
                             type="button"
                             className={styles.quoteComposerAddMedia}
                             onClick={() => quoteFileInputRef.current?.click()}
-                            disabled={quotePosting || quoteImages.length >= QUOTE_IMAGE_MAX}
+                            disabled={quotePosting || quoteImages.length >= COMPOSE_IMAGE_MAX}
                             title="Add photo"
                             aria-label="Add photo"
                           >
@@ -1575,7 +1578,6 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
   }
 
   const QUOTE_MAX_LENGTH = 300
-  const QUOTE_IMAGE_MAX = 4
   const QUOTE_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
 
   async function handleRepost() {
@@ -1599,7 +1601,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
 
   function addQuoteImages(files: FileList | File[]) {
     const list = Array.from(files).filter((f) => QUOTE_IMAGE_TYPES.includes(f.type))
-    const take = Math.min(list.length, QUOTE_IMAGE_MAX - quoteImages.length)
+    const take = Math.min(list.length, COMPOSE_IMAGE_MAX - quoteImages.length)
     if (take <= 0) return
     setQuoteImages((prev) => [...prev, ...list.slice(0, take)])
     setQuoteImageAlts((prev) => [...prev, ...list.slice(0, take).map(() => '')])
@@ -3243,7 +3245,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                           type="button"
                           className={styles.quoteComposerAddMedia}
                           onClick={() => quoteFileInputRef.current?.click()}
-                          disabled={quotePosting || quoteImages.length >= QUOTE_IMAGE_MAX}
+                          disabled={quotePosting || quoteImages.length >= COMPOSE_IMAGE_MAX}
                           title="Add photo"
                           aria-label="Add photo"
                         >

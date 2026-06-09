@@ -1,6 +1,7 @@
 import { Agent, AtpAgent, RichText, type AtpSessionData } from '@atproto/api'
 import type { AppBskyActorDefs, AppBskyFeedDefs } from '@atproto/api'
 import { GUEST_FEED_ACCOUNTS } from '../config/guestFeed'
+import { readImageDimensions } from './imageUtils'
 import * as oauth from './oauth'
 import { requestDeduplicator } from './RequestDeduplicator'
 import { responseCache } from './ResponseCache'
@@ -1009,15 +1010,51 @@ export const POST_MEDIA_FULL: PostMediaUrlOptions = { imageQuality: 'full' }
 /** Feed cards, quoted/parent preview cards: prefer `thumb` URLs. */
 export const POST_MEDIA_FEED_PREVIEW: PostMediaUrlOptions = { imageQuality: 'feed' }
 
-function embedImageUrl(
-  img: { thumb?: string; fullsize?: string },
-  opts: PostMediaUrlOptions | undefined,
-): string {
+type EmbedViewImageLike = {
+  thumb?: string
+  thumbnail?: string
+  fullsize?: string
+  aspectRatio?: { width: number; height: number }
+}
+
+function embedImageUrl(img: EmbedViewImageLike, opts: PostMediaUrlOptions | undefined): string {
+  const thumb = img.thumb ?? img.thumbnail
+  const fullsize = img.fullsize
   const preferThumb = opts?.imageQuality === 'feed'
   if (preferThumb) {
-    return img.thumb ?? img.fullsize ?? ''
+    return thumb ?? fullsize ?? ''
   }
-  return img.fullsize ?? img.thumb ?? ''
+  return fullsize ?? thumb ?? ''
+}
+
+function aspectFromEmbedImage(img: EmbedViewImageLike): number | undefined {
+  const ar = img.aspectRatio
+  return ar && ar.width > 0 && ar.height > 0 ? ar.width / ar.height : undefined
+}
+
+function pushEmbedViewImages(
+  out: Array<{ url: string; type: 'image' | 'video'; videoPlaylist?: string; aspectRatio?: number }>,
+  images: EmbedViewImageLike[] | undefined,
+  opts: PostMediaUrlOptions | undefined,
+): void {
+  if (!images?.length) return
+  for (const img of images) {
+    out.push({ url: embedImageUrl(img, opts), type: 'image', aspectRatio: aspectFromEmbedImage(img) })
+  }
+}
+
+function firstEmbedViewImageInfo(
+  images: EmbedViewImageLike[] | undefined,
+  opts: PostMediaUrlOptions | undefined,
+): PostMediaInfo | null {
+  if (!images?.length) return null
+  const img = images[0]
+  return {
+    url: embedImageUrl(img, opts),
+    type: 'image',
+    imageCount: images.length,
+    aspectRatio: aspectFromEmbedImage(img),
+  }
 }
 
 /** Returns media info for a post: thumbnail/first image URL, type, and for video the playlist URL. */
@@ -1032,16 +1069,11 @@ export function getPostMediaInfo(post: PostView, opts?: PostMediaUrlOptions): Po
     | undefined
   if (!embed) return null
   if (embed.$type === 'app.bsky.embed.images#view' && embed.images?.length) {
-    const img = embed.images[0]
-    const ar = img.aspectRatio && img.aspectRatio.width > 0 && img.aspectRatio.height > 0
-      ? img.aspectRatio.width / img.aspectRatio.height
-      : undefined
-    return {
-      url: embedImageUrl(img, opts),
-      type: 'image',
-      imageCount: embed.images.length,
-      aspectRatio: ar,
-    }
+    return firstEmbedViewImageInfo(embed.images, opts)
+  }
+  if (embed.$type === 'app.bsky.embed.gallery#view') {
+    const items = (embed as { items?: EmbedViewImageLike[] }).items
+    return firstEmbedViewImageInfo(items, opts)
   }
   if (embed.$type === 'app.bsky.embed.video#view') {
     const thumb = embed.thumbnail ?? ''
@@ -1062,16 +1094,11 @@ export function getPostMediaInfo(post: PostView, opts?: PostMediaUrlOptions): Po
     }
   }).media
   if (media?.$type === 'app.bsky.embed.images#view' && media.images?.length) {
-    const img = media.images[0]
-    const ar = img.aspectRatio && img.aspectRatio.width > 0 && img.aspectRatio.height > 0
-      ? img.aspectRatio.width / img.aspectRatio.height
-      : undefined
-    return {
-      url: embedImageUrl(img, opts),
-      type: 'image',
-      imageCount: media.images.length,
-      aspectRatio: ar,
-    }
+    return firstEmbedViewImageInfo(media.images, opts)
+  }
+  if (media?.$type === 'app.bsky.embed.gallery#view') {
+    const items = (media as { items?: EmbedViewImageLike[] }).items
+    return firstEmbedViewImageInfo(items, opts)
   }
   if (media?.$type === 'app.bsky.embed.video#view') {
     const playlist = (media as { playlist?: string }).playlist
@@ -1105,12 +1132,11 @@ export function getPostAllMedia(
     media?: { $type?: string; images?: { fullsize?: string; thumb?: string; aspectRatio?: { width: number; height: number } }[]; thumbnail?: string; playlist?: string }
   }
   if (e.$type === 'app.bsky.embed.images#view' && e.images?.length) {
-    for (const img of e.images) {
-      const ar = img.aspectRatio && img.aspectRatio.width > 0 && img.aspectRatio.height > 0
-        ? img.aspectRatio.width / img.aspectRatio.height
-        : undefined
-      out.push({ url: embedImageUrl(img, opts), type: 'image', aspectRatio: ar })
-    }
+    pushEmbedViewImages(out, e.images, opts)
+    return out
+  }
+  if (e.$type === 'app.bsky.embed.gallery#view') {
+    pushEmbedViewImages(out, (e as { items?: EmbedViewImageLike[] }).items, opts)
     return out
   }
   if (e.$type === 'app.bsky.embed.video#view') {
@@ -1128,12 +1154,11 @@ export function getPostAllMedia(
   }
   const media = e.media
   if (media?.$type === 'app.bsky.embed.images#view' && media.images?.length) {
-    for (const img of media.images) {
-      const ar = img.aspectRatio && img.aspectRatio.width > 0 && img.aspectRatio.height > 0
-        ? img.aspectRatio.width / img.aspectRatio.height
-        : undefined
-      out.push({ url: embedImageUrl(img, opts), type: 'image', aspectRatio: ar })
-    }
+    pushEmbedViewImages(out, media.images, opts)
+    return out
+  }
+  if (media?.$type === 'app.bsky.embed.gallery#view') {
+    pushEmbedViewImages(out, (media as { items?: EmbedViewImageLike[] }).items, opts)
     return out
   }
   if (media?.$type === 'app.bsky.embed.video#view') {
@@ -2006,10 +2031,49 @@ export async function removeSavedFeedByUri(uri: string): Promise<void> {
   invalidateSavedFeedsCache()
 }
 
-const COMPOSE_IMAGE_MAX = 4
+/** Max images per post (Bluesky v1.123+). Posts with 5+ use `app.bsky.embed.gallery`. */
+export const COMPOSE_IMAGE_MAX = 10
+/** Legacy `app.bsky.embed.images` supports up to 4 items. */
+const COMPOSE_IMAGE_GRID_MAX = 4
 const COMPOSE_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
 
-/** Create a new post (no reply). Optional image files (max 4, jpeg/png/gif/webp). Optional alt text per image (max 1000 chars each). Optional labels for content warnings. */
+type UploadedComposeImage = {
+  blob: unknown
+  alt: string
+  aspectRatio: { width: number; height: number }
+}
+
+async function uploadComposeImages(files: File[], altTexts: string[]): Promise<UploadedComposeImage[]> {
+  return Promise.all(
+    files.map(async (file, i) => {
+      const [{ data }, dims] = await Promise.all([
+        agent.uploadBlob(file, { encoding: file.type }),
+        readImageDimensions(file).catch(() => ({ width: 1, height: 1 })),
+      ])
+      return { blob: data.blob, alt: altTexts[i] ?? '', aspectRatio: dims }
+    }),
+  )
+}
+
+function buildImagesEmbed(uploaded: UploadedComposeImage[]) {
+  if (uploaded.length <= COMPOSE_IMAGE_GRID_MAX) {
+    return {
+      $type: 'app.bsky.embed.images' as const,
+      images: uploaded.map((u) => ({ image: u.blob, alt: u.alt })),
+    }
+  }
+  return {
+    $type: 'app.bsky.embed.gallery' as const,
+    items: uploaded.map((u) => ({
+      $type: 'app.bsky.embed.gallery#image' as const,
+      image: u.blob,
+      alt: u.alt,
+      aspectRatio: u.aspectRatio,
+    })),
+  }
+}
+
+/** Create a new post (no reply). Optional image files (max 10, jpeg/png/gif/webp). Optional alt text per image (max 1000 chars each). Optional labels for content warnings. */
 export async function createPost(
   text: string,
   imageFiles?: File[],
@@ -2019,16 +2083,11 @@ export async function createPost(
   const t = text.trim()
   const images = (imageFiles ?? []).filter((f) => COMPOSE_IMAGE_TYPES.includes(f.type)).slice(0, COMPOSE_IMAGE_MAX)
   if (!t && images.length === 0) throw new Error('Post text or at least one image is required')
-  let embed: { $type: 'app.bsky.embed.images'; images: { image: unknown; alt: string }[] } | undefined
+  let embed: ReturnType<typeof buildImagesEmbed> | undefined
   if (images.length > 0) {
     const alts = (altTexts ?? []).slice(0, images.length).map((a) => (a ?? '').trim().slice(0, 1000))
-    const uploaded = await Promise.all(
-      images.map(async (file, i) => {
-        const { data } = await agent.uploadBlob(file, { encoding: file.type })
-        return { image: data.blob, alt: alts[i] ?? '' }
-      }),
-    )
-    embed = { $type: 'app.bsky.embed.images', images: uploaded }
+    const uploaded = await uploadComposeImages(images, alts)
+    embed = buildImagesEmbed(uploaded)
   }
   const rt = new RichText({ text: t || '' })
   await rt.detectFacets(agent)
@@ -2055,19 +2114,16 @@ export async function createQuotePost(
   const images = (imageFiles ?? []).filter((f) => COMPOSE_IMAGE_TYPES.includes(f.type)).slice(0, COMPOSE_IMAGE_MAX)
   if (!t && images.length === 0) throw new Error('Quote post needs text or at least one image')
   const recordEmbed = { $type: 'app.bsky.embed.record' as const, record: { uri: quotedUri, cid: quotedCid } }
-  let embed: { $type: 'app.bsky.embed.record'; record: { uri: string; cid: string } } | { $type: 'app.bsky.embed.recordWithMedia'; record: { $type: 'app.bsky.embed.record'; record: { uri: string; cid: string } }; media: { $type: 'app.bsky.embed.images'; images: { image: unknown; alt: string }[] } }
+  let embed:
+    | { $type: 'app.bsky.embed.record'; record: { uri: string; cid: string } }
+    | { $type: 'app.bsky.embed.recordWithMedia'; record: { $type: 'app.bsky.embed.record'; record: { uri: string; cid: string } }; media: ReturnType<typeof buildImagesEmbed> }
   if (images.length > 0) {
     const alts = (altTexts ?? []).slice(0, images.length).map((a) => (a ?? '').trim().slice(0, 1000))
-    const uploaded = await Promise.all(
-      images.map(async (file, i) => {
-        const { data } = await agent.uploadBlob(file, { encoding: file.type })
-        return { image: data.blob, alt: alts[i] ?? '' }
-      }),
-    )
+    const uploaded = await uploadComposeImages(images, alts)
     embed = {
       $type: 'app.bsky.embed.recordWithMedia',
       record: recordEmbed,
-      media: { $type: 'app.bsky.embed.images', images: uploaded },
+      media: buildImagesEmbed(uploaded),
     }
   } else {
     embed = recordEmbed
