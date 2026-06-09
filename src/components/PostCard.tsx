@@ -4,7 +4,6 @@ import { getPostMediaInfoForDisplay, getPostAllMediaForDisplay, getPostExternalL
 import {
   resolveMediaAspect,
   initialLayoutAspect,
-  shouldCorrectLayoutAspect,
   DEFAULT_PLACEHOLDER_ASPECT,
 } from '../lib/mediaAspect'
 import { setCachedMediaAspect } from '../lib/mediaAspectCache'
@@ -476,11 +475,6 @@ function PostCardInner({
     const img = e.currentTarget
     if (!img.naturalWidth || !img.naturalHeight) return
     const url = currentImageUrl
-    if (!shouldCorrectLayoutAspect(media?.aspectRatio, img.naturalWidth, img.naturalHeight)) {
-      const stable = initialLayoutAspect(url, media?.aspectRatio) ?? img.naturalWidth / img.naturalHeight
-      if (url) setCachedMediaAspect(url, stable)
-      return
-    }
     const resolved = resolveMediaAspect(media?.aspectRatio, img.naturalWidth, img.naturalHeight)
     if (url) setCachedMediaAspect(url, resolved)
     setMediaAspect((prev) => (prev === resolved ? prev : resolved))
@@ -493,9 +487,7 @@ function PostCardInner({
       const item = imageItems[idx]
       const url = item?.url ?? ''
       const api = item?.aspectRatio
-      const aspect = shouldCorrectLayoutAspect(api, img.naturalWidth, img.naturalHeight)
-        ? resolveMediaAspect(api, img.naturalWidth, img.naturalHeight)
-        : (initialLayoutAspect(url, api) ?? img.naturalWidth / img.naturalHeight)
+      const aspect = resolveMediaAspect(api, img.naturalWidth, img.naturalHeight)
       if (url) setCachedMediaAspect(url, aspect)
       multiPendingAspectsRef.current[idx] = aspect
       multiLoadCountRef.current += 1
@@ -508,11 +500,6 @@ function PostCardInner({
 
   const handleVideoDimensions = useCallback((width: number, height: number) => {
     const url = media?.url
-    if (!shouldCorrectLayoutAspect(media?.aspectRatio, width, height)) {
-      const stable = initialLayoutAspect(url, media?.aspectRatio) ?? width / height
-      if (url) setCachedMediaAspect(url, stable)
-      return
-    }
     const resolved = resolveMediaAspect(media?.aspectRatio, width, height)
     if (url) setCachedMediaAspect(url, resolved)
     setMediaAspect((prev) => (prev === resolved ? prev : resolved))
@@ -1274,13 +1261,11 @@ function PostCardInner({
                           <ProgressiveImage
                             src={imgItem.url}
                             alt=""
-                            className={styles.mediaGridImg}
-                            aspectRatio={aspectForImageIndex(idx)}
+                            className={`${styles.mediaGridImg} ${styles.mediaGridFill}`}
                             loading="lazy"
                             preloadDistance={cardMediaPreloadDistance}
                             root={modalScrollContainer}
                             onLoad={(e) => handleMultiImageLoad(idx, e)}
-                            objectFit="contain"
                           />
                         </div>
                       )
@@ -1293,13 +1278,11 @@ function PostCardInner({
               <ProgressiveImage
                 src={currentImageUrl}
                 alt=""
-                className={styles.media}
-                aspectRatio={mediaAspect ?? undefined}
+                className={`${styles.media} ${styles.mediaSingleFill}`}
                 loading={isSelected ? 'eager' : 'lazy'}
                 preloadDistance={cardMediaPreloadDistance}
                 root={modalScrollContainer}
                 onLoad={handleImageLoad}
-                objectFit="contain"
               />
             </>
           )}

@@ -1028,14 +1028,22 @@ html[data-theme="dark"] [data-view-mode="1"] .card:hover {
   align-items: stretch;
 }
 
-/* Single image cards: remove forced aspect ratio and let image determine height */
+/* Single image cards: aspect ratio from inline style; media fills box edge-to-edge (cover) */
 .mediaWrap:not(.mediaWrapTextOnly):not(.mediaWrapMultiStack):not(.mediaWrapFillCell) {
   aspect-ratio: unset;
   display: flex;
-  align-items: flex-start;
+  align-items: stretch;
   justify-content: center;
   min-height: auto;
   height: auto;
+}
+
+/* Single image: fill reserved .mediaWrap box — aspect ratio comes from parent, not ProgressiveImage */
+.mediaSingleFill {
+  flex: 1 1 auto;
+  align-self: stretch;
+  min-height: 0;
+  min-width: 0;
 }
 
 .cardNsfwBlurred .mediaWrap.mediaWrapTextOnly {
@@ -1227,6 +1235,12 @@ html[data-theme="dark"] [data-view-mode="1"] .card:hover {
   min-height: 0;
 }
 
+.mediaGridFill,
+.mediaGridFill img {
+  object-fit: cover;
+  object-position: center;
+}
+
 .mediaArrow:hover:not(:disabled) {
   background: var(--overlay-bg);
 }
@@ -1236,7 +1250,7 @@ html[data-theme="dark"] [data-view-mode="1"] .card:hover {
   cursor: default;
 }
 
-/* Never crop art: fill container and fit content inside with contain */
+/* Default media box; single-image cards use cover via .mediaSingleFill (see below) */
 .media {
   width: 100%;
   height: 100%;
@@ -1245,6 +1259,12 @@ html[data-theme="dark"] [data-view-mode="1"] .card:hover {
   object-fit: contain;
   object-position: center;
   display: block;
+}
+
+.mediaSingleFill,
+.mediaSingleFill img {
+  object-fit: cover;
+  object-position: center;
 }
 
 .mediaWrap video.media {

@@ -1,32 +1,7 @@
 import { getCachedMediaAspect } from './mediaAspectCache'
 
-/** Relative tolerance when comparing API aspect ratio to measured dimensions. */
-const ASPECT_MISMATCH_RATIO = 0.08
-
 /** Placeholder before API/cache/measured — portrait-leaning default for art feeds. */
 export const DEFAULT_PLACEHOLDER_ASPECT = 4 / 5
-
-export function isAspectMismatch(
-  apiAspect: number,
-  measuredWidth: number,
-  measuredHeight: number,
-): boolean {
-  if (measuredWidth <= 0 || measuredHeight <= 0) return false
-  const measured = measuredWidth / measuredHeight
-  const ratio = measured / apiAspect
-  return ratio < 1 - ASPECT_MISMATCH_RATIO || ratio > 1 + ASPECT_MISMATCH_RATIO
-}
-
-/** True when layout should be updated from measured pixels (missing or suspect API). */
-export function shouldCorrectLayoutAspect(
-  apiAspect: number | null | undefined,
-  measuredWidth: number,
-  measuredHeight: number,
-): boolean {
-  if (measuredWidth <= 0 || measuredHeight <= 0) return false
-  if (apiAspect == null || apiAspect <= 0) return true
-  return isAspectMismatch(apiAspect, measuredWidth, measuredHeight)
-}
 
 /** Reserve card space: cache → API → null (caller may use placeholder). */
 export function initialLayoutAspect(
@@ -42,19 +17,17 @@ export function initialLayoutAspect(
 }
 
 /**
- * Pick the best aspect ratio for card layout: prefer API metadata when it matches
- * measured dimensions; otherwise use measured (missing or suspect API values).
+ * Pick aspect ratio for card layout: measured pixels when available, else API, else placeholder.
+ * Always prefers measured dimensions so cards match the actual image (no letterbox/crop drift).
  */
 export function resolveMediaAspect(
   apiAspect: number | null | undefined,
   measuredWidth: number,
   measuredHeight: number,
 ): number {
-  if (measuredWidth <= 0 || measuredHeight <= 0) {
-    return apiAspect != null && apiAspect > 0 ? apiAspect : DEFAULT_PLACEHOLDER_ASPECT
+  if (measuredWidth > 0 && measuredHeight > 0) {
+    return measuredWidth / measuredHeight
   }
-  const measured = measuredWidth / measuredHeight
-  if (apiAspect == null || apiAspect <= 0) return measured
-  if (isAspectMismatch(apiAspect, measuredWidth, measuredHeight)) return measured
-  return apiAspect
+  if (apiAspect != null && apiAspect > 0) return apiAspect
+  return DEFAULT_PLACEHOLDER_ASPECT
 }
