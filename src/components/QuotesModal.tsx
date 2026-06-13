@@ -9,10 +9,13 @@ import { useModeration } from '../context/ModerationContext'
 import { usePostCardGridPointerGate } from '../hooks/usePostCardGridPointerGate'
 import { useColumnLoadMore } from '../hooks/useColumnLoadMore'
 import { useModalGridKeyboardShell, useModalScrollKeyboardFocus } from '../hooks/useModalGridKeyboardShell'
-import { shouldUnderlayHandleGridKeys } from '../lib/modalKeyboard'
 import { useModalScroll } from '../context/ModalScrollContext'
+import { useMediaFocusTargets } from '../hooks/useMediaFocusTargets'
+import { useMediaGridKeyboardNav } from '../hooks/useMediaGridKeyboardNav'
+import { useKeyboardScrollIntoView } from '../hooks/useKeyboardScrollIntoView'
+import { postViewsToTimelineItems } from '../lib/timeline'
+import { getPostGridClassName } from '../lib/gridClassName'
 import styles from './QuotesModal.module.css'
-import gridStyles from '../styles/postGrid.module.css'
 import { usePostCardDisplayContext } from '../hooks/usePostCardDisplayContext'
 
 interface QuotesModalProps {
@@ -37,7 +40,13 @@ export default function QuotesModal({ postUri, onClose, onBack, canGoBack, onDes
   const { setLikeOverride } = useLikeOverridesActions()
   const [keyboardFocusIndex, setKeyboardFocusIndex] = useState(0)
   const keyboardFocusIndexRef = useRef(0)
+  const itemsRef = useRef<TimelineItem[]>([])
   const cardRefsRef = useRef<(HTMLDivElement | null)[]>([])
+  const mediaRefsRef = useRef<Record<number, Record<number, HTMLElement | null>>>({})
+  const scrollIntoViewFromKeyboardRef = useRef(false)
+  const lastScrollIntoViewIndexRef = useRef(-1)
+  const actionsMenuOpenForIndexRef = useRef<number | null>(null)
+  const colsRef = useRef(1)
   const loadMoreSentinelRefs = useRef<(HTMLDivElement | null)[]>([])
   const distributedColumnLengthsRef = useRef<number[]>([])
   const loadingMoreRef = useRef(false)
@@ -54,7 +63,7 @@ export default function QuotesModal({ postUri, onClose, onBack, canGoBack, onDes
         else setLoading(true)
         setError(null)
         const { posts, cursor: next } = await getQuotes(postUri, { limit: 30, cursor: nextCursor })
-        const timelineItems = posts.map((post) => ({ post } as TimelineItem))
+        const timelineItems = postViewsToTimelineItems(posts)
         setItems((prev) => (nextCursor ? [...prev, ...timelineItems] : timelineItems))
         setCursor(next)
       } catch (err: unknown) {
@@ -82,6 +91,19 @@ export default function QuotesModal({ postUri, onClose, onBack, canGoBack, onDes
     [items],
   )
   distributedColumnLengthsRef.current = [quoteColumn.length]
+  itemsRef.current = items
+  keyboardFocusIndexRef.current = keyboardFocusIndex
+
+  const { focusTargets, firstFocusIndexForCard, lastFocusIndexForCard } = useMediaFocusTargets(
+    items.length,
+    () => 1,
+  )
+  const focusTargetsRef = useRef(focusTargets)
+  const firstFocusIndexForCardRef = useRef(firstFocusIndexForCard)
+  const lastFocusIndexForCardRef = useRef(lastFocusIndexForCard)
+  focusTargetsRef.current = focusTargets
+  firstFocusIndexForCardRef.current = firstFocusIndexForCard
+  lastFocusIndexForCardRef.current = lastFocusIndexForCard
 
   loadingMoreRef.current = loadingMore
   const bindLoadMoreSentinelRef = useColumnLoadMore({
@@ -95,88 +117,35 @@ export default function QuotesModal({ postUri, onClose, onBack, canGoBack, onDes
     inModal: true,
   })
 
-  // Keyboard navigation for quotes grid
-  useEffect(() => {
-    keyboardFocusIndexRef.current = keyboardFocusIndex
-  }, [keyboardFocusIndex])
+  useKeyboardScrollIntoView({
+    keyboardFocusIndex,
+    scrollIntoViewFromKeyboardRef,
+    lastScrollIntoViewIndexRef,
+    block: 'nearest',
+    getScrollTarget: useCallback(() => cardRefsRef.current[keyboardFocusIndex], [keyboardFocusIndex]),
+  })
 
-  useEffect(() => {
-    if (!keyboardShell.registerKeys) return
-
-    const { useCapture, claimKey, shouldBlockEditable, blurEditableOnEscape } = keyboardShell
-
-    const onKeyDown = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement
-      if (!shouldUnderlayHandleGridKeys(target, inModal)) return
-      if (shouldBlockEditable(target)) {
-        blurEditableOnEscape(e, target)
-        return
-      }
-      if (e.ctrlKey || e.metaKey) return
-      const key = e.key.toLowerCase()
-      const i = keyboardFocusIndexRef.current
-      const fromNone = i < 0
-
-      if (key === 'w' || key === 'i' || e.key === 'ArrowUp') {
-        if (fromNone) {
-          if (items.length > 0) {
-            e.preventDefault()
-            beginKeyboardNavigation()
-            setKeyboardFocusIndex(0)
-          }
-          claimKey(e)
-          return
-        }
-        e.preventDefault()
-        beginKeyboardNavigation()
-        setKeyboardFocusIndex((idx) => Math.max(0, idx - 1))
-        claimKey(e)
-        return
-      }
-      if (key === 's' || key === 'k' || e.key === 'ArrowDown') {
-        if (fromNone) {
-          if (items.length > 0) {
-            e.preventDefault()
-            beginKeyboardNavigation()
-            setKeyboardFocusIndex(0)
-          }
-          claimKey(e)
-          return
-        }
-        e.preventDefault()
-        beginKeyboardNavigation()
-        setKeyboardFocusIndex((idx) => Math.min(items.length - 1, idx + 1))
-        claimKey(e)
-        return
-      }
-      if (key === 'a' || key === 'j' || e.key === 'ArrowLeft') {
-        if (fromNone || items.length === 0) return
-        e.preventDefault()
-        beginKeyboardNavigation()
-        setKeyboardFocusIndex((idx) => Math.max(0, idx - 1))
-        claimKey(e)
-        return
-      }
-      if (key === 'd' || key === 'l' || e.key === 'ArrowRight') {
-        if (fromNone || items.length === 0) return
-        e.preventDefault()
-        beginKeyboardNavigation()
-        setKeyboardFocusIndex((idx) => Math.min(items.length - 1, idx + 1))
-        claimKey(e)
-        return
-      }
-      if (key === 'e' || key === 'o' || key === 'enter') {
-        if (fromNone || i >= items.length) return
-        e.preventDefault()
-        const item = items[i]
-        if (item) openPostModal(item.post.uri)
-        claimKey(e)
-        return
-      }
-    }
-    window.addEventListener('keydown', onKeyDown, useCapture)
-    return () => window.removeEventListener('keydown', onKeyDown, useCapture)
-  }, [beginKeyboardNavigation, items.length, openPostModal, keyboardShell, isTopModal])
+  useMediaGridKeyboardNav({
+    enabled: items.length > 0,
+    keyboardShell,
+    inModal,
+    itemsRef,
+    keyboardFocusIndexRef,
+    setKeyboardFocusIndex,
+    focusTargetsRef,
+    firstFocusIndexForCardRef,
+    lastFocusIndexForCardRef,
+    colsRef,
+    getColumns: useCallback(() => null, []),
+    cardRefsRef,
+    mediaRefsRef,
+    scrollIntoViewFromKeyboardRef,
+    beginKeyboardNavigation,
+    actionsMenuOpenForIndexRef,
+    includeCollectionMenu: false,
+    skipWhenPageModalOpen: false,
+    onOpenPost: useCallback((item: TimelineItem) => openPostModal(item.post.uri), [openPostModal]),
+  })
 
   const postCardDisplayContext = usePostCardDisplayContext(true)
 
@@ -223,7 +192,7 @@ export default function QuotesModal({ postUri, onClose, onBack, canGoBack, onDes
           <div className={styles.empty}>No one has quoted this post yet.</div>
         ) : (
           <>
-            <div className={`${gridStyles.gridColumns} ${gridStyles.gridView1}`}>
+            <div className={getPostGridClassName('1')}>
               <ProfileColumn
                 column={quoteColumn}
                 colIndex={0}

@@ -2,9 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, useParams } from 'react-router-dom'
 import Layout from '../components/Layout'
 import { HOME_PATH, RESERVED_APP_PATH_SEGMENTS } from '../lib/routes'
-import type { AppBskyFeedDefs } from '@atproto/api'
-import ProfileColumn from '../components/ProfileColumn'
-import { getPostMediaInfo, getPostsBatch, getProfileCached, isPostNsfw, type TimelineItem } from '../lib/bsky'
+import PostMasonryGrid from '../components/PostMasonryGrid'
+import { getPostsBatch, getProfileCached, isPostNsfw, type TimelineItem } from '../lib/bsky'
+import { postViewToTimelineItem } from '../lib/timeline'
+import { distributeTimelineItemsByHeight } from '../lib/masonryLayout'
 import { getCollectionByAtUri, isLikelyCollectionRefParam, removePostFromCollection } from '../lib/collections'
 import { getShareableCollectionUrl } from '../lib/appUrl'
 import { useSession } from '../context/SessionContext'
@@ -16,56 +17,13 @@ import { useProfileModal } from '../context/ProfileModalContext'
 import { useLikeOverridesActions } from '../context/LikeOverridesContext'
 import { useColumnCount } from '../hooks/useViewportWidth'
 import { usePostCardGridPointerGate } from '../hooks/usePostCardGridPointerGate'
-import gridStyles from '../styles/postGrid.module.css'
+import { useMediaGridKeyboardNav } from '../hooks/useMediaGridKeyboardNav'
+import { useMediaFocusTargets } from '../hooks/useMediaFocusTargets'
+import { useKeyboardScrollIntoView } from '../hooks/useKeyboardScrollIntoView'
 import styles from './CollectionPage.module.css'
 import { usePostCardDisplayContext } from '../hooks/usePostCardDisplayContext'
 import { useModalScroll } from '../context/ModalScrollContext'
 import { useModalGridKeyboardShell, useModalScrollKeyboardFocus } from '../hooks/useModalGridKeyboardShell'
-import { shouldUnderlayHandleGridKeys } from '../lib/modalKeyboard'
-
-const ESTIMATE_COL_WIDTH = 280
-const CARD_CHROME = 100
-
-function toTimelineItem(post: AppBskyFeedDefs.PostView): TimelineItem {
-  return { post }
-}
-
-function estimateItemHeight(item: TimelineItem): number {
-  const media = getPostMediaInfo(item.post)
-  if (!media) return CARD_CHROME + 80
-  if (media.aspectRatio != null && media.aspectRatio > 0) {
-    return CARD_CHROME + ESTIMATE_COL_WIDTH / media.aspectRatio
-  }
-  return CARD_CHROME + 220
-}
-
-function distributeByHeight(
-  items: TimelineItem[],
-  numCols: number
-): Array<Array<{ item: TimelineItem; originalIndex: number }>> {
-  if (numCols < 1) return []
-  const columns: Array<Array<{ item: TimelineItem; originalIndex: number }>> = Array.from(
-    { length: numCols },
-    () => []
-  )
-  const columnHeights: number[] = Array(numCols).fill(0)
-  for (let i = 0; i < items.length; i++) {
-    const item = items[i]
-    const h = estimateItemHeight(item)
-    const lengths = columns.map((col) => col.length)
-    const minCount = lengths.length === 0 ? 0 : Math.min(...lengths)
-    let best = -1
-    for (let c = 0; c < numCols; c++) {
-      if (columns[c].length > minCount + 1) continue
-      if (best === -1 || columnHeights[c] < columnHeights[best]) best = c
-      else if (columnHeights[c] === columnHeights[best] && columns[c].length < columns[best].length) best = c
-    }
-    if (best === -1) best = 0
-    columns[best].push({ item, originalIndex: i })
-    columnHeights[best] += h
-  }
-  return columns
-}
 
 export interface CollectionDetailContentProps {
   uri: string
@@ -98,6 +56,13 @@ export function CollectionDetailContent({ uri: decodedUri, inModal = false, isTo
   const [keyboardFocusIndex, setKeyboardFocusIndex] = useState(0)
   const keyboardFocusIndexRef = useRef(0)
   const displayItemsRef = useRef<TimelineItem[]>([])
+  const cardRefsRef = useRef<(HTMLDivElement | null)[]>([])
+  const mediaRefsRef = useRef<Record<number, Record<number, HTMLElement | null>>>({})
+  const distributedColumnsRef = useRef<ReturnType<typeof distributeTimelineItemsByHeight>>([])
+  const scrollIntoViewFromKeyboardRef = useRef(false)
+  const lastScrollIntoViewIndexRef = useRef(-1)
+  const actionsMenuOpenForIndexRef = useRef<number | null>(null)
+  const colsRef = useRef(1)
   const copyLinkBtnRef = useRef<HTMLButtonElement>(null)
   const [resolvedAtUri, setResolvedAtUri] = useState<string | null>(null)
   const [shareHandle, setShareHandle] = useState<string | null>(null)
@@ -160,7 +125,7 @@ export function CollectionDetailContent({ uri: decodedUri, inModal = false, isTo
             const newItems: TimelineItem[] = []
             for (const u of chunk) {
               const p = map.get(u)
-              if (p) newItems.push(toTimelineItem(p))
+              if (p) newItems.push(postViewToTimelineItem(p))
             }
             itemsByChunkIndex.set(chunkIndex, newItems)
           } catch (e) {
@@ -233,70 +198,68 @@ export function CollectionDetailContent({ uri: decodedUri, inModal = false, isTo
   displayItemsRef.current = displayItems
   keyboardFocusIndexRef.current = keyboardFocusIndex
 
-  useEffect(() => {
-    setKeyboardFocusIndex((i) => (displayItems.length ? Math.min(i, displayItems.length - 1) : 0))
-  }, [displayItems.length])
+  const distributedColumns = useMemo(
+    () => distributeTimelineItemsByHeight(displayItems, cols, distributedColumnsRef.current),
+    [displayItems, cols],
+  )
+  distributedColumnsRef.current = distributedColumns
+  colsRef.current = cols
+
+  const { focusTargets, firstFocusIndexForCard, lastFocusIndexForCard } = useMediaFocusTargets(
+    displayItems.length,
+    () => 1,
+  )
+  const focusTargetsRef = useRef(focusTargets)
+  const firstFocusIndexForCardRef = useRef(firstFocusIndexForCard)
+  const lastFocusIndexForCardRef = useRef(lastFocusIndexForCard)
+  focusTargetsRef.current = focusTargets
+  firstFocusIndexForCardRef.current = firstFocusIndexForCard
+  lastFocusIndexForCardRef.current = lastFocusIndexForCard
 
   useEffect(() => {
-    if (!keyboardShell.registerKeys) return
+    setKeyboardFocusIndex((i) => (focusTargets.length ? Math.min(i, focusTargets.length - 1) : 0))
+  }, [displayItems.length, focusTargets.length])
 
-    const { useCapture, claimKey, shouldBlockEditable, blurEditableOnEscape } = keyboardShell
+  useKeyboardScrollIntoView({
+    keyboardFocusIndex,
+    scrollIntoViewFromKeyboardRef,
+    lastScrollIntoViewIndexRef,
+    block: 'nearest',
+    getScrollTarget: useCallback(() => {
+      const target = focusTargets[keyboardFocusIndex]
+      return cardRefsRef.current[target?.cardIndex ?? keyboardFocusIndex]
+    }, [keyboardFocusIndex, focusTargets]),
+  })
 
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (!inModal && isModalOpen) return
-      const target = e.target as HTMLElement
-      if (!shouldUnderlayHandleGridKeys(target, inModal)) return
-      if (shouldBlockEditable(target)) {
-        blurEditableOnEscape(e, target)
-        return
-      }
-      if (e.ctrlKey || e.metaKey) return
-      if (displayItems.length === 0) return
-      const list = displayItemsRef.current
-      const i = keyboardFocusIndexRef.current
-      const key = e.key.toLowerCase()
-      const focusInNotificationsMenu = (document.activeElement as HTMLElement)?.closest?.('[data-notifications-list]')
-      const notificationsMenuOpen = document.querySelector('[data-notifications-list]') != null
-      if ((focusInNotificationsMenu || notificationsMenuOpen) && (key === 'w' || key === 's' || key === 'e' || key === 'o' || key === 'enter' || key === 'q' || key === 'u' || key === 'backspace' || key === 'escape' || e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
-        return
-      }
-      if (key === 'w' || key === 's' || key === 'a' || key === 'd' || key === 'i' || key === 'j' || key === 'k' || key === 'l' || key === 'e' || key === 'o' || key === 'enter' || e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-        e.preventDefault()
-      }
-      if (key === 'w' || key === 'i' || e.key === 'ArrowUp') {
-        beginKeyboardNavigation()
-        setKeyboardFocusIndex((idx) => Math.max(0, idx - cols))
-        claimKey(e)
-        return
-      }
-      if (key === 's' || key === 'k' || e.key === 'ArrowDown') {
-        beginKeyboardNavigation()
-        setKeyboardFocusIndex((idx) => Math.min(list.length - 1, idx + cols))
-        claimKey(e)
-        return
-      }
-      if (key === 'a' || key === 'j' || e.key === 'ArrowLeft') {
-        beginKeyboardNavigation()
-        setKeyboardFocusIndex((idx) => Math.max(0, idx - 1))
-        claimKey(e)
-        return
-      }
-      if (key === 'd' || key === 'l' || e.key === 'ArrowRight') {
-        beginKeyboardNavigation()
-        setKeyboardFocusIndex((idx) => Math.min(list.length - 1, idx + 1))
-        claimKey(e)
-        return
-      }
-      if (key === 'e' || key === 'o' || key === 'enter') {
-        const item = list[i]
-        if (item) openPostModal(item.post.uri, undefined, undefined, item.post.author?.handle)
-        claimKey(e)
-        return
-      }
-    }
-    window.addEventListener('keydown', onKeyDown, useCapture)
-    return () => window.removeEventListener('keydown', onKeyDown, useCapture)
-  }, [beginKeyboardNavigation, displayItems.length, cols, openPostModal, inModal, isTopModal, isModalOpen, keyboardShell])
+  const getColumns = useCallback(
+    () => (colsRef.current >= 2 ? distributedColumnsRef.current : null),
+    [],
+  )
+
+  useMediaGridKeyboardNav({
+    enabled: displayItems.length > 0,
+    keyboardShell,
+    inModal,
+    isModalOpen,
+    itemsRef: displayItemsRef,
+    keyboardFocusIndexRef,
+    setKeyboardFocusIndex,
+    focusTargetsRef,
+    firstFocusIndexForCardRef,
+    lastFocusIndexForCardRef,
+    colsRef,
+    getColumns,
+    cardRefsRef,
+    mediaRefsRef,
+    scrollIntoViewFromKeyboardRef,
+    beginKeyboardNavigation,
+    actionsMenuOpenForIndexRef,
+    includeCollectionMenu: false,
+    onOpenPost: useCallback(
+      (item) => openPostModal(item.post.uri, undefined, undefined, item.post.author?.handle),
+      [openPostModal],
+    ),
+  })
 
   const shareUrl = useMemo(() => {
     if (!decodedUri || !isLikelyCollectionRefParam(decodedUri)) return ''
@@ -313,12 +276,9 @@ export function CollectionDetailContent({ uri: decodedUri, inModal = false, isTo
     )
   }, [shareUrl, toast])
 
-  const distributedColumns = useMemo(
-    () => distributeByHeight(displayItems, cols),
-    [displayItems, cols],
-  )
-
-  const handleCardRef = useCallback(() => () => {}, [])
+  const handleCardRef = useCallback((index: number) => (el: HTMLDivElement | null) => {
+    cardRefsRef.current[index] = el
+  }, [])
 
   const handleMouseEnter = useCallback(
     (originalIndex: number) => {
@@ -333,8 +293,11 @@ export function CollectionDetailContent({ uri: decodedUri, inModal = false, isTo
   )
 
   const isSelected = useCallback(
-    (index: number) => index === keyboardFocusIndex,
-    [keyboardFocusIndex],
+    (index: number) => {
+      const target = focusTargets[keyboardFocusIndex]
+      return (target?.cardIndex ?? keyboardFocusIndex) === index
+    },
+    [keyboardFocusIndex, focusTargets],
   )
 
   const noopActionsMenuOpenChange = useCallback(() => {}, [])
@@ -402,38 +365,32 @@ export function CollectionDetailContent({ uri: decodedUri, inModal = false, isTo
         <div className={styles.empty}>No posts to show (removed or unavailable).</div>
       ) : (
         <>
-          <div
-            className={`${gridStyles.gridColumns} ${viewMode === 'a' ? gridStyles.gridView3 : gridStyles[`gridView${viewMode}`]}`}
-            {...gridPointerGateProps}
-            data-view-mode={viewMode}
-          >
-            {distributedColumns.map((column, colIndex) => (
-              <ProfileColumn
-                key={colIndex}
-                column={column}
-                colIndex={colIndex}
-                scrollRef={inModal ? modalScrollRef : null}
-                keyboardFocusIndex={keyboardFocusIndex}
-                actionsMenuOpenForIndex={null}
-                nsfwPreference={nsfwPreference}
-                unblurredUris={unblurredUris}
-                setUnblurred={setUnblurred}
-                setLikeOverrides={setLikeOverride}
-                openPostModal={openPostModal}
-                cardRef={handleCardRef}
-                onActionsMenuOpenChange={noopActionsMenuOpenChange}
-                onMouseEnter={handleMouseEnter}
-                isSelected={isSelected}
-                onRemovePostFromCollection={isOwner ? onRemovePostFromCollection : undefined}
-                feedPreviewActionRow
-                collectionGridPlayback
-                displayContext={postCardDisplayContext}
-              />
-            ))}
-          </div>
-          {loadingPosts && (
-            <div className={styles.loadingMore}>Loading more posts…</div>
-          )}
+          <PostMasonryGrid
+            viewMode={viewMode}
+            distributedColumns={distributedColumns}
+            gridPointerGateProps={gridPointerGateProps}
+            bindLoadMoreSentinelRef={() => () => {}}
+            modalScrollRef={inModal ? modalScrollRef : null}
+            loadingMore={loadingPosts}
+            loadingMoreClassName={styles.loadingMore}
+            columnProps={{
+              keyboardFocusIndex,
+              actionsMenuOpenForIndex: null,
+              nsfwPreference,
+              unblurredUris,
+              setUnblurred,
+              setLikeOverrides: setLikeOverride,
+              openPostModal,
+              cardRef: handleCardRef,
+              onActionsMenuOpenChange: noopActionsMenuOpenChange,
+              onMouseEnter: handleMouseEnter,
+              isSelected,
+              onRemovePostFromCollection: isOwner ? onRemovePostFromCollection : undefined,
+              feedPreviewActionRow: true,
+              collectionGridPlayback: true,
+              displayContext: postCardDisplayContext,
+            }}
+          />
         </>
       )}
     </div>
