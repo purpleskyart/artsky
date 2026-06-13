@@ -95,8 +95,10 @@ export const VirtualizedCell = memo(function VirtualizedCell({ children, root }:
     }
   }, [skipVirtualization])
 
+  // Modal grids: no wrapper — same structure as FeedColumn/OptimizedPostCard so
+  // focus/hover outlines stack above card media (content-visibility breaks that).
   if (skipVirtualization) {
-    return <div className={styles.offscreenPaintSkip}>{children}</div>
+    return <>{children}</>
   }
 
   const virtualized = !isNear && heightRef.current > 0
