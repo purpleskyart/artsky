@@ -78,15 +78,9 @@ export function buildSessionFromStoredTokens(did: string): AtpSessionData | null
   const tokens = getStoredOAuthTokens()
   if (!tokens || tokens.did !== did) return null
 
-  // Check if tokens are expired - but allow a grace period for PWA updates
-  // Tokens might be temporarily stale during updates, but the refresh token should still work
-  const isExpired = tokens.expiresAt < Date.now()
-  const gracePeriodMs = 5 * 60 * 1000 // 5 minute grace period for PWA updates
-
-  if (isExpired && tokens.expiresAt < Date.now() - gracePeriodMs) {
-    // Tokens are significantly expired - return null so we fall back to OAuth restore
-    return null
-  }
+  // Access tokens expire; refresh tokens are long-lived. Never drop the session here —
+  // callers refresh via OAuth or AtpAgent.refreshSession after PWA updates or idle tabs.
+  if (!tokens.refreshToken) return null
 
   const stored = getStoredSession()
   const storedHandle = stored?.handle
@@ -228,6 +222,75 @@ export function hasPersistedLoginHint(): boolean {
   return getPersistedActiveDid() != null
 }
 
+/** Session snapshot from localStorage only — keeps UI logged in when the live agent is still restoring. */
+export function getStoredSessionForDisplay(): AtpSessionData | null {
+  const did = getPersistedActiveDid()
+  if (!did) return null
+  const tokenSession = buildSessionFromStoredTokens(did)
+  const stored = getStoredSession()
+  if (tokenSession) return tokenSession
+  if (stored?.did === did) return stored
+  return { did } as AtpSessionData
+}
+
+/**
+ * Restore the OAuth agent from mirrored localStorage (survives PWA updates better than IndexedDB).
+ * Returns session data on success, null if tokens are missing or invalid.
+ */
+export async function restoreAgentFromPersistedSession(did: string): Promise<AtpSessionData | null> {
+  const tokenSession = buildSessionFromStoredTokens(did)
+  const localSession = getStoredSession()
+  const sessionToUse = tokenSession ?? (localSession?.did === did ? localSession : null)
+  if (!sessionToUse?.did) return null
+
+  try {
+    const serviceUrl = (sessionToUse as { pdsUrl?: string }).pdsUrl || BSKY_SERVICE
+    const atpAgent = new AtpAgent({ service: serviceUrl, fetch: credentialAgentFetch })
+    // resumeSession refreshes stale access tokens when a refresh JWT is present
+    await atpAgent.resumeSession(sessionToUse)
+    const live = atpAgent.session
+    const sessionData = (live ?? sessionToUse) as AtpSessionData
+    const storedTokens = getStoredOAuthTokens()
+    setOAuthAgent(atpAgent as unknown as Agent, {
+      did: sessionData.did,
+      signOut: async () => {},
+      accessToken: live?.accessJwt,
+      refreshToken: live?.refreshJwt,
+      expiresAt: storedTokens?.expiresAt,
+    } as unknown as import('@atproto/oauth-client').OAuthSession)
+    addOAuthDid(did)
+    resetOAuthFailure(did)
+    return getSessionStateForReact() ?? sessionData
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Reconnect the live agent after a 401 or failed restore (e.g. after a deploy reload).
+ * Never clears persisted credentials — only restores the in-memory agent when possible.
+ */
+export async function attemptSessionRefresh(): Promise<boolean> {
+  const did = getPersistedActiveDid()
+  if (!did) return false
+
+  try {
+    const oauthSession = await oauth.restoreOAuthSession(did)
+    if (oauthSession) {
+      const refreshedAgent = new Agent(oauthSession)
+      setOAuthAgent(refreshedAgent, oauthSession)
+      addOAuthDid(did)
+      resetOAuthFailure(did)
+      return true
+    }
+  } catch {
+    // Fall through to localStorage mirror
+  }
+
+  const restored = await restoreAgentFromPersistedSession(did)
+  return restored != null
+}
+
 export function getStoredSession(): AtpSessionData | null {
   let accounts = getAccounts()
   if (!accounts.activeDid) {
@@ -275,11 +338,20 @@ export function getSessionsList(): AtpSessionData[] {
 /** Switch active account to the given did via OAuth restore. */
 export async function switchAccount(did: string): Promise<boolean> {
   const oauthAccounts = getOAuthAccounts()
-  if (!oauthAccounts.dids.includes(did)) return false
+  const knownDid =
+    oauthAccounts.dids.includes(did) ||
+    getAccounts().sessions[did] != null ||
+    getStoredOAuthTokens()?.did === did
+  if (!knownDid) return false
+
   const session = await oauth.restoreOAuthSession(did)
   if (!session) {
-    // Session can't be restored - remove this DID from the list
-    removeOAuthDid(did)
+    const restored = await restoreAgentFromPersistedSession(did)
+    if (restored) {
+      setActiveOAuthDid(did)
+      invalidateSavedFeedsCache()
+      return true
+    }
     return false
   }
   try {
@@ -289,7 +361,6 @@ export async function switchAccount(did: string): Promise<boolean> {
     invalidateSavedFeedsCache()
     return true
   } catch {
-    removeOAuthDid(did)
     return false
   }
 }
@@ -402,6 +473,7 @@ export function setOAuthAgent(
   if (agent) {
     const data = getSession()
     if (data?.did) {
+      addOAuthDid(data.did, true)
       try {
         // Filter out invalid handles before storing
         const handle = (data as any).handle
@@ -615,11 +687,15 @@ export async function logoutCurrentAccount(): Promise<boolean> {
         return true
       }
     }
+    if (!getPersistedActiveDid()) {
+      saveOAuthTokens(null)
+    }
     return false
   }
   try {
     localStorage.removeItem(SESSION_KEY)
     saveAccounts({ activeDid: null, sessions: {} })
+    saveOAuthTokens(null)
   } catch {
     // ignore
   }
@@ -656,7 +732,7 @@ export function isAgentAuthenticated(): boolean {
  * Merges stored fields (e.g. handle) with the live agent when DIDs match.
  */
 export function getSessionStateForReact(): AtpSessionData | null {
-  if (!isAgentAuthenticated()) return null
+  if (!isAgentAuthenticated()) return getStoredSessionForDisplay()
   const live = getSession()
   if (!live?.did) return null
   const stored = getStoredSession()

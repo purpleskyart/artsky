@@ -24,7 +24,7 @@ describe('API Error Handling', () => {
     it('returns user-friendly message for 401 errors', () => {
       const error = Object.assign(new Error('Unauthorized'), { status: 401 })
       const message = getApiErrorMessage(error)
-      expect(message).toBe('Your session has expired. Please log in again.')
+      expect(message).toBe('Session expired temporarily. Retrying…')
     })
 
     it('returns user-friendly message for 403 errors with context', () => {

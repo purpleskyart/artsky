@@ -152,11 +152,10 @@ function getStatusCodeMessage(status: number, apiError: ApiError, context?: stri
         return `Unable to${operation}. The request could not be processed. Please try again.`
       }
       case 401:
-        // Report auth error to trigger session cleanup
         if (reportAuthErrorFn) {
           reportAuthErrorFn()
         }
-        return 'Your session has expired. Please log in again.'
+        return 'Session expired temporarily. Retrying…'
       case 403:
         return `You don't have permission to${operation}.`
       case 404:
