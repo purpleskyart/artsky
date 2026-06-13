@@ -1,5 +1,5 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
-import { Agent, AtpAgent } from '@atproto/api'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import { Agent } from '@atproto/api'
 import type { AtpSessionData } from '@atproto/api'
 import * as bsky from '../lib/bsky'
 import * as oauth from '../lib/oauth'
@@ -34,7 +34,7 @@ const SessionContext = createContext<SessionContextValue | null>(null)
 
 function getInitialSession(): AtpSessionData | null {
   try {
-    return bsky.getSessionStateForReact()
+    return bsky.getSessionStateForReact() ?? bsky.getStoredSessionForDisplay()
   } catch {
     return null
   }
@@ -55,11 +55,27 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [authResolved, setAuthResolved] = useState(getInitialAuthResolved)
   // Block render until auth is resolved when there's a persisted login hint (prevents logged-out flash)
   const [loading, setLoading] = useState(() => !getInitialAuthResolved())
-  const [authErrorCount, setAuthErrorCount] = useState(0)
+  const sessionRefreshInFlightRef = useRef(false)
+
+  const refreshSession = useCallback(() => {
+    setSession(bsky.getSessionStateForReact())
+  }, [])
 
   const reportAuthError = useCallback(() => {
-    setAuthErrorCount((prev) => prev + 1)
-  }, [])
+    const did = bsky.getPersistedActiveDid()
+    if (!did || sessionRefreshInFlightRef.current) return
+    sessionRefreshInFlightRef.current = true
+    void bsky.attemptSessionRefresh()
+      .then((ok) => {
+        if (ok) refreshSession()
+      })
+      .catch((err) => {
+        console.warn('Session refresh after auth error failed:', err)
+      })
+      .finally(() => {
+        sessionRefreshInFlightRef.current = false
+      })
+  }, [refreshSession])
 
   const logout = useCallback(async () => {
     const stillLoggedIn = await bsky.logoutCurrentAccount()
@@ -70,10 +86,6 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     const ok = await bsky.switchAccount(did)
     if (ok) setSession(bsky.getSessionStateForReact())
     return ok
-  }, [])
-
-  const refreshSession = useCallback(() => {
-    setSession(bsky.getSessionStateForReact())
   }, [])
 
   useEffect(() => {
@@ -111,17 +123,6 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     }
   }, [refreshSession])
 
-  // Monitor for authentication errors (401) and trigger logout if session is invalid
-  useEffect(() => {
-    if (authErrorCount >= 3 && session) {
-      console.warn('Multiple authentication errors detected, logging out')
-      logout().catch(() => {
-        setSession(null)
-      })
-      setAuthErrorCount(0)
-    }
-  }, [authErrorCount, session, logout])
-
   useEffect(() => {
     let cancelled = false
     const oauthCallbackTimeoutMs = 30_000
@@ -129,10 +130,13 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     const finish = (resolvedSession?: ReturnType<typeof bsky.getSessionStateForReact>) => {
       if (cancelled) return
       try {
-        const s = resolvedSession !== undefined ? resolvedSession : bsky.getSessionStateForReact()
+        const s =
+          resolvedSession !== undefined
+            ? resolvedSession
+            : bsky.getSessionStateForReact() ?? bsky.getStoredSessionForDisplay()
         setSession(s)
       } catch {
-        setSession(null)
+        setSession(bsky.getStoredSessionForDisplay())
       }
       // Clear loading in the same synchronous call so React batches session + loading together,
       // preventing a render with session=null while loading=false (which causes the guest flash).
@@ -141,60 +145,34 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     }
 
     async function init() {
-      const oauthAccounts = bsky.getOAuthAccountsSnapshot()
       const search = typeof window !== 'undefined' ? window.location.search : ''
       const hasCallback = oauth.hasOAuthCallbackSearch(search)
+      const persistedDid = bsky.getPersistedActiveDid()
 
-      const noOAuthAccounts =
-        oauthAccounts.dids.length === 0 && !oauthAccounts.activeDid
-
-      // Cold start: skip loading @atproto/oauth-client-browser when there is nothing to restore
-      // from the OAuth client (guests). Saves IndexedDB + chunk parse before the feed can load.
-      if (!hasCallback && noOAuthAccounts) {
+      // Cold start: skip OAuth client when there is nothing persisted to restore (guests).
+      if (!hasCallback && !persistedDid) {
         if (!cancelled) finish()
         return
       }
 
-      const preferredRestoreDid =
-        !hasCallback
-          ? oauthAccounts.activeDid ?? oauthAccounts.dids[0] ?? undefined
-          : undefined
+      const preferredRestoreDid = !hasCallback ? persistedDid ?? undefined : undefined
 
-      // Try localStorage FIRST before hitting IndexedDB/OAuth - localStorage is more reliable on mobile
-      // and survives PWA updates better than IndexedDB
+      // Try localStorage FIRST before hitting IndexedDB/OAuth - localStorage survives PWA updates better
       if (!hasCallback && preferredRestoreDid) {
-        // Try to build a complete session from stored OAuth tokens first
-        const tokenSession = bsky.buildSessionFromStoredTokens(preferredRestoreDid)
-        // Also check basic stored session as fallback
-        const localSession = bsky.getStoredSession()
-        const sessionToUse = tokenSession ?? (localSession?.did === preferredRestoreDid ? localSession : null)
-
-        if (sessionToUse?.did === preferredRestoreDid) {
-          // Valid session in localStorage - use it immediately
-          // Create an agent from the stored session data (with tokens if available)
-          // Use AtpAgent for AtpSessionData compatibility
-          try {
-            // Use the stored PDS URL if available, otherwise default to bsky.social
-            const serviceUrl = (sessionToUse as any).pdsUrl || 'https://bsky.social'
-            const agent = new AtpAgent({ service: serviceUrl })
-            // Use resumeSession instead of directly setting session property
-            // This is the type-safe way to restore a session on AtpAgent
-            await agent.resumeSession(sessionToUse)
-            bsky.setOAuthAgent(agent as unknown as Agent, { did: sessionToUse.did, signOut: async () => {} } as unknown as import('@atproto/oauth-client').OAuthSession)
-            finish(sessionToUse)
-            // Silently try to restore OAuth in background to refresh tokens if needed
-            // Don't block on this - user already has working session
-            oauth.initOAuth({ hasCallback: false, preferredRestoreDid })
-              .then((oauthResult) => {
-                if (oauthResult?.session) {
-                  bsky.resetOAuthFailure(preferredRestoreDid)
-                }
-              })
-              .catch((err) => { console.warn('Background OAuth refresh failed:', err) })
-            return
-          } catch {
-            // Failed to create agent from localStorage - fall through to OAuth restore
-          }
+        const restored = await bsky.restoreAgentFromPersistedSession(preferredRestoreDid)
+        if (restored) {
+          finish(restored)
+          oauth.initOAuth({ hasCallback: false, preferredRestoreDid })
+            .then((oauthResult) => {
+              if (oauthResult?.session) {
+                bsky.resetOAuthFailure(preferredRestoreDid)
+                const agent = new Agent(oauthResult.session)
+                bsky.setOAuthAgent(agent, oauthResult.session)
+                refreshSession()
+              }
+            })
+            .catch((err) => { console.warn('Background OAuth refresh failed:', err) })
+          return
         }
       }
 
@@ -256,40 +234,20 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           }
           return
         }
-        // OAuth restore failed — try localStorage fallback
+        // OAuth restore failed — try localStorage fallback; never discard persisted credentials
         if (!hasCallback && preferredRestoreDid && !finalOauthResult?.session) {
-          // Try OAuth tokens first, then basic stored session
-          const tokenSession = bsky.buildSessionFromStoredTokens(preferredRestoreDid)
-          const mirroredSession = bsky.getStoredSession()
-          const sessionToUse = tokenSession ?? (mirroredSession?.did === preferredRestoreDid ? mirroredSession : null)
-
-          if (sessionToUse?.did === preferredRestoreDid) {
-            // Fallback to mirrored session from localStorage - this is a valid session
-            // Don't increment failure count here as localStorage session is legitimate
-            try {
-              // Use the stored PDS URL if available, otherwise default to bsky.social
-              const serviceUrl = (sessionToUse as any).pdsUrl || 'https://bsky.social'
-              const agent = new AtpAgent({ service: serviceUrl })
-              // Use resumeSession instead of directly setting session property
-              // This is the type-safe way to restore a session on AtpAgent
-              await agent.resumeSession(sessionToUse)
-              bsky.setOAuthAgent(agent as unknown as Agent, { did: sessionToUse.did, signOut: async () => {} } as unknown as import('@atproto/oauth-client').OAuthSession)
-              finish(sessionToUse)
-              return
-            } catch {
-              // Failed to create agent from localStorage - increment failure
-              const shouldRemove = bsky.incrementOAuthFailure(preferredRestoreDid)
-              if (shouldRemove) {
-                bsky.removeOAuthDid(preferredRestoreDid)
-              }
-            }
+          const restored = await bsky.restoreAgentFromPersistedSession(preferredRestoreDid)
+          if (restored) {
+            finish(restored)
             return
           }
-          // No mirrored session available — increment failure count
-          // This can happen during app updates when IndexedDB is temporarily unavailable
-          const shouldRemove = bsky.incrementOAuthFailure(preferredRestoreDid)
-          if (shouldRemove) {
-            bsky.removeOAuthDid(preferredRestoreDid)
+          const displaySession = bsky.getStoredSessionForDisplay()
+          if (displaySession) {
+            finish(displaySession)
+            void bsky.attemptSessionRefresh().then((ok) => {
+              if (ok && !cancelled) refreshSession()
+            })
+            return
           }
         }
       } catch {
