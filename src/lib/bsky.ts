@@ -1406,7 +1406,7 @@ export function getPostExternalLink(post: PostView): { uri: string; title: strin
   if (!embed) return null
   let fields: ExternalEmbedFields | null = null
   if (embed.$type === 'app.bsky.embed.external#view') {
-    fields = readExternalEmbedFields(embed)
+    fields = readExternalEmbedFields(embed as ExternalEmbedViewLike)
   } else if (embed.$type === 'app.bsky.embed.recordWithMedia#view' && embed.media?.$type === 'app.bsky.embed.external#view') {
     fields = readExternalEmbedFields(embed.media)
   }

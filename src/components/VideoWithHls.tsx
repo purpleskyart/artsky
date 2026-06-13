@@ -1,4 +1,6 @@
 import { useRef, useEffect, useLayoutEffect, useState, useCallback } from 'react'
+import { PlayIcon } from './Icons'
+import styles from './VideoWithHls.module.css'
 import { loadHls } from '../lib/loadHls'
 import { buildHlsConfig, PAUSE_VISIBILITY_RATIO, type VideoPlaybackMode } from '../lib/videoHlsConfig'
 import {
@@ -33,7 +35,6 @@ interface Props {
   style?: React.CSSProperties
   intersectionRoot?: Element | null
   onPlayStateChange?: (isPlaying: boolean) => void
-  /** True while attaching HLS, waiting to play, or re-buffering (suppress play-icon flash). */
   onPlaybackPendingChange?: (pending: boolean) => void
   forceMuted?: boolean
   onVideoDimensions?: (width: number, height: number) => void
@@ -62,7 +63,9 @@ export default function VideoWithHls({
   const videoRef = useRef<HTMLVideoElement>(null)
   const visibilityRef = useRef<HTMLDivElement>(null)
   const [showControls, setShowControls] = useState(!controlsHiddenUntilTap)
+  const [isPlaying, setIsPlaying] = useState(false)
   const effectiveControls = controlsHiddenUntilTap ? showControls : controls
+  const showPausedIcon = !isPlaying && !effectiveControls
   const videoIdRef = useRef(`video-${crypto.randomUUID()}`)
   const hlsRef = useRef<Hls | null>(null)
   const nativeCleanupRef = useRef<(() => void) | null>(null)
@@ -276,11 +279,13 @@ export default function VideoWithHls({
     const id = videoIdRef.current
 
     const handlePlay = () => {
+      setIsPlaying(true)
       setVideoPlaying(id, true)
       onPlayStateChange?.(true)
       onPlaybackPendingChange?.(false)
     }
     const handlePause = () => {
+      setIsPlaying(false)
       setVideoPlaying(id, false)
       onPlayStateChange?.(false)
     }
@@ -322,10 +327,7 @@ export default function VideoWithHls({
   }, [autoPlay, attachHls, destroyHls, playlistUrl])
 
   return (
-    <div
-      ref={visibilityRef}
-      style={{ width: '100%', height: '100%', minWidth: 0, minHeight: 0 }}
-    >
+    <div ref={visibilityRef} className={styles.root}>
       <video
         ref={videoRef}
         className={className}
@@ -353,6 +355,11 @@ export default function VideoWithHls({
         disablePictureInPicture
         disableRemotePlayback
       />
+      {showPausedIcon ? (
+        <div className={styles.pausedIcon} aria-hidden>
+          <PlayIcon />
+        </div>
+      ) : null}
     </div>
   )
 }
