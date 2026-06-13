@@ -1,6 +1,6 @@
-import { useCallback, useRef, useState } from 'react'
 import { TagContent } from '../pages/TagPage'
 import AppModal from './AppModal'
+import { useModalPullRefresh } from '../hooks/useModalPullRefresh'
 
 interface TagModalProps {
   tag: string
@@ -13,12 +13,7 @@ interface TagModalProps {
 }
 
 export default function TagModal({ tag, onClose, onBack, canGoBack, onDesktopBackdrop, isTopModal, stackIndex }: TagModalProps) {
-  const refreshRef = useRef<(() => void | Promise<void>) | null>(null)
-  const [pullReady, setPullReady] = useState(false)
-  const handleRegisterRefresh = useCallback((fn: () => void | Promise<void>) => {
-    refreshRef.current = fn
-    setPullReady(true)
-  }, [])
+  const { handleRegisterRefresh, onPullToRefresh } = useModalPullRefresh()
 
   return (
     <AppModal
@@ -27,7 +22,7 @@ export default function TagModal({ tag, onClose, onBack, canGoBack, onDesktopBac
       onBack={onBack}
       canGoBack={canGoBack}
       onDesktopBackdrop={onDesktopBackdrop}
-      onPullToRefresh={pullReady ? () => refreshRef.current?.() : undefined}
+      onPullToRefresh={onPullToRefresh}
       scrollKey={tag}
       isTopModal={isTopModal}
       stackIndex={stackIndex}

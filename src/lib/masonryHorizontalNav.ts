@@ -1,8 +1,60 @@
 /** Minimal rect for viewport-based horizontal moves in a masonry grid. */
 export type ViewportRect = { top: number; left: number; width: number; height: number }
 
+export type MasonryNavColumn = Array<{ originalIndex: number }>
+
 function centerOf(r: ViewportRect): { cx: number; cy: number } {
   return { cx: r.left + r.width / 2, cy: r.top + r.height / 2 }
+}
+
+/** Index of the card directly above in the same column. */
+export function indexAbove(columns: MasonryNavColumn[], currentIndex: number): number {
+  for (let c = 0; c < columns.length; c++) {
+    const row = columns[c].findIndex((e) => e.originalIndex === currentIndex)
+    if (row > 0) return columns[c][row - 1].originalIndex
+    if (row === 0) return currentIndex
+  }
+  return currentIndex
+}
+
+/** Index of the card directly below in the same column. */
+export function indexBelow(columns: MasonryNavColumn[], currentIndex: number): number {
+  for (let c = 0; c < columns.length; c++) {
+    const row = columns[c].findIndex((e) => e.originalIndex === currentIndex)
+    if (row >= 0 && row < columns[c].length - 1) return columns[c][row + 1].originalIndex
+    if (row >= 0) return currentIndex
+  }
+  return currentIndex
+}
+
+/**
+ * Left/right nav fallback: same slot index in the adjacent column (not visual row).
+ * Prefer {@link pickAdjacentCardIndexByViewport} for A/D when DOM rects are available.
+ */
+export function indexLeftByRow(columns: MasonryNavColumn[], currentIndex: number): number {
+  for (let c = 0; c < columns.length; c++) {
+    const row = columns[c].findIndex((e) => e.originalIndex === currentIndex)
+    if (row < 0) continue
+    if (c === 0) return currentIndex
+    const leftCol = columns[c - 1]
+    if (leftCol.length === 0) return currentIndex
+    const targetRow = Math.min(row, leftCol.length - 1)
+    return leftCol[targetRow].originalIndex
+  }
+  return currentIndex
+}
+
+export function indexRightByRow(columns: MasonryNavColumn[], currentIndex: number): number {
+  for (let c = 0; c < columns.length; c++) {
+    const row = columns[c].findIndex((e) => e.originalIndex === currentIndex)
+    if (row < 0) continue
+    if (c === columns.length - 1) return currentIndex
+    const rightCol = columns[c + 1]
+    if (rightCol.length === 0) return currentIndex
+    const targetRow = Math.min(row, rightCol.length - 1)
+    return rightCol[targetRow].originalIndex
+  }
+  return currentIndex
 }
 
 /**

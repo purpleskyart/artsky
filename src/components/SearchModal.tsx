@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect } from 'react'
 import AppModal from './AppModal'
 import MediaModalTopBar from './MediaModalTopBar'
 import { SearchModalGridContent } from './SearchModalGridContent'
+import { useModalPullRefresh } from '../hooks/useModalPullRefresh'
 import modalStyles from './SearchModal.module.css'
 
 interface SearchModalProps {
@@ -24,12 +25,7 @@ export default function SearchModal({
   isTopModal,
   stackIndex,
 }: SearchModalProps) {
-  const refreshRef = useRef<(() => void | Promise<void>) | null>(null)
-  const [pullReady, setPullReady] = useState(false)
-  const handleRegisterRefresh = useCallback((fn: () => void | Promise<void>) => {
-    refreshRef.current = fn
-    setPullReady(true)
-  }, [])
+  const { handleRegisterRefresh, onPullToRefresh } = useModalPullRefresh()
 
   useEffect(() => {
     void import('./PostDetailModal')
@@ -44,7 +40,7 @@ export default function SearchModal({
       canGoBack={canGoBack}
       onDesktopBackdrop={onDesktopBackdrop}
       transparentTopBar
-      onPullToRefresh={pullReady ? () => refreshRef.current?.() : undefined}
+      onPullToRefresh={onPullToRefresh}
       scrollKey={query}
       isTopModal={isTopModal}
       stackIndex={stackIndex}

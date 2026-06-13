@@ -1,0 +1,312 @@
+import { useEffect, type MutableRefObject, type RefObject } from 'react'
+import type { TimelineItem } from '../lib/bsky'
+import type { MasonryNavColumn } from '../lib/masonryHorizontalNav'
+import {
+  computeFocusMoveDown,
+  computeFocusMoveHorizontal,
+  computeFocusMoveUp,
+  isGridActionKey,
+  isGridNavBlockedByOpenMenus,
+  isGridNavigationKey,
+  isHorizontalKeyRepeat,
+} from '../lib/gridKeyboardNav'
+import { shouldUnderlayHandleGridKeys } from '../lib/modalKeyboard'
+
+export interface MediaGridKeyboardShell {
+  registerKeys: boolean
+  useCapture: boolean
+  claimKey: (e: KeyboardEvent) => void
+  shouldBlockEditable: (target: HTMLElement) => boolean
+  blurEditableOnEscape: (e: KeyboardEvent, target: HTMLElement) => void
+}
+
+export interface UseMediaGridKeyboardNavOptions {
+  enabled: boolean
+  keyboardShell: MediaGridKeyboardShell
+  inModal: boolean
+  isModalOpen?: boolean
+  itemsRef: RefObject<TimelineItem[]>
+  keyboardFocusIndexRef: RefObject<number>
+  setKeyboardFocusIndex: (index: number | ((prev: number) => number)) => void
+  focusTargetsRef: RefObject<{ cardIndex: number; mediaIndex: number }[]>
+  firstFocusIndexForCardRef: RefObject<number[]>
+  lastFocusIndexForCardRef: RefObject<number[]>
+  colsRef: RefObject<number>
+  getColumns: () => MasonryNavColumn[] | null
+  cardRefsRef: RefObject<(HTMLElement | null)[]>
+  mediaRefsRef: RefObject<Record<number, Record<number, HTMLElement | null>>>
+  scrollIntoViewFromKeyboardRef: MutableRefObject<boolean>
+  beginKeyboardNavigation: () => void
+  actionsMenuOpenForIndexRef: RefObject<number | null>
+  setActionsMenuOpenForIndex?: (index: number | null) => void
+  blockConfirmRef?: RefObject<unknown>
+  setBlockConfirm?: (value: null) => void
+  includeCollectionMenu?: boolean
+  includeNotificationsMenu?: boolean
+  extraPreventDefaultKeys?: string[]
+  onOpenPost: (item: TimelineItem) => void
+  onOpenReply?: (item: TimelineItem) => void
+  onToggleActionsMenu?: (cardIndex: number, menuOpenForFocusedCard: boolean) => void
+  onOpenCollectionMenu?: (cardIndex: number) => void
+  onToggleLike?: (item: TimelineItem) => void
+  onToggleFollow?: (item: TimelineItem) => void
+  likeOnSpaceInModalOnly?: boolean
+  skipWhenPageModalOpen?: boolean
+}
+
+export function useMediaGridKeyboardNav(options: UseMediaGridKeyboardNavOptions) {
+  const {
+    enabled,
+    keyboardShell,
+    inModal,
+    isModalOpen = false,
+    itemsRef,
+    keyboardFocusIndexRef,
+    setKeyboardFocusIndex,
+    focusTargetsRef,
+    firstFocusIndexForCardRef,
+    lastFocusIndexForCardRef,
+    colsRef,
+    getColumns,
+    cardRefsRef,
+    mediaRefsRef,
+    scrollIntoViewFromKeyboardRef,
+    beginKeyboardNavigation,
+    actionsMenuOpenForIndexRef,
+    setActionsMenuOpenForIndex,
+    blockConfirmRef,
+    setBlockConfirm,
+    includeCollectionMenu = true,
+    includeNotificationsMenu = true,
+    extraPreventDefaultKeys = [],
+    onOpenPost,
+    onOpenReply,
+    onToggleActionsMenu,
+    onOpenCollectionMenu,
+    onToggleLike,
+    onToggleFollow,
+    likeOnSpaceInModalOnly = false,
+    skipWhenPageModalOpen = true,
+  } = options
+
+  useEffect(() => {
+    if (!enabled || !keyboardShell.registerKeys) return
+
+    const { useCapture, claimKey, shouldBlockEditable, blurEditableOnEscape } = keyboardShell
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (skipWhenPageModalOpen && !inModal && isModalOpen) return
+      const target = e.target as HTMLElement
+      if (!shouldUnderlayHandleGridKeys(target, inModal)) return
+      if (shouldBlockEditable(target)) {
+        blurEditableOnEscape(e, target)
+        return
+      }
+      if (e.ctrlKey || e.metaKey) return
+
+      const items = itemsRef.current ?? []
+      if (items.length === 0) return
+
+      const i = keyboardFocusIndexRef.current ?? -1
+      const fromNone = i < 0
+      const key = e.key.toLowerCase()
+      const currentFocusTargets = focusTargetsRef.current ?? []
+      const currentFirstByCard = firstFocusIndexForCardRef.current ?? []
+      const currentLastByCard = lastFocusIndexForCardRef.current ?? []
+      const currentCols = colsRef.current ?? 1
+      const focusTarget = currentFocusTargets[i]
+      const currentCardIndex = focusTarget?.cardIndex ?? 0
+      const currentMediaIndex = focusTarget?.mediaIndex ?? 0
+      const columns = currentCols >= 2 ? getColumns() : null
+      const focusedItem = items[currentCardIndex] ?? null
+
+      if (
+        isGridNavBlockedByOpenMenus({
+          actionsMenuOpenForIndex: actionsMenuOpenForIndexRef.current,
+          focusedCardIndex: currentCardIndex,
+          includeCollectionMenu,
+          includeNotificationsMenu,
+        }) &&
+        (key === 'w' ||
+          key === 's' ||
+          key === 'e' ||
+          key === 'o' ||
+          key === 'enter' ||
+          key === 'backspace' ||
+          key === 'escape' ||
+          e.key === 'ArrowUp' ||
+          e.key === 'ArrowDown')
+      ) {
+        return
+      }
+
+      if (isHorizontalKeyRepeat(e)) return
+
+      if (blockConfirmRef?.current) {
+        if (key === 'escape') {
+          e.preventDefault()
+          setBlockConfirm?.(null)
+          return
+        }
+        return
+      }
+
+      if (
+        isGridNavigationKey(key, e.code, e.key) ||
+        isGridActionKey(key, e.code) ||
+        extraPreventDefaultKeys.includes(key)
+      ) {
+        e.preventDefault()
+      }
+
+      const navCtx = {
+        focusIndex: i,
+        cardCount: items.length,
+        cols: currentCols,
+        columns,
+        focusTargetsLength: currentFocusTargets.length,
+        firstByCard: currentFirstByCard,
+        lastByCard: currentLastByCard,
+        currentCardIndex,
+        currentMediaIndex,
+      }
+
+      const initFocus = () => {
+        if (currentFocusTargets.length > 0) {
+          beginKeyboardNavigation()
+          scrollIntoViewFromKeyboardRef.current = true
+          setKeyboardFocusIndex(0)
+        }
+      }
+
+      const claim = () => claimKey(e)
+
+      if (key === 'w' || key === 'i' || e.key === 'ArrowUp') {
+        if (fromNone) {
+          initFocus()
+          claim()
+          return
+        }
+        beginKeyboardNavigation()
+        scrollIntoViewFromKeyboardRef.current = true
+        const next = computeFocusMoveUp(navCtx)
+        if (next === null) return
+        setKeyboardFocusIndex(next)
+        claim()
+        return
+      }
+
+      if (key === 's' || key === 'k' || e.key === 'ArrowDown') {
+        if (fromNone) {
+          initFocus()
+          claim()
+          return
+        }
+        beginKeyboardNavigation()
+        scrollIntoViewFromKeyboardRef.current = true
+        const next = computeFocusMoveDown(navCtx)
+        if (next === null) return
+        setKeyboardFocusIndex(next)
+        claim()
+        return
+      }
+
+      if (key === 'a' || key === 'j' || e.key === 'ArrowLeft' || key === 'd' || key === 'l' || e.key === 'ArrowRight') {
+        if (fromNone) {
+          initFocus()
+          claim()
+          return
+        }
+        beginKeyboardNavigation()
+        scrollIntoViewFromKeyboardRef.current = true
+        const goLeft = key === 'a' || key === 'j' || e.key === 'ArrowLeft'
+        const measureCardForHorizontal = (cardIdx: number) => {
+          const n = currentLastByCard[cardIdx] - currentFirstByCard[cardIdx] + 1
+          const m = Math.min(currentMediaIndex, Math.max(0, n - 1))
+          const el = mediaRefsRef.current?.[cardIdx]?.[m] ?? cardRefsRef.current?.[cardIdx]
+          if (!el) return null
+          const r = el.getBoundingClientRect()
+          if (r.width <= 0 && r.height <= 0) return null
+          return { top: r.top, left: r.left, width: r.width, height: r.height }
+        }
+        const next = computeFocusMoveHorizontal(navCtx, goLeft, measureCardForHorizontal)
+        if (next !== i) setActionsMenuOpenForIndex?.(null)
+        setKeyboardFocusIndex(next)
+        claim()
+        return
+      }
+
+      if ((key === 'm' || key === '`') && i >= 0 && onToggleActionsMenu) {
+        onToggleActionsMenu(currentCardIndex, actionsMenuOpenForIndexRef.current === currentCardIndex)
+        claim()
+        return
+      }
+
+      if ((key === 'e' || key === 'o' || key === 'enter') && focusedItem) {
+        onOpenPost(focusedItem)
+        claim()
+        return
+      }
+
+      if (key === 'r' && onOpenReply && focusedItem) {
+        onOpenReply(focusedItem)
+        claim()
+        return
+      }
+
+      if (key === 'c' && onOpenCollectionMenu && i >= 0) {
+        onOpenCollectionMenu(currentCardIndex)
+        claim()
+        return
+      }
+
+      if (e.code === 'Space' && onToggleLike && focusedItem) {
+        if (likeOnSpaceInModalOnly && !inModal) return
+        onToggleLike(focusedItem)
+        claim()
+        return
+      }
+
+      if (key === 'f' && onToggleFollow && focusedItem) {
+        onToggleFollow(focusedItem)
+        claim()
+        return
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown, useCapture)
+    return () => window.removeEventListener('keydown', onKeyDown, useCapture)
+  }, [
+    enabled,
+    keyboardShell,
+    inModal,
+    isModalOpen,
+    itemsRef,
+    keyboardFocusIndexRef,
+    setKeyboardFocusIndex,
+    focusTargetsRef,
+    firstFocusIndexForCardRef,
+    lastFocusIndexForCardRef,
+    colsRef,
+    getColumns,
+    cardRefsRef,
+    mediaRefsRef,
+    scrollIntoViewFromKeyboardRef,
+    beginKeyboardNavigation,
+    actionsMenuOpenForIndexRef,
+    setActionsMenuOpenForIndex,
+    blockConfirmRef,
+    setBlockConfirm,
+    includeCollectionMenu,
+    includeNotificationsMenu,
+    extraPreventDefaultKeys,
+    onOpenPost,
+    onOpenReply,
+    onToggleActionsMenu,
+    onOpenCollectionMenu,
+    onToggleLike,
+    onToggleFollow,
+    likeOnSpaceInModalOnly,
+    skipWhenPageModalOpen,
+  ])
+}

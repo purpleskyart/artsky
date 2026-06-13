@@ -45,11 +45,19 @@ import { GUEST_FEED_SOURCES, GUEST_MIX_ENTRIES } from '../config/feedSources'
 import { feedReducer, type FeedState } from './feedReducer'
 import { debounce } from '../lib/utils'
 import { asyncStorage } from '../lib/AsyncStorage'
-import { pickAdjacentCardIndexByViewport } from '../lib/masonryHorizontalNav'
+import {
+  indexAbove,
+  indexBelow,
+  indexLeftByRow,
+  indexRightByRow,
+  pickAdjacentCardIndexByViewport,
+} from '../lib/masonryHorizontalNav'
+import { distributeByHeight, estimateMediaCardHeight } from '../lib/masonryLayout'
+import { buildMediaFocusIndices } from '../lib/gridFocusTargets'
+import { getPostGridClassName } from '../lib/gridClassName'
 import { preloadPostOpen } from '../lib/modalPreload'
 import { getDesktopSnapshot, subscribeDesktop } from '../config/breakpoints'
 import styles from './FeedPage.module.css'
-import gridStyles from '../styles/postGrid.module.css'
 
 /** Dedupe feed items by post URI (keep first). Stops the same post appearing as both original and repost. */
 function dedupeFeedByPostUri(items: TimelineItem[] | undefined | null): TimelineItem[] {
@@ -83,8 +91,6 @@ const PRESET_SOURCES: FeedSource[] = [
   { kind: 'custom', label: "What's Hot", uri: 'at://did:plc:z72i7hdynmk6r22z27h6tvur/app.bsky.feed.generator/whats-hot' },
 ]
 
-const CARD_CHROME = 100
-
 const REASON_REPOST = 'app.bsky.feed.defs#reasonRepost'
 
 export type FeedDisplayEntry = { type: 'post'; item: TimelineItem; entryIndex: number }
@@ -99,16 +105,7 @@ export function buildDisplayEntries(items: TimelineItem[]): FeedDisplayEntry[] {
 
 function estimateEntryHeight(entry: FeedDisplayEntry, numCols: number = 3): number {
   const media = getPostMediaInfoForDisplay(entry.item.post)
-  if (!media) return CARD_CHROME + 80
-  
-  // Base width for 3-column view (~280px). 
-  // In 1-column view, it's roughly 2x-2.5x larger on modern mobile/tablet.
-  const estimatedWidth = numCols === 1 ? 580 : numCols === 2 ? 400 : 280
-  
-  if (media.aspectRatio != null && media.aspectRatio > 0) {
-    return CARD_CHROME + estimatedWidth / media.aspectRatio
-  }
-  return CARD_CHROME + 220
+  return estimateMediaCardHeight(media?.aspectRatio, numCols, !!media)
 }
 
 /** Stable id for column placement and list keys (append, trim, load more). */
@@ -116,153 +113,21 @@ export function stableCardKey(entry: FeedDisplayEntry): string {
   return `p:${entry.item.post.uri}`
 }
 
-function previousColumnForEntry(
-  entry: FeedDisplayEntry,
-  keyToColumn: Map<string, number>,
-  numCols: number
-): number | undefined {
-  const fromKey = keyToColumn.get(stableCardKey(entry))
-  if (fromKey !== undefined && fromKey < numCols) return fromKey
-  return undefined
-}
-
-function pickShortestColumnIndex(
-  columns: Array<Array<{ entry: FeedDisplayEntry; originalIndex: number }>>,
-  columnHeights: number[]
-): number {
-  const cols = columnHeights.length
-  let best = 0
-  for (let c = 1; c < cols; c++) {
-    const shorter = columnHeights[c] < columnHeights[best]
-    const sameHeight = Math.abs(columnHeights[c] - columnHeights[best]) < 2
-    const fewerItems = columns[c].length < columns[best].length
-    if (shorter || (sameHeight && fewerItems)) best = c
-  }
-  return best
-}
-
-/** Distribute entries so no column is much longer than others. */
+/** Distribute entries so no column is much longer than others. Reuses column assignments on load-more. */
 function distributeEntriesByHeight(
   entries: FeedDisplayEntry[],
   numCols: number,
-  previousDistribution?: Array<Array<{ entry: FeedDisplayEntry; originalIndex: number }>>
+  previousDistribution?: Array<Array<{ entry: FeedDisplayEntry; originalIndex: number }>>,
 ): Array<Array<{ entry: FeedDisplayEntry; originalIndex: number }>> {
-  const cols = Math.max(1, Math.floor(numCols))
-  if (cols < 1) return []
-
-  // Reuse each card's column from the last layout when column count is unchanged — including when
-  // the entry list shrinks or grows (load more), so previews don't jump.
-  if (previousDistribution && previousDistribution.length === cols) {
-    const keyToColumn = new Map<string, number>()
-    previousDistribution.forEach((col, colIndex) => {
-      col.forEach(({ entry }) => {
-        keyToColumn.set(stableCardKey(entry), colIndex)
-      })
-    })
-
-    const columns: Array<Array<{ entry: FeedDisplayEntry; originalIndex: number }>> = Array.from(
-      { length: cols },
-      () => []
-    )
-    const columnHeights: number[] = Array(cols).fill(0)
-
-    for (let i = 0; i < entries.length; i++) {
-      const entry = entries[i]
-      const h = estimateEntryHeight(entry, cols)
-      const prevCol = previousColumnForEntry(entry, keyToColumn, cols)
-      const col = prevCol !== undefined ? prevCol : pickShortestColumnIndex(columns, columnHeights)
-      columns[col].push({ entry, originalIndex: i })
-      columnHeights[col] += h
-    }
-    return columns
-  }
-
-  // Initial distribution or column count changed - redistribute everything
-  const columns: Array<Array<{ entry: FeedDisplayEntry; originalIndex: number }>> = Array.from(
-    { length: cols },
-    () => []
-  )
-  const columnHeights: number[] = Array(cols).fill(0)
-  for (let i = 0; i < entries.length; i++) {
-    const entry = entries[i]
-    const h = estimateEntryHeight(entry, cols)
-    const lengths = columns.map((col) => col.length)
-    const minCount = lengths.length === 0 ? 0 : Math.min(...lengths)
-    let best = -1
-    for (let c = 0; c < cols; c++) {
-      if (columns[c].length > minCount + 1) continue
-      const shorter = best === -1 || columnHeights[c] < columnHeights[best]
-      const sameHeight = best >= 0 && Math.abs(columnHeights[c] - columnHeights[best]) < 2
-      const fewerItems = best >= 0 && columns[c].length < columns[best].length
-      if (shorter || (sameHeight && fewerItems)) best = c
-    }
-    if (best === -1) best = 0
-    columns[best].push({ entry, originalIndex: i })
-    columnHeights[best] += h
-  }
-  return columns
-}
-
-/** Given columns from distributeEntriesByHeight, return the index of the card directly above or below. */
-function indexAbove(
-  columns: Array<Array<{ originalIndex: number }>>,
-  currentIndex: number
-): number {
-  for (let c = 0; c < columns.length; c++) {
-    const row = columns[c].findIndex((e) => e.originalIndex === currentIndex)
-    if (row > 0) return columns[c][row - 1].originalIndex
-    if (row === 0) return currentIndex
-  }
-  return currentIndex
-}
-
-function indexBelow(
-  columns: Array<Array<{ originalIndex: number }>>,
-  currentIndex: number
-): number {
-  for (let c = 0; c < columns.length; c++) {
-    const row = columns[c].findIndex((e) => e.originalIndex === currentIndex)
-    if (row >= 0 && row < columns[c].length - 1) return columns[c][row + 1].originalIndex
-    if (row >= 0) return currentIndex
-  }
-  return currentIndex
-}
-
-/**
- * Left/right nav fallback: same slot index in the adjacent column (not visual row). Used when DOM
- * rects are unavailable; prefer {@link pickAdjacentCardIndexByViewport} for A/D so focus matches the
- * preview beside the focused one on screen.
- */
-function indexLeftByRow(
-  columns: Array<Array<{ originalIndex: number }>>,
-  currentIndex: number
-): number {
-  for (let c = 0; c < columns.length; c++) {
-    const row = columns[c].findIndex((e) => e.originalIndex === currentIndex)
-    if (row < 0) continue
-    if (c === 0) return currentIndex
-    const leftCol = columns[c - 1]
-    if (leftCol.length === 0) return currentIndex
-    const targetRow = Math.min(row, leftCol.length - 1)
-    return leftCol[targetRow].originalIndex
-  }
-  return currentIndex
-}
-
-function indexRightByRow(
-  columns: Array<Array<{ originalIndex: number }>>,
-  currentIndex: number
-): number {
-  for (let c = 0; c < columns.length; c++) {
-    const row = columns[c].findIndex((e) => e.originalIndex === currentIndex)
-    if (row < 0) continue
-    if (c === columns.length - 1) return currentIndex
-    const rightCol = columns[c + 1]
-    if (rightCol.length === 0) return currentIndex
-    const targetRow = Math.min(row, rightCol.length - 1)
-    return rightCol[targetRow].originalIndex
-  }
-  return currentIndex
+  const prev =
+    previousDistribution?.map((col) =>
+      col.map(({ entry, originalIndex }) => ({ item: entry, originalIndex })),
+    ) ?? undefined
+  const distributed = distributeByHeight(entries, numCols, estimateEntryHeight, {
+    getStableKey: stableCardKey,
+    previousDistribution: prev,
+  })
+  return distributed.map((col) => col.map(({ item, originalIndex }) => ({ entry: item, originalIndex })))
 }
 
 export default function FeedPage() {
@@ -728,35 +593,13 @@ export default function FeedPage() {
   distributedColumnLengthsRef.current = distributedColumns.map((c) => c.length)
   
   /** Flat list of focus targets: one per media item per post (or one per card in text-only mode). */
-  const focusTargets = useMemo(() => {
-    const out: { cardIndex: number; mediaIndex: number }[] = []
-    displayEntries.forEach((entry, cardIndex) => {
-      const n = mediaMode === 'text' ? 1 : (mediaCountByUri.get(entry.item.post.uri) ?? 1)
-      for (let m = 0; m < n; m++) out.push({ cardIndex, mediaIndex: m })
-    })
-    return out
-  }, [displayEntries, mediaMode, mediaCountByUri])
-  /** First focus index for each card (top image; for S and A/D). */
-  const firstFocusIndexForCard = useMemo(() => {
-    const out: number[] = []
-    let idx = 0
-    displayEntries.forEach((_entry, cardIndex) => {
-      out[cardIndex] = idx
+  const { focusTargets, firstFocusIndexForCard, lastFocusIndexForCard } = useMemo(() => {
+    return buildMediaFocusIndices(displayEntries.length, (cardIndex) => {
       const entry = displayEntries[cardIndex]
-      const n = mediaMode === 'text' ? 1 : (mediaCountByUri.get(entry.item.post.uri) ?? 1)
-      idx += n
+      if (mediaMode === 'text') return 1
+      return mediaCountByUri.get(entry.item.post.uri) ?? 1
     })
-    return out
   }, [displayEntries, mediaMode, mediaCountByUri])
-  /** Last focus index for each card (bottom image; for W when moving to card above). */
-  const lastFocusIndexForCard = useMemo(() => {
-    const out: number[] = []
-    displayEntries.forEach((entry, cardIndex) => {
-      const n = mediaMode === 'text' ? 1 : (mediaCountByUri.get(entry.item.post.uri) ?? 1)
-      out[cardIndex] = firstFocusIndexForCard[cardIndex] + n - 1
-    })
-    return out
-  }, [displayEntries, firstFocusIndexForCard, mediaMode, mediaCountByUri])
   mediaItemsRef.current = displayItems
   keyboardFocusIndexRef.current = feedState.keyboardFocusIndex
   actionsMenuOpenForIndexRef.current = feedState.actionsMenuOpenForIndex
@@ -1404,7 +1247,7 @@ export default function FeedPage() {
           <>
             <div
               ref={bindGridRef}
-              className={`${gridStyles.gridColumns} ${viewMode === 'a' ? gridStyles.gridView3 : gridStyles[`gridView${viewMode}`]}`}
+              className={getPostGridClassName(viewMode)}
               {...gridPointerGateProps}
               data-view-mode={viewMode}
             >

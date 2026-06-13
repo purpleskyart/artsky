@@ -1,10 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useParams, useNavigate, useLocation } from 'react-router-dom'
-import { searchPostsByTag, getPostMediaInfo, isPostNsfw, likePostWithLifecycle, unlikePostWithLifecycle, followAccountWithLifecycle, unfollowAccountWithLifecycle } from '../lib/bsky'
+import { useParams } from 'react-router-dom'
+import {
+  searchPostsByTag,
+  getPostMediaInfo,
+  likePostWithLifecycle,
+  unlikePostWithLifecycle,
+  followAccountWithLifecycle,
+  unfollowAccountWithLifecycle,
+} from '../lib/bsky'
 import type { TimelineItem } from '../lib/bsky'
-import type { AppBskyFeedDefs } from '@atproto/api'
-import ProfileColumn from '../components/ProfileColumn'
 import Layout from '../components/Layout'
+import PostMasonryGrid from '../components/PostMasonryGrid'
 import { useSession } from '../context/SessionContext'
 import { useProfileModal } from '../context/ProfileModalContext'
 import { useLikeOverridesActions } from '../context/LikeOverridesContext'
@@ -15,58 +21,18 @@ import { useColumnCount } from '../hooks/useViewportWidth'
 import { useColumnLoadMore } from '../hooks/useColumnLoadMore'
 import { usePostCardGridPointerGate } from '../hooks/usePostCardGridPointerGate'
 import { useModalGridKeyboardShell, useModalScrollKeyboardFocus } from '../hooks/useModalGridKeyboardShell'
-import { shouldUnderlayHandleGridKeys } from '../lib/modalKeyboard'
 import { useModalScroll } from '../context/ModalScrollContext'
-import styles from './TagPage.module.css'
-import gridStyles from '../styles/postGrid.module.css'
-import { getPostAppPath } from '../lib/appUrl'
-import { getOverlayBackgroundLocation } from '../lib/overlayNavigation'
 import { usePostCardDisplayContext } from '../hooks/usePostCardDisplayContext'
-
-const ESTIMATE_COL_WIDTH = 280
-const CARD_CHROME = 100
-
-/** Wrap PostView into TimelineItem shape for PostCard */
-function toTimelineItem(post: AppBskyFeedDefs.PostView): TimelineItem {
-  return { post }
-}
-
-function estimateItemHeight(item: TimelineItem): number {
-  const media = getPostMediaInfo(item.post)
-  if (!media) return CARD_CHROME + 80
-  if (media.aspectRatio != null && media.aspectRatio > 0) {
-    return CARD_CHROME + ESTIMATE_COL_WIDTH / media.aspectRatio
-  }
-  return CARD_CHROME + 220
-}
-
-function distributeByHeight(
-  items: TimelineItem[],
-  numCols: number
-): Array<Array<{ item: TimelineItem; originalIndex: number }>> {
-  if (numCols < 1) return []
-  const columns: Array<Array<{ item: TimelineItem; originalIndex: number }>> = Array.from(
-    { length: numCols },
-    () => []
-  )
-  const columnHeights: number[] = Array(numCols).fill(0)
-  for (let i = 0; i < items.length; i++) {
-    const item = items[i]
-    const h = estimateItemHeight(item)
-    const lengths = columns.map((col) => col.length)
-    const minCount = lengths.length === 0 ? 0 : Math.min(...lengths)
-    let best = -1
-    for (let c = 0; c < numCols; c++) {
-      if (columns[c].length > minCount + 1) continue
-      if (best === -1 || columnHeights[c] < columnHeights[best]) best = c
-      else if (columnHeights[c] === columnHeights[best] && columns[c].length < columns[best].length) best = c
-    }
-    if (best === -1) best = 0
-    columns[best].push({ item, originalIndex: i })
-    columnHeights[best] += h
-  }
-  return columns
-}
+import { useOpenPostFromGrid } from '../hooks/useOpenPostFromGrid'
+import { useMediaFocusTargets } from '../hooks/useMediaFocusTargets'
+import { useMediaGridKeyboardNav } from '../hooks/useMediaGridKeyboardNav'
+import { useKeyboardScrollIntoView } from '../hooks/useKeyboardScrollIntoView'
+import { useRegisterGridRefresh } from '../hooks/useModalPullRefresh'
+import { distributeTimelineItemsByHeight } from '../lib/masonryLayout'
+import { filterMediaGridItems } from '../lib/filterGridItems'
+import { patchFollowingOnTimelineItem } from '../lib/followOptimisticUpdate'
+import { postViewsToTimelineItems } from '../lib/timeline'
+import styles from './TagPage.module.css'
 
 export function TagContent({
   tag,
@@ -79,8 +45,6 @@ export function TagContent({
   isTopModal?: boolean
   onRegisterRefresh?: (refresh: () => void | Promise<void>) => void
 }) {
-  const navigate = useNavigate()
-  const location = useLocation()
   const { session } = useSession()
   const { viewMode } = useViewMode()
   const { isModalOpen, openPostModal } = useProfileModal()
@@ -92,14 +56,18 @@ export function TagContent({
   const [keyboardFocusIndex, setKeyboardFocusIndex] = useState(0)
   const { setLikeOverride } = useLikeOverridesActions()
   const cardRefsRef = useRef<(HTMLDivElement | null)[]>([])
+  const mediaRefsRef = useRef<Record<number, Record<number, HTMLElement | null>>>({})
   const loadMoreSentinelRefs = useRef<(HTMLDivElement | null)[]>([])
   const distributedColumnLengthsRef = useRef<number[]>([])
+  const distributedColumnsRef = useRef<ReturnType<typeof distributeTimelineItemsByHeight>>([])
   const loadingMoreRef = useRef(false)
   const keyboardFocusIndexRef = useRef(0)
   const mediaItemsRef = useRef<TimelineItem[]>([])
   const scrollIntoViewFromKeyboardRef = useRef(false)
   const lastScrollIntoViewIndexRef = useRef(-1)
+  const actionsMenuOpenForIndexRef = useRef<number | null>(null)
   const gridRef = useRef<HTMLDivElement | null>(null)
+  const colsRef = useRef(1)
   const { beginKeyboardNavigation, tryHoverSelectCard, gridPointerGateProps } = usePostCardGridPointerGate()
 
   const load = useCallback(async (nextCursor?: string) => {
@@ -109,7 +77,7 @@ export function TagContent({
       else setLoading(true)
       setError(null)
       const { posts, cursor: next } = await searchPostsByTag(tag, nextCursor)
-      const timelineItems = posts.map(toTimelineItem)
+      const timelineItems = postViewsToTimelineItems(posts)
       setItems((prev) => (nextCursor ? [...prev, ...timelineItems] : timelineItems))
       setCursor(next)
     } catch (err: unknown) {
@@ -128,30 +96,47 @@ export function TagContent({
     }
   }, [tag, load])
 
-  useEffect(() => {
-    onRegisterRefresh?.(() => load())
-  }, [onRegisterRefresh, load])
+  useRegisterGridRefresh(onRegisterRefresh, load)
 
   const { nsfwPreference, unblurredUris, setUnblurred } = useModeration()
   const postCardDisplayContext = usePostCardDisplayContext(inModal)
   const modalScrollRef = useModalScroll()
   const keyboardShell = useModalGridKeyboardShell(inModal, isTopModal)
   useModalScrollKeyboardFocus(modalScrollRef, inModal && isTopModal, tag)
+  const handleOpenPostFromGrid = useOpenPostFromGrid(inModal, openPostModal)
+
   const mediaItems = useMemo(
-    () =>
-      items
-        .filter((item) => getPostMediaInfo(item.post))
-        .filter((item) => nsfwPreference !== 'sfw' || !isPostNsfw(item.post)),
+    () => filterMediaGridItems(items, { nsfwPreference }),
     [items, nsfwPreference],
   )
   const cols = useColumnCount(viewMode, 150)
+  colsRef.current = cols
   const distributedColumns = useMemo(
-    () => distributeByHeight(mediaItems, cols),
+    () => distributeTimelineItemsByHeight(mediaItems, cols, distributedColumnsRef.current),
     [mediaItems, cols],
   )
+  distributedColumnsRef.current = distributedColumns
   distributedColumnLengthsRef.current = distributedColumns.map((c) => c.length)
   mediaItemsRef.current = mediaItems
   keyboardFocusIndexRef.current = keyboardFocusIndex
+
+  const getMediaCount = useCallback(
+    (cardIndex: number) => {
+      const media = getPostMediaInfo(mediaItems[cardIndex]?.post)
+      return media ? media.imageCount ?? 1 : 1
+    },
+    [mediaItems],
+  )
+  const { focusTargets, firstFocusIndexForCard, lastFocusIndexForCard } = useMediaFocusTargets(
+    mediaItems.length,
+    getMediaCount,
+  )
+  const focusTargetsRef = useRef(focusTargets)
+  const firstFocusIndexForCardRef = useRef(firstFocusIndexForCard)
+  const lastFocusIndexForCardRef = useRef(lastFocusIndexForCard)
+  focusTargetsRef.current = focusTargets
+  firstFocusIndexForCardRef.current = firstFocusIndexForCard
+  lastFocusIndexForCardRef.current = lastFocusIndexForCard
 
   loadingMoreRef.current = loadingMore
   const bindLoadMoreSentinelRef = useColumnLoadMore({
@@ -166,199 +151,96 @@ export function TagContent({
   })
 
   useEffect(() => {
-    setKeyboardFocusIndex((i) => (mediaItems.length ? Math.min(i, mediaItems.length - 1) : 0))
-  }, [mediaItems.length])
+    setKeyboardFocusIndex((i) => (mediaItems.length ? Math.min(i, focusTargets.length - 1) : 0))
+  }, [mediaItems.length, focusTargets.length])
 
-  useEffect(() => {
-    if (!scrollIntoViewFromKeyboardRef.current) return
-    scrollIntoViewFromKeyboardRef.current = false
-    if (keyboardFocusIndex === lastScrollIntoViewIndexRef.current) return
-    lastScrollIntoViewIndexRef.current = keyboardFocusIndex
-    const index = keyboardFocusIndex
-    const raf = requestAnimationFrame(() => {
-      const el = cardRefsRef.current[index]
-      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' })
-    })
-    return () => cancelAnimationFrame(raf)
-  }, [keyboardFocusIndex])
+  useKeyboardScrollIntoView({
+    keyboardFocusIndex,
+    scrollIntoViewFromKeyboardRef,
+    lastScrollIntoViewIndexRef,
+    block: 'nearest',
+    getScrollTarget: useCallback(() => {
+      const target = focusTargets[keyboardFocusIndex]
+      const cardIndex = target?.cardIndex ?? keyboardFocusIndex
+      const mediaIndex = target?.mediaIndex ?? 0
+      return mediaRefsRef.current[cardIndex]?.[mediaIndex] ?? cardRefsRef.current[cardIndex]
+    }, [keyboardFocusIndex, focusTargets]),
+  })
 
-  useEffect(() => {
-    if (!keyboardShell.registerKeys) return
+  const getColumns = useCallback(
+    () => (colsRef.current >= 2 ? distributedColumnsRef.current : null),
+    [],
+  )
 
-    const { useCapture, claimKey, shouldBlockEditable, blurEditableOnEscape } = keyboardShell
-
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (!inModal && isModalOpen) return
-      const target = e.target as HTMLElement
-      if (!shouldUnderlayHandleGridKeys(target, inModal)) return
-      if (shouldBlockEditable(target)) {
-        blurEditableOnEscape(e, target)
-        return
-      }
-      if (e.ctrlKey || e.metaKey) return
-      if (mediaItems.length === 0) return
-
-      const items = mediaItemsRef.current
-      const i = keyboardFocusIndexRef.current
-      const key = e.key.toLowerCase()
-      const focusInNotificationsMenu = (document.activeElement as HTMLElement)?.closest?.('[data-notifications-list]')
-      const notificationsMenuOpen = document.querySelector('[data-notifications-list]') != null
-      if ((focusInNotificationsMenu || notificationsMenuOpen) && (key === 'w' || key === 's' || key === 'e' || key === 'o' || key === 'enter' || key === 'q' || key === 'u' || key === 'backspace' || key === 'escape' || e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
-        return
-      }
-      if (key === 'w' || key === 's' || key === 'a' || key === 'd' || key === 'i' || key === 'j' || key === 'k' || key === 'l' || key === 'e' || key === 'o' || key === 'enter' || key === 'f' || e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') e.preventDefault()
-
-      if (key === 'w' || key === 'i' || e.key === 'ArrowUp') {
-        beginKeyboardNavigation()
-        scrollIntoViewFromKeyboardRef.current = true
-        setKeyboardFocusIndex((idx) => Math.max(0, idx - cols))
-        claimKey(e)
-        return
-      }
-      if (key === 's' || key === 'k' || e.key === 'ArrowDown') {
-        beginKeyboardNavigation()
-        scrollIntoViewFromKeyboardRef.current = true
-        setKeyboardFocusIndex((idx) => Math.min(items.length - 1, idx + cols))
-        claimKey(e)
-        return
-      }
-      if (key === 'a' || key === 'j' || e.key === 'ArrowLeft') {
-        beginKeyboardNavigation()
-        scrollIntoViewFromKeyboardRef.current = true
-        setKeyboardFocusIndex((idx) => Math.max(0, idx - 1))
-        claimKey(e)
-        return
-      }
-      if (key === 'd' || key === 'l' || e.key === 'ArrowRight') {
-        beginKeyboardNavigation()
-        scrollIntoViewFromKeyboardRef.current = true
-        setKeyboardFocusIndex((idx) => Math.min(items.length - 1, idx + 1))
-        claimKey(e)
-        return
-      }
-      if (key === 'e' || key === 'o' || key === 'enter') {
-        const item = items[i]
-        if (item) {
-          if (inModal) openPostModal(item.post.uri, undefined, undefined, item.post.author?.handle)
-          else {
-            const path = getPostAppPath(item.post.uri, item.post.author?.handle)
-            navigate(path, { state: { backgroundLocation: getOverlayBackgroundLocation(location) } })
-          }
+  useMediaGridKeyboardNav({
+    enabled: mediaItems.length > 0,
+    keyboardShell,
+    inModal,
+    isModalOpen,
+    itemsRef: mediaItemsRef,
+    keyboardFocusIndexRef,
+    setKeyboardFocusIndex,
+    focusTargetsRef,
+    firstFocusIndexForCardRef,
+    lastFocusIndexForCardRef,
+    colsRef,
+    getColumns,
+    cardRefsRef,
+    mediaRefsRef,
+    scrollIntoViewFromKeyboardRef,
+    beginKeyboardNavigation,
+    actionsMenuOpenForIndexRef,
+    includeCollectionMenu: false,
+    onOpenPost: useCallback(
+      (item: TimelineItem) => handleOpenPostFromGrid(item.post.uri, undefined, undefined, item.post.author?.handle),
+      [handleOpenPostFromGrid],
+    ),
+    onToggleLike: useCallback(
+      (item: TimelineItem) => {
+        if (!item.post.uri || !item.post.cid) return
+        const uri = item.post.uri
+        const override = getLikeOverrideFromStore(uri)
+        const currentLikeUri =
+          override !== undefined ? (override ?? undefined) : (item.post as { viewer?: { like?: string } }).viewer?.like
+        if (currentLikeUri) {
+          unlikePostWithLifecycle(currentLikeUri, uri).then(() => setLikeOverride(uri, null)).catch(() => {})
+        } else {
+          likePostWithLifecycle(uri, item.post.cid).then((res) => setLikeOverride(uri, res.uri)).catch(() => {})
         }
-        claimKey(e)
-        return
-      }
-      if (key === 'f' && session) {
-        const item = items[i]
-        if (!item?.post?.author) return
+      },
+      [setLikeOverride],
+    ),
+    onToggleFollow: useCallback(
+      (item: TimelineItem) => {
+        if (!session?.did || !item.post.author) return
         const author = item.post.author as { did: string; viewer?: { following?: string } }
         if (session.did === author.did) return
         const followingUri = author.viewer?.following
+        const postUri = item.post.uri
         if (followingUri) {
-          unfollowAccountWithLifecycle(followingUri).then(() => {
-            setItems((prev) =>
-              prev.map((it) => {
-                if (it.post.uri !== item.post.uri) return it
-                const post = it.post
-                const auth = post.author as { did: string; handle?: string; viewer?: { following?: string } }
-                return {
-                  ...it,
-                  post: {
-                    ...post,
-                    author: {
-                      ...auth,
-                      viewer: { ...auth.viewer, following: undefined },
-                    },
-                  } as TimelineItem['post'],
-                }
-              })
-            )
-          }).catch((err) => {
-            console.warn('Failed to unfollow/follow/like/unlike:', err)
-          })
+          unfollowAccountWithLifecycle(followingUri)
+            .then(() => setItems((prev) => patchFollowingOnTimelineItem(prev, postUri, undefined)))
+            .catch(() => {})
         } else {
-          followAccountWithLifecycle(author.did).then((res) => {
-            setItems((prev) =>
-              prev.map((it) => {
-                if (it.post.uri !== item.post.uri) return it
-                const post = it.post
-                const auth = post.author as { did: string; handle?: string; viewer?: { following?: string } }
-                return {
-                  ...it,
-                  post: {
-                    ...post,
-                    author: {
-                      ...auth,
-                      viewer: { ...auth.viewer, following: res.uri },
-                    },
-                  } as TimelineItem['post'],
-                }
-              })
-            )
-          }).catch((err) => {
-            console.warn('Failed to unfollow/follow/like/unlike:', err)
-          })
+          followAccountWithLifecycle(author.did)
+            .then((res) => setItems((prev) => patchFollowingOnTimelineItem(prev, postUri, res.uri)))
+            .catch(() => {})
         }
-        claimKey(e)
-        return
-      }
-      if (e.code === 'Space' && inModal) {
-        const item = items[i]
-        if (!item?.post?.uri || !item?.post?.cid) return
-        const uri = item.post.uri
-        const override = getLikeOverrideFromStore(uri)
-        const currentLikeUri = override !== undefined ? (override ?? undefined) : (item.post as { viewer?: { like?: string } }).viewer?.like
-        if (currentLikeUri) {
-          unlikePostWithLifecycle(currentLikeUri, uri).then(() => {
-            setLikeOverride(uri, null)
-          }).catch((err) => {
-            console.warn('Failed to unfollow/follow/like/unlike:', err)
-          })
-        } else {
-          likePostWithLifecycle(uri, item.post.cid).then((res) => {
-            setLikeOverride(uri, res.uri)
-          }).catch((err) => {
-            console.warn('Failed to unfollow/follow/like/unlike:', err)
-          })
-        }
-        claimKey(e)
-        return
-      }
-    }
-    window.addEventListener('keydown', onKeyDown, useCapture)
-    return () => window.removeEventListener('keydown', onKeyDown, useCapture)
-  }, [beginKeyboardNavigation, mediaItems.length, cols, navigate, location, isModalOpen, inModal, isTopModal, openPostModal, session, setLikeOverride, setItems, keyboardShell])
-
-  const handleOpenPostModal = useCallback(
-    (uri: string, openReply?: boolean, focusUri?: string, authorHandle?: string) => {
-      if (inModal) {
-        openPostModal(uri, openReply, focusUri, authorHandle)
-        return
-      }
-      const path = getPostAppPath(uri, authorHandle)
-      const q = new URLSearchParams()
-      if (openReply) q.set('reply', '1')
-      if (focusUri) q.set('focus', focusUri)
-      const qs = q.toString()
-      navigate(
-        { pathname: path, search: qs ? `?${qs}` : '' },
-        { state: { backgroundLocation: getOverlayBackgroundLocation(location) } },
-      )
-    },
-    [inModal, openPostModal, navigate, location],
-  )
+      },
+      [session],
+    ),
+    likeOnSpaceInModalOnly: true,
+  })
 
   const handleCardRef = useCallback((index: number) => (el: HTMLDivElement | null) => {
     cardRefsRef.current[index] = el
   }, [])
 
-  const handleLoadMoreSentinelRef = bindLoadMoreSentinelRef
-
   const handleMouseEnter = useCallback(
     (originalIndex: number) => {
       tryHoverSelectCard(
         originalIndex,
-        () => keyboardFocusIndexRef.current,
+        () => firstFocusIndexForCardRef.current[originalIndex] ?? keyboardFocusIndexRef.current,
         (idx) => setKeyboardFocusIndex(idx),
         { applyOnTouch: inModal ? false : undefined },
       )
@@ -367,8 +249,11 @@ export function TagContent({
   )
 
   const isSelected = useCallback(
-    (index: number) => index === keyboardFocusIndex,
-    [keyboardFocusIndex],
+    (index: number) => {
+      const target = focusTargets[keyboardFocusIndex]
+      return (target?.cardIndex ?? keyboardFocusIndex) === index
+    },
+    [keyboardFocusIndex, focusTargets],
   )
 
   const noopActionsMenuOpenChange = useCallback(() => {}, [])
@@ -386,39 +271,32 @@ export function TagContent({
       ) : mediaItems.length === 0 ? (
         <div className={styles.empty}>No posts with images or videos for this tag.</div>
       ) : (
-        <>
-          <div
-            ref={gridRef}
-            className={`${gridStyles.gridColumns} ${viewMode === 'a' ? gridStyles.gridView3 : gridStyles[`gridView${viewMode}`]}`}
-            {...gridPointerGateProps}
-            data-view-mode={viewMode}
-          >
-            {distributedColumns.map((column, colIndex) => (
-              <ProfileColumn
-                key={colIndex}
-                column={column}
-                colIndex={colIndex}
-                scrollRef={inModal ? modalScrollRef : null}
-                loadMoreSentinelRef={cursor ? handleLoadMoreSentinelRef(colIndex) : undefined}
-                hasCursor={!!cursor}
-                keyboardFocusIndex={keyboardFocusIndex}
-                actionsMenuOpenForIndex={null}
-                nsfwPreference={nsfwPreference}
-                unblurredUris={unblurredUris}
-                setUnblurred={setUnblurred}
-                setLikeOverrides={setLikeOverride}
-                openPostModal={handleOpenPostModal}
-                cardRef={handleCardRef}
-                onActionsMenuOpenChange={noopActionsMenuOpenChange}
-                onMouseEnter={handleMouseEnter}
-                suppressHoverNsfwUnblur={inModal}
-                isSelected={isSelected}
-                displayContext={postCardDisplayContext}
-              />
-            ))}
-          </div>
-          {loadingMore && <div className={styles.loadingMore}>Loading…</div>}
-        </>
+        <PostMasonryGrid
+          viewMode={viewMode}
+          distributedColumns={distributedColumns}
+          gridRef={gridRef}
+          gridPointerGateProps={gridPointerGateProps}
+          cursor={cursor}
+          bindLoadMoreSentinelRef={bindLoadMoreSentinelRef}
+          modalScrollRef={inModal ? modalScrollRef : null}
+          loadingMore={loadingMore}
+          loadingMoreClassName={styles.loadingMore}
+          columnProps={{
+            keyboardFocusIndex,
+            actionsMenuOpenForIndex: null,
+            nsfwPreference,
+            unblurredUris,
+            setUnblurred,
+            setLikeOverrides: setLikeOverride,
+            openPostModal: handleOpenPostFromGrid,
+            cardRef: handleCardRef,
+            onActionsMenuOpenChange: noopActionsMenuOpenChange,
+            onMouseEnter: handleMouseEnter,
+            suppressHoverNsfwUnblur: inModal,
+            isSelected,
+            displayContext: postCardDisplayContext,
+          }}
+        />
       )}
     </div>
   )

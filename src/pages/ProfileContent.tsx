@@ -30,7 +30,15 @@ import { useModalGridKeyboardShell, useModalScrollKeyboardFocus } from '../hooks
 import { shouldUnderlayHandleGridKeys } from '../lib/modalKeyboard'
 import { usePostCardGridPointerGate } from '../hooks/usePostCardGridPointerGate'
 import { usePostCardDisplayContext } from '../hooks/usePostCardDisplayContext'
-import { pickAdjacentCardIndexByViewport } from '../lib/masonryHorizontalNav'
+import {
+  indexAbove,
+  indexBelow,
+  indexLeftByRow,
+  indexRightByRow,
+  pickAdjacentCardIndexByViewport,
+} from '../lib/masonryHorizontalNav'
+import { distributeTimelineItemsByHeight } from '../lib/masonryLayout'
+import { getPostGridClassName } from '../lib/gridClassName'
 import { ProgressiveImage } from '../components/ProgressiveImage'
 import styles from './ProfilePage.module.css'
 import gridStyles from '../styles/postGrid.module.css'
@@ -60,105 +68,6 @@ const VIEW_MODE_CYCLE: ViewMode[] = ['1', '2', '3', 'a']
 
 /** Profile lightbox: keep the masonry grid readable (All Columns on the full page can use more). */
 const PROFILE_MODAL_MAX_MASONRY_COLS = 3
-
-/** Nominal column width for height estimation (px). */
-const ESTIMATE_COL_WIDTH = 280
-const CARD_CHROME = 100
-
-function estimateItemHeight(item: TimelineItem): number {
-  const media = getPostMediaInfo(item.post)
-  if (!media) return CARD_CHROME + 80
-  if (media.aspectRatio != null && media.aspectRatio > 0) {
-    return CARD_CHROME + ESTIMATE_COL_WIDTH / media.aspectRatio
-  }
-  return CARD_CHROME + 220
-}
-
-/** Distribute items so no column is much longer than others: cap count difference at 1, then pick by smallest estimated height. */
-function distributeByHeight(
-  items: TimelineItem[],
-  numCols: number
-): Array<Array<{ item: TimelineItem; originalIndex: number }>> {
-  if (numCols < 1) return []
-  const columns: Array<Array<{ item: TimelineItem; originalIndex: number }>> = Array.from(
-    { length: numCols },
-    () => []
-  )
-  const columnHeights: number[] = Array(numCols).fill(0)
-  for (let i = 0; i < items.length; i++) {
-    const item = items[i]
-    const h = estimateItemHeight(item)
-    const lengths = columns.map((col) => col.length)
-    const minCount = lengths.length === 0 ? 0 : Math.min(...lengths)
-    let best = -1
-    for (let c = 0; c < numCols; c++) {
-      if (columns[c].length > minCount + 1) continue
-      if (best === -1 || columnHeights[c] < columnHeights[best]) best = c
-      else if (columnHeights[c] === columnHeights[best] && columns[c].length < columns[best].length) best = c
-    }
-    if (best === -1) best = 0
-    columns[best].push({ item, originalIndex: i })
-    columnHeights[best] += h
-  }
-  return columns
-}
-
-function indexAbove(
-  columns: Array<Array<{ item: TimelineItem; originalIndex: number }>>,
-  currentIndex: number
-): number {
-  for (let c = 0; c < columns.length; c++) {
-    const row = columns[c].findIndex((e) => e.originalIndex === currentIndex)
-    if (row > 0) return columns[c][row - 1].originalIndex
-    if (row === 0) return currentIndex
-  }
-  return currentIndex
-}
-
-function indexBelow(
-  columns: Array<Array<{ item: TimelineItem; originalIndex: number }>>,
-  currentIndex: number
-): number {
-  for (let c = 0; c < columns.length; c++) {
-    const row = columns[c].findIndex((e) => e.originalIndex === currentIndex)
-    if (row >= 0 && row < columns[c].length - 1) return columns[c][row + 1].originalIndex
-    if (row >= 0) return currentIndex
-  }
-  return currentIndex
-}
-
-/** Same row index in the neighbor column as the feed grid (structural, no DOM geometry). */
-function indexLeftByRow(
-  columns: Array<Array<{ item: TimelineItem; originalIndex: number }>>,
-  currentIndex: number
-): number {
-  for (let c = 0; c < columns.length; c++) {
-    const row = columns[c].findIndex((e) => e.originalIndex === currentIndex)
-    if (row < 0) continue
-    if (c === 0) return currentIndex
-    const leftCol = columns[c - 1]
-    if (leftCol.length === 0) return currentIndex
-    const targetRow = Math.min(row, leftCol.length - 1)
-    return leftCol[targetRow].originalIndex
-  }
-  return currentIndex
-}
-
-function indexRightByRow(
-  columns: Array<Array<{ item: TimelineItem; originalIndex: number }>>,
-  currentIndex: number
-): number {
-  for (let c = 0; c < columns.length; c++) {
-    const row = columns[c].findIndex((e) => e.originalIndex === currentIndex)
-    if (row < 0) continue
-    if (c === columns.length - 1) return currentIndex
-    const rightCol = columns[c + 1]
-    if (rightCol.length === 0) return currentIndex
-    const targetRow = Math.min(row, rightCol.length - 1)
-    return rightCol[targetRow].originalIndex
-  }
-  return currentIndex
-}
 
 function ColumnIcon({ cols }: { cols: number }) {
   const safeCols = Math.max(1, Math.min(3, Math.floor(cols)))
@@ -256,6 +165,7 @@ export default function ProfileContent({
   const loadMoreSentinelRefs = useRef<(HTMLDivElement | null)[]>([])
   /** Per-column card counts; empty columns keep a top sentinel — must not drive "short column" auto load-more. */
   const distributedColumnLengthsRef = useRef<number[]>([])
+  const distributedColumnsRef = useRef<ReturnType<typeof distributeTimelineItemsByHeight>>([])
   const loadingMoreRef = useRef(false)
   const [tabsBarVisible] = useState(true)
   const [keyboardFocusIndex, setKeyboardFocusIndex] = useState(0)
@@ -567,7 +477,11 @@ export default function ProfileContent({
   const profileGridItems = mediaItems
 
   // Distribute items into columns and track lengths for infinite scroll
-  const distributedColumns = useMemo(() => distributeByHeight(profileGridItems, cols), [profileGridItems, cols])
+  const distributedColumns = useMemo(
+    () => distributeTimelineItemsByHeight(profileGridItems, cols, distributedColumnsRef.current),
+    [profileGridItems, cols],
+  )
+  distributedColumnsRef.current = distributedColumns
   distributedColumnLengthsRef.current = distributedColumns.map((c) => c.length)
 
   const bindLoadMoreSentinelRef = useColumnLoadMore({
@@ -1295,7 +1209,7 @@ export default function ProfileContent({
           <>
             <div
               ref={gridRef}
-              className={`${gridStyles.gridColumns} ${viewMode === 'a' ? gridStyles.gridView3 : gridStyles[`gridView${viewMode}`]}`}
+              className={getPostGridClassName(viewMode)}
               {...gridPointerGateProps}
               data-view-mode={viewMode}
             >
