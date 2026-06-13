@@ -31,11 +31,10 @@ interface OptimizedPostCardProps {
 /**
  * Wrapper around PostCard for the feed grid.
  *
- * Cards that scroll far enough off-screen (>2 000 px from viewport) are
- * replaced with a fixed-height placeholder, freeing all images, video/HLS
- * instances, and per-card IntersectionObservers from memory. When the user
- * scrolls back, the full PostCard is re-mounted well before it becomes
- * visible — the 2 000 px buffer gives React + image-preload plenty of time.
+ * Cards far off-screen are replaced with a fixed-height placeholder (see
+ * cardVirtualization hysteresis margins), freeing images, video/HLS, and
+ * observers. Scrolled-past cards above the viewport virtualize quickly;
+ * remount still happens with lead time before scroll-back into view.
  */
 function OptimizedPostCard(props: OptimizedPostCardProps) {
   const wrapRef = useRef<HTMLDivElement | null>(null)
