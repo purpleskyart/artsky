@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExter
 import { createPortal } from 'react-dom'
 import { ModalTopBarSlotContext } from '../context/ModalTopBarSlotContext'
 import { ModalScrollProvider } from '../context/ModalScrollContext'
+import { refreshVirtualization } from '../lib/cardVirtualization'
 import { useModalExpand } from '../context/ModalExpandContext'
 import { useProfileModal } from '../context/ProfileModalContext'
 import { useScrollLock } from '../context/ScrollLockContext'
@@ -317,6 +318,16 @@ export default function AppModal({
       return () => clearTimeout(timer)
     }
   }, [isTopModal, profileScrollPersistenceHandle, postScrollPersistenceHandle, collectionScrollPersistenceHandle, restoreScrollPosition])
+
+  /* After scroll restore (visibility:hidden during restore can stale virtualization). */
+  useEffect(() => {
+    if (isRestoringScroll) return
+    const scrollEl = scrollRef.current
+    if (!scrollEl) return
+    refreshVirtualization(scrollEl)
+    const raf = requestAnimationFrame(() => refreshVirtualization(scrollEl))
+    return () => cancelAnimationFrame(raf)
+  }, [isRestoringScroll])
 
   useEffect(() => {
     let storageKey: string | null = null

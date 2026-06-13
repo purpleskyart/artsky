@@ -5,7 +5,7 @@ import { isPostNsfw } from '../lib/bsky'
 import PostCard from './PostCard'
 import type { PostCardDisplayContext } from '../hooks/usePostCardDisplayContext'
 import { setInitialPostForUri } from '../lib/postCache'
-import { observeVirtualization } from '../lib/cardVirtualization'
+import { observeVirtualization, refreshVirtualization } from '../lib/cardVirtualization'
 import { getDesktopSnapshot, subscribeDesktop } from '../config/breakpoints'
 import styles from '../styles/postGrid.module.css'
 
@@ -87,6 +87,13 @@ export const VirtualizedCell = memo(function VirtualizedCell({ children, root }:
       ro.disconnect()
       unobserveVirt()
     }
+  }, [root])
+
+  useEffect(() => {
+    if (!root) return
+    refreshVirtualization(root)
+    const raf = requestAnimationFrame(() => refreshVirtualization(root))
+    return () => cancelAnimationFrame(raf)
   }, [root])
 
   const virtualized = !isNear && heightRef.current > 0
