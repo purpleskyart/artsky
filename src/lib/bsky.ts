@@ -24,6 +24,16 @@ import {
   invalidateAfterUnmuting,
   invalidateAfterPreferencesUpdated,
 } from './cacheInvalidation'
+import {
+  authorFeedFilterCacheKey,
+  authorFeedFilterForMediaMode,
+  buildAuthorFeedQuery,
+  type AuthorFeedFilter,
+  type MediaFilterMode,
+} from './authorFeedFilter'
+
+export type { AuthorFeedFilter, MediaFilterMode } from './authorFeedFilter'
+export { authorFeedFilterForMediaMode, authorFeedFilterForProfileTab, buildAuthorFeedQuery } from './authorFeedFilter'
 
 const BSKY_SERVICE = 'https://bsky.social'
 /**
@@ -586,17 +596,19 @@ function mergeDedupeSortGuestItems(feedArrays: TimelineItem[][]): TimelineItem[]
 async function fetchGuestAuthorBatch(
   actors: string[],
   perHandle: number,
+  authorFeedFilter?: AuthorFeedFilter,
 ): Promise<{ data: { feed: TimelineItem[] } }[]> {
   // Fetch all authors in parallel - no artificial delays needed
   // Bluesky's public API handles concurrent requests efficiently
-  const fetchLimit = Math.min(50, Math.max(perHandle, perHandle * 4))
+  const fetchLimit = Math.min(50, Math.max(perHandle, perHandle * (authorFeedFilter ? 2 : 4)))
+  const filterKey = authorFeedFilterCacheKey(authorFeedFilter)
   const results = await Promise.all(
     actors.map((actor) => {
-      const cacheKey = `guest:${actor}:${perHandle}:eligible`
+      const cacheKey = `guest:${actor}:${perHandle}:${filterKey}:eligible`
       const cached = responseCache.get<{ data: { feed: TimelineItem[] } }>(cacheKey)
       if (cached) return cached
       return publicAgent
-        .getAuthorFeed({ actor, limit: fetchLimit })
+        .getAuthorFeed(buildAuthorFeedQuery({ actor, limit: fetchLimit }, authorFeedFilter))
         .then((res) => {
           const filtered = {
             data: { feed: takeEligibleGuestFeedPosts((res.data.feed || []) as TimelineItem[], perHandle) },
@@ -625,7 +637,9 @@ async function fetchGuestAuthorBatch(
 export async function getGuestFeed(
   limit: number,
   cursor?: string,
+  mediaMode?: MediaFilterMode,
 ): Promise<{ feed: TimelineItem[]; cursor: string | undefined }> {
+  const authorFeedFilter = mediaMode ? authorFeedFilterForMediaMode(mediaMode) : undefined
   const pageNumber = cursor ? parseInt(cursor, 10) || 0 : 0
   const handles = GUEST_FEED_HANDLES
   const AUTHORS_PER_PAGE = 3
@@ -640,7 +654,7 @@ export async function getGuestFeed(
 
   if (authorsToFetch.length > 0) {
     const perHandle = Math.ceil(POSTS_PER_PAGE / authorsToFetch.length)
-    const results = await fetchGuestAuthorBatch(authorsToFetch, perHandle)
+    const results = await fetchGuestAuthorBatch(authorsToFetch, perHandle, authorFeedFilter)
     deduped = mergeDedupeSortGuestItems(
       results.map((res) => (res.data.feed || []) as TimelineItem[]),
     )

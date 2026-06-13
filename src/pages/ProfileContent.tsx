@@ -4,7 +4,7 @@ import { useSession } from '../context/SessionContext'
 // Removed useProfileModal import to break circular dependency
 import { useEditProfile } from '../context/EditProfileContext'
 import { useModalTopBarSlot } from '../context/ModalTopBarSlotContext'
-import { agent, publicAgent, isAgentAuthenticated, getPostMediaInfo, getPostMediaInfoForDisplay, getActorFeeds, listActivitySubscriptions, putActivitySubscription, isPostNsfw, getProfileCached, likePostWithLifecycle, unlikePostWithLifecycle, followAccountWithLifecycle, unfollowAccountWithLifecycle, type TimelineItem, type ProfileViewBasic } from '../lib/bsky'
+import { agent, publicAgent, isAgentAuthenticated, getPostMediaInfo, getPostMediaInfoForDisplay, getActorFeeds, listActivitySubscriptions, putActivitySubscription, isPostNsfw, getProfileCached, likePostWithLifecycle, unlikePostWithLifecycle, followAccountWithLifecycle, unfollowAccountWithLifecycle, buildAuthorFeedQuery, authorFeedFilterForProfileTab, type TimelineItem, type ProfileViewBasic } from '../lib/bsky'
 import { getConvoAvailability } from '../lib/chat'
 import { useMessages } from '../context/MessagesContext'
 import { setInitialPostForUri } from '../lib/postCache'
@@ -272,15 +272,16 @@ export default function ProfileContent({
     setFolloweesWhoFollowLoading(false)
   }, [session?.did, profile?.did])
 
-  const load = useCallback(async (nextCursor?: string) => {
+  const load = useCallback(async (nextCursor?: string, options?: { tab?: ProfileTab }) => {
     if (!handle) return
+    const feedTab = options?.tab ?? tab
     try {
       if (nextCursor) setLoadingMore(true)
       else setLoading(true)
       setError(null)
 
-      // Check for preloaded feed data on initial load
-      if (!nextCursor) {
+      // Check for preloaded feed data on initial load (default Posts tab only).
+      if (!nextCursor && feedTab === 'posts') {
         const preloaded = getPreloadedFeedSnapshot(handle)
         if (preloaded) {
           setItems(dedupeAuthorFeedPins(preloaded.feed))
@@ -290,7 +291,12 @@ export default function ProfileContent({
         }
       }
 
-      const res = await readAgent.getAuthorFeed({ actor: handle, limit: 20, cursor: nextCursor, includePins: true })
+      const res = await readAgent.getAuthorFeed(
+        buildAuthorFeedQuery(
+          { actor: handle, limit: 20, cursor: nextCursor, includePins: true },
+          authorFeedFilterForProfileTab(feedTab),
+        ),
+      )
       const feed = (res.data.feed ?? []) as TimelineItem[]
       setItems((prev) => dedupeAuthorFeedPins(nextCursor ? [...prev, ...feed] : feed))
       setCursor(res.data.cursor ?? undefined)
@@ -300,7 +306,7 @@ export default function ProfileContent({
       setLoading(false)
       setLoadingMore(false)
     }
-  }, [handle, readAgent])
+  }, [handle, readAgent, tab])
 
   /** Ref for initial load so we only run once per handle (avoids duplicate getAuthorFeed when session loads after mount). */
   const loadRef = useRef(load)
@@ -340,14 +346,19 @@ export default function ProfileContent({
   }, [handle, profile?.did, session?.did])
 
   const prevAuthorFeedHandleRef = useRef<string | undefined>(undefined)
+  const prevAuthorFeedTabRef = useRef<ProfileTab>(tab)
   const profileReady = !!profile?.did
-  // Initial / refetch author feed: depend on handle and live agent auth (not React session alone — storage can be ahead of the agent after refresh).
+  // Initial / refetch author feed: depend on handle, tab, and live agent auth (not React session alone — storage can be ahead of the agent after refresh).
   // In modals, wait for profile metadata before loading posts so the header paints first.
   useEffect(() => {
     if (!handle) return
+    if (tab === 'feeds') return
+    if (tab === 'posts' && profilePostsFilter === 'liked') return
     const prev = prevAuthorFeedHandleRef.current
     prevAuthorFeedHandleRef.current = handle
     const handleChanged = prev !== undefined && prev !== handle
+    const tabChanged = prevAuthorFeedTabRef.current !== tab
+    prevAuthorFeedTabRef.current = tab
     if (handleChanged) {
       setProfile((getPreloadedProfileSnapshot(handle) as ProfileState | null) ?? null)
       setFollowUriOverride(null)
@@ -358,10 +369,15 @@ export default function ProfileContent({
       setItems([])
       setCursor(undefined)
       setLoading(inModal ? false : true)
+      prevAuthorFeedTabRef.current = 'posts'
+    } else if (tabChanged) {
+      setItems([])
+      setCursor(undefined)
+      setLoading(true)
     }
     if (inModal && !profileReady) return
-    loadRef.current()
-  }, [handle, hasLiveBskyAuth, inModal, profileReady])
+    loadRef.current(undefined, handleChanged ? { tab: 'posts' } : undefined)
+  }, [handle, hasLiveBskyAuth, inModal, profileReady, tab, profilePostsFilter])
 
   useEffect(() => {
     if (profilePostsFilter === 'liked' && handle && session && profile && session.did === profile.did) {

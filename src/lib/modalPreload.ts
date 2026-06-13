@@ -1,4 +1,4 @@
-import { getProfileCached, getPostsBatch, agent, publicAgent, isAgentAuthenticated, type TimelineItem } from './bsky'
+import { getProfileCached, getPostsBatch, agent, publicAgent, isAgentAuthenticated, buildAuthorFeedQuery, authorFeedFilterForProfileTab, type TimelineItem } from './bsky'
 import { lruMapSet } from './lruMap'
 
 const PRELOAD_PROFILE_CACHE_MAX = 30
@@ -117,7 +117,12 @@ export function preloadProfileFeed(handle: string): void {
   if (feedPrefetchInFlight.has(normalized)) return
   feedPrefetchInFlight.add(normalized)
   const readAgent = isAgentAuthenticated() ? agent : publicAgent
-  void readAgent.getAuthorFeed({ actor: normalized, limit: 5, includePins: true })
+  void readAgent.getAuthorFeed(
+    buildAuthorFeedQuery(
+      { actor: normalized, limit: 5, includePins: true },
+      authorFeedFilterForProfileTab('posts'),
+    ),
+  )
     .then((res) => {
       lruMapSet(preloadedFeedByHandle, normalized.toLowerCase(), {
         feed: (res.data.feed ?? []) as TimelineItem[],

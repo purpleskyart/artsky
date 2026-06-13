@@ -18,6 +18,13 @@ export const MODE_PRIORITY: Record<VideoPlaybackMode, number> = {
   feed: 1,
 }
 
+/** Safari/iOS plays HLS natively — skip loading hls.js (faster cold start, incl. Low Power Mode). */
+export function supportsNativeHls(video?: HTMLVideoElement | null): boolean {
+  if (typeof document === 'undefined') return false
+  const el = video ?? document.createElement('video')
+  return Boolean(el.canPlayType('application/vnd.apple.mpegurl'))
+}
+
 export function getTotalMemoryBudgetBytes(): number {
   if (typeof navigator === 'undefined') return 96 * 1024 * 1024
   const conn = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection
