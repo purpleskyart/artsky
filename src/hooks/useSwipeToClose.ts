@@ -10,6 +10,42 @@ const SWIPE_DRAG_CAP_PX = 140
  * Otherwise WebKit may also pop history → double back.
  */
 const SWIPE_RIGHT_MIN_START_X_PX = 44
+/** Extra slop above env(safe-area-inset-bottom) for the home-indicator app-switcher zone. */
+const SWIPE_HOME_BAR_EXTRA_PX = 12
+
+let cachedSafeAreaInsetBottomPx: number | null = null
+
+/** @internal Clears cached safe-area read (tests only). */
+export function resetSwipeToCloseSafeAreaCacheForTests(): void {
+  cachedSafeAreaInsetBottomPx = null
+}
+
+/** Read bottom safe-area inset once (0 on devices without a home indicator). */
+export function getSafeAreaInsetBottomPx(): number {
+  if (cachedSafeAreaInsetBottomPx !== null) return cachedSafeAreaInsetBottomPx
+  if (typeof document === 'undefined') return 0
+  const probe = document.createElement('div')
+  probe.style.cssText = 'position:fixed;visibility:hidden;padding-bottom:env(safe-area-inset-bottom);'
+  document.documentElement.appendChild(probe)
+  cachedSafeAreaInsetBottomPx = parseFloat(getComputedStyle(probe).paddingBottom) || 0
+  document.documentElement.removeChild(probe)
+  return cachedSafeAreaInsetBottomPx
+}
+
+/** Height of the bottom zone where iOS treats horizontal swipes as app switcher gestures. */
+export function getHomeBarGestureZonePx(): number {
+  const inset = getSafeAreaInsetBottomPx()
+  return inset > 0 ? inset + SWIPE_HOME_BAR_EXTRA_PX : 0
+}
+
+/** True when a touch starts in the home-indicator band (horizontal swipe switches apps). */
+export function touchYInHomeBarZone(clientY: number): boolean {
+  const zonePx = getHomeBarGestureZonePx()
+  if (zonePx <= 0 || typeof window === 'undefined') return false
+  const vv = window.visualViewport
+  const viewportBottom = vv ? vv.offsetTop + vv.height : window.innerHeight
+  return clientY >= viewportBottom - zonePx
+}
 
 export interface UseSwipeToCloseOptions {
   /** When false, touch handlers are no-ops and translateX stays 0 */
@@ -77,6 +113,9 @@ export function useSwipeToClose({
           onSwipeRight &&
           touchStartXRef.current < SWIPE_RIGHT_MIN_START_X_PX
         ) {
+          return
+        }
+        if (touchYInHomeBarZone(touchStartYRef.current)) {
           return
         }
         const canSwipeDirection =
