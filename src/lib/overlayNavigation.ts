@@ -12,3 +12,8 @@ export function getOverlayBackgroundLocation(location: Location): Location {
 export function hasPathOverlayStack(location: Location): boolean {
   return (location.state as BackgroundLocationState | null)?.backgroundLocation != null
 }
+
+/** True for `/post/:uri` or `/profile/:handle/post/:rkey` overlay routes. */
+export function isPostOverlayPath(pathname: string): boolean {
+  return pathname.startsWith('/post/') || /^\/profile\/[^/]+\/post\//.test(pathname)
+}

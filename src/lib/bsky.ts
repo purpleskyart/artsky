@@ -1131,6 +1131,102 @@ function firstEmbedViewImageInfo(
   }
 }
 
+type ExternalEmbedFields = {
+  uri: string
+  title?: string
+  description?: string
+  thumb?: string
+}
+
+type ExternalEmbedViewLike = ExternalEmbedFields & {
+  $type?: string
+  external?: ExternalEmbedFields
+}
+
+const GIPHY_HOST_RE = /media(?:[0-4]\.giphy\.com|\.giphy\.com)/i
+const GIF_FILENAME_RE = /^(\S+)\.(webp|gif|mp4)$/i
+
+/** Read uri/title/description/thumb from an external embed view (nested or legacy flat shape). */
+function readExternalEmbedFields(embed: ExternalEmbedViewLike | undefined): ExternalEmbedFields | null {
+  if (!embed) return null
+  if (embed.external?.uri) return embed.external
+  if (embed.uri) {
+    return {
+      uri: embed.uri,
+      title: embed.title,
+      description: embed.description,
+      thumb: embed.thumb,
+    }
+  }
+  return null
+}
+
+function gifAspectRatioFromUri(uri: string): number | undefined {
+  try {
+    const url = new URL(uri)
+    const h = url.searchParams.get('hh')
+    const w = url.searchParams.get('ww')
+    if (h && w) {
+      const height = Number(h)
+      const width = Number(w)
+      if (height > 0 && width > 0) return width / height
+    }
+  } catch {
+    // ignore invalid URLs
+  }
+  return undefined
+}
+
+/** True when an external embed URI points at an animated GIF (Tenor, Giphy, Klipy, etc.). */
+export function isGifExternalUri(uri: string): boolean {
+  try {
+    const url = new URL(uri)
+    if (url.hostname === 'media.tenor.com') {
+      const [, id, filename] = url.pathname.split('/')
+      if (id?.includes('AAAAC') && filename && url.searchParams.get('hh') && url.searchParams.get('ww')) {
+        return true
+      }
+    }
+    if (url.hostname === 'static.klipy.com' && url.pathname.startsWith('/ii/')) {
+      return !!(url.searchParams.get('hh') && url.searchParams.get('ww'))
+    }
+    if (url.hostname === 't.gifs.bsky.app' || url.hostname === 'k.gifs.bsky.app') {
+      return true
+    }
+    if (GIPHY_HOST_RE.test(url.hostname) || url.hostname === 'i.giphy.com') {
+      const parts = url.pathname.split('/')
+      if (parts[1] === 'media') {
+        const filename = parts[3] ?? parts[2]
+        if (filename && GIF_FILENAME_RE.test(filename)) return true
+      }
+      if (parts[1] && GIF_FILENAME_RE.test(parts[1])) return true
+    }
+    if (url.hostname === 'giphy.com' || url.hostname === 'www.giphy.com') {
+      if (url.pathname.split('/')[1] === 'gifs') return true
+    }
+    return /\.gif($|[?#])/i.test(url.pathname)
+  } catch {
+    return /\.gif($|[?#])/i.test(uri)
+  }
+}
+
+function externalGifMediaInfo(ext: ExternalEmbedFields): PostMediaInfo {
+  return {
+    url: ext.uri,
+    type: 'image',
+    imageCount: 1,
+    aspectRatio: gifAspectRatioFromUri(ext.uri),
+  }
+}
+
+function externalGifMediaFromEmbed(
+  embed: ExternalEmbedViewLike | undefined,
+): PostMediaInfo | null {
+  const ext = readExternalEmbedFields(embed)
+  if (!ext?.uri || !isGifExternalUri(ext.uri)) return null
+  return externalGifMediaInfo(ext)
+}
+
 /** Returns media info for a post: thumbnail/first image URL, type, and for video the playlist URL. */
 export function getPostMediaInfo(post: PostView, opts?: PostMediaUrlOptions): PostMediaInfo | null {
   const embed = post.embed as
@@ -1186,6 +1282,12 @@ export function getPostMediaInfo(post: PostView, opts?: PostMediaUrlOptions): Po
       videoPlaylist: playlist,
       aspectRatio: ar,
     }
+  }
+  const gifMedia = externalGifMediaFromEmbed(embed as ExternalEmbedViewLike)
+  if (gifMedia) return gifMedia
+  if (media) {
+    const nestedGif = externalGifMediaFromEmbed(media as ExternalEmbedViewLike)
+    if (nestedGif) return nestedGif
   }
   return null
 }
@@ -1246,6 +1348,18 @@ export function getPostAllMedia(
       videoPlaylist: media.playlist,
       aspectRatio: ar,
     })
+    return out
+  }
+  const gifMedia = externalGifMediaFromEmbed(e as ExternalEmbedViewLike)
+  if (gifMedia) {
+    out.push({ url: gifMedia.url, type: 'image', aspectRatio: gifMedia.aspectRatio })
+    return out
+  }
+  if (e.media) {
+    const nestedGif = externalGifMediaFromEmbed(e.media as ExternalEmbedViewLike)
+    if (nestedGif) {
+      out.push({ url: nestedGif.url, type: 'image', aspectRatio: nestedGif.aspectRatio })
+    }
   }
   return out
 }
@@ -1286,27 +1400,23 @@ export function getPostExternalLink(post: PostView): { uri: string; title: strin
     title?: string
     description?: string
     thumb?: string
-    media?: { $type?: string; uri?: string; title?: string; description?: string; thumb?: string }
+    external?: ExternalEmbedFields
+    media?: ExternalEmbedViewLike
   } | undefined
   if (!embed) return null
-  let ext: { uri: string; title: string; description: string; thumb?: string } | null = null
-  if (embed.$type === 'app.bsky.embed.external#view' && embed.uri) {
-    ext = {
-      uri: embed.uri,
-      title: embed.title?.trim() ?? '',
-      description: embed.description ?? '',
-      thumb: embed.thumb,
-    }
-  } else if (embed.$type === 'app.bsky.embed.recordWithMedia#view' && embed.media?.$type === 'app.bsky.embed.external#view' && embed.media.uri) {
-    const m = embed.media
-    ext = {
-      uri: m.uri ?? '',
-      title: m.title?.trim() ?? '',
-      description: m.description ?? '',
-      thumb: m.thumb,
-    }
+  let fields: ExternalEmbedFields | null = null
+  if (embed.$type === 'app.bsky.embed.external#view') {
+    fields = readExternalEmbedFields(embed as ExternalEmbedViewLike)
+  } else if (embed.$type === 'app.bsky.embed.recordWithMedia#view' && embed.media?.$type === 'app.bsky.embed.external#view') {
+    fields = readExternalEmbedFields(embed.media)
   }
-  if (!ext) return null
+  if (!fields?.uri || isGifExternalUri(fields.uri)) return null
+  const ext = {
+    uri: fields.uri,
+    title: fields.title?.trim() ?? '',
+    description: fields.description ?? '',
+    thumb: fields.thumb,
+  }
   let title = ext.title
   if (!title) {
     try {

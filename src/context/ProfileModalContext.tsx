@@ -3,7 +3,7 @@ import { useLocation, useNavigate, type Location } from 'react-router-dom'
 import { ChunkLoadError } from '../components/ChunkLoadError'
 import { HOME_PATH, isHandleBoardPath } from '../lib/routes'
 import { getPostOverlayPath, postUriToQuotesParam, quotesParamToPostUri } from '../lib/appUrl'
-import { getOverlayBackgroundLocation, hasPathOverlayStack } from '../lib/overlayNavigation'
+import { getOverlayBackgroundLocation, hasPathOverlayStack, isPostOverlayPath } from '../lib/overlayNavigation'
 import { VideoAutoplayBootstrap } from '../components/VideoAutoplayBootstrap'
 import { VideoFeedSuspendSync } from '../components/VideoFeedSuspendSync'
 import { blurEditableOnEscape, getFocusedEditableElement } from '../lib/modalKeyboard'
@@ -237,6 +237,49 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
     }
 
     /**
+     * Path-based post popup (`/post/` or `/profile/h/post/rkey` + backgroundLocation): encode as
+     * `?post=` on the frozen pathname so back pops one history entry to the prior post overlay.
+     */
+    if (hasPathOverlayStack(location) && isPostOverlayPath(location.pathname)) {
+      const rawSearch = bg.search?.replace(/^\?/, '') ?? ''
+      const p = new URLSearchParams(rawSearch)
+      p.set('post', uri)
+      p.delete('forumPost')
+      if (openReply) p.set('reply', '1')
+      else p.delete('reply')
+      if (focusUri) p.set('focus', focusUri)
+      else p.delete('focus')
+      const qs = p.toString()
+      navigate(
+        { pathname: bg.pathname, search: qs ? `?${qs}` : '', hash: bg.hash ?? '' },
+        { replace: false, state: { backgroundLocation: bg } },
+      )
+      return
+    }
+
+    /**
+     * Query modal already showing a post (`?profile=&post=` etc.): push the next post on query
+     * instead of a path overlay so swipe/back pops one entry to the previous post layer.
+     */
+    const existingPostInSearch = new URLSearchParams(location.search).get('post')
+    if (existingPostInSearch && hasPathOverlayStack(location) && !isPostOverlayPath(location.pathname)) {
+      const p = new URLSearchParams(location.search.replace(/^\?/, ''))
+      p.set('post', uri)
+      p.delete('forumPost')
+      if (openReply) p.set('reply', '1')
+      else p.delete('reply')
+      if (focusUri) p.set('focus', focusUri)
+      else p.delete('focus')
+      const qs = p.toString()
+      const frozenBg = getOverlayBackgroundLocation(location)
+      navigate(
+        { pathname: location.pathname, search: qs ? `?${qs}` : '', hash: location.hash },
+        { replace: false, state: { backgroundLocation: frozenBg } },
+      )
+      return
+    }
+
+    /**
      * Query-based search (`?search=…): push `post=` on the same pathname even when history state
      * lost `backgroundLocation` (e.g. restore / edge cases). Path-based `/post/` would not match
      * these stacked query modals.
@@ -244,8 +287,7 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
     const searchInSearch = new URLSearchParams(location.search).get('search')
     if (
       searchInSearch &&
-      !location.pathname.startsWith('/post/') &&
-      !/^\/profile\/[^/]+\/post\//.test(location.pathname)
+      !isPostOverlayPath(location.pathname)
     ) {
       const p = new URLSearchParams(location.search.replace(/^\?/, ''))
       p.set('post', uri)
@@ -270,8 +312,7 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
     const tagInSearch = new URLSearchParams(location.search).get('tag')
     if (
       tagInSearch &&
-      !location.pathname.startsWith('/post/') &&
-      !/^\/profile\/[^/]+\/post\//.test(location.pathname)
+      !isPostOverlayPath(location.pathname)
     ) {
       const p = new URLSearchParams(location.search.replace(/^\?/, ''))
       p.set('post', uri)
@@ -475,7 +516,7 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
           uri={item.uri}
           openReply={item.openReply}
           focusUri={item.focusUri}
-          onClose={closeAllModals}
+          onClose={closeModal}
           onBack={closeModal}
           onDesktopBackdrop={closeAllModals}
           canGoBack={canGoBackFromThis}
