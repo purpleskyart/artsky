@@ -1,11 +1,12 @@
 import { type ReactNode, useRef, useState, useEffect, memo } from 'react'
 import { useSyncExternalStore } from 'react'
 import type { TimelineItem } from '../lib/bsky'
-import { isPostNsfw } from '../lib/bsky'
+import { isPostNsfw, getPostMediaInfo } from '../lib/bsky'
 import PostCard from './PostCard'
 import type { PostCardDisplayContext } from '../hooks/usePostCardDisplayContext'
 import { setInitialPostForUri } from '../lib/postCache'
 import { observeVirtualization } from '../lib/cardVirtualization'
+import { estimateMediaCardHeight } from '../lib/masonryLayout'
 import { getDesktopSnapshot, subscribeDesktop } from '../config/breakpoints'
 import styles from '../styles/postGrid.module.css'
 
@@ -18,6 +19,9 @@ export interface ProfileColumnProps {
   loadMoreSentinelRef?: (el: HTMLDivElement | null) => void
   hasCursor?: boolean
   keyboardFocusIndex: number
+  /** Flat list of focus targets for multi-image keyboard navigation. */
+  focusTargets?: { cardIndex: number; mediaIndex: number }[]
+  onMediaRef?: (index: number, mediaIndex: number, el: HTMLElement | null) => void
   actionsMenuOpenForIndex: number | null
   nsfwPreference: 'nsfw' | 'sfw' | 'blurred'
   unblurredUris: Set<string>
@@ -50,13 +54,15 @@ export interface ProfileColumnProps {
 interface VirtualizedCellProps {
   children: ReactNode
   root?: Element | null
+  /** Minimum placeholder height so column layout stays stable when images unload. */
+  minHeight?: number
 }
 
 /**
  * Lightweight virtualization wrapper: replaces children with a fixed-height
  * placeholder when far off-screen, freeing images/video/observers from memory.
  */
-export const VirtualizedCell = memo(function VirtualizedCell({ children, root }: VirtualizedCellProps) {
+export const VirtualizedCell = memo(function VirtualizedCell({ children, root, minHeight = 0 }: VirtualizedCellProps) {
   const ref = useRef<HTMLDivElement | null>(null)
   const heightRef = useRef(0)
   const showingRef = useRef(true)
@@ -67,18 +73,19 @@ export const VirtualizedCell = memo(function VirtualizedCell({ children, root }:
     if (!el) return
     return observeVirtualization(el, (near) => {
       if (!near && showingRef.current && el) {
-        heightRef.current = el.offsetHeight
+        heightRef.current = Math.max(el.offsetHeight, minHeight)
       }
       setIsNear(near)
     }, root)
-  }, [root])
+  }, [root, minHeight])
 
-  const virtualized = !isNear && heightRef.current > 0
+  const placeholderHeight = Math.max(heightRef.current, minHeight)
+  const virtualized = !isNear && placeholderHeight > 0
   showingRef.current = !virtualized
 
   return (
-    <div ref={ref} style={{ width: '100%' }}>
-      {virtualized ? <div style={{ height: heightRef.current }} aria-hidden /> : children}
+    <div ref={ref} style={{ width: '100%', overflowAnchor: 'none' }}>
+      {virtualized ? <div style={{ height: placeholderHeight }} aria-hidden /> : children}
     </div>
   )
 })
@@ -89,6 +96,9 @@ function ProfileColumnComponent(props: ProfileColumnProps) {
     loadMoreSentinelRef,
     hasCursor,
     scrollRef,
+    keyboardFocusIndex,
+    focusTargets,
+    onMediaRef,
     actionsMenuOpenForIndex,
     nsfwPreference,
     unblurredUris,
@@ -113,6 +123,8 @@ function ProfileColumnComponent(props: ProfileColumnProps) {
 
   const isDesktop = useSyncExternalStore(subscribeDesktop, getDesktopSnapshot, () => false)
 
+  const focusedCardIndex = focusTargets?.[keyboardFocusIndex]?.cardIndex ?? -1
+
   if (column.length === 0) {
     return (
       <div className={styles.gridColumn}>
@@ -130,6 +142,16 @@ function ProfileColumnComponent(props: ProfileColumnProps) {
           nsfwPreference === 'blurred' &&
           isPostNsfw(item.post) &&
           !unblurredUris.has(item.post.uri)
+        const cardSelected = isSelected(originalIndex)
+        const focusedMediaIndex =
+          cardSelected && focusedCardIndex === originalIndex
+            ? focusTargets?.[keyboardFocusIndex]?.mediaIndex
+            : undefined
+        const handleMediaRef = onMediaRef
+          ? (mediaIndex: number, el: HTMLElement | null) => onMediaRef(originalIndex, mediaIndex, el)
+          : undefined
+        const media = getPostMediaInfo(item.post)
+        const cellMinHeight = estimateMediaCardHeight(media?.aspectRatio, 1, !!media)
         return (
           <div
             key={`${item.post.uri}-${index}`}
@@ -151,10 +173,12 @@ function ProfileColumnComponent(props: ProfileColumnProps) {
               if (!suppressHoverNsfwUnblur && unblurredUris.has(item.post.uri)) setUnblurred(item.post.uri, false)
             } : undefined}
           >
-            <VirtualizedCell root={scrollRef}>
+            <VirtualizedCell root={scrollRef} minHeight={cellMinHeight}>
               <PostCard
                 item={item}
-                isSelected={isSelected(originalIndex)}
+                isSelected={cardSelected}
+                focusedMediaIndex={focusedMediaIndex}
+                onMediaRef={handleMediaRef}
                 cardRef={() => {}}
                 onPostClick={(uri, opts) => {
                   if (opts?.initialItem) setInitialPostForUri(uri, opts.initialItem)

@@ -229,7 +229,6 @@ export function TagContent({
       },
       [session],
     ),
-    likeOnSpaceInModalOnly: true,
   })
 
   const handleCardRef = useCallback((index: number) => (el: HTMLDivElement | null) => {

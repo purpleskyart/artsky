@@ -5,10 +5,10 @@ import {
   computeFocusMoveDown,
   computeFocusMoveHorizontal,
   computeFocusMoveUp,
-  isGridActionKey,
   isGridNavBlockedByOpenMenus,
-  isGridNavigationKey,
   isHorizontalKeyRepeat,
+  isMenuBlockedNavigationKey,
+  shouldPreventDefaultFeedGridKey,
 } from '../lib/gridKeyboardNav'
 import { shouldUnderlayHandleGridKeys } from '../lib/modalKeyboard'
 
@@ -22,8 +22,9 @@ export interface MediaGridKeyboardShell {
 
 export interface UseMediaGridKeyboardNavOptions {
   enabled: boolean
-  keyboardShell: MediaGridKeyboardShell
-  inModal: boolean
+  /** Omit for full-page grids (e.g. feed); provide for modal grids. */
+  keyboardShell?: MediaGridKeyboardShell | null
+  inModal?: boolean
   isModalOpen?: boolean
   itemsRef: RefObject<TimelineItem[]>
   keyboardFocusIndexRef: RefObject<number>
@@ -43,22 +44,24 @@ export interface UseMediaGridKeyboardNavOptions {
   setBlockConfirm?: (value: null) => void
   includeCollectionMenu?: boolean
   includeNotificationsMenu?: boolean
-  extraPreventDefaultKeys?: string[]
+  /** Full-page guard (feed modal URL, editable fields, etc.). Return false to ignore the key. */
+  shouldHandleKeyDown?: (e: KeyboardEvent) => boolean
+  /** Called at the start of each handled shortcut (feed: clear mouse-focus flag). */
+  onBeforeKey?: () => void
   onOpenPost: (item: TimelineItem) => void
   onOpenReply?: (item: TimelineItem) => void
   onToggleActionsMenu?: (cardIndex: number, menuOpenForFocusedCard: boolean) => void
   onOpenCollectionMenu?: (cardIndex: number) => void
   onToggleLike?: (item: TimelineItem) => void
   onToggleFollow?: (item: TimelineItem) => void
-  likeOnSpaceInModalOnly?: boolean
   skipWhenPageModalOpen?: boolean
 }
 
 export function useMediaGridKeyboardNav(options: UseMediaGridKeyboardNavOptions) {
   const {
     enabled,
-    keyboardShell,
-    inModal,
+    keyboardShell = null,
+    inModal = false,
     isModalOpen = false,
     itemsRef,
     keyboardFocusIndexRef,
@@ -78,34 +81,49 @@ export function useMediaGridKeyboardNav(options: UseMediaGridKeyboardNavOptions)
     setBlockConfirm,
     includeCollectionMenu = true,
     includeNotificationsMenu = true,
-    extraPreventDefaultKeys = [],
+    shouldHandleKeyDown,
+    onBeforeKey,
     onOpenPost,
     onOpenReply,
     onToggleActionsMenu,
     onOpenCollectionMenu,
     onToggleLike,
     onToggleFollow,
-    likeOnSpaceInModalOnly = false,
     skipWhenPageModalOpen = true,
   } = options
 
   useEffect(() => {
-    if (!enabled || !keyboardShell.registerKeys) return
+    if (!enabled) return
+    if (keyboardShell && !keyboardShell.registerKeys) return
 
-    const { useCapture, claimKey, shouldBlockEditable, blurEditableOnEscape } = keyboardShell
+    const useCapture = keyboardShell?.useCapture ?? false
+    const claimKey = keyboardShell?.claimKey
+    const shouldBlockEditable = keyboardShell?.shouldBlockEditable
+    const blurEditableOnEscape = keyboardShell?.blurEditableOnEscape
+
+    const claim = (e: KeyboardEvent) => {
+      claimKey?.(e)
+    }
 
     const onKeyDown = (e: KeyboardEvent) => {
-      if (skipWhenPageModalOpen && !inModal && isModalOpen) return
-      const target = e.target as HTMLElement
-      if (!shouldUnderlayHandleGridKeys(target, inModal)) return
-      if (shouldBlockEditable(target)) {
-        blurEditableOnEscape(e, target)
-        return
+      if (shouldHandleKeyDown && !shouldHandleKeyDown(e)) return
+
+      if (keyboardShell) {
+        if (skipWhenPageModalOpen && !inModal && isModalOpen) return
+        const target = e.target as HTMLElement
+        if (!shouldUnderlayHandleGridKeys(target, inModal)) return
+        if (shouldBlockEditable?.(target)) {
+          blurEditableOnEscape?.(e, target)
+          return
+        }
       }
+
       if (e.ctrlKey || e.metaKey) return
 
       const items = itemsRef.current ?? []
       if (items.length === 0) return
+
+      onBeforeKey?.()
 
       const i = keyboardFocusIndexRef.current ?? -1
       const fromNone = i < 0
@@ -127,15 +145,7 @@ export function useMediaGridKeyboardNav(options: UseMediaGridKeyboardNavOptions)
           includeCollectionMenu,
           includeNotificationsMenu,
         }) &&
-        (key === 'w' ||
-          key === 's' ||
-          key === 'e' ||
-          key === 'o' ||
-          key === 'enter' ||
-          key === 'backspace' ||
-          key === 'escape' ||
-          e.key === 'ArrowUp' ||
-          e.key === 'ArrowDown')
+        isMenuBlockedNavigationKey(key, e.key)
       ) {
         return
       }
@@ -151,11 +161,7 @@ export function useMediaGridKeyboardNav(options: UseMediaGridKeyboardNavOptions)
         return
       }
 
-      if (
-        isGridNavigationKey(key, e.code, e.key) ||
-        isGridActionKey(key, e.code) ||
-        extraPreventDefaultKeys.includes(key)
-      ) {
+      if (shouldPreventDefaultFeedGridKey(key, e.code, e.key)) {
         e.preventDefault()
       }
 
@@ -179,12 +185,10 @@ export function useMediaGridKeyboardNav(options: UseMediaGridKeyboardNavOptions)
         }
       }
 
-      const claim = () => claimKey(e)
-
       if (key === 'w' || key === 'i' || e.key === 'ArrowUp') {
         if (fromNone) {
           initFocus()
-          claim()
+          claim(e)
           return
         }
         beginKeyboardNavigation()
@@ -192,14 +196,14 @@ export function useMediaGridKeyboardNav(options: UseMediaGridKeyboardNavOptions)
         const next = computeFocusMoveUp(navCtx)
         if (next === null) return
         setKeyboardFocusIndex(next)
-        claim()
+        claim(e)
         return
       }
 
       if (key === 's' || key === 'k' || e.key === 'ArrowDown') {
         if (fromNone) {
           initFocus()
-          claim()
+          claim(e)
           return
         }
         beginKeyboardNavigation()
@@ -207,14 +211,14 @@ export function useMediaGridKeyboardNav(options: UseMediaGridKeyboardNavOptions)
         const next = computeFocusMoveDown(navCtx)
         if (next === null) return
         setKeyboardFocusIndex(next)
-        claim()
+        claim(e)
         return
       }
 
       if (key === 'a' || key === 'j' || e.key === 'ArrowLeft' || key === 'd' || key === 'l' || e.key === 'ArrowRight') {
         if (fromNone) {
           initFocus()
-          claim()
+          claim(e)
           return
         }
         beginKeyboardNavigation()
@@ -232,44 +236,44 @@ export function useMediaGridKeyboardNav(options: UseMediaGridKeyboardNavOptions)
         const next = computeFocusMoveHorizontal(navCtx, goLeft, measureCardForHorizontal)
         if (next !== i) setActionsMenuOpenForIndex?.(null)
         setKeyboardFocusIndex(next)
-        claim()
+        claim(e)
         return
       }
 
       if ((key === 'm' || key === '`') && i >= 0 && onToggleActionsMenu) {
         onToggleActionsMenu(currentCardIndex, actionsMenuOpenForIndexRef.current === currentCardIndex)
-        claim()
+        claim(e)
         return
       }
 
       if ((key === 'e' || key === 'o' || key === 'enter') && focusedItem) {
         onOpenPost(focusedItem)
-        claim()
+        claim(e)
         return
       }
 
       if (key === 'r' && onOpenReply && focusedItem) {
         onOpenReply(focusedItem)
-        claim()
+        claim(e)
         return
       }
 
       if (key === 'c' && onOpenCollectionMenu && i >= 0) {
         onOpenCollectionMenu(currentCardIndex)
-        claim()
+        claim(e)
         return
       }
 
       if (e.code === 'Space' && onToggleLike && focusedItem) {
-        if (likeOnSpaceInModalOnly && !inModal) return
         onToggleLike(focusedItem)
-        claim()
+        claim(e)
         return
       }
 
       if (key === 'f' && onToggleFollow && focusedItem) {
+        if (fromNone) return
         onToggleFollow(focusedItem)
-        claim()
+        claim(e)
         return
       }
     }
@@ -299,14 +303,14 @@ export function useMediaGridKeyboardNav(options: UseMediaGridKeyboardNavOptions)
     setBlockConfirm,
     includeCollectionMenu,
     includeNotificationsMenu,
-    extraPreventDefaultKeys,
+    shouldHandleKeyDown,
+    onBeforeKey,
     onOpenPost,
     onOpenReply,
     onToggleActionsMenu,
     onOpenCollectionMenu,
     onToggleLike,
     onToggleFollow,
-    likeOnSpaceInModalOnly,
     skipWhenPageModalOpen,
   ])
 }

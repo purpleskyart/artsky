@@ -122,7 +122,10 @@ export default function QuotesModal({ postUri, onClose, onBack, canGoBack, onDes
     scrollIntoViewFromKeyboardRef,
     lastScrollIntoViewIndexRef,
     block: 'nearest',
-    getScrollTarget: useCallback(() => cardRefsRef.current[keyboardFocusIndex], [keyboardFocusIndex]),
+    getScrollTarget: useCallback(() => {
+      const target = focusTargets[keyboardFocusIndex]
+      return cardRefsRef.current[target?.cardIndex ?? keyboardFocusIndex]
+    }, [keyboardFocusIndex, focusTargets]),
   })
 
   useMediaGridKeyboardNav({
@@ -166,8 +169,11 @@ export default function QuotesModal({ postUri, onClose, onBack, canGoBack, onDes
   )
 
   const isSelected = useCallback(
-    (index: number) => index === keyboardFocusIndex,
-    [keyboardFocusIndex],
+    (index: number) => {
+      const target = focusTargets[keyboardFocusIndex]
+      return (target?.cardIndex ?? keyboardFocusIndex) === index
+    },
+    [keyboardFocusIndex, focusTargets],
   )
 
   const noopActionsMenuOpenChange = useCallback(() => {}, [])

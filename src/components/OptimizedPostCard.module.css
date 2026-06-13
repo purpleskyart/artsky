@@ -1,3 +1,4 @@
 .optimizeWrap {
   width: 100%;
+  overflow-anchor: none;
 }
