@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { createPortal } from 'react-dom'
 import { getMobileSnapshot, subscribeMobile } from '../config/breakpoints'
 import { useSession } from '../context/SessionContext'
+import { useScrollLock } from '../context/ScrollLockContext'
 import {
   acceptConvo,
   getConvoForMembers,
@@ -45,6 +47,7 @@ export default function ChatModal({
   onClose,
 }: ChatModalProps) {
   const { session } = useSession()
+  const scrollLock = useScrollLock()
   const myDid = session?.did
   const [convo, setConvo] = useState<ChatConvoView | null>(null)
   const [convoId, setConvoId] = useState<string | null>(initialConvoId ?? null)
@@ -55,9 +58,10 @@ export default function ChatModal({
   const [sending, setSending] = useState(false)
   const [requestLoading, setRequestLoading] = useState<'accept' | 'decline' | null>(null)
   const isMobile = useSyncExternalStore(subscribeMobile, getMobileSnapshot, () => false)
-  const overlayRef = useRef<HTMLDivElement>(null)
+  const messagesRef = useRef<HTMLDivElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const [overlayBottom, setOverlayBottom] = useState(0)
   const [keyboardOpen, setKeyboardOpen] = useState(false)
   const convoRef = useRef(convo)
   convoRef.current = convo
@@ -168,47 +172,51 @@ export default function ChatModal({
   }, [convoId, loading, refreshMessages])
 
   useEffect(() => {
+    scrollLock?.lockScroll()
+    return () => scrollLock?.unlockScroll()
+  }, [scrollLock])
+
+  useEffect(() => {
     if (messages.length === 0) return
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    const el = messagesRef.current
+    if (!el) return
+    el.scrollTop = el.scrollHeight
   }, [messages.length, messages[messages.length - 1]?.id])
 
   useEffect(() => {
-    if (!loading && convoId) inputRef.current?.focus({ preventScroll: true })
-  }, [loading, convoId])
+    if (!loading && convoId && !isMobile) inputRef.current?.focus({ preventScroll: true })
+  }, [loading, convoId, isMobile])
 
-  /* Mobile: pin overlay to visual viewport so the header stays visible when the keyboard opens. */
-  useLayoutEffect(() => {
+  /* Mobile: shrink overlay from the bottom when the keyboard opens (same as compose).
+   * Only listen to resize — tracking visualViewport scroll pans the sheet off-screen. */
+  useEffect(() => {
     if (!isMobile || typeof window === 'undefined') return
     const vv = window.visualViewport
-    const el = overlayRef.current
-    if (!vv || !el) return
+    if (!vv) return
     const update = () => {
-      el.style.top = `${vv.offsetTop}px`
-      el.style.left = `${vv.offsetLeft}px`
-      el.style.width = `${vv.width}px`
-      el.style.height = `${vv.height}px`
-      el.style.right = 'auto'
-      el.style.bottom = 'auto'
-      const ih = window.innerHeight
-      const shrunk = vv.height < ih * 0.75
-      const panned = vv.offsetTop > 48
-      setKeyboardOpen(shrunk || panned)
+      const inferred = Math.max(0, Math.round(window.innerHeight - (vv.offsetTop + vv.height)))
+      if (inferred > 72) {
+        setOverlayBottom(inferred)
+        setKeyboardOpen(true)
+        window.scrollTo(0, 0)
+      } else {
+        setOverlayBottom(0)
+        setKeyboardOpen(false)
+      }
     }
     update()
     vv.addEventListener('resize', update)
-    vv.addEventListener('scroll', update, { passive: true })
     return () => {
       vv.removeEventListener('resize', update)
-      vv.removeEventListener('scroll', update)
-      el.style.removeProperty('top')
-      el.style.removeProperty('left')
-      el.style.removeProperty('width')
-      el.style.removeProperty('height')
-      el.style.removeProperty('right')
-      el.style.removeProperty('bottom')
+      setOverlayBottom(0)
       setKeyboardOpen(false)
     }
   }, [isMobile])
+
+  function handleInputFocus() {
+    if (!isMobile) return
+    window.scrollTo(0, 0)
+  }
 
   async function handleAccept() {
     if (!convoId || requestLoading) return
@@ -272,12 +280,12 @@ export default function ChatModal({
   const isIncomingRequest = convo ? isIncomingMessageRequest(convo, myDid, messages) : false
   const canSend = !isIncomingRequest && !!convoId
 
-  return (
+  const modal = (
     <div
-      ref={overlayRef}
       className={`${styles.overlay}${keyboardOpen ? ` ${styles.overlayKeyboardOpen}` : ''}`}
       role="dialog"
       aria-label={`Chat with @${displayHandle}`}
+      style={isMobile ? { bottom: overlayBottom } : undefined}
       onKeyDown={(e) => {
         if (e.key === 'Escape') onClose()
       }}
@@ -342,7 +350,7 @@ export default function ChatModal({
           </div>
         )}
 
-        <div className={styles.messages}>
+        <div ref={messagesRef} className={styles.messages}>
           {loading ? (
             <p className={styles.loading}>Loading…</p>
           ) : messages.length === 0 ? (
@@ -372,6 +380,7 @@ export default function ChatModal({
             className={styles.input}
             value={text}
             onChange={(e) => setText(e.target.value)}
+            onFocus={handleInputFocus}
             onKeyDown={handleKeyDown}
             placeholder={canSend ? 'Write a message…' : 'Accept request to reply'}
             disabled={!canSend}
@@ -385,4 +394,6 @@ export default function ChatModal({
       </div>
     </div>
   )
+
+  return createPortal(modal, document.body)
 }

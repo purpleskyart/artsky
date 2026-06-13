@@ -8,8 +8,8 @@
   box-sizing: border-box;
   overflow: hidden;
   overscroll-behavior: contain;
-  padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right))
-    max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
+  padding: max(1rem, var(--app-safe-top)) max(1rem, var(--app-safe-right))
+    max(1rem, var(--app-safe-bottom)) max(1rem, var(--app-safe-left));
 }
 
 .backdrop {
@@ -41,6 +41,10 @@
   border-bottom: 1px solid var(--glass-border);
   flex-shrink: 0;
   min-height: 3rem;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--surface);
 }
 
 .headerSide {
@@ -272,11 +276,15 @@
   .overlay {
     align-items: stretch;
     justify-content: flex-start;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
     padding: 0;
-    padding-top: env(safe-area-inset-top);
-    padding-left: env(safe-area-inset-left);
-    padding-right: env(safe-area-inset-right);
-    padding-bottom: env(safe-area-inset-bottom);
+    padding-top: var(--app-safe-top);
+    padding-left: var(--app-safe-left);
+    padding-right: var(--app-safe-right);
+    padding-bottom: var(--app-safe-bottom);
   }
 
   .overlayKeyboardOpen.overlay {
@@ -289,5 +297,8 @@
     min-height: 0;
     max-height: 100%;
     border-radius: 0;
+    border-left: none;
+    border-right: none;
+    border-bottom: none;
   }
 }

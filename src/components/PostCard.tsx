@@ -37,7 +37,7 @@ interface Props {
   /** Optional ref (object or callback) to the card root (for scroll-into-view) */
   cardRef?: React.Ref<HTMLDivElement | null>
   /** When provided, opening the post calls this instead of navigating to /post/:uri (e.g. open in modal) */
-  onPostClick?: (uri: string, options?: { openReply?: boolean; initialItem?: unknown }) => void
+  onPostClick?: (uri: string, options?: { openReply?: boolean; initialItem?: unknown; authorHandle?: string }) => void
   /** Called when media aspect ratio is known (for bento layout) */
   onAspectRatio?: (aspect: number) => void
   /** When true, card fills grid cell height and media uses object-fit: cover (bento mode) */
@@ -720,7 +720,10 @@ function PostCardInner({
     if (!replyParentPost) return
     preloadPostOpen(replyParentPost.uri)
     if (onPostClick) {
-      onPostClick(replyParentPost.uri, { initialItem: { post: replyParentPost } })
+      onPostClick(replyParentPost.uri, {
+        initialItem: { post: replyParentPost },
+        authorHandle: replyParentPost.author?.handle ?? replyParentPost.author?.did,
+      })
       return
     }
     if (location.pathname.startsWith('/profile/')) {
@@ -737,7 +740,10 @@ function PostCardInner({
     if (!quotedPost) return
     preloadPostOpen(quotedPost.uri)
     if (onPostClick) {
-      onPostClick(quotedPost.uri, { initialItem: { post: quotedPost } })
+      onPostClick(quotedPost.uri, {
+        initialItem: { post: quotedPost },
+        authorHandle: quotedPost.author?.handle ?? quotedPost.author?.did,
+      })
       return
     }
     if (location.pathname.startsWith('/profile/')) {

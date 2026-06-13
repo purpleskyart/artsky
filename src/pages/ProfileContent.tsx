@@ -1081,7 +1081,7 @@ export default function ProfileContent({
                       fillCell={false}
                       onPostClick={(uri, opts) => {
                         if (opts?.initialItem) setInitialPostForUri(uri, opts.initialItem)
-                        openPostModal(uri, opts?.openReply, undefined, item.post.author?.handle)
+                        openPostModal(uri, opts?.openReply, undefined, opts?.authorHandle ?? item.post.author?.handle)
                       }}
                       nsfwBlurred={nsfwPreference === 'blurred' && isPostNsfw(item.post) && !unblurredUris.has(item.post.uri)}
                       onNsfwUnblur={() => setUnblurred(item.post.uri, true)}

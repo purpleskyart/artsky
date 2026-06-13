@@ -5,7 +5,7 @@ import { isPostNsfw } from '../lib/bsky'
 import PostCard from './PostCard'
 import type { PostCardDisplayContext } from '../hooks/usePostCardDisplayContext'
 import { setInitialPostForUri } from '../lib/postCache'
-import { observeVirtualization, refreshVirtualization } from '../lib/cardVirtualization'
+import { observeVirtualization } from '../lib/cardVirtualization'
 import { getDesktopSnapshot, subscribeDesktop } from '../config/breakpoints'
 import styles from '../styles/postGrid.module.css'
 
@@ -58,14 +58,20 @@ interface VirtualizedCellProps {
 /**
  * Lightweight virtualization wrapper: replaces children with a fixed-height
  * placeholder when far off-screen, freeing images/video/observers from memory.
+ *
+ * When `root` is set (modal / internal scroll container), virtualization is
+ * skipped — nested scrollers + remount causes visible glitches on scroll-back.
+ * The home feed uses OptimizedPostCard + window scrolling instead.
  */
 export const VirtualizedCell = memo(function VirtualizedCell({ children, root }: VirtualizedCellProps) {
+  const skipVirtualization = Boolean(root)
   const ref = useRef<HTMLDivElement | null>(null)
   const heightRef = useRef(0)
   const showingRef = useRef(true)
   const [isNear, setIsNear] = useState(true)
 
   useEffect(() => {
+    if (skipVirtualization) return
     const el = ref.current
     if (!el) return
 
@@ -81,20 +87,17 @@ export const VirtualizedCell = memo(function VirtualizedCell({ children, root }:
         heightRef.current = Math.max(heightRef.current, el.offsetHeight)
       }
       setIsNear(near)
-    }, root)
+    })
 
     return () => {
       ro.disconnect()
       unobserveVirt()
     }
-  }, [root])
+  }, [skipVirtualization])
 
-  useEffect(() => {
-    if (!root) return
-    refreshVirtualization(root)
-    const raf = requestAnimationFrame(() => refreshVirtualization(root))
-    return () => cancelAnimationFrame(raf)
-  }, [root])
+  if (skipVirtualization) {
+    return <div className={styles.offscreenPaintSkip}>{children}</div>
+  }
 
   const virtualized = !isNear && heightRef.current > 0
   showingRef.current = !virtualized
@@ -196,7 +199,7 @@ function ProfileColumnComponent(props: ProfileColumnProps) {
                 cardRef={() => {}}
                 onPostClick={(uri, opts) => {
                   if (opts?.initialItem) setInitialPostForUri(uri, opts.initialItem)
-                  openPostModal(uri, opts?.openReply, undefined, item.post.author?.handle)
+                  openPostModal(uri, opts?.openReply, undefined, opts?.authorHandle ?? item.post.author?.handle)
                 }}
                 constrainMediaHeight={constrainMediaHeight}
                 fillCell={false}

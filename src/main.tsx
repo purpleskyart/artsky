@@ -1,6 +1,10 @@
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
+import { bindSafeAreaInsetListeners, initSafeAreaInsets } from './lib/safeAreaInsets'
+
+initSafeAreaInsets()
+bindSafeAreaInsetListeners()
 
 // Start loading the feed route chunk in parallel with the first React render (default route is /).
 void import('./pages/FeedPage')

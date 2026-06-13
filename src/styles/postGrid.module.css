@@ -92,6 +92,17 @@
   scroll-margin-top: 5rem;
 }
 
+/**
+ * Modal / nested scroll grids: skip DOM unmount (scroll glitches) but let the
+ * browser skip paint for off-screen cards. Intrinsic size avoids layout shift
+ * before the first paint of each card (approx. media card + chrome).
+ */
+.offscreenPaintSkip {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 320px;
+  width: 100%;
+}
+
 .gridItem:hover,
 .gridItem[data-selected] {
   z-index: 1;

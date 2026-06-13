@@ -14,10 +14,10 @@
 .wrap {
   position: relative;
   padding: 0.25rem 0.5rem;
-  padding-left: max(0.45rem, env(safe-area-inset-left));
-  padding-right: max(0.45rem, env(safe-area-inset-right));
+  padding-left: max(0.45rem, var(--app-safe-left));
+  padding-right: max(0.45rem, var(--app-safe-right));
   padding-bottom: 2.5rem;
-  padding-bottom: calc(2.5rem + env(safe-area-inset-bottom));
+  padding-bottom: calc(2.5rem + var(--app-safe-bottom));
 }
 
 /*
@@ -30,7 +30,7 @@
   top: 0;
   left: 0;
   right: 0;
-  height: calc(56px + env(safe-area-inset-top, 0px));
+  height: calc(56px + var(--app-safe-top));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -64,15 +64,15 @@
 /* Side inset: keep safe-area but give preview cards more width for media */
 @media (min-width: 1280px) {
   .wrap {
-    padding-left: max(0.65rem, env(safe-area-inset-left));
-    padding-right: max(0.65rem, env(safe-area-inset-right));
+    padding-left: max(0.65rem, var(--app-safe-left));
+    padding-right: max(0.65rem, var(--app-safe-right));
   }
 }
 
 @media (max-width: 1279px) {
   .wrap {
-    padding-left: max(0.35rem, env(safe-area-inset-left));
-    padding-right: max(0.35rem, env(safe-area-inset-right));
+    padding-left: max(0.35rem, var(--app-safe-left));
+    padding-right: max(0.35rem, var(--app-safe-right));
   }
 }
 

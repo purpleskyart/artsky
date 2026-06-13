@@ -12,8 +12,8 @@
   background: var(--overlay-bg);
   padding: 1.5rem;
   padding-top: 2.5rem;
-  padding-left: max(0.75rem, env(safe-area-inset-left));
-  padding-right: max(0.75rem, env(safe-area-inset-right));
+  padding-left: max(0.75rem, var(--app-safe-left));
+  padding-right: max(0.75rem, var(--app-safe-right));
   padding-bottom: 1.75rem;
   box-sizing: border-box;
   overflow: hidden;
@@ -29,9 +29,9 @@
 /* Desktop: don't take full width so user can click overlay (backdrop) to close; minimal bottom padding so pane uses full height */
 @media (min-width: 1280px) {
   .overlay:not(.overlayExpanded) {
-    padding-left: max(0rem, env(safe-area-inset-left));
-    padding-right: max(0rem, env(safe-area-inset-right));
-    padding-bottom: max(0rem, env(safe-area-inset-bottom));
+    padding-left: max(0rem, var(--app-safe-left));
+    padding-right: max(0rem, var(--app-safe-right));
+    padding-bottom: max(0rem, var(--app-safe-bottom));
   }
   .pane:not(.paneExpanded) {
     max-width: min(900px, calc(100vw - 5rem));
@@ -44,7 +44,7 @@
 
 /* Post detail etc.: space above pane + room for floating back button (purplesky-style) */
 .overlayFlushTop.overlay {
-  padding-top: max(3.5rem, calc(env(safe-area-inset-top) + 2.5rem));
+  padding-top: max(3.5rem, calc(var(--app-safe-top) + 2.5rem));
 }
 
 /* Floating back — same 36px circle as .headerGearBtn / floating gear (.feedFloatBtn); glass from .float-btn */
@@ -67,8 +67,8 @@
 /* Mobile PWA: align back button with gear (same top/left as Layout .gearFloatWrap) so they sit in a row */
 @media (max-width: 1279px) {
   .modalFloatingBack {
-    top: max(var(--space-md), env(safe-area-inset-top, 59px));
-    left: max(var(--space-sm), env(safe-area-inset-left));
+    top: max(var(--space-md), var(--app-safe-top));
+    left: max(var(--space-sm), var(--app-safe-left));
   }
 }
 
@@ -88,9 +88,9 @@
 .overlayExpanded.overlay {
   padding: 0;
   padding-top: 0;
-  padding-left: env(safe-area-inset-left);
-  padding-right: env(safe-area-inset-right);
-  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: var(--app-safe-left);
+  padding-right: var(--app-safe-right);
+  padding-bottom: var(--app-safe-bottom);
 }
 
 /* Match main content width on homepage (Layout .main) */
@@ -136,7 +136,7 @@
 
 /* Expanded: top bar gets safe-area so close/back stay below notch; pane still fills to top */
 .paneExpanded .modalTopBar {
-  padding-top: max(0.35rem, env(safe-area-inset-top));
+  padding-top: max(0.35rem, var(--app-safe-top));
 }
 
 /* Under swipe translateX: one column so pull-to-refresh moves top bar, back button, and scroll together */
@@ -183,12 +183,12 @@
 
 /* Top padding so content (images, text) isn't covered by floating back, feed pill, or gear (all sit above the modal on mobile) */
 .scrollWithFloatingBack.scroll {
-  padding-top: calc(2.5rem + max(var(--space-md), env(safe-area-inset-top, 0px)) + var(--space-sm));
+  padding-top: calc(2.5rem + max(var(--space-md), var(--app-safe-top)) + var(--space-sm));
 }
 
 @media (min-width: 1280px) {
   .scrollWithFloatingBack.scroll {
-    padding-top: calc(2rem + max(var(--space-md), env(safe-area-inset-top, 0px)) + var(--space-sm));
+    padding-top: calc(2rem + max(var(--space-md), var(--app-safe-top)) + var(--space-sm));
   }
 }
 
@@ -383,12 +383,12 @@
 /* Mobile: use full height; only safe-area insets so content reaches bottom of screen */
 @media (max-width: 1279px) {
   .overlay {
-    padding-top: max(0.5rem, env(safe-area-inset-top));
-    padding-bottom: env(safe-area-inset-bottom);
+    padding-top: max(0.5rem, var(--app-safe-top));
+    padding-bottom: var(--app-safe-bottom);
     justify-content: flex-start;
   }
   .overlayFlushTop.overlay {
-    padding-top: max(0.5rem, env(safe-area-inset-top));
+    padding-top: max(0.5rem, var(--app-safe-top));
   }
   /* Expanded: flush to bottom like the top; keep horizontal + scroll safe-area only (avoids blurred strip under pane) */
   .overlayExpanded.overlay {
@@ -405,7 +405,7 @@
     max-height: 100%;
   }
   .scroll {
-    padding-bottom: calc(var(--nav-height) + env(safe-area-inset-bottom));
+    padding-bottom: calc(var(--nav-height) + var(--app-safe-bottom));
   }
   /* Keyboard open: nav is hidden and overlay already shrinks — drop nav padding to avoid a gap. */
   .overlayKeyboardOpen.overlay {
@@ -413,7 +413,7 @@
   }
   .overlayKeyboardOpen .scroll,
   .overlayKeyboardOpen .scrollWithTransparentBar {
-    padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding-bottom: var(--app-safe-bottom);
   }
   /* Transparent bar on mobile: keep at top */
   .modalTopBarTransparent {
@@ -422,6 +422,6 @@
   }
   .scrollWithTransparentBar {
     padding-top: 0;
-    padding-bottom: calc(var(--nav-height) + env(safe-area-inset-bottom));
+    padding-bottom: calc(var(--nav-height) + var(--app-safe-bottom));
   }
 }
