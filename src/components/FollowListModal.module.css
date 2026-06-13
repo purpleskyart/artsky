@@ -14,7 +14,7 @@
   .backdrop {
     align-items: flex-end;
     padding: 0;
-    padding-bottom: env(safe-area-inset-bottom, 0);
+    padding-bottom: var(--app-safe-bottom);
   }
 }
 

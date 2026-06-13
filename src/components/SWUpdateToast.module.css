@@ -1,6 +1,6 @@
 .toast {
   position: fixed;
-  bottom: max(env(safe-area-inset-bottom, 0px), 12px);
+  bottom: max(var(--app-safe-bottom), 12px);
   left: 50%;
   transform: translateX(-50%);
   z-index: 9999;
@@ -71,7 +71,7 @@
 /* Match Layout account/search “above nav” offset — floating pill is hidden at desktop breakpoint (1280px+) */
 @media (max-width: 1279px) {
   .toast {
-    bottom: calc(max(0.75rem, env(safe-area-inset-bottom)) + 4rem);
+    bottom: calc(max(0.75rem, var(--app-safe-bottom)) + 4rem);
   }
 }
 

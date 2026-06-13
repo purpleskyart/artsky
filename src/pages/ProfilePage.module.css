@@ -1,9 +1,9 @@
 .wrap {
   padding: 0.5rem;
-  padding-left: max(0.35rem, env(safe-area-inset-left));
-  padding-right: max(0.35rem, env(safe-area-inset-right));
+  padding-left: max(0.35rem, var(--app-safe-left));
+  padding-right: max(0.35rem, var(--app-safe-right));
   padding-bottom: 3.5rem;
-  padding-bottom: calc(2.75rem + env(safe-area-inset-bottom));
+  padding-bottom: calc(2.75rem + var(--app-safe-bottom));
 }
 
 /* Same background as homepage feed so cards sit on --bg; no outer padding so header is edge-to-edge */

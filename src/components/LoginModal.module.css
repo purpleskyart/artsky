@@ -15,9 +15,9 @@
   align-items: center;
   justify-content: center;
   padding: 1.5rem;
-  padding-left: max(1.5rem, env(safe-area-inset-left));
-  padding-right: max(1.5rem, env(safe-area-inset-right));
-  padding-bottom: max(1.75rem, env(safe-area-inset-bottom));
+  padding-left: max(1.5rem, var(--app-safe-left));
+  padding-right: max(1.5rem, var(--app-safe-right));
+  padding-bottom: max(1.75rem, var(--app-safe-bottom));
   pointer-events: none;
 }
 

@@ -2,6 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no, interactive-widget=overlays-content" />
     <meta name="theme-color" content="#0f0f1a" />
     <script>
       (function(){
@@ -17,6 +18,51 @@
           meta.setAttribute('content', c);
         }
       })();
+    </script>
+    <script>
+      /* iOS home-screen PWAs report env(safe-area-inset-top) as 0 — set --app-safe-* before first paint. */
+      (function () {
+        var html = document.documentElement
+        var mq = typeof window.matchMedia === 'function' && window.matchMedia('(display-mode: standalone)')
+        var standalone =
+          (window.navigator && window.navigator.standalone === true) || (mq && mq.matches)
+        if (standalone) html.setAttribute('data-standalone-pwa', '')
+
+        function measure() {
+          var el = document.createElement('div')
+          el.style.cssText =
+            'position:fixed;top:0;left:0;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);visibility:hidden;pointer-events:none;'
+          html.appendChild(el)
+          var cs = getComputedStyle(el)
+          var top = parseFloat(cs.paddingTop) || 0
+          var right = parseFloat(cs.paddingRight) || 0
+          var bottom = parseFloat(cs.paddingBottom) || 0
+          var left = parseFloat(cs.paddingLeft) || 0
+          html.removeChild(el)
+
+          var ios = /iPhone|iPad|iPod/.test(navigator.userAgent || '')
+          if (ios && standalone && top < 20) {
+            var minSide = Math.min(screen.width, screen.height)
+            var maxSide = Math.max(screen.width, screen.height)
+            if (minSide >= 768) top = 24
+            else if (minSide >= 393) top = 59
+            else if (maxSide >= 812) top = 47
+            else top = 20
+          }
+
+          html.style.setProperty('--app-safe-top', top + 'px')
+          html.style.setProperty('--app-safe-right', right + 'px')
+          html.style.setProperty('--app-safe-bottom', bottom + 'px')
+          html.style.setProperty('--app-safe-left', left + 'px')
+        }
+
+        measure()
+        if (standalone) {
+          window.addEventListener('orientationchange', function () {
+            setTimeout(measure, 100)
+          })
+        }
+      })()
     </script>
     <style>
       html[data-theme="light"] #root p { color: #525254; }
@@ -35,7 +81,6 @@
     <link rel="dns-prefetch" href="https://api.bsky.app" />
     <link rel="preconnect" href="https://cdn.bsky.app" crossorigin />
     <link rel="preconnect" href="https://api.bsky.app" crossorigin />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no, interactive-widget=overlays-content" />
     <!-- Desktop: theme color for browser chrome. Mobile: match theme so top/status bar isn’t white (Safari often ignores transparent) -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />

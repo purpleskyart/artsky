@@ -1,11 +1,11 @@
 /* Match post modal: transparent top bar + scroll padding-top 0; offset grid below back + toolbar */
 .searchContentBelowModalChrome {
-  padding-top: calc(2.5rem + max(var(--space-md), env(safe-area-inset-top, 0px)) + var(--space-sm));
+  padding-top: calc(2.5rem + max(var(--space-md), var(--app-safe-top)) + var(--space-sm));
 }
 
 @media (min-width: 1280px) {
   .searchContentBelowModalChrome {
-    padding-top: calc(2rem + max(var(--space-md), env(safe-area-inset-top, 0px)) + var(--space-sm));
+    padding-top: calc(2rem + max(var(--space-md), var(--app-safe-top)) + var(--space-sm));
   }
 }
 

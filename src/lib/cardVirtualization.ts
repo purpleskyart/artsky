@@ -8,9 +8,8 @@
  * Top margin is smaller than bottom so scrolled-past cards above the viewport
  * virtualize sooner; bottom keeps a larger buffer for smooth scroll-down.
  *
- * Modal scroll containers use the same logic with `root` set to the modal
- * scroll element. Geometry is re-checked on scroll because IO alone can miss
- * updates inside nested scrollers (especially after scroll restore).
+ * Modal scroll containers should not virtualize (see VirtualizedCell); only
+ * window-scrolled grids use this module today (home feed + full-page grids).
  */
 
 /** Viewport-height multiples for asymmetric rootMargin (top, bottom). */

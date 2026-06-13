@@ -57,9 +57,9 @@ const FeedCard = memo(function FeedCard({
   const handleActionsMenuOpenChange = useCallback((open: boolean) => {
     onActionsMenuOpenChange(originalIndex, open)
   }, [onActionsMenuOpenChange, originalIndex])
-  const handlePostClick = useCallback((uri: string, opts?: { initialItem?: unknown; openReply?: boolean }) => {
+  const handlePostClick = useCallback((uri: string, opts?: { initialItem?: unknown; openReply?: boolean; authorHandle?: string }) => {
     if (opts?.initialItem) setInitialPostForUri(uri, opts.initialItem as never)
-    openPostModal(uri, opts?.openReply, undefined, entry.item.post.author?.handle)
+    openPostModal(uri, opts?.openReply, undefined, opts?.authorHandle ?? entry.item.post.author?.handle)
   }, [openPostModal, entry])
 
   return (
