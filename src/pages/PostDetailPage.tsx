@@ -266,6 +266,29 @@ function collectThreadAncestors(
   return ancestors
 }
 
+function getSavedPostModalScrollTop(uri: string): number {
+  try {
+    const raw = sessionStorage.getItem(`artsky-post-modal-scroll-v1:${encodeURIComponent(uri)}`)
+    if (raw != null) {
+      const n = Number(raw)
+      if (Number.isFinite(n) && n >= 0) return n
+    }
+  } catch {
+    /* private mode / quota */
+  }
+  return 0
+}
+
+/** Scroll a container (or window) so `el` aligns to the top of the visible area. */
+function scrollContainerToElementStart(scrollEl: HTMLElement | null, el: HTMLElement) {
+  if (scrollEl) {
+    const top = el.getBoundingClientRect().top - scrollEl.getBoundingClientRect().top + scrollEl.scrollTop
+    scrollEl.scrollTop = Math.max(0, top)
+  } else {
+    el.scrollIntoView({ block: 'start' })
+  }
+}
+
 /** Insert a new reply under `parentUri` (or under the displayed post if parent not found in subtree). */
 function mergeReplyIntoThread(
   thread: AppBskyFeedDefs.ThreadViewPost,
@@ -1333,6 +1356,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
   const scrollIntoViewFromKeyboardRef = useRef(false)
   const appliedInitialFocusUriRef = useRef<string | null>(null)
   const appliedInitialFocusRedirectRef = useRef<string | null>(null)
+  const appliedInitialRootScrollRef = useRef<string | null>(null)
   const prevSectionIndexRef = useRef(0)
   const session = getSession()
   const { session: sessionFromContext, sessionsList, switchAccount } = useSession()
@@ -1391,6 +1415,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
     setLikeUriOverride(undefined)
     appliedInitialFocusUriRef.current = null
     appliedInitialFocusRedirectRef.current = null
+    appliedInitialRootScrollRef.current = null
   }, [decodedUri])
 
   // Update Open Graph meta tags for link previews when post data loads
@@ -2421,14 +2446,38 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
     scrollIntoViewFromKeyboardRef.current = false
   }, [focusedCommentIndex, hasRepliesSection, postSectionIndex, postSectionCount])
 
-  /* When thread loads with ancestors, instantly scroll so indicator is visible */
+  /* When thread loads with ancestors, scroll to the opened post (not the conversation above). */
   useEffect(() => {
     if (!thread || !isThreadViewPost(thread)) return
-    const threadView = thread
-    const ancestors = collectThreadAncestors(threadView)
+    if (initialFocusedCommentUri) return
+    const ancestors = collectThreadAncestors(thread)
     if (ancestors.length === 0) return
-    // Disable auto-scroll to ancestors on load to keep focus on reply media
-  }, [thread])
+    if (appliedInitialRootScrollRef.current === decodedUri) return
+    if (inModal && getSavedPostModalScrollTop(decodedUri) > 0) return
+
+    let cancelled = false
+    let attempts = 0
+    const tryScroll = () => {
+      if (cancelled) return
+      attempts += 1
+      const scrollEl = inModal ? modalScrollRef : null
+      if (inModal && !scrollEl) {
+        if (attempts < 24) requestAnimationFrame(tryScroll)
+        return
+      }
+      const root = rootPostRef.current
+      if (!root) {
+        if (attempts < 24) requestAnimationFrame(tryScroll)
+        return
+      }
+      appliedInitialRootScrollRef.current = decodedUri
+      scrollContainerToElementStart(scrollEl, root)
+    }
+    requestAnimationFrame(tryScroll)
+    return () => {
+      cancelled = true
+    }
+  }, [thread, decodedUri, inModal, modalScrollRef, initialFocusedCommentUri])
 
   /* Scroll focused comment into view when focus changed by keyboard (W/S/A/D) – comment/commentMedia scroll is done in focusItemAtIndex so we only consume the ref here to avoid double-scroll */
   useEffect(() => {
@@ -2534,7 +2583,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                             )}
                             {ancestorText ? (
                               <p className={styles.quotedPostText}>
-                                <PostText text={ancestorText} facets={(ancestorPost.record as { facets?: unknown[] })?.facets} maxLength={200} stopPropagation />
+                                <PostText text={ancestorText} facets={(ancestorPost.record as { facets?: unknown[] })?.facets} maxLength={inModal ? undefined : 200} stopPropagation />
                               </p>
                             ) : null}
                           </div>
@@ -2716,7 +2765,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                         )}
                         {quotedText ? (
                           <p className={styles.quotedPostText}>
-                            <PostText text={quotedText} facets={(quoted.record as { facets?: unknown[] })?.facets} maxLength={200} stopPropagation />
+                            <PostText text={quotedText} facets={(quoted.record as { facets?: unknown[] })?.facets} maxLength={inModal ? undefined : 200} stopPropagation />
                           </p>
                         ) : null}
                       </div>

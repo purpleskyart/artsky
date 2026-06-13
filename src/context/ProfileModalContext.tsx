@@ -203,6 +203,14 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
 
   /** Opens post via URI path with optional `reply` / `focus` query for instant modal resolution. */
   const openPostModal = useCallback((uri: string, openReply?: boolean, focusUri?: string, authorHandle?: string) => {
+    /* Clear saved scroll position so the post always starts at the top when clicked fresh.
+       Scroll restoration should only happen when navigating back via browser back button. */
+    try {
+      sessionStorage.removeItem(`artsky-post-modal-scroll-v1:${encodeURIComponent(uri)}`)
+    } catch {
+      /* ignore storage errors */
+    }
+
     const bg = getOverlayBackgroundLocation(location)
     /**
      * Path-based profile popup (`/profile/h` + backgroundLocation): encode as `?profile=&post=` on the
