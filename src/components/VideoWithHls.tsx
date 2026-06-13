@@ -2,7 +2,7 @@ import { useRef, useEffect, useLayoutEffect, useState, useCallback } from 'react
 import { PlayIcon } from './Icons'
 import styles from './VideoWithHls.module.css'
 import { loadHls } from '../lib/loadHls'
-import { buildHlsConfig, PAUSE_VISIBILITY_RATIO, type VideoPlaybackMode } from '../lib/videoHlsConfig'
+import { buildHlsConfig, PAUSE_VISIBILITY_RATIO, supportsNativeHls, type VideoPlaybackMode } from '../lib/videoHlsConfig'
 import {
   getVisibleAutoplayCount,
   registerHlsInstance,
@@ -21,6 +21,9 @@ import type Hls from 'hls.js'
 function isHlsUrl(url: string): boolean {
   return /\.m3u8(\?|$)/i.test(url) || url.includes('m3u8')
 }
+
+/** Backoff for play() blocked or media not ready (iOS Low Power Mode throttles short timers). */
+const PLAY_RETRY_DELAYS_MS = [300, 800, 2000, 4000, 8000]
 
 interface Props {
   playlistUrl: string
@@ -72,7 +75,10 @@ export default function VideoWithHls({
   const attachGenerationRef = useRef(0)
   const attachingRef = useRef(false)
   const playRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const playRetryGenerationRef = useRef(0)
   const shouldMute = forceMuted || autoPlay
+  const effectivePreload = autoPlay && preload === 'none' ? 'metadata' : preload
+  const useNativeAutoplayAttr = autoPlay && shouldMute
 
   const destroyHls = useCallback(() => {
     attachGenerationRef.current++
@@ -81,6 +87,7 @@ export default function VideoWithHls({
       clearTimeout(playRetryTimerRef.current)
       playRetryTimerRef.current = null
     }
+    playRetryGenerationRef.current++
     if (hlsRef.current) {
       unregisterHlsInstance(videoIdRef.current)
       hlsRef.current.destroy()
@@ -106,6 +113,21 @@ export default function VideoWithHls({
     const generation = attachGenerationRef.current
 
     if (isHlsUrl(playlistUrl)) {
+      if (supportsNativeHls(video)) {
+        video.src = playlistUrl
+        const handleError = () => {
+          console.error('Native HLS playback error for:', playlistUrl)
+        }
+        video.addEventListener('error', handleError)
+        nativeCleanupRef.current = () => {
+          video.removeEventListener('error', handleError)
+          video.removeAttribute('src')
+        }
+        attachingRef.current = false
+        setVideoHlsAttached(videoIdRef.current, true)
+        return
+      }
+
       loadHls().then((HlsModule) => {
         if (generation !== attachGenerationRef.current || !videoRef.current) {
           attachingRef.current = false
@@ -181,15 +203,37 @@ export default function VideoWithHls({
       video.volume = 0
     }
 
+    const id = videoIdRef.current
+    const generation = ++playRetryGenerationRef.current
+
+    const clearPlayRetry = () => {
+      if (playRetryTimerRef.current != null) {
+        clearTimeout(playRetryTimerRef.current)
+        playRetryTimerRef.current = null
+      }
+    }
+
+    const schedulePlayRetry = (delayIndex: number) => {
+      if (generation !== playRetryGenerationRef.current) return
+      if (!video.paused) return
+      const delay = PLAY_RETRY_DELAYS_MS[delayIndex]
+      if (delay == null) return
+      clearPlayRetry()
+      playRetryTimerRef.current = setTimeout(() => {
+        playRetryTimerRef.current = null
+        if (generation !== playRetryGenerationRef.current || !video.paused) return
+        retryAutoplayIfWanted(id)
+        if (!video.paused) return
+        schedulePlayRetry(delayIndex + 1)
+      }, delay)
+    }
+
     const attempt = () => {
-      video.play().catch(() => {
-        setVideoPlaying(videoIdRef.current, false)
-        if (playRetryTimerRef.current != null) return
-        playRetryTimerRef.current = setTimeout(() => {
-          playRetryTimerRef.current = null
-          if (!video.paused) return
-          retryAutoplayIfWanted(videoIdRef.current)
-        }, 300)
+      video.play().then(() => {
+        clearPlayRetry()
+      }).catch(() => {
+        setVideoPlaying(id, false)
+        schedulePlayRetry(0)
       })
     }
 
@@ -201,6 +245,7 @@ export default function VideoWithHls({
       }
       video.addEventListener('loadeddata', onReady, { once: true })
       video.addEventListener('canplay', onReady, { once: true })
+      schedulePlayRetry(0)
       return
     }
     attempt()
@@ -336,9 +381,10 @@ export default function VideoWithHls({
         poster={poster}
         controls={effectiveControls}
         playsInline={playsInline}
-        preload={preload}
-        autoPlay={false}
+        preload={effectivePreload}
+        autoPlay={useNativeAutoplayAttr}
         muted={shouldMute}
+        defaultMuted={shouldMute}
         loop={loop}
         onClick={(e) => {
           if (controlsHiddenUntilTap && !showControls) {

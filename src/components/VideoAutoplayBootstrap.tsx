@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { refreshAllVideoVisibility } from '../lib/videoPlaybackManager'
 
-/** Re-check video visibility after page load and bfcache restore. */
+/** Re-check video visibility after page load, bfcache restore, and foreground resume. */
 export function VideoAutoplayBootstrap() {
   useEffect(() => {
     const refresh = () => refreshAllVideoVisibility()
@@ -11,13 +11,17 @@ export function VideoAutoplayBootstrap() {
       window.addEventListener('load', refresh, { once: true })
     }
     window.addEventListener('pageshow', refresh)
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') refresh()
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange)
     // Feed/profile grids often mount videos after window load; re-check once layout settles.
-    const t1 = window.setTimeout(refresh, 400)
-    const t2 = window.setTimeout(refresh, 1200)
+    // Extra delays help when iOS Low Power Mode throttles timers on cold PWA launch.
+    const timers = [400, 1200, 3000, 6000].map((ms) => window.setTimeout(refresh, ms))
     return () => {
       window.removeEventListener('pageshow', refresh)
-      window.clearTimeout(t1)
-      window.clearTimeout(t2)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+      for (const id of timers) window.clearTimeout(id)
     }
   }, [])
 
