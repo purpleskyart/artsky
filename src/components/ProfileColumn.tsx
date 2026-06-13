@@ -1,12 +1,11 @@
 import { type ReactNode, useRef, useState, useEffect, memo } from 'react'
 import { useSyncExternalStore } from 'react'
 import type { TimelineItem } from '../lib/bsky'
-import { isPostNsfw, getPostMediaInfo } from '../lib/bsky'
+import { isPostNsfw } from '../lib/bsky'
 import PostCard from './PostCard'
 import type { PostCardDisplayContext } from '../hooks/usePostCardDisplayContext'
 import { setInitialPostForUri } from '../lib/postCache'
 import { observeVirtualization } from '../lib/cardVirtualization'
-import { estimateMediaCardHeight } from '../lib/masonryLayout'
 import { getDesktopSnapshot, subscribeDesktop } from '../config/breakpoints'
 import styles from '../styles/postGrid.module.css'
 
@@ -54,15 +53,13 @@ export interface ProfileColumnProps {
 interface VirtualizedCellProps {
   children: ReactNode
   root?: Element | null
-  /** Minimum placeholder height so column layout stays stable when images unload. */
-  minHeight?: number
 }
 
 /**
  * Lightweight virtualization wrapper: replaces children with a fixed-height
  * placeholder when far off-screen, freeing images/video/observers from memory.
  */
-export const VirtualizedCell = memo(function VirtualizedCell({ children, root, minHeight = 0 }: VirtualizedCellProps) {
+export const VirtualizedCell = memo(function VirtualizedCell({ children, root }: VirtualizedCellProps) {
   const ref = useRef<HTMLDivElement | null>(null)
   const heightRef = useRef(0)
   const showingRef = useRef(true)
@@ -71,21 +68,33 @@ export const VirtualizedCell = memo(function VirtualizedCell({ children, root, m
   useEffect(() => {
     const el = ref.current
     if (!el) return
-    return observeVirtualization(el, (near) => {
+
+    const ro = new ResizeObserver(() => {
+      if (showingRef.current && el.offsetHeight > 0) {
+        heightRef.current = Math.max(heightRef.current, el.offsetHeight)
+      }
+    })
+    ro.observe(el)
+
+    const unobserveVirt = observeVirtualization(el, (near) => {
       if (!near && showingRef.current && el) {
-        heightRef.current = Math.max(el.offsetHeight, minHeight)
+        heightRef.current = Math.max(heightRef.current, el.offsetHeight)
       }
       setIsNear(near)
     }, root)
-  }, [root, minHeight])
 
-  const placeholderHeight = Math.max(heightRef.current, minHeight)
-  const virtualized = !isNear && placeholderHeight > 0
+    return () => {
+      ro.disconnect()
+      unobserveVirt()
+    }
+  }, [root])
+
+  const virtualized = !isNear && heightRef.current > 0
   showingRef.current = !virtualized
 
   return (
-    <div ref={ref} style={{ width: '100%', overflowAnchor: 'none' }}>
-      {virtualized ? <div style={{ height: placeholderHeight }} aria-hidden /> : children}
+    <div ref={ref} style={{ width: '100%' }}>
+      {virtualized ? <div style={{ height: heightRef.current }} aria-hidden /> : children}
     </div>
   )
 })
@@ -150,8 +159,6 @@ function ProfileColumnComponent(props: ProfileColumnProps) {
         const handleMediaRef = onMediaRef
           ? (mediaIndex: number, el: HTMLElement | null) => onMediaRef(originalIndex, mediaIndex, el)
           : undefined
-        const media = getPostMediaInfo(item.post)
-        const cellMinHeight = estimateMediaCardHeight(media?.aspectRatio, 1, !!media)
         return (
           <div
             key={`${item.post.uri}-${index}`}
@@ -173,7 +180,7 @@ function ProfileColumnComponent(props: ProfileColumnProps) {
               if (!suppressHoverNsfwUnblur && unblurredUris.has(item.post.uri)) setUnblurred(item.post.uri, false)
             } : undefined}
           >
-            <VirtualizedCell root={scrollRef} minHeight={cellMinHeight}>
+            <VirtualizedCell root={scrollRef}>
               <PostCard
                 item={item}
                 isSelected={cardSelected}
