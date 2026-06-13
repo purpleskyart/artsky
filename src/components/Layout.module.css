@@ -2374,11 +2374,12 @@ button.logoLink {
   border: 1px solid var(--glass-border);
   box-shadow: var(--shadow-card);
   border-radius: 28px;
-  transition: transform var(--transition-fast), opacity var(--transition-fast);
+  transition: opacity var(--transition-fast);
   isolation: isolate;
 }
 
-/* Wrapper so the floating seen-posts button can sit above the nav on mobile. Above modals (z-index 1000) so nav stays tappable when no keyboard. */
+/* Wrapper so the floating seen-posts button can sit above the nav on mobile. Above modals (z-index 1000) so nav stays tappable when no keyboard.
+   Portaled to document.body so position:fixed stays viewport-pinned while the feed scrolls (see Layout.tsx). */
 .navOuter {
   position: fixed;
   bottom: max(0.75rem, env(safe-area-inset-bottom));
@@ -2391,6 +2392,9 @@ button.logoLink {
   justify-content: center;
   align-items: flex-end;
   overflow: visible;
+  transform: translateZ(0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
 }
 
 /* Visual Viewport API (Layout): hide only the pill while virtual keyboard is open — stays visible in modals when keyboard is closed. */

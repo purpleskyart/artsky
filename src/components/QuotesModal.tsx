@@ -7,6 +7,7 @@ import { useProfileModal } from '../context/ProfileModalContext'
 import { useLikeOverridesActions } from '../context/LikeOverridesContext'
 import { useModeration } from '../context/ModerationContext'
 import { usePostCardGridPointerGate } from '../hooks/usePostCardGridPointerGate'
+import { useColumnLoadMore } from '../hooks/useColumnLoadMore'
 import { useModalGridKeyboardShell, useModalScrollKeyboardFocus } from '../hooks/useModalGridKeyboardShell'
 import { shouldUnderlayHandleGridKeys } from '../lib/modalKeyboard'
 import { useModalScroll } from '../context/ModalScrollContext'
@@ -37,7 +38,9 @@ export default function QuotesModal({ postUri, onClose, onBack, canGoBack, onDes
   const [keyboardFocusIndex, setKeyboardFocusIndex] = useState(0)
   const keyboardFocusIndexRef = useRef(0)
   const cardRefsRef = useRef<(HTMLDivElement | null)[]>([])
-  const loadMoreSentinelRef = useRef<HTMLDivElement>(null)
+  const loadMoreSentinelRefs = useRef<(HTMLDivElement | null)[]>([])
+  const distributedColumnLengthsRef = useRef<number[]>([])
+  const loadingMoreRef = useRef(false)
   const { beginKeyboardNavigation, tryHoverSelectCard, gridPointerGateProps } = usePostCardGridPointerGate()
   const modalScrollRef = useModalScroll()
   const inModal = true
@@ -74,20 +77,23 @@ export default function QuotesModal({ postUri, onClose, onBack, canGoBack, onDes
     setRefreshFn(() => () => load())
   }, [load])
 
-  useEffect(() => {
-    if (!cursor || loadingMore) return
-    const el = loadMoreSentinelRef.current
-    if (!el) return
-    const root = el.closest('[data-modal-scroll]') ?? undefined
-    const obs = new IntersectionObserver(
-      (entries) => {
-        if (entries[0]?.isIntersecting) load(cursor)
-      },
-      { root, rootMargin: '25%', threshold: 0 }
-    )
-    obs.observe(el)
-    return () => obs.disconnect()
-  }, [cursor, loadingMore, load])
+  const quoteColumn = useMemo(
+    () => items.map((item, i) => ({ item, originalIndex: i })),
+    [items],
+  )
+  distributedColumnLengthsRef.current = [quoteColumn.length]
+
+  loadingMoreRef.current = loadingMore
+  const bindLoadMoreSentinelRef = useColumnLoadMore({
+    cursor,
+    cols: 1,
+    itemCount: items.length,
+    loadingMoreRef,
+    loadMore: load,
+    sentinelRefs: loadMoreSentinelRefs,
+    columnLengthsRef: distributedColumnLengthsRef,
+    inModal: true,
+  })
 
   // Keyboard navigation for quotes grid
   useEffect(() => {
@@ -174,17 +180,8 @@ export default function QuotesModal({ postUri, onClose, onBack, canGoBack, onDes
 
   const postCardDisplayContext = usePostCardDisplayContext(true)
 
-  const quoteColumn = useMemo(
-    () => items.map((item, i) => ({ item, originalIndex: i })),
-    [items],
-  )
-
   const handleCardRef = useCallback((index: number) => (el: HTMLDivElement | null) => {
     cardRefsRef.current[index] = el
-  }, [])
-
-  const handleLoadMoreSentinelRef = useCallback((el: HTMLDivElement | null) => {
-    (loadMoreSentinelRef as unknown as { current: HTMLDivElement | null }).current = el
   }, [])
 
   const handleMouseEnter = useCallback(
@@ -231,7 +228,7 @@ export default function QuotesModal({ postUri, onClose, onBack, canGoBack, onDes
                 column={quoteColumn}
                 colIndex={0}
                 scrollRef={modalScrollRef}
-                loadMoreSentinelRef={cursor ? handleLoadMoreSentinelRef : undefined}
+                loadMoreSentinelRef={cursor ? bindLoadMoreSentinelRef(0) : undefined}
                 hasCursor={!!cursor}
                 keyboardFocusIndex={keyboardFocusIndex}
                 actionsMenuOpenForIndex={null}

@@ -12,6 +12,7 @@ import { useFollowOverrides } from '../context/FollowOverridesContext'
 import { useViewMode } from '../context/ViewModeContext'
 import { useModeration } from '../context/ModerationContext'
 import { useColumnCount } from '../hooks/useViewportWidth'
+import { useColumnLoadMore } from '../hooks/useColumnLoadMore'
 import { usePostCardGridPointerGate } from '../hooks/usePostCardGridPointerGate'
 import { useModalGridKeyboardShell, useModalScrollKeyboardFocus } from '../hooks/useModalGridKeyboardShell'
 import { shouldUnderlayHandleGridKeys } from '../lib/modalKeyboard'
@@ -168,8 +169,8 @@ export function SearchModalGridContent({
   const [actionsMenuOpenForIndex, setActionsMenuOpenForIndex] = useState<number | null>(null)
   const [blockConfirm, setBlockConfirm] = useState<{ did: string; handle: string; avatar?: string } | null>(null)
   const cardRefsRef = useRef<(HTMLDivElement | null)[]>([])
-  const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null)
   const loadMoreSentinelRefs = useRef<(HTMLDivElement | null)[]>([])
+  const distributedColumnLengthsRef = useRef<number[]>([])
   const loadingMoreRef = useRef(false)
   const keyboardFocusIndexRef = useRef(0)
   const mediaItemsRef = useRef<TimelineItem[]>([])
@@ -272,6 +273,7 @@ export function SearchModalGridContent({
     () => distributeByHeight(mediaItems, cols),
     [mediaItems, cols],
   )
+  distributedColumnLengthsRef.current = distributedColumns.map((c) => c.length)
   mediaItemsRef.current = mediaItems
   keyboardFocusIndexRef.current = keyboardFocusIndex
 
@@ -341,31 +343,16 @@ export function SearchModalGridContent({
   }, [])
 
   loadingMoreRef.current = loadingMore
-  useEffect(() => {
-    if (!cursor) return
-    const colsForObserver = cols
-    const firstSentinel = colsForObserver >= 2 ? loadMoreSentinelRefs.current[0] : loadMoreSentinelRef.current
-    if (!firstSentinel) return
-    const root =
-      inModal ? (firstSentinel.closest('[data-modal-scroll]') as Element | null) ?? undefined : undefined
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (!entries[0]?.isIntersecting || loadingMoreRef.current) return
-        loadingMoreRef.current = true
-        load(cursor)
-      },
-      { root, rootMargin: '75%', threshold: 0 }
-    )
-    observer.observe(firstSentinel)
-    if (colsForObserver >= 2) {
-      const refs = loadMoreSentinelRefs.current
-      for (let c = 1; c < colsForObserver; c++) {
-        const el = refs[c]
-        if (el) observer.observe(el)
-      }
-    }
-    return () => observer.disconnect()
-  }, [cursor, load, cols, inModal])
+  const bindLoadMoreSentinelRef = useColumnLoadMore({
+    cursor,
+    cols,
+    itemCount: mediaItems.length,
+    loadingMoreRef,
+    loadMore: load,
+    sentinelRefs: loadMoreSentinelRefs,
+    columnLengthsRef: distributedColumnLengthsRef,
+    inModal,
+  })
 
   useEffect(() => {
     setKeyboardFocusIndex((i) => {
@@ -679,13 +666,7 @@ export function SearchModalGridContent({
     [inModal, openPostModal, navigate, location],
   )
 
-  const handleLoadMoreSentinelRef = useCallback(
-    (colIndex: number) => (el: HTMLDivElement | null) => {
-      if (cols >= 2) loadMoreSentinelRefs.current[colIndex] = el
-      else ((loadMoreSentinelRef as unknown) as { current: HTMLDivElement | null }).current = el
-    },
-    [cols],
-  )
+  const handleLoadMoreSentinelRef = bindLoadMoreSentinelRef
 
   const handleActionsMenuOpenChange = useCallback((index: number, open: boolean) => {
     setActionsMenuOpenForIndex(open ? index : null)
