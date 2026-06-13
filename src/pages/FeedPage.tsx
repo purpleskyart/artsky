@@ -36,6 +36,7 @@ import { getLikeOverrideFromStore } from '../lib/likeOverridesStore'
 import { usePullToRefresh, PULL_THRESHOLD_PX } from '../hooks/usePullToRefresh'
 import { useStandalonePwa } from '../hooks/useStandalonePwa'
 import { useColumnCount } from '../hooks/useViewportWidth'
+import { useColumnLoadMore } from '../hooks/useColumnLoadMore'
 import { usePostCardGridPointerGate } from '../hooks/usePostCardGridPointerGate'
 import { usePostCardDisplayContext } from '../hooks/usePostCardDisplayContext'
 import FeedColumn from '../components/FeedColumn'
@@ -308,12 +309,6 @@ export default function FeedPage() {
   /** Per-column card counts; empty columns keep a top sentinel — must not drive "short column" auto load-more. */
   const distributedColumnLengthsRef = useRef<number[]>([])
   const loadingMoreRef = useRef(false)
-  /** Per-column cooldown tracking so each column can trigger load independently (columns don't block each other). */
-  const lastLoadMoreByColumnRef = useRef<number[]>([])
-  /** Track last retry-based load to prevent infinite loops when columns stay short after loading. */
-  const lastRetryLoadTimeRef = useRef<number>(0)
-  /** Maximum cooldown after a retry-triggered load to prevent chaining. */
-  const RETRY_LOAD_COOLDOWN_MS = 2000
   const { openPostModal, isModalOpen } = useProfileModal()
   const prevModalOpenRef = useRef(isModalOpen)
   const cardRefsRef = useRef<(HTMLDivElement | null)[]>([])
@@ -639,17 +634,6 @@ export default function FeedPage() {
     }
   }, [load, authResolved])
 
-  // Infinite scroll: load more when sentinel enters view. Cooldown prevents re-triggering while sentinel stays in view (stops infinite load loop).
-  // Large rootMargin so we load before the user reaches the end. After each load we also schedule a
-  // fallback check: if any column clearly ends above the viewport bottom (visible gap), trigger another
-  // load once the cooldown expires — not when the user is already at the end (avoids infinite chaining).
-  /** Per-column debounce between automatic load-more triggers. Lowered to allow multiple columns to load in quick succession. */
-  const LOAD_MORE_COOLDOWN_MS = 450
-  /** Start loading when sentinel is within this distance below the viewport (load before user reaches end). */
-  const LOAD_MORE_ROOT_MARGIN = '150%'
-  /** Min gap (px) between viewport bottom and a column sentinel to count as "short" (empty masonry below). Capped vs viewport so small phones still work. */
-  const LOAD_MORE_SHORT_MARGIN_PX = 300
-
   const { mediaMode } = useMediaOnly()
   const postCardDisplayContext = usePostCardDisplayContext()
   const { nsfwPreference, unblurredUris, setUnblurred } = useModeration()
@@ -672,146 +656,15 @@ export default function FeedPage() {
   )
   const displayEntries = useMemo(() => buildDisplayEntries(displayItems), [displayItems])
 
-  useEffect(() => {
-    if (!feedState.cursor) return
-    
-    // Auto-load more when feed is empty (e.g., after hiding seen posts) but cursor exists
-    // Only trigger if we haven't just done a retry-based load to prevent infinite loops.
-    const sinceRetryLoad = Date.now() - lastRetryLoadTimeRef.current
-    if (displayEntries.length === 0 && !loadingMoreRef.current && sinceRetryLoad > RETRY_LOAD_COOLDOWN_MS) {
-      const now = Date.now()
-      const minColCooldown = Math.min(
-        ...Array.from({ length: cols }, (_, i) => lastLoadMoreByColumnRef.current[i] ?? 0),
-        now
-      )
-      const wait = Math.max(50, LOAD_MORE_COOLDOWN_MS - (now - minColCooldown) + 50)
-      const timeoutId = setTimeout(() => {
-        if (!loadingMoreRef.current && displayEntries.length === 0 && feedState.cursor) {
-          loadingMoreRef.current = true
-          lastLoadMoreByColumnRef.current[0] = Date.now()
-          lastRetryLoadTimeRef.current = Date.now()
-          load(feedState.cursor)
-        }
-      }, wait)
-      return () => clearTimeout(timeoutId)
-    }
-    const refs = loadMoreSentinelRefs.current
-    let rafId = 0
-    let retryId = 0
-    /**
-     * True when a column ends with clear empty space still visible below its sentinel — not when the user
-     * is scrolled to the document end (sentinel near viewport bottom). The old check used
-     * threshold = innerHeight + margin, so nearly every sentinel matched and scheduleRetry() chained
-     * load-more forever, locking scroll at the bottom on mobile.
-     */
-    const anyColumnShort = () => {
-      const lengths = distributedColumnLengthsRef.current
-      // Use visualViewport for stable viewport on mobile (doesn't change with address bar)
-      const vv = window.visualViewport
-      const vh = vv ? vv.height : window.innerHeight
-      const margin = Math.min(LOAD_MORE_SHORT_MARGIN_PX, Math.floor(vh * 0.4))
-      const threshold = vh - margin
-      for (let c = 0; c < cols; c++) {
-        const el = refs[c]
-        if (!el) continue
-        // Empty columns should also trigger load more (e.g., after hiding seen posts)
-        if ((lengths[c] ?? 0) === 0) {
-          if (el.getBoundingClientRect().bottom < threshold) return true
-          continue
-        }
-        if (el.getBoundingClientRect().bottom < threshold) return true
-      }
-      return false
-    }
-
-    /** After cooldown, check for short columns and load more if needed. Uses per-column cooldowns. */
-    const scheduleRetry = () => {
-      clearTimeout(retryId)
-      // Prevent retry chaining: if we just did a retry-based load, don't schedule another.
-      const now = Date.now()
-      const sinceRetryLoad = now - lastRetryLoadTimeRef.current
-      if (sinceRetryLoad <= RETRY_LOAD_COOLDOWN_MS) return
-      // Find the shortest waiting time among all columns
-      const minColCooldown = Math.min(
-        ...Array.from({ length: cols }, (_, i) => lastLoadMoreByColumnRef.current[i] ?? 0),
-        now // Include now as a fallback to avoid Math.min on empty array
-      )
-      const wait = Math.max(50, LOAD_MORE_COOLDOWN_MS - (now - minColCooldown) + 50)
-      retryId = window.setTimeout(() => {
-        if (loadingMoreRef.current) return
-        // Double-check cooldown before loading to prevent race conditions
-        if (Date.now() - lastRetryLoadTimeRef.current <= RETRY_LOAD_COOLDOWN_MS) return
-        if (anyColumnShort()) {
-          loadingMoreRef.current = true
-          lastRetryLoadTimeRef.current = Date.now()
-          // Update cooldown for the shortest column that triggered this
-          const shortColIdx = (() => {
-            // Use visualViewport for stable viewport on mobile (doesn't change with address bar)
-            const vv = window.visualViewport
-            const vh = vv ? vv.height : window.innerHeight
-            const margin = Math.min(LOAD_MORE_SHORT_MARGIN_PX, Math.floor(vh * 0.4))
-            const threshold = vh - margin
-            for (let c = 0; c < cols; c++) {
-              const el = refs[c]
-              if (!el) continue
-              // Empty columns should also trigger load more (e.g., after hiding seen posts)
-              if (el.getBoundingClientRect().bottom < threshold) return c
-            }
-            return 0
-          })()
-          lastLoadMoreByColumnRef.current[shortColIdx] = Date.now()
-          load(feedState.cursor)
-        }
-      }, wait)
-    }
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        // Find which column triggered this intersection
-        for (const e of entries) {
-          if (!e.isIntersecting || loadingMoreRef.current) continue
-          // Find the column index for this sentinel
-          const colIndex = refs.findIndex((ref) => ref === e.target)
-          const colCooldown = lastLoadMoreByColumnRef.current[colIndex] ?? 0
-          // Skip if this column is on cooldown - normal scrolling will re-trigger when ready
-          if (Date.now() - colCooldown < LOAD_MORE_COOLDOWN_MS) continue
-          loadingMoreRef.current = true
-          const c = feedState.cursor
-          // Update cooldown for this specific column
-          lastLoadMoreByColumnRef.current[colIndex] = Date.now()
-          rafId = requestAnimationFrame(() => {
-            rafId = 0
-            load(c)
-          })
-          break
-        }
-      },
-      { rootMargin: LOAD_MORE_ROOT_MARGIN, threshold: 0 }
-    )
-    for (let c = 0; c < cols; c++) {
-      const el = refs[c]
-      if (el) observer.observe(el)
-    }
-
-    // After each cursor change (new posts loaded), schedule a fallback check for short columns
-    // whose sentinels may have scrolled beyond rootMargin or been blocked by cooldown (incl. 1-col).
-    scheduleRetry()
-
-    return () => {
-      observer.disconnect()
-      if (rafId) cancelAnimationFrame(rafId)
-      clearTimeout(retryId)
-    }
-  }, [feedState.cursor, load, cols, displayEntries.length])
-
-  // Keep per-column cooldown array in sync with column count
-  useEffect(() => {
-    const current = lastLoadMoreByColumnRef.current
-    if (current.length !== cols) {
-      // Preserve existing cooldowns, initialize new columns to 0
-      lastLoadMoreByColumnRef.current = Array.from({ length: cols }, (_, i) => current[i] ?? 0)
-    }
-  }, [cols])
+  const bindLoadMoreSentinelRef = useColumnLoadMore({
+    cursor: feedState.cursor,
+    cols,
+    itemCount: displayEntries.length,
+    loadingMoreRef,
+    loadMore: load,
+    sentinelRefs: loadMoreSentinelRefs,
+    columnLengthsRef: distributedColumnLengthsRef,
+  })
 
   // Prefetch first few posts when feed loads for instant feel on first clicks
   useEffect(() => {
@@ -1560,7 +1413,7 @@ export default function FeedPage() {
                   key={colIndex}
                   column={column}
                   colIndex={colIndex}
-                  loadMoreSentinelRef={feedState.cursor ? (el) => { loadMoreSentinelRefs.current[colIndex] = el } : undefined}
+                  loadMoreSentinelRef={feedState.cursor ? bindLoadMoreSentinelRef(colIndex) : undefined}
                   hasCursor={!!feedState.cursor}
                   keyboardFocusIndex={feedState.keyboardFocusIndex}
                   focusTargets={focusTargets}

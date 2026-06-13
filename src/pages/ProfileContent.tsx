@@ -25,6 +25,7 @@ import { useFollowOverrides } from '../context/FollowOverridesContext'
 import { useToast } from '../context/ToastContext'
 import { EyeOpenIcon, EyeHalfIcon, EyeClosedIcon } from '../components/Icons'
 import { useColumnCount } from '../hooks/useViewportWidth'
+import { useColumnLoadMore } from '../hooks/useColumnLoadMore'
 import { useModalGridKeyboardShell, useModalScrollKeyboardFocus } from '../hooks/useModalGridKeyboardShell'
 import { shouldUnderlayHandleGridKeys } from '../lib/modalKeyboard'
 import { usePostCardGridPointerGate } from '../hooks/usePostCardGridPointerGate'
@@ -59,13 +60,6 @@ const VIEW_MODE_CYCLE: ViewMode[] = ['1', '2', '3', 'a']
 
 /** Profile lightbox: keep the masonry grid readable (All Columns on the full page can use more). */
 const PROFILE_MODAL_MAX_MASONRY_COLS = 3
-
-/** Per-column debounce between automatic load-more triggers. Lowered to allow multiple columns to load in quick succession. */
-const LOAD_MORE_COOLDOWN_MS = 450
-/** Start loading when sentinel is within this distance below the viewport (load before user reaches end). */
-const LOAD_MORE_ROOT_MARGIN_PX = 1600
-/** Min gap (px) between viewport bottom and a column sentinel to count as "short" (empty masonry below). Capped vs viewport so small phones still work. */
-const LOAD_MORE_SHORT_MARGIN_PX = 300
 
 /** Nominal column width for height estimation (px). */
 const ESTIMATE_COL_WIDTH = 280
@@ -263,8 +257,6 @@ export default function ProfileContent({
   /** Per-column card counts; empty columns keep a top sentinel — must not drive "short column" auto load-more. */
   const distributedColumnLengthsRef = useRef<number[]>([])
   const loadingMoreRef = useRef(false)
-  /** Per-column cooldown tracking so each column can trigger load independently (columns don't block each other). */
-  const lastLoadMoreByColumnRef = useRef<number[]>([])
   const [tabsBarVisible] = useState(true)
   const [keyboardFocusIndex, setKeyboardFocusIndex] = useState(0)
   const [actionsMenuOpenForIndex, setActionsMenuOpenForIndex] = useState<number | null>(null)
@@ -486,166 +478,12 @@ export default function ProfileContent({
     onRegisterRefreshRef.current?.(() => refreshImplRef.current?.())
   }, [tab, profilePostsFilter])
 
-  // Infinite scroll: load more when sentinel enters view. Cooldown prevents re-triggering while sentinel stays in view (stops infinite load loop).
-  // Large rootMargin so we load before the user reaches the end. After each load we also schedule a
-  // fallback check: if any column clearly ends above the viewport bottom (visible gap), trigger another
-  // load once the cooldown expires — not when the user is already at the end (avoids infinite chaining).
   loadingMoreRef.current = loadingMore
   const colsUncapped = useColumnCount(viewMode, 150)
   const cols = inModal ? Math.min(colsUncapped, PROFILE_MODAL_MAX_MASONRY_COLS) : colsUncapped
-
-  // Keep per-column cooldown array in sync with column count
-  useEffect(() => {
-    const current = lastLoadMoreByColumnRef.current
-    if (current.length !== cols) {
-      // Preserve existing cooldowns, initialize new columns to 0
-      lastLoadMoreByColumnRef.current = Array.from({ length: cols }, (_, i) => current[i] ?? 0)
-    }
-  }, [cols])
   const loadMoreCursor = tab === 'posts' && profilePostsFilter === 'liked' ? likedCursor : cursor
   const loadMore = tab === 'posts' && profilePostsFilter === 'liked' ? (c: string) => loadLiked(c) : load
-  // Refs to avoid stale closures in scheduleRetry
-  const loadMoreCursorRef = useRef(loadMoreCursor)
-  loadMoreCursorRef.current = loadMoreCursor
-  const loadMoreFnRef = useRef(loadMore)
-  loadMoreFnRef.current = loadMore
-  useEffect(() => {
-    if (tab !== 'posts' && tab !== 'videos' && tab !== 'replies' && tab !== 'reposts') return
-    if (!loadMoreCursor) return
-    
-    // Auto-load more when feed is empty (e.g., after filtering) but cursor exists
-    if (profileGridItems.length === 0 && !loadingMoreRef.current) {
-      const now = Date.now()
-      const minColCooldown = Math.min(
-        ...Array.from({ length: cols }, (_, i) => lastLoadMoreByColumnRef.current[i] ?? 0),
-        now
-      )
-      const wait = Math.max(50, LOAD_MORE_COOLDOWN_MS - (now - minColCooldown) + 50)
-      const timeoutId = setTimeout(() => {
-        if (!loadingMoreRef.current && profileGridItems.length === 0 && loadMoreCursorRef.current) {
-          loadingMoreRef.current = true
-          lastLoadMoreByColumnRef.current[0] = Date.now()
-          loadMoreFnRef.current(loadMoreCursorRef.current)
-        }
-      }, wait)
-      return () => clearTimeout(timeoutId)
-    }
-    const refs = loadMoreSentinelRefs.current
-    let rafId = 0
-    let retryId = 0
-    /**
-     * True when a column ends with clear empty space still visible below its sentinel — not when the user
-     * is scrolled to the document end (sentinel near viewport bottom). The old check used
-     * threshold = innerHeight + margin, so nearly every sentinel matched and scheduleRetry() chained
-     * load-more forever, locking scroll at the bottom on mobile.
-     */
-    const anyColumnShort = () => {
-      const lengths = distributedColumnLengthsRef.current
-      // Use visualViewport for stable viewport on mobile (doesn't change with address bar)
-      const vv = window.visualViewport
-      const vh = vv ? vv.height : window.innerHeight
-      const margin = Math.min(LOAD_MORE_SHORT_MARGIN_PX, Math.floor(vh * 0.4))
-      const threshold = vh - margin
-      for (let c = 0; c < cols; c++) {
-        const el = refs[c]
-        if (!el) continue
-        // Empty columns should also trigger load more (e.g., after filtering)
-        if ((lengths[c] ?? 0) === 0) {
-          if (el.getBoundingClientRect().bottom < threshold) return true
-          continue
-        }
-        if (el.getBoundingClientRect().bottom < threshold) return true
-      }
-      return false
-    }
-
-    /** After cooldown, check for short columns and load more if needed. Uses per-column cooldowns. */
-    const scheduleRetry = () => {
-      clearTimeout(retryId)
-      // Find the shortest waiting time among all columns
-      const now = Date.now()
-      const minColCooldown = Math.min(
-        ...Array.from({ length: cols }, (_, i) => lastLoadMoreByColumnRef.current[i] ?? 0),
-        now // Include now as a fallback to avoid Math.min on empty array
-      )
-      const wait = Math.max(50, LOAD_MORE_COOLDOWN_MS - (now - minColCooldown) + 50)
-      retryId = window.setTimeout(() => {
-        if (loadingMoreRef.current) return
-        if (anyColumnShort()) {
-          loadingMoreRef.current = true
-          // Update cooldown for the shortest column that triggered this
-          const shortColIdx = (() => {
-            // Use visualViewport for stable viewport on mobile (doesn't change with address bar)
-            const vv = window.visualViewport
-            const vh = vv ? vv.height : window.innerHeight
-            const margin = Math.min(LOAD_MORE_SHORT_MARGIN_PX, Math.floor(vh * 0.4))
-            const threshold = vh - margin
-            for (let c = 0; c < cols; c++) {
-              const el = refs[c]
-              if (!el) continue
-              // Empty columns should also trigger load more (e.g., after filtering)
-              if (el.getBoundingClientRect().bottom < threshold) return c
-            }
-            return 0
-          })()
-          lastLoadMoreByColumnRef.current[shortColIdx] = Date.now()
-          if (loadMoreCursorRef.current) {
-            loadMoreFnRef.current(loadMoreCursorRef.current)
-          }
-        }
-      }, wait)
-    }
-
-    const firstSentinel = cols >= 2 ? loadMoreSentinelRefs.current[0] : loadMoreSentinelRef.current
-    const root = inModal ? firstSentinel?.closest('[data-modal-scroll]') ?? null : null
-    // Use viewport-relative margin on mobile (smaller screens) for better UX
-    // Use visualViewport for stable viewport on mobile (doesn't change with address bar)
-    const vv = window.visualViewport
-    const vh = vv ? vv.height : window.innerHeight
-    const rootMarginPx = Math.min(LOAD_MORE_ROOT_MARGIN_PX, Math.floor(vh * 1.5))
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        // Find which column triggered this intersection
-        for (const e of entries) {
-          if (!e.isIntersecting || loadingMoreRef.current) continue
-          // Find the column index for this sentinel
-          const colIndex = refs.findIndex((ref) => ref === e.target)
-          const colCooldown = lastLoadMoreByColumnRef.current[colIndex] ?? 0
-          // Check both global and per-column cooldown to prevent infinite loops
-          if (Date.now() - colCooldown < LOAD_MORE_COOLDOWN_MS) {
-            scheduleRetry()
-            continue
-          }
-          loadingMoreRef.current = true
-          // Update cooldown for this specific column
-          lastLoadMoreByColumnRef.current[colIndex] = Date.now()
-          rafId = requestAnimationFrame(() => {
-            rafId = 0
-            if (loadMoreCursorRef.current) {
-              loadMoreFnRef.current(loadMoreCursorRef.current)
-            }
-          })
-          break
-        }
-      },
-      { root: root ?? undefined, rootMargin: `${rootMarginPx}px`, threshold: 0 }
-    )
-    for (let c = 0; c < cols; c++) {
-      const el = refs[c]
-      if (el) observer.observe(el)
-    }
-
-    // After each cursor change (new posts loaded), schedule a fallback check for short columns
-    // whose sentinels may have scrolled beyond rootMargin or been blocked by cooldown (incl. 1-col).
-    scheduleRetry()
-
-    return () => {
-      observer.disconnect()
-      if (rafId) cancelAnimationFrame(rafId)
-      clearTimeout(retryId)
-    }
-  }, [tab, profilePostsFilter, loadMoreCursor, load, loadLiked, loadMore, inModal, cols])
+  const gridTabActive = tab === 'posts' || tab === 'videos' || tab === 'replies' || tab === 'reposts'
 
   const followingUri = profile?.viewer?.following ?? followUriOverride
   const isFollowing = !!followingUri
@@ -731,6 +569,18 @@ export default function ProfileContent({
   // Distribute items into columns and track lengths for infinite scroll
   const distributedColumns = useMemo(() => distributeByHeight(profileGridItems, cols), [profileGridItems, cols])
   distributedColumnLengthsRef.current = distributedColumns.map((c) => c.length)
+
+  const bindLoadMoreSentinelRef = useColumnLoadMore({
+    cursor: loadMoreCursor,
+    cols,
+    itemCount: profileGridItems.length,
+    loadingMoreRef,
+    loadMore,
+    sentinelRefs: loadMoreSentinelRefs,
+    columnLengthsRef: distributedColumnLengthsRef,
+    enabled: gridTabActive,
+    inModal,
+  })
 
   // Prefetch first few posts when profile loads for instant feel on first clicks
   useEffect(() => {
@@ -1456,14 +1306,7 @@ export default function ProfileContent({
                   colIndex={colIndex}
                   scrollRef={modalScrollRef}
                   feedPreviewActionRow
-                  loadMoreSentinelRef={
-                    cursor
-                      ? (el) => {
-                          if (cols >= 2) loadMoreSentinelRefs.current[colIndex] = el
-                          else ((loadMoreSentinelRef as unknown) as { current: HTMLDivElement | null }).current = el
-                        }
-                      : undefined
-                  }
+                  loadMoreSentinelRef={loadMoreCursor ? bindLoadMoreSentinelRef(colIndex) : undefined}
                   hasCursor={!!cursor}
                   keyboardFocusIndex={keyboardFocusIndex}
                   actionsMenuOpenForIndex={actionsMenuOpenForIndex}

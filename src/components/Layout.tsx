@@ -2186,7 +2186,9 @@ export default function Layout({ title, children, showNav }: Props) {
         )}
       </header>
       )}
-      {showNav && !isDesktop && (
+      {showNav && !isDesktop && typeof document !== 'undefined' &&
+        createPortal(
+          <>
         <div
           className={`${styles.feedsFloatWrap} feeds-float-wrap ${isModalOpen ? styles.feedsFloatWrapAboveModal : ''} ${mobileNavScrollHidden || (isModalOpen && modalScrollHidden) ? styles.feedsFloatWrapScrollHidden : ''} ${searchModalTopQuery != null ? styles.feedsFloatWrapSearchSlot : ''} ${searchModalTopQuery != null && showFeedStyleSettingsFloat && isModalOpen ? styles.feedsFloatWrapSearchSlotBetweenChrome : ''} ${searchModalTopQuery != null && showFeedStyleSettingsFloat && isModalOpen && showAccountFeedUi ? styles.feedsFloatWrapSearchSlotBetweenChromeRightAccount : ''} ${searchModalTopQuery != null && showFeedStyleSettingsFloat && isModalOpen && !showAccountFeedUi ? styles.feedsFloatWrapSearchSlotBetweenChromeRightGuest : ''}`}
           ref={feedsDropdownRef}
@@ -2267,8 +2269,7 @@ export default function Layout({ title, children, showNav }: Props) {
             </>
           )}
         </div>
-      )}
-      {showNav && !isDesktop && showFeedStyleSettingsFloat && (
+      {showFeedStyleSettingsFloat && (
         <div ref={gearFloatWrapRef} className={`${styles.gearFloatWrap} ${isModalOpen ? styles.gearFloatWrapModalOpen : ''} ${mobileNavScrollHidden || (isModalOpen && modalScrollHidden) ? styles.gearFloatWrapScrollHidden : ''}`}>
           <button
             type="button"
@@ -2364,7 +2365,7 @@ export default function Layout({ title, children, showNav }: Props) {
           </div>
         </div>
       )}
-      {showNav && !isDesktop && !showAccountFeedUi && (
+      {!showAccountFeedUi && (
         <div className={`${styles.loginFloatWrap} login-float-wrap ${isModalOpen ? styles.loginFloatWrapAboveModal : ''} ${mobileNavScrollHidden || (isModalOpen && modalScrollHidden) ? styles.loginFloatWrapScrollHidden : ''}`}>
           <button
             type="button"
@@ -2377,7 +2378,7 @@ export default function Layout({ title, children, showNav }: Props) {
           </button>
         </div>
       )}
-      {showNav && !isDesktop && showAccountFeedUi && (
+      {showAccountFeedUi && (
         <div className={`${styles.notificationFloatWrap} notification-float-wrap ${isModalOpen ? styles.notificationFloatWrapAboveModal : ''} ${mobileNavScrollHidden || (isModalOpen && modalScrollHidden) ? styles.notificationFloatWrapScrollHidden : ''}`}>
           <div className={styles.headerChromeFloatRow}>
             <button
@@ -2427,6 +2428,9 @@ export default function Layout({ title, children, showNav }: Props) {
           )}
         </div>
       )}
+          </>,
+          document.body
+        )}
       {showNav && !isDesktop && accountMenuOpen && (
         <div className={styles.accountMenuAboveWrap}>
           <div ref={accountMenuRef} className={styles.accountMenuAbove} role="menu" aria-label="Accounts and settings">
