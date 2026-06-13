@@ -530,6 +530,8 @@ export function setOAuthAgent(
       }
     }
   }
+  // Notify UI (e.g. chat) when the live agent is swapped — same DID may gain chat scope after OAuth restore.
+  onSessionUpdatedCallback?.()
 }
 
 /** Current agent for API calls: OAuth session if set, otherwise the base unauthenticated AtpAgent. */
