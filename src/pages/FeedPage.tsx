@@ -264,6 +264,7 @@ export default function FeedPage() {
     entries: mixEntries,
     totalPercent: mixTotalPercent,
   } = useFeedMix()
+  const { mediaMode } = useMediaOnly()
   const feedSwipe = useFeedSwipe()
 
   const swipeStartRef = useRef<{ x: number; y: number } | null>(null)
@@ -335,7 +336,7 @@ export default function FeedPage() {
         // Guest homepage should surface posts: skip empty author batches instead of showing "no posts in this batch".
         const maxEmptyGuestSkips = 8
         for (let skip = 0; skip <= maxEmptyGuestSkips; skip++) {
-          const result = await withTimeout(getGuestFeed(limit, guestCursor), FEED_LOAD_TIMEOUT_MS)
+          const result = await withTimeout(getGuestFeed(limit, guestCursor, mediaMode), FEED_LOAD_TIMEOUT_MS)
           feed = result.feed
           next = result.cursor
           if (signal?.aborted) return
@@ -453,7 +454,7 @@ export default function FeedPage() {
         dispatch({ type: 'SET_HAS_LOADED', hasLoaded: true })
       }
     }
-  }, [source, session, authResolved, mixEntries, mixTotalPercent, cols])
+  }, [source, session, authResolved, mixEntries, mixTotalPercent, cols, mediaMode])
 
   // Feed stays mounted under modals; restore hidden posts when the overlay closes so the homepage isn't empty.
   useEffect(() => {
@@ -484,6 +485,21 @@ export default function FeedPage() {
     dispatch({ type: 'CLEAR_SEEN_SNAPSHOT' })
   }, [session?.did])
 
+  /* Guest feed uses author feeds — refetch when media mode changes so the server filter stays in sync. */
+  const prevGuestMediaModeRef = useRef(mediaMode)
+  useEffect(() => {
+    if (!authResolved || session) return
+    if (prevGuestMediaModeRef.current === mediaMode) return
+    prevGuestMediaModeRef.current = mediaMode
+    feedMixChangedRef.current = true
+    feedMixChangedVersionRef.current += 1
+    const abortController = new AbortController()
+    load(undefined, abortController.signal)
+    return () => {
+      abortController.abort()
+    }
+  }, [mediaMode, authResolved, session, load])
+
   useEffect(() => {
     if (!authResolved) return
     const abortController = new AbortController()
@@ -493,7 +509,6 @@ export default function FeedPage() {
     }
   }, [load, authResolved])
 
-  const { mediaMode } = useMediaOnly()
   const postCardDisplayContext = usePostCardDisplayContext()
   const { nsfwPreference, unblurredUris, setUnblurred } = useModeration()
   const { hideRepostsFromDids } = useHideReposts() ?? { hideRepostsFromDids: [] as string[] }
