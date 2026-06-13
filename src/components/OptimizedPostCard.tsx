@@ -32,9 +32,8 @@ interface OptimizedPostCardProps {
  * Wrapper around PostCard for the feed grid.
  *
  * Cards far off-screen are replaced with a fixed-height placeholder (see
- * cardVirtualization hysteresis margins), freeing images, video/HLS, and
- * observers. Scrolled-past cards above the viewport virtualize quickly;
- * remount still happens with lead time before scroll-back into view.
+ * cardVirtualization root margins), freeing images, video/HLS, and observers.
+ * Top margin is tighter than bottom so scrolled-past cards virtualize sooner.
  */
 function OptimizedPostCard(props: OptimizedPostCardProps) {
   const wrapRef = useRef<HTMLDivElement | null>(null)

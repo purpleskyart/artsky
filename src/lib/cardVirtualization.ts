@@ -1,107 +1,43 @@
 /**
  * Shared IntersectionObserver for card virtualization.
  *
- * Cards far off-screen are replaced with fixed-height placeholders, freeing
+ * Cards beyond the margin are replaced with fixed-height placeholders, freeing
  * images, video, HLS instances, and per-card observers from memory. A single
  * shared IO keeps overhead O(1) regardless of card count.
  *
- * Hysteresis avoids flicker: unmount thresholds are tighter than remount
- * thresholds, so cards virtualize soon after leaving the viewport but remount
- * with lead time before they scroll back into view. Top (scrolled-past) margins
- * are tighter than bottom (upcoming) margins to avoid keeping many cards above
- * the viewport mounted.
+ * Top margin is smaller than bottom so scrolled-past cards above the viewport
+ * virtualize sooner; bottom keeps a larger buffer for smooth scroll-down.
  */
 
-/** Viewport-height multiples — unmount when farther than this outside the root. */
-export const VIRT_UNMOUNT_MARGIN_VH = {
-  /** Scrolled-past cards: virtualize once farther than this above the viewport. */
-  top: 0.4,
+/** Viewport-height multiples for asymmetric rootMargin (top, bottom). */
+export const VIRT_ROOT_MARGIN_VH = {
+  /** Scrolled-past: virtualize once farther than this above the viewport. */
+  top: 0.5,
+  /** Upcoming: keep mounted until this far below the viewport. */
   bottom: 0.75,
 } as const
-
-/** Viewport-height multiples — remount when closer than this outside the root. */
-export const VIRT_MOUNT_MARGIN_VH = {
-  /** Scroll-back: remount with lead time; must be < unmount top for stable hysteresis. */
-  top: 0.25,
-  bottom: 0.5,
-} as const
-
-type ViewBounds = { top: number; bottom: number }
 
 function getViewportHeight(): number {
   if (typeof window === 'undefined') return 800
   return window.innerHeight
 }
 
-function getRootBounds(root: Element | null): ViewBounds {
-  if (!root) {
-    return { top: 0, bottom: getViewportHeight() }
-  }
-  const rect = root.getBoundingClientRect()
-  return { top: rect.top, bottom: rect.bottom }
-}
-
 function getVirtualizationRootMargin(): string {
   const vh = getViewportHeight()
-  const top = Math.floor(vh * VIRT_UNMOUNT_MARGIN_VH.top)
-  const bottom = Math.floor(vh * VIRT_UNMOUNT_MARGIN_VH.bottom)
+  const top = Math.floor(vh * VIRT_ROOT_MARGIN_VH.top)
+  const bottom = Math.floor(vh * VIRT_ROOT_MARGIN_VH.bottom)
   return `${top}px 0px ${bottom}px 0px`
-}
-
-/**
- * Hysteresis without oscillation: remount when close (mount), stay mounted until
- * farther (unmount). Requires mount < unmount per direction.
- *
- * near = distance < mount OR (near && distance < unmount)
- */
-export function computeVirtualizationNear(
-  currentNear: boolean,
-  rect: DOMRectReadOnly,
-  bounds: ViewBounds,
-  vh: number,
-): boolean {
-  const visible = rect.bottom > bounds.top && rect.top < bounds.bottom
-  if (visible) return true
-
-  const unmountTop = vh * VIRT_UNMOUNT_MARGIN_VH.top
-  const unmountBottom = vh * VIRT_UNMOUNT_MARGIN_VH.bottom
-  const mountTop = vh * VIRT_MOUNT_MARGIN_VH.top
-  const mountBottom = vh * VIRT_MOUNT_MARGIN_VH.bottom
-
-  if (rect.bottom <= bounds.top) {
-    const distance = bounds.top - rect.bottom
-    return distance < mountTop || (currentNear && distance < unmountTop)
-  }
-
-  if (rect.top >= bounds.bottom) {
-    const distance = rect.top - bounds.bottom
-    return distance < mountBottom || (currentNear && distance < unmountBottom)
-  }
-
-  return true
 }
 
 type VirtCallback = (isNearViewport: boolean) => void
 
 const virtCallbacks = new WeakMap<Element, VirtCallback>()
-const nearState = new WeakMap<Element, boolean>()
 const trackedElements = new Map<Element, { callback: VirtCallback; root: Element | null }>()
 const observerCache = new Map<Element | null, IntersectionObserver>()
 
-function updateElementNear(el: Element, root: Element | null): void {
-  const bounds = getRootBounds(root)
-  const vh = getViewportHeight()
-  const rect = el.getBoundingClientRect()
-  const current = nearState.get(el) ?? true
-  const next = computeVirtualizationNear(current, rect, bounds, vh)
-  if (next === current) return
-  nearState.set(el, next)
-  virtCallbacks.get(el)?.(next)
-}
-
-function handleIntersectionEntries(entries: IntersectionObserverEntry[], root: Element | null): void {
+function handleIntersectionEntries(entries: IntersectionObserverEntry[]): void {
   for (const entry of entries) {
-    updateElementNear(entry.target, root)
+    virtCallbacks.get(entry.target)?.(entry.isIntersecting)
   }
 }
 
@@ -138,14 +74,13 @@ if (typeof window !== 'undefined') {
             .map(([el]) => el)
 
           const newObserver = new IntersectionObserver(
-            (entries) => handleIntersectionEntries(entries, root),
+            (entries) => handleIntersectionEntries(entries),
             { rootMargin: getVirtualizationRootMargin(), threshold: 0, root },
           )
           observerCache.set(root, newObserver)
 
           for (const el of elements) {
             newObserver.observe(el)
-            updateElementNear(el, root)
           }
         }
       } catch (error) {
@@ -160,7 +95,7 @@ function getObserver(root: Element | null = null): IntersectionObserver {
   if (cached) return cached
 
   const observer = new IntersectionObserver(
-    (entries) => handleIntersectionEntries(entries, root),
+    (entries) => handleIntersectionEntries(entries),
     { rootMargin: getVirtualizationRootMargin(), threshold: 0, root },
   )
   observerCache.set(root, observer)
@@ -176,13 +111,20 @@ export function observeVirtualization(
   const rootEl = root ?? null
   virtCallbacks.set(el, callback)
   trackedElements.set(el, { callback, root: rootEl })
-  nearState.set(el, true)
   observer.observe(el)
-  updateElementNear(el, rootEl)
+
+  const deliverPending = () => {
+    const pending = observer.takeRecords()
+    if (pending.length > 0) handleIntersectionEntries(pending)
+  }
+  deliverPending()
+  if (typeof requestAnimationFrame !== 'undefined') {
+    requestAnimationFrame(deliverPending)
+  }
+
   return () => {
     virtCallbacks.delete(el)
     trackedElements.delete(el)
-    nearState.delete(el)
     observer.unobserve(el)
   }
 }
