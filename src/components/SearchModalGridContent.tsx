@@ -290,7 +290,6 @@ export function SearchModalGridContent({
       },
       [setFollowOverride],
     ),
-    likeOnSpaceInModalOnly: true,
   })
 
   const handleCardRef = useCallback((index: number) => (el: HTMLDivElement | null) => {

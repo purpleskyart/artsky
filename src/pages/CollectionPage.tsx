@@ -284,12 +284,12 @@ export function CollectionDetailContent({ uri: decodedUri, inModal = false, isTo
     (originalIndex: number) => {
       tryHoverSelectCard(
         originalIndex,
-        () => keyboardFocusIndexRef.current,
-        (idx) => setKeyboardFocusIndex(idx),
+        () => focusTargets[keyboardFocusIndexRef.current]?.cardIndex ?? -1,
+        (cardIndex) => setKeyboardFocusIndex(firstFocusIndexForCardRef.current[cardIndex] ?? 0),
         { applyOnTouch: false },
       )
     },
-    [tryHoverSelectCard],
+    [tryHoverSelectCard, focusTargets],
   )
 
   const isSelected = useCallback(

@@ -106,15 +106,18 @@ export function useColumnLoadMore({
     const scheduleRetry = () => {
       clearTimeout(retryId)
       const now = Date.now()
-      if (now - lastRetryLoadTimeRef.current <= LOAD_MORE_RETRY_COOLDOWN_MS) return
+      const retryWait = Math.max(0, LOAD_MORE_RETRY_COOLDOWN_MS - (now - lastRetryLoadTimeRef.current) + 50)
       const minColCooldown = Math.min(
         ...Array.from({ length: cols }, (_, i) => lastLoadMoreByColumnRef.current[i] ?? 0),
         now,
       )
-      const wait = Math.max(50, LOAD_MORE_COOLDOWN_MS - (now - minColCooldown) + 50)
+      const colWait = Math.max(0, LOAD_MORE_COOLDOWN_MS - (now - minColCooldown) + 50)
+      const wait = Math.max(50, retryWait, colWait)
       retryId = window.setTimeout(() => {
-        if (loadingMoreRef.current) return
-        if (Date.now() - lastRetryLoadTimeRef.current <= LOAD_MORE_RETRY_COOLDOWN_MS) return
+        if (loadingMoreRef.current) {
+          scheduleRetry()
+          return
+        }
         if (anyColumnShort() && cursorRef.current) {
           loadingMoreRef.current = true
           lastRetryLoadTimeRef.current = Date.now()
@@ -125,6 +128,22 @@ export function useColumnLoadMore({
     }
 
     const root = inModal ? resolveModalScrollRoot(refs[0]) ?? undefined : undefined
+
+    let scrollRaf = 0
+    const onScrollOrViewportChange = () => {
+      if (scrollRaf) return
+      scrollRaf = requestAnimationFrame(() => {
+        scrollRaf = 0
+        if (loadingMoreRef.current) return
+        if (anyColumnShort()) scheduleRetry()
+      })
+    }
+
+    const scrollTarget: EventTarget = root ?? window
+    scrollTarget.addEventListener('scroll', onScrollOrViewportChange, { passive: true })
+    const vv = window.visualViewport
+    vv?.addEventListener('scroll', onScrollOrViewportChange, { passive: true })
+    vv?.addEventListener('resize', onScrollOrViewportChange, { passive: true })
 
     const observer = new IntersectionObserver(
       (entries) => {
@@ -160,6 +179,10 @@ export function useColumnLoadMore({
 
     return () => {
       observer.disconnect()
+      scrollTarget.removeEventListener('scroll', onScrollOrViewportChange)
+      vv?.removeEventListener('scroll', onScrollOrViewportChange)
+      vv?.removeEventListener('resize', onScrollOrViewportChange)
+      if (scrollRaf) cancelAnimationFrame(scrollRaf)
       if (rafId) cancelAnimationFrame(rafId)
       clearTimeout(retryId)
     }

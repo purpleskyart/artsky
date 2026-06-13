@@ -120,3 +120,31 @@ export function isGridActionKey(key: string, code: string): boolean {
     key === 'f'
   )
 }
+
+/** Navigation keys blocked while a grid menu is open (matches feed). */
+export function isMenuBlockedNavigationKey(key: string, arrowKey: string): boolean {
+  return (
+    key === 'w' ||
+    key === 's' ||
+    key === 'e' ||
+    key === 'o' ||
+    key === 'enter' ||
+    key === 'q' ||
+    key === 'u' ||
+    key === 'backspace' ||
+    key === 'escape' ||
+    arrowKey === 'ArrowUp' ||
+    arrowKey === 'ArrowDown'
+  )
+}
+
+/** Feed-style preventDefault for grid shortcuts (includes h/q/u). */
+export function shouldPreventDefaultFeedGridKey(key: string, code: string, arrowKey: string): boolean {
+  return (
+    isGridNavigationKey(key, code, arrowKey) ||
+    isGridActionKey(key, code) ||
+    key === 'h' ||
+    key === 'q' ||
+    key === 'u'
+  )
+}

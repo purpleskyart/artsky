@@ -39,19 +39,13 @@ import { useColumnCount } from '../hooks/useViewportWidth'
 import { useColumnLoadMore } from '../hooks/useColumnLoadMore'
 import { usePostCardGridPointerGate } from '../hooks/usePostCardGridPointerGate'
 import { usePostCardDisplayContext } from '../hooks/usePostCardDisplayContext'
+import { useMediaGridKeyboardNav } from '../hooks/useMediaGridKeyboardNav'
 import FeedColumn from '../components/FeedColumn'
 import FeedSelector from '../components/FeedSelector'
 import { GUEST_FEED_SOURCES, GUEST_MIX_ENTRIES } from '../config/feedSources'
 import { feedReducer, type FeedState } from './feedReducer'
 import { debounce } from '../lib/utils'
 import { asyncStorage } from '../lib/AsyncStorage'
-import {
-  indexAbove,
-  indexBelow,
-  indexLeftByRow,
-  indexRightByRow,
-  pickAdjacentCardIndexByViewport,
-} from '../lib/masonryHorizontalNav'
 import { distributeByHeight, estimateMediaCardHeight } from '../lib/masonryLayout'
 import { buildMediaFocusIndices } from '../lib/gridFocusTargets'
 import { getPostGridClassName } from '../lib/gridClassName'
@@ -603,17 +597,13 @@ export default function FeedPage() {
   mediaItemsRef.current = displayItems
   keyboardFocusIndexRef.current = feedState.keyboardFocusIndex
   actionsMenuOpenForIndexRef.current = feedState.actionsMenuOpenForIndex
-  const displayEntriesRef = useRef(displayEntries)
   const focusTargetsRef = useRef(focusTargets)
   const firstFocusIndexForCardRef = useRef(firstFocusIndexForCard)
   const lastFocusIndexForCardRef = useRef(lastFocusIndexForCard)
   const distributedColumnsRef = useRef(distributedColumns)
   const colsRef = useRef(cols)
-  const getLikeOverrideRef = useRef(getLikeOverrideFromStore)
-  getLikeOverrideRef.current = getLikeOverrideFromStore
   const blockConfirmRefState = useRef(blockConfirm)
   const sessionRef = useRef(session)
-  displayEntriesRef.current = displayEntries
   focusTargetsRef.current = focusTargets
   firstFocusIndexForCardRef.current = firstFocusIndexForCard
   lastFocusIndexForCardRef.current = lastFocusIndexForCard
@@ -783,270 +773,169 @@ export default function FeedPage() {
     return () => cancelAnimationFrame(raf)
   }, [feedState.keyboardFocusIndex, focusTargets])
 
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      /* Never affect feed when a popup is open: check both context and URL (URL covers first render after open). */
+  const getColumns = useCallback(
+    () => (colsRef.current >= 2 ? distributedColumnsRef.current : null),
+    [],
+  )
+
+  const shouldHandleFeedKeyDown = useCallback(
+    (e: KeyboardEvent) => {
       const hasContentModalInUrl = /[?&](post|profile|tag)=/.test(locationSearchRef.current)
-      /* Also check if any modal is open AND the event came from outside the modal (page behind).
-         This prevents feed shortcuts when Login, EditProfile, etc. are open, but allows shortcuts within modals. */
       if (!isModalOpen && !hasContentModalInUrl) {
         const target = e.target as HTMLElement
-        const anyModal = typeof document !== 'undefined' ? document.querySelector('[role="dialog"][aria-modal="true"]') : null
-        if (anyModal && !anyModal.contains(target)) return
+        const anyModal =
+          typeof document !== 'undefined' ? document.querySelector('[role="dialog"][aria-modal="true"]') : null
+        if (anyModal && !anyModal.contains(target)) return false
       }
-      if (isModalOpen || hasContentModalInUrl) return
-      if (gateKeyboardShortcutsForEditable(e)) return
-      if (e.ctrlKey || e.metaKey) return
+      if (isModalOpen || hasContentModalInUrl) return false
+      if (gateKeyboardShortcutsForEditable(e)) return false
+      return true
+    },
+    [isModalOpen],
+  )
 
-      const i = keyboardFocusIndexRef.current
-      const currentEntries = displayEntriesRef.current
-      const currentFocusTargets = focusTargetsRef.current
-      const currentFirstByCard = firstFocusIndexForCardRef.current
-      const currentLastByCard = lastFocusIndexForCardRef.current
-      const currentCols = colsRef.current
-      const currentDistribution = distributedColumnsRef.current
-      const getLikeOverride = getLikeOverrideRef.current
+  const setFeedKeyboardFocus = useCallback((index: number | ((prev: number) => number)) => {
+    if (typeof index === 'function') {
+      dispatch({ type: 'SET_KEYBOARD_FOCUS', index: index(keyboardFocusIndexRef.current) })
+    } else {
+      dispatch({ type: 'SET_KEYBOARD_FOCUS', index })
+    }
+  }, [])
+
+  const setFeedActionsMenuOpen = useCallback((index: number | null) => {
+    dispatch({ type: 'SET_ACTIONS_MENU_OPEN', index })
+  }, [])
+
+  const handleFeedOpenPost = useCallback(
+    (item: TimelineItem) => openPostModal(item.post.uri, undefined, undefined, item.post.author?.handle),
+    [openPostModal],
+  )
+
+  const handleFeedOpenReply = useCallback(
+    (item: TimelineItem) => openPostModal(item.post.uri, true, undefined, item.post.author?.handle),
+    [openPostModal],
+  )
+
+  const handleFeedToggleActionsMenu = useCallback((cardIndex: number, menuOpen: boolean) => {
+    dispatch({ type: 'SET_ACTIONS_MENU_OPEN', index: menuOpen ? null : cardIndex })
+  }, [])
+
+  const handleFeedOpenCollectionMenu = useCallback((cardIndex: number) => {
+    setCollectionMenuOpenForIndex(cardIndex)
+    setCollectionMenuOpenSignal((n) => n + 1)
+  }, [])
+
+  const handleFeedToggleLike = useCallback(
+    (item: TimelineItem) => {
+      if (!item.post.uri || !item.post.cid) return
+      const uri = item.post.uri
+      const override = getLikeOverrideFromStore(uri)
+      const currentLikeUri =
+        override !== undefined ? (override ?? undefined) : (item.post as { viewer?: { like?: string } }).viewer?.like
+      if (currentLikeUri) {
+        unlikePostWithLifecycle(currentLikeUri, uri)
+          .then(() => setLikeOverride(uri, null))
+          .catch((err: unknown) => console.error('Failed to unlike post:', err))
+      } else {
+        likePostWithLifecycle(uri, item.post.cid)
+          .then((res) => setLikeOverride(uri, res.uri))
+          .catch((err: unknown) => console.error('Failed to like post:', err))
+      }
+    },
+    [setLikeOverride],
+  )
+
+  const handleFeedToggleFollow = useCallback(
+    (item: TimelineItem) => {
       const currentSession = sessionRef.current
-      const currentBlockConfirm = blockConfirmRefState.current
-      const fromNone = i < 0
-
-      setFocusSetByMouse(false)
-      const focusTarget = currentFocusTargets[i]
-      const currentCardIndex = focusTarget?.cardIndex ?? 0
-      const currentMediaIndex = focusTarget?.mediaIndex ?? 0
-      const focusedEntry = currentEntries[currentCardIndex]
-      const focusedItem = focusedEntry?.item ?? null
-
-      const key = e.key.toLowerCase()
-      const focusInActionsMenu = (document.activeElement as HTMLElement)?.closest?.('[role="menu"]')
-      const focusInCollectionMenu = (document.activeElement as HTMLElement)?.closest?.('[data-collection-menu="true"]')
-      const collectionMenuOpen = document.querySelector('[data-collection-menu="true"]') != null
-      const menuOpenForFocusedCard = actionsMenuOpenForIndexRef.current === currentCardIndex
-      const focusInNotificationsMenu = (document.activeElement as HTMLElement)?.closest?.('[data-notifications-list]')
-      const notificationsMenuOpen = document.querySelector('[data-notifications-list]') != null
-      if ((focusInActionsMenu || focusInCollectionMenu || collectionMenuOpen || menuOpenForFocusedCard || focusInNotificationsMenu || notificationsMenuOpen) && (key === 'w' || key === 's' || key === 'e' || key === 'o' || key === 'enter' || key === 'q' || key === 'u' || key === 'backspace' || key === 'escape' || e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
-        return
-      }
-      /* Ignore key repeat for left/right only (so A/D/J/L don't skip); allow repeat for W/S/I/K so holding moves up/down */
-      if (e.repeat && (key === 'a' || key === 'd' || key === 'j' || key === 'l' || e.key === 'ArrowLeft' || e.key === 'ArrowRight')) return
-      if (currentBlockConfirm) {
-        if (key === 'escape') {
-          e.preventDefault()
-          setBlockConfirm(null)
-          return
-        }
-        return // let Tab/Enter reach the dialog buttons
-      }
-      if (key === 'w' || key === 's' || key === 'a' || key === 'd' || key === 'i' || key === 'j' || key === 'k' || key === 'l' || key === 'e' || key === 'o' || key === 'enter' || key === 'r' || key === 'c' || e.code === 'Space' || key === 'h' || key === 'm' || key === '`' || key === 'f' || key === 'q' || key === 'u' || e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') e.preventDefault()
-
-      /* Use ref + concrete value (not functional updater) so Strict Mode double-invoke doesn't move two steps */
-      const columns = currentCols >= 2 ? currentDistribution : null
-      if (key === 'w' || key === 'i' || e.key === 'ArrowUp') {
-        if (fromNone) {
-          // Initialize focus to first item when starting from no focus
-          // Use actual value instead of ref since refs might not be updated yet on initial render
-          if (focusTargets.length > 0) {
-            beginKeyboardNavigation()
-            scrollIntoViewFromKeyboardRef.current = true
-            dispatch({ type: 'SET_KEYBOARD_FOCUS', index: 0 })
-          }
-          return
-        }
-        beginKeyboardNavigation()
-        scrollIntoViewFromKeyboardRef.current = true
-        const onFirstImageOfCard = i === currentFirstByCard[currentCardIndex]
-        const next = !onFirstImageOfCard
-          ? Math.max(0, i - 1)
-          : (() => {
-              const nextCard = currentCols >= 2 && columns ? indexAbove(columns, currentCardIndex) : Math.max(0, currentCardIndex - 1)
-              /* At top of column there is no card above; don't jump to last image of the same post (feels like random vertical scroll). */
-              if (nextCard === currentCardIndex) return null
-              return currentLastByCard[nextCard] ?? currentFirstByCard[nextCard] ?? null
-            })()
-        if (next === null) return
-        dispatch({ type: 'SET_KEYBOARD_FOCUS', index: next })
-        return
-      }
-      if (key === 's' || key === 'k' || e.key === 'ArrowDown') {
-        if (fromNone) {
-          // Initialize focus to first item when starting from no focus
-          if (focusTargets.length > 0) {
-            beginKeyboardNavigation()
-            scrollIntoViewFromKeyboardRef.current = true
-            dispatch({ type: 'SET_KEYBOARD_FOCUS', index: 0 })
-          }
-          return
-        }
-        beginKeyboardNavigation()
-        scrollIntoViewFromKeyboardRef.current = true
-        const onLastImageOfCard = i === currentLastByCard[currentCardIndex]
-        const next = !onLastImageOfCard
-          ? Math.min(currentFocusTargets.length - 1, i + 1)
-          : (() => {
-              const nextCard = currentCols >= 2 && columns ? indexBelow(columns, currentCardIndex) : Math.min(currentEntries.length - 1, currentCardIndex + 1)
-              /* At bottom of column, indexBelow returns same card; first focus index would jump to top of a multi-image post or confuse scroll. */
-              if (nextCard === currentCardIndex) return null
-              return currentFirstByCard[nextCard] ?? null
-            })()
-        if (next === null) return
-        dispatch({ type: 'SET_KEYBOARD_FOCUS', index: next })
-        return
-      }
-      if (key === 'a' || key === 'j' || e.key === 'ArrowLeft' || key === 'd' || key === 'l' || e.key === 'ArrowRight') {
-        if (fromNone) {
-          // Initialize focus to first item when starting from no focus
-          if (focusTargets.length > 0) {
-            beginKeyboardNavigation()
-            scrollIntoViewFromKeyboardRef.current = true
-            dispatch({ type: 'SET_KEYBOARD_FOCUS', index: 0 })
-          }
-          return
-        }
-        beginKeyboardNavigation()
-        scrollIntoViewFromKeyboardRef.current = true
-        const goLeft = key === 'a' || key === 'j' || e.key === 'ArrowLeft'
-        const measureCardForHorizontal = (cardIdx: number) => {
-          const n = currentLastByCard[cardIdx] - currentFirstByCard[cardIdx] + 1
-          const m = Math.min(currentMediaIndex, Math.max(0, n - 1))
-          const el = mediaRefsRef.current[cardIdx]?.[m] ?? cardRefsRef.current[cardIdx]
-          if (!el) return null
-          const r = el.getBoundingClientRect()
-          if (r.width <= 0 && r.height <= 0) return null
-          return { top: r.top, left: r.left, width: r.width, height: r.height }
-        }
-        let next = i
-        if (currentCols >= 2 && columns) {
-          const byView = pickAdjacentCardIndexByViewport(
-            columns,
-            goLeft ? -1 : 1,
-            currentCardIndex,
-            measureCardForHorizontal,
-          )
-          const nextCard =
-            byView ?? (goLeft ? indexLeftByRow(columns, currentCardIndex) : indexRightByRow(columns, currentCardIndex))
-          if (nextCard !== currentCardIndex) {
-            const n = currentLastByCard[nextCard] - currentFirstByCard[nextCard] + 1
-            const m = Math.min(currentMediaIndex, Math.max(0, n - 1))
-            next = currentFirstByCard[nextCard] + m
-          }
-        }
-        if (next !== i) dispatch({ type: 'SET_ACTIONS_MENU_OPEN', index: null })
-        dispatch({ type: 'SET_KEYBOARD_FOCUS', index: next })
-        return
-      }
-      if ((key === 'm' || key === '`') && i >= 0) {
-        if (menuOpenForFocusedCard) {
-          dispatch({ type: 'SET_ACTIONS_MENU_OPEN', index: null })
-        } else {
-          dispatch({ type: 'SET_ACTIONS_MENU_OPEN', index: currentCardIndex })
-        }
-        return
-      }
-      if (key === 'e' || key === 'o' || key === 'enter') {
-        if (focusedItem) openPostModal(focusedItem.post.uri, undefined, undefined, focusedItem.post.author?.handle)
-        return
-      }
-      if (key === 'r') {
-        if (focusedItem) openPostModal(focusedItem.post.uri, true, undefined, focusedItem.post.author?.handle)
-        return
-      }
-      if (key === 'c') {
-        if (!focusedItem?.post?.uri) return
-        setCollectionMenuOpenForIndex(currentCardIndex)
-        setCollectionMenuOpenSignal((n) => n + 1)
-        return
-      }
-      if (e.code === 'Space') {
-        const item = focusedItem
-        if (!item?.post?.uri || !item?.post?.cid) return
-        const uri = item.post.uri
-        const override = getLikeOverride(uri)
-        const currentLikeUri = override !== undefined ? (override ?? undefined) : (item.post as { viewer?: { like?: string } }).viewer?.like
-        if (currentLikeUri) {
-          unlikePostWithLifecycle(currentLikeUri, uri).then(() => {
-            setLikeOverride(uri, null)
-          }).catch((err: unknown) => {
-            console.error('Failed to unlike post:', err)
+      const author = item.post.author as { did: string; viewer?: { following?: string } } | undefined
+      const postUri = item.post.uri
+      if (!author || !currentSession?.did || currentSession.did === author.did || !postUri) return
+      const followingUri = author.viewer?.following
+      if (followingUri) {
+        setFollowOverride(author.did, null)
+        unfollowAccountWithLifecycle(followingUri)
+          .then(() => {
+            dispatch({
+              type: 'UPDATE_ITEMS',
+              updater: (prev) =>
+                prev.map((it): TimelineItem => {
+                  if (it.post.uri !== postUri) return it
+                  const post = it.post
+                  const auth = post.author as { did: string; handle?: string; viewer?: { following?: string } }
+                  return {
+                    ...it,
+                    post: {
+                      ...post,
+                      author: { ...auth, viewer: { ...auth.viewer, following: undefined } },
+                    } as TimelineItem['post'],
+                  }
+                }),
+            })
           })
-        } else {
-          likePostWithLifecycle(uri, item.post.cid).then((res) => {
-            setLikeOverride(uri, res.uri)
-          }).catch((err: unknown) => {
-            console.error('Failed to like post:', err)
+          .catch((err: unknown) => {
+            console.error('Failed to unfollow:', err)
+            setFollowOverride(author.did, followingUri)
           })
-        }
-        return
-      }
-      if (key === 'f') {
-        if (fromNone) return
-        const author = focusedItem?.post?.author as { did: string; viewer?: { following?: string } } | undefined
-        const postUri = focusedItem?.post?.uri
-        if (author && currentSession?.did && currentSession.did !== author.did && postUri) {
-          const followingUri = author.viewer?.following
-          if (followingUri) {
+      } else {
+        const pendingUri = `pending:follow:${author.did}:${Date.now()}`
+        setFollowOverride(author.did, pendingUri)
+        followAccountWithLifecycle(author.did)
+          .then((res) => {
+            setFollowOverride(author.did, res.uri)
+            dispatch({
+              type: 'UPDATE_ITEMS',
+              updater: (prev) =>
+                prev.map((it): TimelineItem => {
+                  if (it.post.uri !== postUri) return it
+                  const post = it.post
+                  const auth = post.author as { did: string; handle?: string; viewer?: { following?: string } }
+                  return {
+                    ...it,
+                    post: {
+                      ...post,
+                      author: { ...auth, viewer: { ...auth.viewer, following: res.uri } },
+                    } as TimelineItem['post'],
+                  }
+                }),
+            })
+          })
+          .catch((err: unknown) => {
+            console.error('Failed to follow:', err)
             setFollowOverride(author.did, null)
-            unfollowAccountWithLifecycle(followingUri).then(() => {
-              dispatch({
-                type: 'UPDATE_ITEMS',
-                updater: (prev) =>
-                  prev.map((it): TimelineItem => {
-                    if (it.post.uri !== postUri) return it
-                    const post = it.post
-                    const auth = post.author as { did: string; handle?: string; viewer?: { following?: string } }
-                    return {
-                      ...it,
-                      post: {
-                        ...post,
-                        author: {
-                          ...auth,
-                          viewer: { ...auth.viewer, following: undefined },
-                        },
-                      } as TimelineItem['post'],
-                    }
-                  })
-              })
-            }).catch((err: unknown) => {
-              console.error('Failed to unfollow:', err)
-              setFollowOverride(author.did, followingUri)
-            })
-          } else {
-            const pendingUri = `pending:follow:${author.did}:${Date.now()}`
-            setFollowOverride(author.did, pendingUri)
-            followAccountWithLifecycle(author.did).then((res) => {
-              setFollowOverride(author.did, res.uri)
-              dispatch({
-                type: 'UPDATE_ITEMS',
-                updater: (prev) =>
-                  prev.map((it): TimelineItem => {
-                    if (it.post.uri !== postUri) return it
-                    const post = it.post
-                    const auth = post.author as { did: string; handle?: string; viewer?: { following?: string } }
-                    return {
-                      ...it,
-                      post: {
-                        ...post,
-                        author: {
-                          ...auth,
-                          viewer: { ...auth.viewer, following: res.uri },
-                        },
-                      } as TimelineItem['post'],
-                    }
-                  })
-              })
-            }).catch((err: unknown) => {
-              console.error('Failed to follow:', err)
-              setFollowOverride(author.did, null)
-            })
-          }
-        }
-        return
+          })
       }
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => {
-      window.removeEventListener('keydown', onKeyDown)
-    }
-  }, [beginKeyboardNavigation, isModalOpen, openPostModal, setLikeOverride, setFollowOverride, focusTargets])
+    },
+    [setFollowOverride],
+  )
+
+  useMediaGridKeyboardNav({
+    enabled: displayItems.length > 0,
+    itemsRef: mediaItemsRef,
+    keyboardFocusIndexRef,
+    setKeyboardFocusIndex: setFeedKeyboardFocus,
+    focusTargetsRef,
+    firstFocusIndexForCardRef,
+    lastFocusIndexForCardRef,
+    colsRef,
+    getColumns,
+    cardRefsRef,
+    mediaRefsRef,
+    scrollIntoViewFromKeyboardRef,
+    beginKeyboardNavigation,
+    actionsMenuOpenForIndexRef,
+    setActionsMenuOpenForIndex: setFeedActionsMenuOpen,
+    blockConfirmRef: blockConfirmRefState,
+    setBlockConfirm,
+    shouldHandleKeyDown: shouldHandleFeedKeyDown,
+    onBeforeKey: () => setFocusSetByMouse(false),
+    onOpenPost: handleFeedOpenPost,
+    onOpenReply: handleFeedOpenReply,
+    onToggleActionsMenu: handleFeedToggleActionsMenu,
+    onOpenCollectionMenu: handleFeedOpenCollectionMenu,
+    onToggleLike: handleFeedToggleLike,
+    onToggleFollow: handleFeedToggleFollow,
+  })
 
   useEffect(() => {
     if (blockConfirm) blockCancelRef.current?.focus()
