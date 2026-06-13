@@ -384,7 +384,6 @@ export default function VideoWithHls({
         preload={effectivePreload}
         autoPlay={useNativeAutoplayAttr}
         muted={shouldMute}
-        defaultMuted={shouldMute}
         loop={loop}
         onClick={(e) => {
           if (controlsHiddenUntilTap && !showControls) {
