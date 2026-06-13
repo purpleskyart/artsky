@@ -20,7 +20,7 @@ import LayoutNotificationsPanel from './LayoutNotificationsPanel'
 import LayoutMessagesPanel, { type MessagesFilter } from './LayoutMessagesPanel'
 import ChatModal from './ChatModal'
 import { useMessages } from '../context/MessagesContext'
-import { listConvos, getUnreadConvoCount, getConvoPeer, type ChatConvoView } from '../lib/chat'
+import { listConvos, getUnreadConvoCount, getConvoPeer, invalidateChatCache, type ChatConvoView } from '../lib/chat'
 import { resizedAvatarUrl } from '../lib/imageUtils'
 import {
   createPost,
@@ -39,6 +39,7 @@ import {
   getFeedShareUrl,
   getFeedDisplayNamesBatch,
   getSafeHandle,
+  isAgentAuthenticated,
 } from '../lib/bsky'
 import { signInWithOAuthRedirect } from '../lib/oauth'
 import { requestDeduplicator } from '../lib/RequestDeduplicator'
@@ -430,7 +431,7 @@ export default function Layout({ title, children, showNav }: Props) {
   } = useProfileModal()
   const { openLoginModal } = useLoginModal()
   const editProfile = useEditProfile()
-  const { session, sessionsList, logout, switchAccount, authResolved } = useSession()
+  const { session, sessionsList, logout, switchAccount, authResolved, sessionVersion } = useSession()
   const [accountProfiles, setAccountProfiles] = useState<Record<string, { avatar?: string; handle?: string }>>({})
   const [accountProfilesVersion, setAccountProfilesVersion] = useState(0)
   const sessionsDidKey = useMemo(() => sessionsList.map((s) => s.did).sort().join(','), [sessionsList])
@@ -925,16 +926,17 @@ export default function Layout({ title, children, showNav }: Props) {
   }, [messagesPanelOpen, setMessagesPanelOpen])
 
   useEffect(() => {
-    if (!messagesPanelOpen || !session) return
+    if (!messagesPanelOpen || !session || !isAgentAuthenticated()) return
+    invalidateChatCache()
     setConvosLoading(true)
     listConvos({ limit: 50 })
       .then(({ convos: list }) => setConvos(list))
       .catch(() => setConvos([]))
       .finally(() => setConvosLoading(false))
-  }, [messagesPanelOpen, session])
+  }, [messagesPanelOpen, session, sessionVersion])
 
   useEffect(() => {
-    if (!session) {
+    if (!session || !isAgentAuthenticated()) {
       unreadConvoCountInitialFetchDoneRef.current = false
       setUnreadConvoCount(0)
       return
@@ -949,7 +951,7 @@ export default function Layout({ title, children, showNav }: Props) {
         }
       })
       .catch(() => setUnreadConvoCount(0))
-  }, [session, messagesPanelOpen, activeChat])
+  }, [session, messagesPanelOpen, activeChat, sessionVersion])
 
 
   /** When user selects a feed from the header search bar: add to saved list, enable it, then go to feed so the pill appears. */

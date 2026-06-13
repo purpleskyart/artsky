@@ -1,7 +1,8 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { AppBskyActorDefs } from '@atproto/api'
-import { canBeMessaged } from '../lib/chat'
-import { searchActorsTypeahead } from '../lib/bsky'
+import { getConvoAvailability } from '../lib/chat'
+import { isAgentAuthenticated, searchActorsTypeahead } from '../lib/bsky'
+import { useSession } from '../context/SessionContext'
 import { resizedAvatarUrl } from '../lib/imageUtils'
 import styles from './Layout.module.css'
 
@@ -19,6 +20,7 @@ const MessagesNewChatPanel = memo(function MessagesNewChatPanel({
   currentAccountDid,
   onSelectUser,
 }: MessagesNewChatPanelProps) {
+  const { sessionVersion } = useSession()
   const inputRef = useRef<HTMLInputElement>(null)
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(false)
@@ -36,28 +38,49 @@ const MessagesNewChatPanel = memo(function MessagesNewChatPanel({
       return
     }
 
+    if (!isAgentAuthenticated()) {
+      setResults([])
+      setLoading(false)
+      return
+    }
+
     setLoading(true)
+    let cancelled = false
     const timer = setTimeout(() => {
       searchActorsTypeahead(term, MAX_RESULTS)
-        .then(({ actors }) => {
-          const mapped = (actors ?? [])
-            .filter((actor) => actor.did !== currentAccountDid)
-            .map((actor) => ({
-              ...actor,
-              canMessage: canBeMessaged(actor),
-            }))
-            .sort((a, b) => {
-              if (a.canMessage === b.canMessage) return 0
-              return a.canMessage ? -1 : 1
+        .then(async ({ actors }) => {
+          if (cancelled) return
+          const filtered = (actors ?? []).filter((actor) => actor.did !== currentAccountDid)
+          const mapped = await Promise.all(
+            filtered.map(async (actor) => {
+              try {
+                const { canChat } = await getConvoAvailability([actor.did])
+                return { ...actor, canMessage: canChat }
+              } catch {
+                return { ...actor, canMessage: false }
+              }
             })
+          )
+          if (cancelled) return
+          mapped.sort((a, b) => {
+            if (a.canMessage === b.canMessage) return 0
+            return a.canMessage ? -1 : 1
+          })
           setResults(mapped)
         })
-        .catch(() => setResults([]))
-        .finally(() => setLoading(false))
+        .catch(() => {
+          if (!cancelled) setResults([])
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false)
+        })
     }, DEBOUNCE_MS)
 
-    return () => clearTimeout(timer)
-  }, [query, currentAccountDid])
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [query, currentAccountDid, sessionVersion])
 
   const trimmed = query.trim()
   const showEmpty = trimmed.length > 0 && !loading && results.length === 0

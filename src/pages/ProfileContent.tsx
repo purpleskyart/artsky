@@ -150,7 +150,7 @@ export default function ProfileContent({
   const [followUriOverride, setFollowUriOverride] = useState<string | null>(null)
   const [notificationSubscribed, setNotificationSubscribed] = useState<boolean | null>(null)
   const [notificationLoading, setNotificationLoading] = useState(false)
-  const { session, sessionsList, switchAccount } = useSession()
+  const { session, sessionsList, switchAccount, sessionVersion } = useSession()
   const toast = useToast()
   const { viewMode, setViewMode } = useViewMode()
   /** Use the live API agent only when it is actually authenticated (JWT or OAuth), not when storage is ahead of the agent after refresh/deploy. */
@@ -244,7 +244,7 @@ export default function ProfileContent({
   }, [session?.did, profile?.did])
 
   useEffect(() => {
-    if (!session || !profile || session.did === profile.did) {
+    if (!session || !profile || session.did === profile.did || !hasLiveBskyAuth) {
       setCanMessage(null)
       existingConvoIdRef.current = undefined
       return
@@ -262,7 +262,7 @@ export default function ProfileContent({
         if (!cancelled) setCanMessage(false)
       })
     return () => { cancelled = true }
-  }, [session?.did, profile?.did, profile?.viewer?.following, followUriOverride])
+  }, [session?.did, profile?.did, profile?.viewer?.following, followUriOverride, hasLiveBskyAuth, sessionVersion])
 
   // REMOVED: getFolloweesWhoFollowTarget API call to reduce profile load requests
   // This was fetching "Followed by X, Y you follow" preview - not essential for initial load

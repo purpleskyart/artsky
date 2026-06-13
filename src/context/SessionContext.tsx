@@ -24,6 +24,8 @@ interface SessionContextValue {
   loading: boolean
   /** False only on first paint when persisted login may exist but OAuth restore has not finished yet. */
   authResolved: boolean
+  /** Bumped when the live API agent is restored or upgraded (e.g. OAuth replacing a JWT fallback). */
+  sessionVersion: number
   logout: () => Promise<void>
   switchAccount: (did: string) => Promise<boolean>
   refreshSession: () => void
@@ -53,12 +55,14 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   // Show the app immediately; never block on a loading screen so localhost always loads
   const [session, setSession] = useState<AtpSessionData | null>(getInitialSession)
   const [authResolved, setAuthResolved] = useState(getInitialAuthResolved)
+  const [sessionVersion, setSessionVersion] = useState(0)
   // Block render until auth is resolved when there's a persisted login hint (prevents logged-out flash)
   const [loading, setLoading] = useState(() => !getInitialAuthResolved())
   const sessionRefreshInFlightRef = useRef(false)
 
   const refreshSession = useCallback(() => {
     setSession(bsky.getSessionStateForReact())
+    setSessionVersion((v) => v + 1)
   }, [])
 
   const reportAuthError = useCallback(() => {
@@ -289,12 +293,13 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       sessionsList,
       loading,
       authResolved,
+      sessionVersion,
       logout,
       switchAccount,
       refreshSession,
       reportAuthError,
     }),
-    [session, sessionsList, loading, authResolved, logout, switchAccount, refreshSession, reportAuthError]
+    [session, sessionsList, loading, authResolved, sessionVersion, logout, switchAccount, refreshSession, reportAuthError]
   )
 
   return (
