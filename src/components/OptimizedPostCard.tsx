@@ -1,9 +1,8 @@
-import { useRef, useState, memo, useCallback, useEffect, useMemo } from 'react'
+import { useRef, useState, memo, useCallback, useEffect } from 'react'
 import PostCard from './PostCard'
-import { getPostMediaInfo, type TimelineItem } from '../lib/bsky'
+import type { TimelineItem } from '../lib/bsky'
 import type { PostCardDisplayContext } from '../hooks/usePostCardDisplayContext'
 import { observeVirtualization } from '../lib/cardVirtualization'
-import { estimateMediaCardHeight } from '../lib/masonryLayout'
 import styles from './OptimizedPostCard.module.css'
 
 interface OptimizedPostCardProps {
@@ -47,11 +46,6 @@ function OptimizedPostCard(props: OptimizedPostCardProps) {
   const showingContentRef = useRef(true)
   const [isNearViewport, setIsNearViewport] = useState(true)
 
-  const minHeight = useMemo(() => {
-    const media = getPostMediaInfo(props.item.post)
-    return estimateMediaCardHeight(media?.aspectRatio, 1, !!media)
-  }, [props.item.post])
-
   const setWrapRef = useCallback((el: HTMLDivElement | null) => {
     wrapRef.current = el
     cardRefPropRef.current(el)
@@ -60,22 +54,34 @@ function OptimizedPostCard(props: OptimizedPostCardProps) {
   useEffect(() => {
     const el = wrapRef.current
     if (!el) return
-    return observeVirtualization(el, (isNear) => {
+
+    const ro = new ResizeObserver(() => {
+      if (showingContentRef.current && el.offsetHeight > 0) {
+        measuredHeightRef.current = Math.max(measuredHeightRef.current, el.offsetHeight)
+      }
+    })
+    ro.observe(el)
+
+    const unobserveVirt = observeVirtualization(el, (isNear) => {
       if (!isNear && showingContentRef.current && el) {
-        measuredHeightRef.current = Math.max(el.offsetHeight, minHeight)
+        measuredHeightRef.current = Math.max(measuredHeightRef.current, el.offsetHeight)
       }
       setIsNearViewport(isNear)
     })
-  }, [minHeight])
 
-  const placeholderHeight = Math.max(measuredHeightRef.current, minHeight)
-  const showPlaceholder = !isNearViewport && placeholderHeight > 0
+    return () => {
+      ro.disconnect()
+      unobserveVirt()
+    }
+  }, [])
+
+  const showPlaceholder = !isNearViewport && measuredHeightRef.current > 0
   showingContentRef.current = !showPlaceholder
 
   return (
     <div ref={setWrapRef} className={styles.optimizeWrap}>
       {showPlaceholder ? (
-        <div style={{ height: placeholderHeight }} aria-hidden />
+        <div style={{ height: measuredHeightRef.current }} aria-hidden />
       ) : (
         <PostCard {...props} cardRef={() => {}} onAspectRatio={undefined} />
       )}

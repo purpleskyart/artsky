@@ -44,6 +44,7 @@ export function useColumnLoadMore({
   loadMoreRef.current = loadMore
   const cursorRef = useRef(cursor)
   cursorRef.current = cursor
+  const scheduleRetryRef = useRef<(() => void) | null>(null)
 
   useEffect(() => {
     const current = lastLoadMoreByColumnRef.current
@@ -72,6 +73,13 @@ export function useColumnLoadMore({
         }
       }, wait)
       return () => clearTimeout(timeoutId)
+    }
+  }, [enabled, cursor, cols, itemCount, loadingMoreRef])
+
+  useEffect(() => {
+    if (!enabled || !cursor) {
+      scheduleRetryRef.current = null
+      return
     }
 
     const refs = sentinelRefs.current
@@ -114,10 +122,7 @@ export function useColumnLoadMore({
       const colWait = Math.max(0, LOAD_MORE_COOLDOWN_MS - (now - minColCooldown) + 50)
       const wait = Math.max(50, retryWait, colWait)
       retryId = window.setTimeout(() => {
-        if (loadingMoreRef.current) {
-          scheduleRetry()
-          return
-        }
+        if (loadingMoreRef.current) return
         if (anyColumnShort() && cursorRef.current) {
           loadingMoreRef.current = true
           lastRetryLoadTimeRef.current = Date.now()
@@ -127,23 +132,9 @@ export function useColumnLoadMore({
       }, wait)
     }
 
+    scheduleRetryRef.current = scheduleRetry
+
     const root = inModal ? resolveModalScrollRoot(refs[0]) ?? undefined : undefined
-
-    let scrollRaf = 0
-    const onScrollOrViewportChange = () => {
-      if (scrollRaf) return
-      scrollRaf = requestAnimationFrame(() => {
-        scrollRaf = 0
-        if (loadingMoreRef.current) return
-        if (anyColumnShort()) scheduleRetry()
-      })
-    }
-
-    const scrollTarget: EventTarget = root ?? window
-    scrollTarget.addEventListener('scroll', onScrollOrViewportChange, { passive: true })
-    const vv = window.visualViewport
-    vv?.addEventListener('scroll', onScrollOrViewportChange, { passive: true })
-    vv?.addEventListener('resize', onScrollOrViewportChange, { passive: true })
 
     const observer = new IntersectionObserver(
       (entries) => {
@@ -178,15 +169,26 @@ export function useColumnLoadMore({
     scheduleRetry()
 
     return () => {
+      scheduleRetryRef.current = null
       observer.disconnect()
-      scrollTarget.removeEventListener('scroll', onScrollOrViewportChange)
-      vv?.removeEventListener('scroll', onScrollOrViewportChange)
-      vv?.removeEventListener('resize', onScrollOrViewportChange)
-      if (scrollRaf) cancelAnimationFrame(scrollRaf)
       if (rafId) cancelAnimationFrame(rafId)
       clearTimeout(retryId)
     }
-  }, [enabled, cursor, cols, itemCount, loadingMoreRef, sentinelRefs, columnLengthsRef, inModal])
+  }, [enabled, cursor, cols, loadingMoreRef, sentinelRefs, columnLengthsRef, inModal])
+
+  // After new items render, check once whether a column is still short (no scroll listener).
+  useEffect(() => {
+    if (!enabled || !cursor || itemCount === 0) return
+    let cancelled = false
+    const timeoutId = window.setTimeout(() => {
+      if (cancelled || loadingMoreRef.current) return
+      scheduleRetryRef.current?.()
+    }, 200)
+    return () => {
+      cancelled = true
+      clearTimeout(timeoutId)
+    }
+  }, [enabled, cursor, itemCount, loadingMoreRef])
 
   return useCallback(
     (colIndex: number) => (el: HTMLDivElement | null) => {
