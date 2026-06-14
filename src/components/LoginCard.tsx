@@ -162,12 +162,11 @@ export default function LoginCard({ onSuccess, onClose }: LoginCardProps) {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  async function handleSignIn(e: React.FormEvent) {
-    e.preventDefault()
+  async function signInWithIdentifier(rawId: string) {
     setError('')
-    const id = normalizeLoginIdentifier(identifier)
+    const id = normalizeLoginIdentifier(rawId)
     if (!id) return
-    if (id !== identifier.trim().replace(/^@/, '')) {
+    if (id !== rawId.trim().replace(/^@/, '')) {
       setIdentifier(id)
     }
 
@@ -180,6 +179,19 @@ export default function LoginCard({ onSuccess, onClose }: LoginCardProps) {
     } finally {
       setLoading(false)
     }
+  }
+
+  async function handleSignIn(e: React.FormEvent) {
+    e.preventDefault()
+    await signInWithIdentifier(identifier)
+  }
+
+  function selectSuggestion(actor: AppBskyActorDefs.ProfileViewBasic) {
+    const h = actor.handle
+    if (!h) return
+    setIdentifier(h)
+    setSuggestionsOpen(false)
+    void signInWithIdentifier(h)
   }
 
   return (
@@ -222,9 +234,7 @@ export default function LoginCard({ onSuccess, onClose }: LoginCardProps) {
                   setActiveIndex((i) => (i - 1 + suggestions.length) % suggestions.length)
                 } else if (e.key === 'Enter' && suggestions[activeIndex]) {
                   e.preventDefault()
-                  const h = suggestions[activeIndex].handle
-                  setIdentifier(h ?? '')
-                  setSuggestionsOpen(false)
+                  selectSuggestion(suggestions[activeIndex])
                 } else if (e.key === 'Escape') {
                   setSuggestionsOpen(false)
                 }
@@ -266,8 +276,7 @@ export default function LoginCard({ onSuccess, onClose }: LoginCardProps) {
                         className={i === activeIndex ? styles.suggestionActive : styles.suggestion}
                         onMouseDown={(e) => {
                           e.preventDefault()
-                          setIdentifier(actor.handle ?? '')
-                          setSuggestionsOpen(false)
+                          selectSuggestion(actor)
                         }}
                       >
                         {actor.avatar ? (

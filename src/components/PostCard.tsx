@@ -1,4 +1,4 @@
-import { useRef, useEffect, useLayoutEffect, useState, useCallback, useMemo, memo } from 'react'
+import { useRef, useEffect, useLayoutEffect, useState, useCallback, useMemo, memo, useSyncExternalStore } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { getPostMediaInfoForDisplay, getPostAllMediaForDisplay, getPostExternalLink, getReplyParentPostView, getQuotedPostView, POST_MEDIA_FEED_PREVIEW, likePostWithLifecycle, unlikePostWithLifecycle, followAccountWithLifecycle, getFeedItemRepostedAt, getFeedItemRepostRecordUri, type TimelineItem } from '../lib/bsky'
 import {
@@ -23,6 +23,7 @@ import ProfileLink from './ProfileLink'
 import PostActionsMenu from './PostActionsMenu'
 import { ProgressiveImage } from './ProgressiveImage'
 import VideoWithHls from './VideoWithHls'
+import { getDesktopSnapshot, subscribeDesktop } from '../config/breakpoints'
 import styles from './PostCard.module.css'
 
 function replyParentMemoKey(item: TimelineItem): string {
@@ -166,6 +167,7 @@ function PostCardInner({
   const showFeedStyleActionRow = feedPreviewActionRow || !artOnly || minimalist
   const showArtOnlyCornerActions = artOnly && !minimalist && !feedPreviewActionRow
   const location = useLocation()
+  const isDesktop = useSyncExternalStore(subscribeDesktop, getDesktopSnapshot, () => false)
   const modalScrollRef = useModalScroll()
   const mediaWrapRef = useRef<HTMLDivElement>(null)
   const { post, reason } = item as { post: typeof item.post; reason?: { $type?: string; by?: { handle?: string; did?: string }; indexedAt?: string } }
@@ -233,7 +235,11 @@ function PostCardInner({
   const resolvedLikeOverride =
     likedUriOverride !== undefined ? likedUriOverride : storeLikeOverride
   const effectiveLikedUri =
-    resolvedLikeOverride !== undefined ? (resolvedLikeOverride ?? undefined) : likedUri
+    likedUri === 'pending' || (likeLoading && likedUri !== undefined)
+      ? likedUri
+      : resolvedLikeOverride !== undefined
+        ? (resolvedLikeOverride ?? undefined)
+        : likedUri
   const isLiked = !!effectiveLikedUri
 
   const [mediaAspect, setMediaAspect] = useState<number | null>(() =>
@@ -609,21 +615,27 @@ function PostCardInner({
 
   /* Reblur NSFW when media scrolls out of view. Use modal scroll root when inside a modal so we only reblur when media leaves the modal's visible area (fixes hover/keyboard unblur in profile modal). */
   const nsfwHasBeenVisibleRef = useRef(false)
+  const nsfwRevealedAtRef = useRef(0)
   useEffect(() => {
     if (!hasMedia || !isRevealed || !mediaWrapRef.current) return
     nsfwHasBeenVisibleRef.current = false
+    nsfwRevealedAtRef.current = Date.now()
     const el = mediaWrapRef.current
     const root = modalScrollRef
     const observer = new IntersectionObserver(
       (entries) => {
         const entry = entries[0]
         if (!entry) return
-        if (entry.intersectionRatio > 0) {
+        if (entry.isIntersecting) {
           nsfwHasBeenVisibleRef.current = true
           return
         }
         /* Only reblur after we've seen the element visible at least once; the first callback can report 0 before layout (e.g. profile modal). */
         if (!nsfwHasBeenVisibleRef.current) return
+        /* Removing blur/filter changes layout and can fire a spurious non-intersecting callback while the pointer is still over the card. */
+        if (Date.now() - nsfwRevealedAtRef.current < 400) return
+        const gridItem = el.closest('[data-post-uri]')
+        if (gridItem?.matches(':hover')) return
         setUnblurred(post.uri, false)
       },
       { threshold: 0, rootMargin: '0px', root }
@@ -762,21 +774,31 @@ function PostCardInner({
       return
     }
     if (effectiveLikedUri) {
+      const previousLikedUri = effectiveLikedUri
       setLikedUri(undefined)
-      unlikePostWithLifecycle(effectiveLikedUri, post.uri).then(() => {
+      onLikedChange?.(post.uri, null)
+      unlikePostWithLifecycle(previousLikedUri, post.uri).then(() => {
         onLikedChange?.(post.uri, null)
-      }).catch(() => setLikedUri(effectiveLikedUri))
+      }).catch(() => {
+        setLikedUri(previousLikedUri === 'pending' ? undefined : previousLikedUri)
+        onLikedChange?.(post.uri, previousLikedUri === 'pending' ? null : previousLikedUri)
+      })
     } else {
       setLikedUri('pending')
       likePostWithLifecycle(post.uri, post.cid).then((res) => {
         setLikedUri(res.uri)
         onLikedChange?.(post.uri, res.uri)
-      }).catch(() => setLikedUri(undefined))
+      }).catch(() => {
+        setLikedUri(undefined)
+      })
     }
+    cardRef.current?.querySelector<HTMLElement>(`.${styles.cardLink}`)?.blur()
   }, [sessionDid, openLoginModal, effectiveLikedUri, post.uri, post.cid, onLikedChange])
 
   const handleMediaClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
+    const clickTarget = e.target as HTMLElement
+    if (clickTarget.closest('a, button, [data-profile-link="true"]')) return
     /* Blurred + synthetic click before parent re-renders: unblur only, do not open post */
     if (nsfwBlurred && onNsfwUnblur) {
       onNsfwUnblur()
@@ -796,11 +818,6 @@ function PostCardInner({
     const openTargetPost = isDisplayingQuotedMedia
       ? (isModalOpen ? openQuotedPost : openPost)
       : openPost
-    // Mouse users expect immediate open. Keep double-tap-like behavior touch-only.
-    if (e.nativeEvent.detail <= 1) {
-      openTargetPost()
-      return
-    }
     const now = Date.now()
     if (now - lastMediaClickRef.current < MEDIA_CLICK_DOUBLE_TAP_WINDOW_MS) {
       lastMediaClickRef.current = 0
@@ -808,16 +825,20 @@ function PostCardInner({
         clearTimeout(mediaOpenDelayTimerRef.current)
         mediaOpenDelayTimerRef.current = null
       }
+      didDoubleTapRef.current = true
       handleMediaDoubleTapLike()
-    } else {
-      lastMediaClickRef.current = now
-      if (mediaOpenDelayTimerRef.current) clearTimeout(mediaOpenDelayTimerRef.current)
-      mediaOpenDelayTimerRef.current = setTimeout(() => {
-        mediaOpenDelayTimerRef.current = null
-        openTargetPost()
-      }, TOUCH_OPEN_DELAY_MS)
+      setTimeout(() => {
+        didDoubleTapRef.current = false
+      }, 500)
+      return
     }
-  }, [mediaClickFromTouchRef, lastMediaClickRef, handleMediaDoubleTapLike, openPost, openQuotedPost, isDisplayingQuotedMedia, nsfwBlurred, onNsfwUnblur])
+    lastMediaClickRef.current = now
+    if (mediaOpenDelayTimerRef.current) clearTimeout(mediaOpenDelayTimerRef.current)
+    mediaOpenDelayTimerRef.current = setTimeout(() => {
+      mediaOpenDelayTimerRef.current = null
+      openTargetPost()
+    }, isDesktop ? TOUCH_OPEN_DELAY_MS : 0)
+  }, [mediaClickFromTouchRef, lastMediaClickRef, handleMediaDoubleTapLike, openPost, openQuotedPost, isDisplayingQuotedMedia, nsfwBlurred, onNsfwUnblur, isDesktop])
 
   const setCardRef = useCallback(
     (el: HTMLDivElement | null) => {
@@ -912,18 +933,7 @@ function PostCardInner({
               }, 450)
               return
             }
-            if (effectiveLikedUri) {
-              setLikedUri(undefined)
-              unlikePostWithLifecycle(effectiveLikedUri, post.uri).then(() => {
-                onLikedChange?.(post.uri, null)
-              }).catch(() => setLikedUri(effectiveLikedUri))
-            } else {
-              setLikedUri('pending')
-              likePostWithLifecycle(post.uri, post.cid).then((res) => {
-                setLikedUri(res.uri)
-                onLikedChange?.(post.uri, res.uri)
-              }).catch(() => setLikedUri(undefined))
-            }
+            handleMediaDoubleTapLike()
             setTimeout(() => { 
               touchSessionRef.current = false
               mediaClickFromTouchRef.current = false
@@ -1030,11 +1040,6 @@ function PostCardInner({
                   e.stopPropagation()
                   if (replyParentMediaClickFromTouchRef.current) return
                   const openTargetPost = isModalOpen ? openReplyParentPost : openPostInModalOrFeed
-                  // Mouse users expect immediate open. Keep double-tap-like behavior touch-only.
-                  if (e.nativeEvent.detail <= 1) {
-                    openTargetPost()
-                    return
-                  }
                   const now = Date.now()
                   if (now - lastReplyParentMediaClickRef.current < MEDIA_CLICK_DOUBLE_TAP_WINDOW_MS) {
                     lastReplyParentMediaClickRef.current = 0
@@ -1042,15 +1047,19 @@ function PostCardInner({
                       clearTimeout(replyParentMediaOpenDelayTimerRef.current)
                       replyParentMediaOpenDelayTimerRef.current = null
                     }
+                    didDoubleTapRef.current = true
                     handleMediaDoubleTapLike()
-                  } else {
-                    lastReplyParentMediaClickRef.current = now
-                    if (replyParentMediaOpenDelayTimerRef.current) clearTimeout(replyParentMediaOpenDelayTimerRef.current)
-                    replyParentMediaOpenDelayTimerRef.current = setTimeout(() => {
-                      replyParentMediaOpenDelayTimerRef.current = null
-                      openTargetPost()
-                    }, TOUCH_OPEN_DELAY_MS)
+                    setTimeout(() => {
+                      didDoubleTapRef.current = false
+                    }, 500)
+                    return
                   }
+                  lastReplyParentMediaClickRef.current = now
+                  if (replyParentMediaOpenDelayTimerRef.current) clearTimeout(replyParentMediaOpenDelayTimerRef.current)
+                  replyParentMediaOpenDelayTimerRef.current = setTimeout(() => {
+                    replyParentMediaOpenDelayTimerRef.current = null
+                    openTargetPost()
+                  }, isDesktop ? TOUCH_OPEN_DELAY_MS : 0)
                 }}
               >
                 {replyParentAllMedia.map((m, i) => {
@@ -1157,20 +1166,13 @@ function PostCardInner({
                   minHeight: !hasMedia ? '200px' : 'auto',
                 }
           }
-          {...(hasMedia && { onClick: handleMediaClick })}
+          {...((hasMedia || isTextOnlyPreview) && { onClick: handleMediaClick })}
         >
           <div className={styles.mediaNsfwBlurTarget}>
           {(!hasMedia || mediaMode === 'text') ? (
             <div className={styles.textOnlyPreview}>
               {text ? (
-                <div className={styles.textOnlyPreviewText} onClick={(e) => {
-                  const clickTarget = e.target as HTMLElement
-                  if (clickTarget.closest('[data-profile-link="true"]')) {
-                    return
-                  }
-                  e.stopPropagation()
-                  openPost()
-                }}>
+                <div className={styles.textOnlyPreviewText}>
                   <PostText
                     text={text}
                     facets={(post.record as { facets?: unknown[] })?.facets}
