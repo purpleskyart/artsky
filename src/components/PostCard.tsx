@@ -797,6 +797,8 @@ function PostCardInner({
 
   const handleMediaClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
+    const clickTarget = e.target as HTMLElement
+    if (clickTarget.closest('a, button, [data-profile-link="true"]')) return
     /* Blurred + synthetic click before parent re-renders: unblur only, do not open post */
     if (nsfwBlurred && onNsfwUnblur) {
       onNsfwUnblur()
@@ -1164,20 +1166,13 @@ function PostCardInner({
                   minHeight: !hasMedia ? '200px' : 'auto',
                 }
           }
-          {...(hasMedia && { onClick: handleMediaClick })}
+          {...((hasMedia || isTextOnlyPreview) && { onClick: handleMediaClick })}
         >
           <div className={styles.mediaNsfwBlurTarget}>
           {(!hasMedia || mediaMode === 'text') ? (
             <div className={styles.textOnlyPreview}>
               {text ? (
-                <div className={styles.textOnlyPreviewText} onClick={(e) => {
-                  const clickTarget = e.target as HTMLElement
-                  if (clickTarget.closest('[data-profile-link="true"]')) {
-                    return
-                  }
-                  e.stopPropagation()
-                  openPost()
-                }}>
+                <div className={styles.textOnlyPreviewText}>
                   <PostText
                     text={text}
                     facets={(post.record as { facets?: unknown[] })?.facets}
