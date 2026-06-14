@@ -88,9 +88,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
   const switchAccount = useCallback(async (did: string) => {
     const ok = await bsky.switchAccount(did)
-    if (ok) setSession(bsky.getSessionStateForReact())
+    if (ok) refreshSession()
     return ok
-  }, [])
+  }, [refreshSession])
 
   useEffect(() => {
     // Removed requestPersistentStorage - modern browsers handle storage persistence automatically
@@ -139,6 +139,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
             ? resolvedSession
             : bsky.getSessionStateForReact() ?? bsky.getStoredSessionForDisplay()
         setSession(s)
+        if (s?.did) setSessionVersion((v) => v + 1)
       } catch {
         setSession(bsky.getStoredSessionForDisplay())
       }
@@ -146,6 +147,70 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       // preventing a render with session=null while loading=false (which causes the guest flash).
       setAuthResolved(true)
       setLoading(false)
+    }
+
+    function completeOAuthLogin(oauthSession: oauth.OAuthSession) {
+      if (cancelled) return
+      bsky.addOAuthDid(oauthSession.did)
+      const agent = new Agent(oauthSession)
+      bsky.setOAuthAgent(agent, oauthSession)
+      bsky.resetOAuthFailure(oauthSession.did)
+      const sessionHandle = (oauthSession as { handle?: string }).handle
+      const isValidHandle =
+        sessionHandle &&
+        sessionHandle !== 'handle.invalid' &&
+        !sessionHandle.includes('.invalid') &&
+        !sessionHandle.startsWith('did:')
+      const sessionToFinish = isValidHandle
+        ? (oauthSession as unknown as AtpSessionData)
+        : ({ did: oauthSession.did } as AtpSessionData)
+      finish(sessionToFinish)
+      if (!isValidHandle) {
+        void agent.getProfile({ actor: oauthSession.did }).then((profile) => {
+          if (
+            profile.data.handle &&
+            profile.data.handle !== 'handle.invalid' &&
+            !profile.data.handle.includes('.invalid') &&
+            !profile.data.handle.startsWith('did:')
+          ) {
+            const updatedSession = { ...sessionToFinish, handle: profile.data.handle } as AtpSessionData
+            const accounts = bsky.getAccounts()
+            accounts.sessions[oauthSession.did] = updatedSession
+            bsky.saveAccounts?.(accounts)
+            localStorage.setItem('artsky-bsky-session', JSON.stringify(updatedSession))
+            refreshSession()
+          }
+        }).catch((err) => {
+          console.warn('Failed to fetch profile handle:', err)
+        })
+      }
+    }
+
+    async function restoreFromPersistedCredentials(restoreDid: string): Promise<boolean> {
+      if (cancelled) return false
+      try {
+        const retryOauth = await oauth.initOAuth({ hasCallback: false, preferredRestoreDid: restoreDid })
+        if (retryOauth?.session) {
+          completeOAuthLogin(retryOauth.session)
+          return true
+        }
+      } catch {
+        // Fall through to localStorage mirror
+      }
+      const restored = await bsky.restoreAgentFromPersistedSession(restoreDid)
+      if (restored) {
+        finish(restored)
+        return true
+      }
+      const displaySession = bsky.getStoredSessionForDisplay()
+      if (displaySession) {
+        finish(displaySession)
+        void bsky.attemptSessionRefresh().then((ok) => {
+          if (ok && !cancelled) refreshSession()
+        })
+        return true
+      }
+      return false
     }
 
     async function init() {
@@ -208,51 +273,19 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
         if (cancelled) return
         if (finalOauthResult?.session) {
-          bsky.addOAuthDid(finalOauthResult.session.did)
-          const agent = new Agent(finalOauthResult.session)
-          bsky.setOAuthAgent(agent, finalOauthResult.session)
-          // Reset failure count on successful restore
-          bsky.resetOAuthFailure(finalOauthResult.session.did)
-          // Filter out invalid handles before passing to finish
-          const sessionHandle = (finalOauthResult.session as any).handle
-          const isValidHandle = sessionHandle && sessionHandle !== 'handle.invalid' && !sessionHandle.includes('.invalid') && !sessionHandle.startsWith('did:')
-          const sessionToFinish = isValidHandle
-            ? finalOauthResult.session as unknown as AtpSessionData
-            : { did: finalOauthResult.session.did } as AtpSessionData
-          finish(sessionToFinish)
-          // If handle was invalid, trigger a fetch to get the real handle
-          if (!isValidHandle) {
-            void agent.getProfile({ actor: finalOauthResult.session.did }).then((profile) => {
-              if (profile.data.handle && profile.data.handle !== 'handle.invalid' && !profile.data.handle.includes('.invalid') && !profile.data.handle.startsWith('did:')) {
-                const updatedSession = { ...sessionToFinish, handle: profile.data.handle } as AtpSessionData
-                const accounts = bsky.getAccounts()
-                accounts.sessions[finalOauthResult.session.did] = updatedSession
-                bsky.saveAccounts?.(accounts)
-                localStorage.setItem('artsky-bsky-session', JSON.stringify(updatedSession))
-                // Trigger session update to refresh UI
-                refreshSession()
-              }
-            }).catch((err) => {
-              console.warn('Failed to fetch profile handle:', err)
-            })
-          }
+          completeOAuthLogin(finalOauthResult.session)
           return
         }
-        // OAuth restore failed — try localStorage fallback; never discard persisted credentials
-        if (!hasCallback && preferredRestoreDid && !finalOauthResult?.session) {
-          const restored = await bsky.restoreAgentFromPersistedSession(preferredRestoreDid)
-          if (restored) {
-            finish(restored)
-            return
-          }
-          const displaySession = bsky.getStoredSessionForDisplay()
-          if (displaySession) {
-            finish(displaySession)
-            void bsky.attemptSessionRefresh().then((ok) => {
-              if (ok && !cancelled) refreshSession()
-            })
-            return
-          }
+
+        // OAuth callback may have persisted to IndexedDB before init() returned/ timed out.
+        let restoreDid = preferredRestoreDid ?? bsky.getPersistedActiveDid() ?? undefined
+        if (hasCallback && !restoreDid) {
+          await new Promise((resolve) => setTimeout(resolve, 500))
+          if (cancelled) return
+          restoreDid = bsky.getPersistedActiveDid() ?? undefined
+        }
+        if (restoreDid && (await restoreFromPersistedCredentials(restoreDid))) {
+          return
         }
       } catch {
         // Don't auto-logout on token refresh errors - keep session data so user can retry
