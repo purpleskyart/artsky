@@ -848,7 +848,8 @@
   cursor: pointer;
 }
 
-.customSuggestionItem:hover {
+.customSuggestionItem:hover,
+.customSuggestionItemActive {
   background: var(--glass-highlight);
 }
 

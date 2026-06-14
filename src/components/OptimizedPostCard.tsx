@@ -76,8 +76,17 @@ function OptimizedPostCard(props: OptimizedPostCardProps) {
   const showPlaceholder = !isNearViewport && measuredHeightRef.current > 0
   showingContentRef.current = !showPlaceholder
 
+  // Reserve the last measured height when re-mounting real content (e.g. scrolling
+  // back up). This keeps the card from collapsing while its media reloads, which
+  // would otherwise shift everything below and make upward scrolling jump.
+  const reservedHeight = measuredHeightRef.current > 0 ? measuredHeightRef.current : undefined
+
   return (
-    <div ref={setWrapRef} className={styles.optimizeWrap}>
+    <div
+      ref={setWrapRef}
+      className={styles.optimizeWrap}
+      style={!showPlaceholder && reservedHeight ? { minHeight: reservedHeight } : undefined}
+    >
       {showPlaceholder ? (
         <div style={{ height: measuredHeightRef.current }} aria-hidden />
       ) : (

@@ -48,10 +48,10 @@
   box-shadow: none;
 }
 
-/* Desktop: purple border on focused cards */
+/* Desktop: purple border on focused cards (liked cards keep pink ring only) */
 @media (hover: hover) {
-  .cardSelected,
-  .cardSelected:focus-within {
+  .cardSelected:not(.cardLiked),
+  .cardSelected:not(.cardLiked):focus-within {
     outline: 2px solid #a855f7 !important;
     outline-offset: 0px;
   }
@@ -100,10 +100,10 @@ html[data-theme="dark"] .cardSeen .textOnlyPreview::after {
   }
 }
 
-/* Desktop: purple border on hover */
+/* Desktop: purple border on hover (liked cards keep pink ring only) */
 @media (hover: hover) {
-  .card:hover,
-  .card:hover:focus-within {
+  .card:hover:not(.cardLiked),
+  .card:hover:focus-within:not(.cardLiked) {
     outline: 2px solid #a855f7 !important;
     outline-offset: 0px;
   }
@@ -150,18 +150,10 @@ html[data-theme="dark"] [data-view-mode="1"] .card:hover {
   box-shadow: inset 0 0 0 2px #ec4899;
 }
 
-/* Liked + hover: keep pink ring + purple outline on desktop */
-.card.cardLiked:hover::after {
+/* Liked + hover: keep pink ring */
+.card.cardLiked:hover::after,
+.card.cardLiked:hover:focus-within::after {
   box-shadow: inset 0 0 0 2px #ec4899;
-}
-
-/* Desktop: purple border on hover for liked cards */
-@media (hover: hover) {
-  .card.cardLiked:hover,
-  .card.cardLiked:hover:focus-within {
-    outline: 2px solid #a855f7 !important;
-    outline-offset: 0px;
-  }
 }
 
 /* When selected: ::after only has liked inset ring */
@@ -172,15 +164,6 @@ html[data-theme="dark"] [data-view-mode="1"] .card:hover {
 /* Pink inset when liked + focused */
 .card.cardSelected.cardLiked::after {
   box-shadow: inset 0 0 0 2px #ec4899;
-}
-
-/* Desktop: purple border shows on top of pink liked border */
-@media (hover: hover) {
-  .card.cardSelected.cardLiked,
-  .card.cardSelected.cardLiked:focus-within {
-    outline: 2px solid #a855f7 !important;
-    outline-offset: 0px;
-  }
 }
 
 /* Bento grid: card fills cell height */

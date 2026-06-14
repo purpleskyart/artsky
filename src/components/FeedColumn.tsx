@@ -5,7 +5,9 @@ import OptimizedPostCard from './OptimizedPostCard'
 import { setInitialPostForUri } from '../lib/postCache'
 import styles from '../styles/postGrid.module.css'
 import { memo, useCallback } from 'react'
+import { useSyncExternalStore } from 'react'
 import type { PostCardDisplayContext } from '../hooks/usePostCardDisplayContext'
+import { getDesktopSnapshot, subscribeDesktop } from '../config/breakpoints'
 
 type ColumnItem = { entry: FeedDisplayEntry; originalIndex: number }
 
@@ -50,7 +52,18 @@ const FeedCard = memo(function FeedCard({
   displayContext?: PostCardDisplayContext
 }) {
   const key = entry.item.post.uri
-  const handleMouseEnter = useCallback(() => onMouseEnter(originalIndex), [onMouseEnter, originalIndex])
+  const isDesktop = useSyncExternalStore(subscribeDesktop, getDesktopSnapshot, () => false)
+  const isNsfwBlurred =
+    nsfwPreference === 'blurred' &&
+    isPostNsfw(entry.item.post) &&
+    !unblurredUris.has(key)
+  const handleMouseEnter = useCallback(() => {
+    onMouseEnter(originalIndex)
+    if (isDesktop && isNsfwBlurred) setUnblurred(key, true)
+  }, [onMouseEnter, originalIndex, isDesktop, isNsfwBlurred, setUnblurred, key])
+  const handleMouseLeave = useCallback(() => {
+    if (isDesktop && unblurredUris.has(key)) setUnblurred(key, false)
+  }, [isDesktop, unblurredUris, setUnblurred, key])
   const handleMediaRef = useCallback((mediaIndex: number, el: HTMLElement | null) => {
     onMediaRef(originalIndex, mediaIndex, el)
   }, [onMediaRef, originalIndex])
@@ -69,6 +82,13 @@ const FeedCard = memo(function FeedCard({
       data-selected={isSelected || undefined}
       data-post-uri={key}
       onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+      onPointerEnter={isDesktop ? () => {
+        if (isNsfwBlurred) setUnblurred(key, true)
+      } : undefined}
+      onPointerLeave={isDesktop ? () => {
+        if (unblurredUris.has(key)) setUnblurred(key, false)
+      } : undefined}
     >
       <OptimizedPostCard
         item={entry.item}

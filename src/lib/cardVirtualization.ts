@@ -20,6 +20,14 @@ export const VIRT_ROOT_MARGIN_VH = {
   bottom: 0.75,
 } as const
 
+/**
+ * Extra viewport-height band applied only to already-mounted cards before they
+ * virtualize. This hysteresis prevents mount/unmount thrash when a card hovers
+ * right at the margin boundary during slow scrolling, which causes visible jitter
+ * (especially when scrolling back up over recently-virtualized cards).
+ */
+export const VIRT_HYSTERESIS_VH = 0.25
+
 type ViewBounds = { top: number; bottom: number }
 
 type VirtCallback = (isNearViewport: boolean) => void
@@ -76,8 +84,14 @@ export function computeVirtualizationNear(el: Element, root: Element | null): bo
 
   const bounds = getRootBounds(root)
   const { top: topMargin, bottom: bottomMargin } = getMargins(root)
-  const expandedTop = bounds.top - topMargin
-  const expandedBottom = bounds.bottom + bottomMargin
+  // Hysteresis: an already-mounted card must move an extra band beyond the margin
+  // before it virtualizes, so a card sitting at the boundary doesn't flip on every
+  // scroll frame.
+  const hysteresis = (nearState.get(el) ?? true)
+    ? Math.floor(getRootHeight(root) * VIRT_HYSTERESIS_VH)
+    : 0
+  const expandedTop = bounds.top - topMargin - hysteresis
+  const expandedBottom = bounds.bottom + bottomMargin + hysteresis
 
   return rect.bottom > expandedTop && rect.top < expandedBottom
 }

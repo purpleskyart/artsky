@@ -61,6 +61,7 @@ function FeedSelectorComponent({
   const [networkFeeds, setNetworkFeeds] = useState<FeedSource[]>([])
   const [networkLoading, setNetworkLoading] = useState(false)
   const [networkSectionLabel, setNetworkSectionLabel] = useState('')
+  const [suggestionActiveIndex, setSuggestionActiveIndex] = useState(0)
   const [feedContextMenu, setFeedContextMenu] = useState<{ source: FeedSource; x: number; y: number } | null>(null)
   const [editFeeds, setEditFeeds] = useState(false)
   const helpRef = useRef<HTMLDivElement>(null)
@@ -85,6 +86,14 @@ function FeedSelectorComponent({
   )
   const maxSuggestions = 10
   const suggestions = useMemo(() => searchResults.slice(0, maxSuggestions), [searchResults])
+  const allSuggestionOptions = useMemo(
+    () => [...suggestions, ...networkFeeds],
+    [suggestions, networkFeeds],
+  )
+
+  useEffect(() => {
+    setSuggestionActiveIndex(0)
+  }, [customInput, suggestions.length, networkFeeds.length])
 
   /* Search AT Protocol for feeds: by handle (feeds by @user), suggested when empty, or search suggested feeds by name/description when typing */
   useEffect(() => {
@@ -254,6 +263,16 @@ function FeedSelectorComponent({
     onToggle(source)
     setCustomInput('')
     setShowCustom(false)
+  }
+
+  function selectSuggestionAtIndex(index: number) {
+    const item = allSuggestionOptions[index]
+    if (!item) return
+    if (index < suggestions.length) {
+      handleSelectSuggestion(item)
+    } else {
+      void handleSelectNetworkFeed(item)
+    }
   }
 
   async function handleSelectNetworkFeed(source: FeedSource) {
@@ -517,6 +536,20 @@ function FeedSelectorComponent({
           placeholder="Search feeds, type @handle for their feeds, or paste feed URL (press Enter to add)…"
           value={customInput}
           onChange={(e) => setCustomInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (!hasSuggestions || allSuggestionOptions.length === 0) return
+            const looksLikeUrl = /^(https?:\/\/|at:\/\/)/i.test(customInput.trim()) || customInput.includes('bsky.app')
+            if (e.key === 'ArrowDown') {
+              e.preventDefault()
+              setSuggestionActiveIndex((i) => (i + 1) % allSuggestionOptions.length)
+            } else if (e.key === 'ArrowUp') {
+              e.preventDefault()
+              setSuggestionActiveIndex((i) => (i - 1 + allSuggestionOptions.length) % allSuggestionOptions.length)
+            } else if (e.key === 'Enter' && !looksLikeUrl) {
+              e.preventDefault()
+              selectSuggestionAtIndex(suggestionActiveIndex)
+            }
+          }}
           className={styles.input}
           disabled={adding}
           autoComplete="off"
@@ -530,11 +563,11 @@ function FeedSelectorComponent({
             <>
               <div className={styles.customSuggestionsSection}>Your feeds</div>
               <ul className={styles.customSuggestions} role="listbox" aria-label="Your feeds">
-                {suggestions.map((s) => (
-                <li key={s.uri ?? s.label} role="option">
+                {suggestions.map((s, i) => (
+                <li key={s.uri ?? s.label} role="option" aria-selected={i === suggestionActiveIndex}>
                   <button
                     type="button"
-                    className={styles.customSuggestionItem}
+                    className={i === suggestionActiveIndex ? `${styles.customSuggestionItem} ${styles.customSuggestionItemActive}` : styles.customSuggestionItem}
                     onClick={() => handleSelectSuggestion(s)}
                   >
                     {s.label}
@@ -551,18 +584,21 @@ function FeedSelectorComponent({
             <>
               <div className={styles.customSuggestionsSection}>{networkSectionLabel}</div>
               <ul className={styles.customSuggestions} role="listbox" aria-label={networkSectionLabel}>
-                {networkFeeds.map((s) => (
-                  <li key={s.uri ?? s.label} role="option">
+                {networkFeeds.map((s, i) => {
+                  const optionIndex = suggestions.length + i
+                  return (
+                  <li key={s.uri ?? s.label} role="option" aria-selected={optionIndex === suggestionActiveIndex}>
                     <button
                       type="button"
-                      className={styles.customSuggestionItem}
+                      className={optionIndex === suggestionActiveIndex ? `${styles.customSuggestionItem} ${styles.customSuggestionItemActive}` : styles.customSuggestionItem}
                       onClick={() => handleSelectNetworkFeed(s)}
                       disabled={adding}
                     >
                       {s.label}
                     </button>
                   </li>
-                ))}
+                  )
+                })}
               </ul>
             </>
           )}
