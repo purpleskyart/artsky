@@ -1478,6 +1478,15 @@ export function getPostAllMediaForDisplay(
   return quoted ? getPostAllMedia(quoted, opts) : []
 }
 
+/**
+ * Keyboard focus targets within a feed card: optional reply-parent strip (index 0) plus post media.
+ * Text-only posts still count as one media target (min 1).
+ */
+export function getPostCardFocusMediaCount(item: TimelineItem, opts?: PostMediaUrlOptions): number {
+  const postMediaCount = Math.max(1, getPostAllMediaForDisplay(item.post, opts).length)
+  return getReplyParentPostView(item) ? 1 + postMediaCount : postMediaCount
+}
+
 /** First media URL for display (e.g. thumb); uses quoted post's media when outer has none. */
 export function getPostMediaUrlForDisplay(post: PostView, opts?: PostMediaUrlOptions): { url: string; type: 'image' | 'video' } | null {
   const info = getPostMediaInfoForDisplay(post, opts)

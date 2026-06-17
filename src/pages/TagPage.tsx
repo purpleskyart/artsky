@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import {
   searchPostsByTag,
-  getPostMediaInfo,
+  getPostCardFocusMediaCount,
   likePostWithLifecycle,
   unlikePostWithLifecycle,
   followAccountWithLifecycle,
@@ -122,8 +122,8 @@ export function TagContent({
 
   const getMediaCount = useCallback(
     (cardIndex: number) => {
-      const media = getPostMediaInfo(mediaItems[cardIndex]?.post)
-      return media ? media.imageCount ?? 1 : 1
+      const item = mediaItems[cardIndex]
+      return item ? getPostCardFocusMediaCount(item) : 1
     },
     [mediaItems],
   )

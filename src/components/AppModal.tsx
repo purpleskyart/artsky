@@ -351,6 +351,7 @@ export default function AppModal({
   }, [profileScrollPersistenceHandle, postScrollPersistenceHandle, collectionScrollPersistenceHandle])
 
   useEffect(() => {
+    if (!isTopModal) return
     const onKeyDown = (e: KeyboardEvent) => {
       if (gateKeyboardShortcutsForEditable(e)) return
       if (e.key === 'Escape') {
@@ -363,7 +364,8 @@ export default function AppModal({
         }
         return
       }
-      if (e.key.toLowerCase() === 'q' || e.key === 'Backspace') {
+      const backKey = e.key.toLowerCase()
+      if (backKey === 'q' || backKey === 'u' || e.key === 'Backspace') {
         e.preventDefault()
         e.stopImmediatePropagation()
         onBack()
@@ -371,7 +373,7 @@ export default function AppModal({
     }
     window.addEventListener('keydown', onKeyDown, true)
     return () => window.removeEventListener('keydown', onKeyDown, true)
-  }, [onClose, onBack, onDesktopBackdrop, isMobile])
+  }, [onClose, onBack, onDesktopBackdrop, isMobile, isTopModal])
 
   function handleBackdropClick(e: React.MouseEvent<HTMLDivElement>) {
     if (e.target !== e.currentTarget) return

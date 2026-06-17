@@ -225,6 +225,15 @@ html[data-theme="dark"] [data-view-mode="1"] .card:hover {
   box-sizing: border-box;
   -webkit-tap-highlight-color: transparent;
   overflow: visible;
+  transition: transform 0.2s ease;
+}
+
+/* Keyboard focus: lift reply-parent strip when navigating within a reply card */
+.replyParentStripFocused {
+  outline: none;
+  box-shadow: none;
+  z-index: 1;
+  transform: scale(1.02);
 }
 
 .replyParentStripHeader {
@@ -409,10 +418,10 @@ html[data-theme="dark"] [data-view-mode="1"] .card:hover {
     outline-offset: 0px;
   }
 }
-.card:focus-within:not(:has(.mediaGridCellFocused)) {
+.card:focus-within:not(:has(.mediaGridCellFocused)):not(:has(.replyParentStripFocused)) {
   box-shadow: none;
 }
-.card:focus-within:not(:has(.mediaGridCellFocused))::after {
+.card:focus-within:not(:has(.mediaGridCellFocused)):not(:has(.replyParentStripFocused))::after {
   box-shadow: none;
 }
 
@@ -449,6 +458,9 @@ html[data-theme="dark"] [data-view-mode="1"] .card:hover {
     gap: 0.35rem;
   }
   .mediaGridCellFocused {
+    transform: none;
+  }
+  .replyParentStripFocused {
     transform: none;
   }
   .cardLikeRepostBtn:focus-visible {

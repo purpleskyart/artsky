@@ -3,7 +3,7 @@ import { Navigate, useParams } from 'react-router-dom'
 import Layout from '../components/Layout'
 import { HOME_PATH, RESERVED_APP_PATH_SEGMENTS } from '../lib/routes'
 import PostMasonryGrid from '../components/PostMasonryGrid'
-import { getPostsBatch, getProfileCached, isPostNsfw, type TimelineItem } from '../lib/bsky'
+import { getPostsBatch, getProfileCached, getPostCardFocusMediaCount, isPostNsfw, type TimelineItem } from '../lib/bsky'
 import { postViewToTimelineItem } from '../lib/timeline'
 import { distributeTimelineItemsByHeight } from '../lib/masonryLayout'
 import { getCollectionByAtUri, isLikelyCollectionRefParam, removePostFromCollection } from '../lib/collections'
@@ -205,9 +205,16 @@ export function CollectionDetailContent({ uri: decodedUri, inModal = false, isTo
   distributedColumnsRef.current = distributedColumns
   colsRef.current = cols
 
+  const getMediaCount = useCallback(
+    (cardIndex: number) => {
+      const item = displayItems[cardIndex]
+      return item ? getPostCardFocusMediaCount(item) : 1
+    },
+    [displayItems],
+  )
   const { focusTargets, firstFocusIndexForCard, lastFocusIndexForCard } = useMediaFocusTargets(
     displayItems.length,
-    () => 1,
+    getMediaCount,
   )
   const focusTargetsRef = useRef(focusTargets)
   const firstFocusIndexForCardRef = useRef(firstFocusIndexForCard)

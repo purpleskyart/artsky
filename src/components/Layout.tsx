@@ -712,7 +712,7 @@ export default function Layout({ title, children, showNav }: Props) {
     document.title = title ? `${title} · PurpleSky` : 'PurpleSky'
   }, [title])
 
-  /* Global keyboard: Q / Backspace = back, N = notifications, M = messages. Do not handle when a popup is open so the popup gets shortcuts and scroll. */
+  /* Global keyboard: Q / U / Backspace = back, N = notifications, M = messages. Do not handle when a popup is open so the popup gets shortcuts and scroll. */
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (isModalOpen || notificationsOpen || messagesPanelOpen || activeChat) return
@@ -730,8 +730,8 @@ export default function Layout({ title, children, showNav }: Props) {
         toggleMessagesPanel()
         return
       }
-      if (key !== 'q' && e.key !== 'Backspace') return
-      /* On feed, Q / Backspace are for chrome and menus; don't treat as browser back */
+      if (key !== 'q' && key !== 'u' && e.key !== 'Backspace') return
+      /* On feed, Q / U / Backspace are for chrome and menus; don't treat as browser back */
       if (isHomePath(loc.pathname)) return
       e.preventDefault()
       navigate(-1)
@@ -2678,7 +2678,7 @@ export default function Layout({ title, children, showNav }: Props) {
                     <dt>S / ↓</dt><dd>Move down</dd>
                     <dt>D / →</dt><dd>Move right</dd>
                     <dt>E</dt><dd>Enter post</dd>
-                    <dt>Q / Backspace</dt><dd>Back / quit post</dd>
+                    <dt>Q / U / Backspace</dt><dd>Back / quit post</dd>
                     <dt>R</dt><dd>Reply to post</dd>
                     <dt>C</dt><dd>Collect post</dd>
                     <dt>F</dt><dd>Follow author</dd>

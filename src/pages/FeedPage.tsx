@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { useLocation, useNavigate, useNavigationType } from 'react-router-dom'
 import {
   getPostMediaInfoForDisplay,
-  getPostAllMediaForDisplay,
+  getPostCardFocusMediaCount,
   getGuestFeed,
   getMixedFeed,
   getTimelineWithLifecycle,
@@ -555,7 +555,7 @@ export default function FeedPage() {
     for (const entry of displayEntries) {
       const uri = entry.item.post.uri
       if (!uri) continue
-      map.set(uri, Math.max(1, getPostAllMediaForDisplay(entry.item.post).length))
+      map.set(uri, getPostCardFocusMediaCount(entry.item))
     }
     return map
   }, [displayEntries])

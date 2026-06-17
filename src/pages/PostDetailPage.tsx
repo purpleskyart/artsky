@@ -2084,7 +2084,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
     }
   }, [focusItems, threadRepliesFlat])
   const handleQuotedPostHover = useCallback(() => {
-    if (!isDesktop || !onClose) return
+    if (!isDesktop) return
     const idx = focusItems.findIndex((it) => it.type === 'quotedPost')
     if (idx >= 0) {
       setKeyboardFocusIndex(idx)
@@ -2092,7 +2092,40 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
         quotedPostCardRef.current?.focus()
       })
     }
-  }, [focusItems, onClose, isDesktop])
+  }, [focusItems, isDesktop])
+
+  const openFocusedItemPost = useCallback(
+    (item: FocusItem) => {
+      if (!thread || !isThreadViewPost(thread)) return
+      if (item.type === 'comment' || item.type === 'commentMedia') {
+        const replyNode = findReplyByUri(threadReplies, item.commentUri)
+        if (replyNode) {
+          openSubthread(
+            replyNode.post.uri,
+            replyNode.post.author?.handle ?? replyNode.post.author?.did ?? '',
+            replyNode.post,
+          )
+        }
+        return
+      }
+      if (item.type === 'quotedPost') {
+        const quoted = getQuotedPostView(thread.post)
+        if (quoted) {
+          openSubthread(quoted.uri, quoted.author?.handle ?? quoted.author?.did ?? '', quoted)
+        }
+        return
+      }
+      if (item.type === 'parentPost' && 'parent' in thread && thread.parent && isThreadViewPost(thread.parent)) {
+        const parent = thread.parent
+        openSubthread(
+          parent.post.uri,
+          parent.post.author?.handle ?? parent.post.author?.did ?? '',
+          parent.post,
+        )
+      }
+    },
+    [thread, threadReplies, openSubthread],
+  )
   const postUri = thread && isThreadViewPost(thread) ? thread.post.uri : null
   useEffect(() => {
     if (thread && isThreadViewPost(thread) && onAuthorHandle) {
@@ -2109,9 +2142,8 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
   }, [navTotalItems])
 
   useEffect(() => {
-    if (!keyboardShell.registerKeys) return
-
-    const { useCapture, claimKey, shouldBlockEditable, blurEditableOnEscape } = keyboardShell
+    const { registerKeys, useCapture, claimKey, shouldBlockEditable, blurEditableOnEscape } = keyboardShell
+    if (!registerKeys) return
 
     const onKeyDown = (e: KeyboardEvent) => {
       /* When standalone (not in a modal), block shortcuts if any modal is open on top. */
@@ -2166,8 +2198,10 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
       const inMediaSection = mediaSectionRef.current?.contains(target) ?? false
       const inCommentFormWrap = commentFormWrapRef.current?.contains(target) ?? false
 
-      if (key === 'e' || key === 'enter') {
+      if (key === 'e' || key === 'o' || key === 'enter') {
         e.preventDefault()
+        claimKey(e)
+        const focusedItem = focusItems[keyboardFocusIndexRef.current]
         if ((commentFormFocused || inCommentFormWrap) && commentFormRef.current) {
           const ta = commentFormRef.current.querySelector('textarea')
           if (ta) {
@@ -2176,12 +2210,17 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
           }
           return
         }
-        if (inCommentsSection && threadRepliesFlat.length > 0 && focusedCommentIndex >= 0 && focusedCommentIndex < threadRepliesFlat.length) {
-          const focused = threadRepliesFlat[focusedCommentIndex]
-          if (focused?.handle) openProfileModal(focused.handle)
+        if (
+          focusedItem &&
+          (focusedItem.type === 'comment' ||
+            focusedItem.type === 'commentMedia' ||
+            focusedItem.type === 'quotedPost' ||
+            focusedItem.type === 'parentPost')
+        ) {
+          openFocusedItemPost(focusedItem)
           return
         }
-        if ((inDescriptionSection || inMediaSection) && thread && isThreadViewPost(thread)) {
+        if ((inDescriptionSection || inMediaSection || focusedItem?.type === 'description' || focusedItem?.type === 'rootMedia') && thread && isThreadViewPost(thread)) {
           const authorHandle = thread.post.author?.handle ?? thread.post.author?.did ?? ''
           if (authorHandle) openProfileModal(authorHandle)
           return
@@ -2219,10 +2258,10 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
         return
       }
 
-      const isStepPrev = key === 'w' || e.key === 'ArrowUp' || e.key === 'ArrowLeft'
-      const isStepNext = key === 's' || e.key === 'ArrowDown' || e.key === 'ArrowRight'
-      const isTopLevelPrev = key === 'a'
-      const isTopLevelNext = key === 'd'
+      const isStepPrev = key === 'w' || key === 'i' || e.key === 'ArrowUp' || e.key === 'ArrowLeft'
+      const isStepNext = key === 's' || key === 'k' || e.key === 'ArrowDown' || e.key === 'ArrowRight'
+      const isTopLevelPrev = key === 'a' || key === 'j'
+      const isTopLevelNext = key === 'd' || key === 'l'
       if (!isStepPrev && !isStepNext && !isTopLevelPrev && !isTopLevelNext) return
       if (!thread || !isThreadViewPost(thread)) return
       beginKeyboardNavigation()
@@ -2349,6 +2388,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
         if (next < 0 || next === current) return
         e.preventDefault()
         e.stopPropagation()
+        claimKey(e)
         scrollIntoViewFromKeyboardRef.current = true
         setKeyboardFocusIndex(next)
         focusItemAtIndex(next, current)
@@ -2360,6 +2400,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
       if (next !== current) {
         e.preventDefault()
         e.stopPropagation()
+        claimKey(e)
         scrollIntoViewFromKeyboardRef.current = true
         setKeyboardFocusIndex(next)
         focusItemAtIndex(next, current)
@@ -2367,7 +2408,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
     }
     window.addEventListener('keydown', onKeyDown, useCapture)
     return () => window.removeEventListener('keydown', onKeyDown, useCapture)
-  }, [postSectionCount, postSectionIndex, hasRepliesSection, threadRepliesFlat, focusedCommentIndex, commentFormFocused, thread, hasMediaSection, handleReplyTo, rootMediaForNav.length, openProfileModal, focusItems, handleLike, handleCommentLike, commentLikeOverrides, openActionsMenuUri, threadRepliesVisible, topLevelCommentFirstFocusIndices, threadReplies, findReplyByUri, onClose, isTopModal, inModal, keyboardShell])
+  }, [postSectionCount, postSectionIndex, hasRepliesSection, threadRepliesFlat, focusedCommentIndex, commentFormFocused, thread, hasMediaSection, handleReplyTo, rootMediaForNav.length, openProfileModal, openFocusedItemPost, focusItems, handleLike, handleCommentLike, commentLikeOverrides, openActionsMenuUri, threadRepliesVisible, topLevelCommentFirstFocusIndices, threadReplies, findReplyByUri, onClose, inModal, beginKeyboardNavigation, keyboardShell])
 
   useEffect(() => {
     if (postSectionCount <= 1) return
@@ -2605,14 +2646,14 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
               {rootMedia.length > 0 && (
                 <div
                   ref={mediaSectionRef}
-                  onMouseEnter={isDesktop ? () => !onClose && rootMediaForNav.length > 0 && setKeyboardFocusIndex(0) : undefined}
+                  onMouseEnter={isDesktop ? () => rootMediaForNav.length > 0 && setKeyboardFocusIndex(0) : undefined}
                 >
                   <MediaGallery
                     items={rootMedia}
                     autoPlayFirstVideo
                     hideVideoControlsUntilTap={!isDesktop}
-                    onFocusItem={(i) => !onClose && setKeyboardFocusIndex(i)}
-                    onDoubleTapLike={!onClose ? handleLike : undefined}
+                    onFocusItem={(i) => setKeyboardFocusIndex(i)}
+                    onDoubleTapLike={handleLike}
                     onImageClick={openLightbox}
                   />
                 </div>
@@ -2621,8 +2662,8 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                 ref={descriptionSectionRef}
                 className={styles.rootPostDescription}
                 tabIndex={-1}
-                onFocus={() => !onClose && setKeyboardFocusIndex(rootMediaForNav.length)}
-                onMouseEnter={isDesktop ? () => !onClose && setKeyboardFocusIndex(rootMediaForNav.length) : undefined}
+                onFocus={() => setKeyboardFocusIndex(rootMediaForNav.length)}
+                onMouseEnter={isDesktop ? () => setKeyboardFocusIndex(rootMediaForNav.length) : undefined}
               >
                 <div className={styles.postHead}>
                   {thread.post.author.avatar ? (
@@ -2938,7 +2979,6 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                 </div>
                 <div
                   onFocusCapture={(e) => {
-                  if (onClose) return
                   const target = e.target as HTMLElement
                   const commentEl = target.closest?.('[data-comment-uri]') as HTMLElement | null
                   if (!commentEl) return
@@ -2977,7 +3017,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                         data-comment-uri={r.post.uri}
                         tabIndex={-1}
                         onMouseEnter={isDesktop ? () => {
-                          if (!onClose && commentContentFocusIndex >= 0) {
+                          if (commentContentFocusIndex >= 0) {
                             setKeyboardFocusIndex(commentContentFocusIndex)
                             setFocusedCommentIndex(threadRepliesFlat.findIndex((f) => f.uri === r.post.uri))
                           }
@@ -2986,7 +3026,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                       <div
                         className={`${styles.collapsedCommentWrap} ${isFocusedCollapsed ? styles.commentFocused : ''}`}
                         style={{ marginLeft: 0 }}
-                        onFocus={() => !onClose && commentContentFocusIndex >= 0 && setKeyboardFocusIndex(commentContentFocusIndex)}
+                        onFocus={() => commentContentFocusIndex >= 0 && setKeyboardFocusIndex(commentContentFocusIndex)}
                       >
                         <button type="button" className={styles.collapsedCommentBtn} onClick={() => toggleCollapse(r.post.uri)}>
                           <span className={styles.collapsedCommentExpandIcon} aria-hidden>+</span>
@@ -3007,7 +3047,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                       key={`${r.post.uri}-${rIndex}`}
                       className={styles.topLevelCommentWrap}
                       onMouseEnter={isDesktop ? () => {
-                        if (!onClose && commentContentFocusIndex >= 0) {
+                        if (commentContentFocusIndex >= 0) {
                           setKeyboardFocusIndex(commentContentFocusIndex)
                           setFocusedCommentIndex(threadRepliesFlat.findIndex((f) => f.uri === r.post.uri))
                         }
@@ -3061,8 +3101,8 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                   ref={commentFormWrapRef}
                   tabIndex={-1}
                   className={commentFormFocused ? styles.commentFormWrapFocused : undefined}
-                  onFocus={() => !onClose && setKeyboardFocusIndex(focusItems.length - 1)}
-                  onMouseEnter={isDesktop ? () => !onClose && setKeyboardFocusIndex(focusItems.length - 1) : undefined}
+                  onFocus={() => setKeyboardFocusIndex(focusItems.length - 1)}
+                  onMouseEnter={isDesktop ? () => setKeyboardFocusIndex(focusItems.length - 1) : undefined}
                   onBlur={() => {
                     requestAnimationFrame(() => {
                       if (!commentFormRef.current?.contains(document.activeElement)) setCommentFormFocused(false)

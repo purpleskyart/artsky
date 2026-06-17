@@ -4,7 +4,7 @@ import { useSession } from '../context/SessionContext'
 // Removed useProfileModal import to break circular dependency
 import { useEditProfile } from '../context/EditProfileContext'
 import { useModalTopBarSlot } from '../context/ModalTopBarSlotContext'
-import { agent, publicAgent, isAgentAuthenticated, getPostMediaInfo, getPostMediaInfoForDisplay, getActorFeeds, listActivitySubscriptions, putActivitySubscription, isPostNsfw, getProfileCached, likePostWithLifecycle, unlikePostWithLifecycle, followAccountWithLifecycle, unfollowAccountWithLifecycle, buildAuthorFeedQuery, authorFeedFilterForProfileTab, type TimelineItem, type ProfileViewBasic } from '../lib/bsky'
+import { agent, publicAgent, isAgentAuthenticated, getPostMediaInfo, getPostMediaInfoForDisplay, getPostCardFocusMediaCount, getActorFeeds, listActivitySubscriptions, putActivitySubscription, isPostNsfw, getProfileCached, likePostWithLifecycle, unlikePostWithLifecycle, followAccountWithLifecycle, unfollowAccountWithLifecycle, buildAuthorFeedQuery, authorFeedFilterForProfileTab, type TimelineItem, type ProfileViewBasic } from '../lib/bsky'
 import { getConvoAvailability } from '../lib/chat'
 import { useMessages } from '../context/MessagesContext'
 import { setInitialPostForUri } from '../lib/postCache'
@@ -502,8 +502,8 @@ export default function ProfileContent({
 
   const getMediaCount = useCallback(
     (cardIndex: number) => {
-      const media = getPostMediaInfo(profileGridItems[cardIndex]?.post)
-      return media ? (media.imageCount ?? 1) : 1
+      const item = profileGridItems[cardIndex]
+      return item ? getPostCardFocusMediaCount(item) : 1
     },
     [profileGridItems],
   )

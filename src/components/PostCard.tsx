@@ -176,6 +176,7 @@ function PostCardInner({
   const feedUri = feedSource?.uri
   const feedAcceptsInteractions = feedSource?.acceptsInteractions
   const replyParentPost = getReplyParentPostView(item)
+  const replyFocusOffset = replyParentPost ? 1 : 0
   const replyParentHandle = replyParentPost
     ? (replyParentPost.author.handle ?? replyParentPost.author.did)
     : ''
@@ -966,8 +967,9 @@ function PostCardInner({
       >
         {replyParentPost ? (
           <div
+            ref={(el) => onMediaRef?.(0, el)}
             data-reply-parent-strip
-            className={styles.replyParentStrip}
+            className={`${styles.replyParentStrip} ${focusedMediaIndex === 0 ? styles.replyParentStripFocused : ''}`}
             role="button"
             tabIndex={0}
             aria-label={`View post by @${replyParentHandle}`}
@@ -1150,7 +1152,7 @@ function PostCardInner({
         <div
           ref={(el) => {
             ;(mediaWrapRef as React.MutableRefObject<HTMLDivElement | null>).current = el
-            if (onMediaRef && (mediaMode === 'text' || (hasMedia && !isMultipleImages))) onMediaRef(0, el)
+            if (onMediaRef && (mediaMode === 'text' || (hasMedia && !isMultipleImages))) onMediaRef(replyFocusOffset, el)
           }}
           className={`${styles.mediaWrap} ${fillCell ? styles.mediaWrapFillCell : ''} ${constrainMediaHeight ? styles.mediaWrapConstrained : ''} ${isMultipleImages ? styles.mediaWrapMultiStack : ''} ${useCompactTextOnlyHeight ? styles.mediaWrapTextOnly : ''}`}
           style={
@@ -1249,7 +1251,7 @@ function PostCardInner({
                 <div className={styles.mediaWrapGrid}>
                   <div className={styles.mediaGrid} style={{ minHeight: 0 }}>
                     {imageItems.map((imgItem, idx) => {
-                      const mediaIndex = imageMediaIndices[idx] ?? idx
+                      const mediaIndex = replyFocusOffset + (imageMediaIndices[idx] ?? idx)
                       const isFocused = focusedMediaIndex === mediaIndex
                       return (
                         <div

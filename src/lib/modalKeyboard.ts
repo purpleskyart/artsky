@@ -36,25 +36,39 @@ export function getFocusedEditableElement(): HTMLElement | null {
   return isEditableElement(active) ? active : null
 }
 
+export function getTopModalDialog(): HTMLElement | null {
+  if (typeof document === 'undefined') return null
+  const dialogs = document.querySelectorAll<HTMLElement>('[role="dialog"][aria-modal="true"]')
+  return dialogs.length > 0 ? dialogs[dialogs.length - 1]! : null
+}
+
+function isEditableInScope(el: HTMLElement | null | undefined, inModal: boolean): boolean {
+  if (!el || !isEditableElement(el)) return false
+  if (!inModal) return true
+  const dialog = getTopModalDialog()
+  return dialog != null && dialog.contains(el)
+}
+
 /**
  * When true, keyboard shortcut handlers should return early (user is typing in a field).
  * Checks both the event target and the currently focused element.
+ * When inModal is true, only editables inside the top dialog block shortcuts (not header search behind the overlay).
  */
 export function shouldBlockGridKeysForEditableTarget(
   target: HTMLElement | null | undefined,
-  _inModal?: boolean,
+  inModal = false,
 ): boolean {
-  if (target && isEditableElement(target)) return true
-  return getFocusedEditableElement() !== null
+  if (isEditableInScope(target, inModal)) return true
+  return isEditableInScope(getFocusedEditableElement(), inModal)
 }
 
-export function blurEditableOnEscape(e: KeyboardEvent, target?: HTMLElement | null): void {
+export function blurEditableOnEscape(e: KeyboardEvent, target?: HTMLElement | null, inModal = false): void {
   if (e.key !== 'Escape') return
   const editable =
     (target && isEditableElement(target) ? target : null) ?? getFocusedEditableElement()
-  if (!editable) return
+  if (!isEditableInScope(editable, inModal)) return
   e.preventDefault()
-  editable.blur()
+  editable!.blur()
 }
 
 /**
@@ -63,15 +77,10 @@ export function blurEditableOnEscape(e: KeyboardEvent, target?: HTMLElement | nu
  */
 export function gateKeyboardShortcutsForEditable(e: KeyboardEvent): boolean {
   const target = e.target instanceof HTMLElement ? e.target : null
-  if (!shouldBlockGridKeysForEditableTarget(target)) return false
-  blurEditableOnEscape(e, target)
+  const inModal = getTopModalDialog() != null
+  if (!shouldBlockGridKeysForEditableTarget(target, inModal)) return false
+  blurEditableOnEscape(e, target, inModal)
   return true
-}
-
-export function getTopModalDialog(): HTMLElement | null {
-  if (typeof document === 'undefined') return null
-  const dialogs = document.querySelectorAll<HTMLElement>('[role="dialog"][aria-modal="true"]')
-  return dialogs.length > 0 ? dialogs[dialogs.length - 1]! : null
 }
 
 /** True when this layer should register grid keyboard shortcuts. */

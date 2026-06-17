@@ -40,6 +40,19 @@ describe('modalKeyboard editable gating', () => {
     expect(shouldBlockGridKeysForEditableTarget(document.body)).toBe(false)
   })
 
+  it('ignores editables outside the modal when inModal is true', () => {
+    const dialog = document.createElement('div')
+    dialog.setAttribute('role', 'dialog')
+    dialog.setAttribute('aria-modal', 'true')
+    document.body.appendChild(dialog)
+    input.focus()
+    expect(shouldBlockGridKeysForEditableTarget(document.body, true)).toBe(false)
+    dialog.appendChild(input)
+    input.focus()
+    expect(shouldBlockGridKeysForEditableTarget(document.body, true)).toBe(true)
+    dialog.remove()
+  })
+
   it('blurs the focused field on Escape only', () => {
     input.focus()
     const blurSpy = vi.spyOn(input, 'blur')

@@ -1,10 +1,12 @@
 import { describe, it, expect } from 'vitest'
 import {
   getPostAllMedia,
+  getPostCardFocusMediaCount,
   getPostExternalLink,
   getPostMediaInfo,
   isGifExternalUri,
   type PostView,
+  type TimelineItem,
 } from './bsky'
 
 function gifPost(overrides?: Partial<PostView>): PostView {
@@ -92,5 +94,53 @@ describe('getPostMediaInfo gif externals', () => {
       uri: 'https://example.com/article',
       title: 'Example',
     })
+  })
+})
+
+describe('getPostCardFocusMediaCount', () => {
+  const parentPost = {
+    uri: 'at://did:plc:parent/app.bsky.feed.post/parent',
+    cid: 'parentcid',
+    author: { did: 'did:plc:parent', handle: 'parent.bsky.social' },
+    record: { text: 'parent', createdAt: new Date().toISOString() },
+    indexedAt: new Date().toISOString(),
+  } as PostView
+
+  function replyItem(post: PostView, withParent = true): TimelineItem {
+    return {
+      post: {
+        ...post,
+        record: {
+          text: 'reply',
+          createdAt: new Date().toISOString(),
+          reply: { parent: { uri: parentPost.uri, cid: parentPost.cid }, root: { uri: parentPost.uri, cid: parentPost.cid } },
+        },
+      },
+      reply: withParent ? { parent: parentPost } : undefined,
+    } as TimelineItem
+  }
+
+  it('counts one target for a plain text post', () => {
+    const item = replyItem(gifPost(), false)
+    expect(getPostCardFocusMediaCount(item)).toBe(1)
+  })
+
+  it('adds one target for the reply-parent strip', () => {
+    const item = replyItem(gifPost())
+    expect(getPostCardFocusMediaCount(item)).toBe(2)
+  })
+
+  it('includes all reply media after the parent strip', () => {
+    const post = gifPost({
+      embed: {
+        $type: 'app.bsky.embed.images#view',
+        images: [
+          { thumb: 'https://example.com/a.jpg', fullsize: 'https://example.com/a.jpg' },
+          { thumb: 'https://example.com/b.jpg', fullsize: 'https://example.com/b.jpg' },
+        ],
+      },
+    })
+    const item = replyItem(post)
+    expect(getPostCardFocusMediaCount(item)).toBe(3)
   })
 })

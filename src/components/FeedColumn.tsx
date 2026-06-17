@@ -1,6 +1,6 @@
 import type { FeedDisplayEntry } from '../pages/FeedPage'
 import { stableCardKey } from '../pages/FeedPage'
-import { getPostAllMediaForDisplay, isPostNsfw } from '../lib/bsky'
+import { getPostCardFocusMediaCount, isPostNsfw } from '../lib/bsky'
 import OptimizedPostCard from './OptimizedPostCard'
 import { setInitialPostForUri } from '../lib/postCache'
 import styles from '../styles/postGrid.module.css'
@@ -216,7 +216,7 @@ const FeedColumn = memo(function FeedColumn({
         const isSelected = focusedCardIndex === originalIndex
         const focusedMediaIndex =
           isSelected &&
-          !(focusSetByMouse && getPostAllMediaForDisplay(entry.item.post).length > 1)
+          !(focusSetByMouse && getPostCardFocusMediaCount(entry.item) > 1)
             ? focusTargets[keyboardFocusIndex]?.mediaIndex
             : undefined
         

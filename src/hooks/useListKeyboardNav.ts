@@ -52,7 +52,9 @@ export function useListKeyboardNav({
       if (e.ctrlKey || e.metaKey) return
 
       const key = e.key.toLowerCase()
-      const isNav = key === 'w' || key === 's' || key === 'a' || key === 'd' || key === 'enter' || key === 'e' ||
+      const isNav = key === 'w' || key === 's' || key === 'a' || key === 'd' ||
+        key === 'i' || key === 'j' || key === 'k' || key === 'l' ||
+        key === 'enter' || key === 'e' || key === 'o' ||
         e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight'
       if (!isNav) return
 
@@ -63,13 +65,13 @@ export function useListKeyboardNav({
       const count = itemCount
       const cols = Math.max(1, columns)
 
-      if (key === 'enter' || key === 'e') {
+      if (key === 'enter' || key === 'e' || key === 'o') {
         onActivateRef.current(i)
         return
       }
 
       if (cols <= 1) {
-        if (key === 'w' || key === 'a' || e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+        if (key === 'w' || key === 'i' || key === 'a' || key === 'j' || e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
           setFocusedIndex((prev) => Math.max(0, prev - 1))
         } else {
           setFocusedIndex((prev) => Math.min(count - 1, prev + 1))
@@ -79,14 +81,14 @@ export function useListKeyboardNav({
 
       const row = Math.floor(i / cols)
       const col = i % cols
-      if (key === 'w' || e.key === 'ArrowUp') {
+      if (key === 'w' || key === 'i' || e.key === 'ArrowUp') {
         const nextRow = Math.max(0, row - 1)
         setFocusedIndex(nextRow * cols + col)
-      } else if (key === 's' || e.key === 'ArrowDown') {
+      } else if (key === 's' || key === 'k' || e.key === 'ArrowDown') {
         const nextRow = Math.min(Math.floor((count - 1) / cols), row + 1)
         const next = nextRow * cols + col
         setFocusedIndex(Math.min(next, count - 1))
-      } else if (key === 'a' || e.key === 'ArrowLeft') {
+      } else if (key === 'a' || key === 'j' || e.key === 'ArrowLeft') {
         if (col > 0) setFocusedIndex(i - 1)
       } else {
         if (col < cols - 1 && i + 1 < count) setFocusedIndex(i + 1)
