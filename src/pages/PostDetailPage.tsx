@@ -2193,7 +2193,6 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
         return
       }
 
-      const inCommentsSection = hasRepliesSection && (postSectionIndex === postSectionCount - 1 || (commentsSectionRef.current?.contains(target) ?? false))
       const inDescriptionSection = descriptionSectionRef.current?.contains(target) ?? false
       const inMediaSection = mediaSectionRef.current?.contains(target) ?? false
       const inCommentFormWrap = commentFormWrapRef.current?.contains(target) ?? false
