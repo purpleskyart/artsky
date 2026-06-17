@@ -1288,7 +1288,7 @@ export interface PostDetailContentProps {
 export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocusedCommentUri, onClose, isTopModal = true, onAuthorHandle, onRegisterRefresh }: PostDetailContentProps) {
   const navigate = useNavigate()
   const { openProfileModal, openPostModal, openQuotesModal } = useProfileModal()
-  const { beginKeyboardNavigation, gridPointerGateProps } = usePostCardGridPointerGate()
+  const { beginKeyboardNavigation, tryHoverSelectCard, gridPointerGateProps, hoverFocusEnabledRef, mouseMovedRef } = usePostCardGridPointerGate()
   const decodedUri = uriProp
   const inModal = !!onClose
   const modalScrollRef = useModalScroll()
@@ -2075,6 +2075,23 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
   }, [focusItems, threadRepliesVisible])
 
   const navTotalItems = focusItems.length
+  const tryHoverSelectFocusIndex = useCallback(
+    (focusIndex: number, onApplied?: () => void) => {
+      if (focusIndex < 0) return
+      tryHoverSelectCard(
+        focusIndex,
+        () => keyboardFocusIndexRef.current,
+        (idx) => {
+          setKeyboardFocusIndex(idx)
+          onApplied?.()
+        },
+      )
+    },
+    [tryHoverSelectCard],
+  )
+  const shouldIgnorePointerDrivenFocusSync = useCallback(() => {
+    return isDesktop && !mouseMovedRef.current && !hoverFocusEnabledRef.current
+  }, [isDesktop, mouseMovedRef, hoverFocusEnabledRef])
   const handleCommentMediaFocus = useCallback((commentUri: string, mediaIndex: number) => {
     const idx = focusItems.findIndex((it) => it.type === 'commentMedia' && it.commentUri === commentUri && it.mediaIndex === mediaIndex)
     if (idx >= 0) {
@@ -2086,13 +2103,13 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
   const handleQuotedPostHover = useCallback(() => {
     if (!isDesktop) return
     const idx = focusItems.findIndex((it) => it.type === 'quotedPost')
-    if (idx >= 0) {
-      setKeyboardFocusIndex(idx)
+    if (idx < 0) return
+    tryHoverSelectFocusIndex(idx, () => {
       requestAnimationFrame(() => {
         quotedPostCardRef.current?.focus()
       })
-    }
-  }, [focusItems, isDesktop])
+    })
+  }, [focusItems, isDesktop, tryHoverSelectFocusIndex])
 
   const openFocusedItemPost = useCallback(
     (item: FocusItem) => {
@@ -2389,6 +2406,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
         e.stopPropagation()
         claimKey(e)
         scrollIntoViewFromKeyboardRef.current = true
+        keyboardFocusIndexRef.current = next
         setKeyboardFocusIndex(next)
         focusItemAtIndex(next, current)
         return
@@ -2401,6 +2419,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
         e.stopPropagation()
         claimKey(e)
         scrollIntoViewFromKeyboardRef.current = true
+        keyboardFocusIndexRef.current = next
         setKeyboardFocusIndex(next)
         focusItemAtIndex(next, current)
       }
@@ -2645,7 +2664,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
               {rootMedia.length > 0 && (
                 <div
                   ref={mediaSectionRef}
-                  onMouseEnter={isDesktop ? () => rootMediaForNav.length > 0 && setKeyboardFocusIndex(0) : undefined}
+                  onMouseEnter={isDesktop ? () => rootMediaForNav.length > 0 && tryHoverSelectFocusIndex(0) : undefined}
                 >
                   <MediaGallery
                     items={rootMedia}
@@ -2662,7 +2681,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                 className={styles.rootPostDescription}
                 tabIndex={-1}
                 onFocus={() => setKeyboardFocusIndex(rootMediaForNav.length)}
-                onMouseEnter={isDesktop ? () => setKeyboardFocusIndex(rootMediaForNav.length) : undefined}
+                onMouseEnter={isDesktop ? () => tryHoverSelectFocusIndex(rootMediaForNav.length) : undefined}
               >
                 <div className={styles.postHead}>
                   {thread.post.author.avatar ? (
@@ -2978,6 +2997,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                 </div>
                 <div
                   onFocusCapture={(e) => {
+                  if (shouldIgnorePointerDrivenFocusSync()) return
                   const target = e.target as HTMLElement
                   const commentEl = target.closest?.('[data-comment-uri]') as HTMLElement | null
                   if (!commentEl) return
@@ -3016,10 +3036,10 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                         data-comment-uri={r.post.uri}
                         tabIndex={-1}
                         onMouseEnter={isDesktop ? () => {
-                          if (commentContentFocusIndex >= 0) {
-                            setKeyboardFocusIndex(commentContentFocusIndex)
-                            setFocusedCommentIndex(threadRepliesFlat.findIndex((f) => f.uri === r.post.uri))
-                          }
+                          tryHoverSelectFocusIndex(commentContentFocusIndex, () => {
+                            const commentIdx = threadRepliesFlat.findIndex((f) => f.uri === r.post.uri)
+                            if (commentIdx >= 0) setFocusedCommentIndex(commentIdx)
+                          })
                         } : undefined}
                       >
                       <div
@@ -3046,10 +3066,10 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                       key={`${r.post.uri}-${rIndex}`}
                       className={styles.topLevelCommentWrap}
                       onMouseEnter={isDesktop ? () => {
-                        if (commentContentFocusIndex >= 0) {
-                          setKeyboardFocusIndex(commentContentFocusIndex)
-                          setFocusedCommentIndex(threadRepliesFlat.findIndex((f) => f.uri === r.post.uri))
-                        }
+                        tryHoverSelectFocusIndex(commentContentFocusIndex, () => {
+                          const commentIdx = threadRepliesFlat.findIndex((f) => f.uri === r.post.uri)
+                          if (commentIdx >= 0) setFocusedCommentIndex(commentIdx)
+                        })
                       } : undefined}
                     >
                     <PostBlock
@@ -3101,7 +3121,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
                   tabIndex={-1}
                   className={commentFormFocused ? styles.commentFormWrapFocused : undefined}
                   onFocus={() => setKeyboardFocusIndex(focusItems.length - 1)}
-                  onMouseEnter={isDesktop ? () => setKeyboardFocusIndex(focusItems.length - 1) : undefined}
+                  onMouseEnter={isDesktop ? () => tryHoverSelectFocusIndex(focusItems.length - 1) : undefined}
                   onBlur={() => {
                     requestAnimationFrame(() => {
                       if (!commentFormRef.current?.contains(document.activeElement)) setCommentFormFocused(false)
