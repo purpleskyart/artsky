@@ -712,13 +712,18 @@ export default function Layout({ title, children, showNav }: Props) {
     document.title = title ? `${title} · PurpleSky` : 'PurpleSky'
   }, [title])
 
-  /* Global keyboard: Q / U / Backspace = back, N = notifications, M = messages. Do not handle when a popup is open so the popup gets shortcuts and scroll. */
+  /* Global keyboard: Q / U / Backspace = back, H = hide read posts, N = notifications, M = messages. Do not handle when a popup is open so the popup gets shortcuts and scroll. */
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (isModalOpen || notificationsOpen || messagesPanelOpen || activeChat) return
       if (gateKeyboardShortcutsForEditable(e)) return
       if (e.ctrlKey || e.metaKey) return
       const key = e.key.toLowerCase()
+      if (key === 'h') {
+        e.preventDefault()
+        seenBtnClick()
+        return
+      }
       if (key === 'n' && session) {
         e.preventDefault()
         setNotificationsOpen((prev) => !prev)
@@ -738,7 +743,7 @@ export default function Layout({ title, children, showNav }: Props) {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [navigate, isModalOpen, setViewMode, loc.pathname, session, notificationsOpen, messagesPanelOpen, activeChat, toggleMessagesPanel])
+  }, [navigate, isModalOpen, setViewMode, loc.pathname, session, notificationsOpen, messagesPanelOpen, activeChat, toggleMessagesPanel, seenBtnClick])
 
   useEffect(() => {
     if (!accountMenuOpen) return
@@ -2678,6 +2683,7 @@ export default function Layout({ title, children, showNav }: Props) {
                     <dt>S / ↓</dt><dd>Move down</dd>
                     <dt>D / →</dt><dd>Move right</dd>
                     <dt>E</dt><dd>Enter post</dd>
+                    <dt>H</dt><dd>Hide read posts</dd>
                     <dt>Q / U / Backspace</dt><dd>Back / quit post</dd>
                     <dt>R</dt><dd>Reply to post</dd>
                     <dt>C</dt><dd>Collect post</dd>
