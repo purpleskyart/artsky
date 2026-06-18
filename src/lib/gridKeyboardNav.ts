@@ -1,5 +1,5 @@
 import type { MasonryNavColumn } from './masonryHorizontalNav'
-import { indexAbove, indexBelow, indexLeftByRow, indexRightByRow, pickAdjacentCardIndexByViewport, type ViewportRect } from './masonryHorizontalNav'
+import { indexAbove, indexBelow, indexLeftByRow, indexRightByRow, pickAdjacentCardIndexByViewport, pickClosestMediaIndexByViewport, type ViewportRect } from './masonryHorizontalNav'
 
 export interface GridNavContext {
   focusIndex: number
@@ -36,14 +36,49 @@ export function computeFocusMoveHorizontal(
   ctx: GridNavContext,
   goLeft: boolean,
   measureCard: (cardIndex: number) => ViewportRect | null,
+  measureMedia?: (cardIndex: number, mediaIndex: number) => ViewportRect | null,
 ): number {
   const { focusIndex, firstByCard, lastByCard, currentCardIndex, currentMediaIndex, cols, columns } = ctx
   if (cols < 2 || !columns) return focusIndex
-  const byView = pickAdjacentCardIndexByViewport(columns, goLeft ? -1 : 1, currentCardIndex, measureCard)
+
+  const clampedMediaIndex = (cardIdx: number) => {
+    const n = lastByCard[cardIdx] - firstByCard[cardIdx] + 1
+    return Math.min(currentMediaIndex, Math.max(0, n - 1))
+  }
+
+  const sourceRect =
+    measureMedia?.(currentCardIndex, currentMediaIndex) ??
+    measureCard(currentCardIndex)
+
+  const measureCardForPick = (cardIdx: number): ViewportRect | null => {
+    if (cardIdx === currentCardIndex) return sourceRect
+    if (measureMedia && sourceRect) {
+      const n = lastByCard[cardIdx] - firstByCard[cardIdx] + 1
+      const m = pickClosestMediaIndexByViewport(
+        sourceRect,
+        n,
+        (mediaIdx) => measureMedia(cardIdx, mediaIdx),
+        clampedMediaIndex(cardIdx),
+      )
+      return measureMedia(cardIdx, m) ?? measureCard(cardIdx)
+    }
+    return measureCard(cardIdx)
+  }
+
+  const byView = pickAdjacentCardIndexByViewport(columns, goLeft ? -1 : 1, currentCardIndex, measureCardForPick)
   const nextCard = byView ?? (goLeft ? indexLeftByRow(columns, currentCardIndex) : indexRightByRow(columns, currentCardIndex))
   if (nextCard === currentCardIndex) return focusIndex
+
   const n = lastByCard[nextCard] - firstByCard[nextCard] + 1
-  const m = Math.min(currentMediaIndex, Math.max(0, n - 1))
+  const m =
+    measureMedia && sourceRect
+      ? pickClosestMediaIndexByViewport(
+          sourceRect,
+          n,
+          (mediaIdx) => measureMedia(nextCard, mediaIdx),
+          clampedMediaIndex(nextCard),
+        )
+      : clampedMediaIndex(nextCard)
   return firstByCard[nextCard] + m
 }
 

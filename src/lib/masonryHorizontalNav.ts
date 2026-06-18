@@ -112,3 +112,40 @@ export function pickAdjacentCardIndexByViewport(
 
   return bestCard
 }
+
+/**
+ * Pick the media index in a card whose measured rect is closest to a source rect
+ * (vertical distance first, then horizontal, then lower index).
+ */
+export function pickClosestMediaIndexByViewport(
+  sourceRect: ViewportRect,
+  mediaCount: number,
+  measure: (mediaIndex: number) => ViewportRect | null,
+  fallbackIndex = 0,
+): number {
+  if (mediaCount <= 1) return 0
+  const { cx: fcx, cy: fcy } = centerOf(sourceRect)
+  let bestIndex = Math.min(Math.max(0, fallbackIndex), mediaCount - 1)
+  let bestDy = Infinity
+  let bestDx = Infinity
+
+  for (let m = 0; m < mediaCount; m++) {
+    const r = measure(m)
+    if (!r) continue
+    const { cx, cy } = centerOf(r)
+    const dy = Math.abs(cy - fcy)
+    const dx = Math.abs(cx - fcx)
+    if (
+      bestDy === Infinity ||
+      dy < bestDy - 0.5 ||
+      (Math.abs(dy - bestDy) <= 0.5 && dx < bestDx - 0.5) ||
+      (Math.abs(dy - bestDy) <= 0.5 && Math.abs(dx - bestDx) <= 0.5 && m < bestIndex)
+    ) {
+      bestIndex = m
+      bestDy = dy
+      bestDx = dx
+    }
+  }
+
+  return bestIndex
+}
