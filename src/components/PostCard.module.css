@@ -48,17 +48,17 @@
   box-shadow: none;
 }
 
-/* Desktop: purple border on focused cards (liked cards keep pink ring only) */
+/* Desktop: purple border on keyboard-selected cards; liked cards keep pink inset ring too */
 @media (hover: hover) {
-  .cardSelected:not(.cardLiked),
-  .cardSelected:not(.cardLiked):focus-within {
+  .cardSelected,
+  .cardSelected:focus-within {
     outline: 2px solid #a855f7 !important;
     outline-offset: 0px;
   }
 }
 
-/* Pink ring when post is liked */
-.cardLiked {
+/* Pink ring when post is liked (outline:none only when not keyboard-selected) */
+.cardLiked:not(.cardSelected) {
   outline: none;
 }
 .cardLiked::after {

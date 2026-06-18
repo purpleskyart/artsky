@@ -224,16 +224,24 @@ export function useMediaGridKeyboardNav(options: UseMediaGridKeyboardNavOptions)
         beginKeyboardNavigation()
         scrollIntoViewFromKeyboardRef.current = true
         const goLeft = key === 'a' || key === 'j' || e.key === 'ArrowLeft'
-        const measureCardForHorizontal = (cardIdx: number) => {
-          const n = currentLastByCard[cardIdx] - currentFirstByCard[cardIdx] + 1
-          const m = Math.min(currentMediaIndex, Math.max(0, n - 1))
-          const el = mediaRefsRef.current?.[cardIdx]?.[m] ?? cardRefsRef.current?.[cardIdx]
+        const measureMediaForHorizontal = (cardIdx: number, mediaIdx: number) => {
+          const el =
+            mediaRefsRef.current?.[cardIdx]?.[mediaIdx] ??
+            (mediaIdx === 0 ? cardRefsRef.current?.[cardIdx] : null)
           if (!el) return null
           const r = el.getBoundingClientRect()
           if (r.width <= 0 && r.height <= 0) return null
           return { top: r.top, left: r.left, width: r.width, height: r.height }
         }
-        const next = computeFocusMoveHorizontal(navCtx, goLeft, measureCardForHorizontal)
+        const measureCardForHorizontal = (cardIdx: number) => {
+          const n = currentLastByCard[cardIdx] - currentFirstByCard[cardIdx] + 1
+          const m =
+            cardIdx === currentCardIndex
+              ? currentMediaIndex
+              : Math.min(currentMediaIndex, Math.max(0, n - 1))
+          return measureMediaForHorizontal(cardIdx, m) ?? measureMediaForHorizontal(cardIdx, 0)
+        }
+        const next = computeFocusMoveHorizontal(navCtx, goLeft, measureCardForHorizontal, measureMediaForHorizontal)
         if (next !== i) setActionsMenuOpenForIndex?.(null)
         setKeyboardFocusIndex(next)
         claim(e)
