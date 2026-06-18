@@ -421,7 +421,8 @@ html[data-theme="dark"] [data-view-mode="1"] .card:hover {
 .card:focus-within:not(:has(.mediaGridCellFocused)):not(:has(.replyParentStripFocused)) {
   box-shadow: none;
 }
-.card:focus-within:not(:has(.mediaGridCellFocused)):not(:has(.replyParentStripFocused))::after {
+/* Keep the liked (pink) inset ring when the like button retains focus after click */
+.card:focus-within:not(:has(.mediaGridCellFocused)):not(:has(.replyParentStripFocused)):not(.cardLiked)::after {
   box-shadow: none;
 }
 
