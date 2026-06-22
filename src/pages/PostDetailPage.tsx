@@ -393,6 +393,7 @@ function MediaGallery({
 }) {
   const lastTapRef = useRef(0)
   const lastClickRef = useRef(0)
+  const touchSessionRef = useRef(false)
 
   if (items.length === 0) return null
   const firstVideoIndex = autoPlayFirstVideo
@@ -401,6 +402,7 @@ function MediaGallery({
 
   const handleMediaTouchEnd = (e: React.TouchEvent) => {
     if (!onDoubleTapLike || e.changedTouches.length !== 1) return
+    touchSessionRef.current = true
     const now = Date.now()
     if (now - lastTapRef.current < 400) {
       lastTapRef.current = 0
@@ -410,10 +412,14 @@ function MediaGallery({
     } else {
       lastTapRef.current = now
     }
+    window.setTimeout(() => {
+      touchSessionRef.current = false
+    }, 450)
   }
 
   const handleMediaClick = (e: React.MouseEvent) => {
     if (!onDoubleTapLike) return
+    if (touchSessionRef.current) return
     const now = Date.now()
     if (now - lastClickRef.current < 400) {
       lastClickRef.current = 0
@@ -1346,6 +1352,8 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
   const downvoteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   /** Invalidates in-flight load() when URI changes or the effect cleans up — avoids wrong thread after rapid post switches. */
   const loadGenRef = useRef(0)
+  /** Cached thread snapshots can retain stale viewer.like until skipCache fetch completes. */
+  const [cachedThreadViewerStale, setCachedThreadViewerStale] = useState(false)
   const [focusedCommentIndex, setFocusedCommentIndex] = useState(0)
   const [commentFormFocused, setCommentFormFocused] = useState(false)
   const commentFormTopRef = useRef<HTMLFormElement>(null)
@@ -1418,6 +1426,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
     setThread(null)
     setLoading(true)
     setError(null)
+    setCachedThreadViewerStale(false)
     appliedInitialFocusUriRef.current = null
     appliedInitialFocusRedirectRef.current = null
     appliedInitialRootScrollRef.current = null
@@ -1484,9 +1493,11 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
       ? likeUriOverride
       : storeLikeOverride !== undefined
         ? storeLikeOverride
-        : postViewer?.like ?? null
+        : cachedThreadViewerStale
+          ? null
+          : postViewer?.like ?? null
   const repostedUri = postViewer?.repost ?? repostUriOverride
-  const isLiked = !!likedUri
+  const isLiked = !!likedUri && (likedUri !== 'pending' || likeLoading)
   const isReposted = !!repostedUri
 
   function toggleCollapse(uri: string) {
@@ -1676,6 +1687,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
     if (cached && isThreadViewPost(cached as AppBskyFeedDefs.ThreadViewPost)) {
       setThread(cached as AppBskyFeedDefs.ThreadViewPost)
       setLoading(false)
+      setCachedThreadViewerStale(true)
       hadInstantData = true
     } else if (initialPost) {
       const post = (initialPost as { post?: unknown }).post ?? initialPost
@@ -1697,6 +1709,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
       if (gen !== loadGenRef.current || decodedUri !== uriAtStart) return
       const threadData = threadRes.data.thread as AppBskyFeedDefs.ThreadViewPost | AppBskyFeedDefs.NotFoundPost | AppBskyFeedDefs.BlockedPost | { $type: string }
       setThread(threadData)
+      setCachedThreadViewerStale(false)
       /* Canonical post view: only fetch when snapshot embed lacks image fullsize URLs. */
       if (isThreadViewPost(threadData) && rootPostNeedsCanonicalHydration(threadData.post)) {
         const hydrateCanonicalPost = () => {
