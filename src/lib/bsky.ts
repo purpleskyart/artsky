@@ -1121,11 +1121,13 @@ export async function getMixedFeed(
 export async function getPostThreadCached(
   uri: string,
   api: { app: { bsky: { feed: { getPostThread: (opts: { uri: string; depth: number; parentHeight?: number }) => Promise<{ data: { thread: unknown } }> } } } },
+  options?: { skipCache?: boolean },
 ): Promise<{ data: { thread: unknown } }> {
   const { getCachedThread, setCachedThread, dedupeFetch, getThreadFetchEpoch } = await import('./postCache')
+  const skipCache = options?.skipCache ?? false
   const MAX_STALE_RETRIES = 6
   for (let attempt = 0; attempt < MAX_STALE_RETRIES; attempt++) {
-    const cached = getCachedThread(uri)
+    const cached = skipCache ? null : getCachedThread(uri)
     if (cached) {
       return { data: { thread: cached } }
     }
