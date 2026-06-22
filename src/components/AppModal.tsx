@@ -122,20 +122,9 @@ export default function AppModal({
     return () => scrollLock?.unlockScroll()
   }, [scrollLock])
 
-  /* Mobile: while a modal is open, keep the window at scroll 0 so iOS focus-scroll on
-   * inputs does not pan the layout viewport behind the fixed overlay (desyncs touch
-   * targets from floating chrome after the modal closes). ScrollLock restores feed
-   * position on unlock. */
-  useLayoutEffect(() => {
-    if (!isMobile || typeof window === 'undefined') return
-    window.scrollTo(0, 0)
-  }, [isMobile])
-
   /* Mobile: pin overlay to the visual viewport so modals cover the full screen when the
    * URL bar is visible (100lvh/dvh alone leave gaps on Safari). Overlay height already
-   * shrinks with the on-screen keyboard, so the pane can fill 100% without a separate inset.
-   * Only listen to resize — tracking visualViewport scroll pans the overlay and scrolls the
-   * window behind it (same issue as compose / ChatModal). */
+   * shrinks with the on-screen keyboard, so the pane can fill 100% without a separate inset. */
   useLayoutEffect(() => {
     if (!isMobile || typeof window === 'undefined') return
     const vv = window.visualViewport
@@ -151,16 +140,14 @@ export default function AppModal({
       const ih = window.innerHeight
       const shrunk = vv.height < ih * 0.75
       const panned = vv.offsetTop > 48
-      const kbOpen = shrunk || panned
-      setKeyboardOpen(kbOpen)
-      if (kbOpen || vv.offsetTop > 0) {
-        window.scrollTo(0, 0)
-      }
+      setKeyboardOpen(shrunk || panned)
     }
     update()
     vv.addEventListener('resize', update)
+    vv.addEventListener('scroll', update, { passive: true })
     return () => {
       vv.removeEventListener('resize', update)
+      vv.removeEventListener('scroll', update)
       el.style.removeProperty('top')
       el.style.removeProperty('left')
       el.style.removeProperty('width')
