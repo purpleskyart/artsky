@@ -112,7 +112,7 @@ export function scrollFieldAboveKeyboard(el: HTMLElement): () => void {
     if (cancelled) return
     if (rafId !== null) cancelAnimationFrame(rafId)
     // Double-rAF: the first frame lets concurrent resize handlers run
-    // (AppModal resizes the overlay to visualViewport height); the second
+    // (AppModal shrinks the overlay from the bottom for the keyboard); the second
     // frame fires after reflow so getBoundingClientRect is accurate.
     rafId = requestAnimationFrame(() => {
       if (cancelled) return

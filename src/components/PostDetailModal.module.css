@@ -397,7 +397,7 @@
     /* Match .pane (--surface) so safe-area / keyboard gaps aren’t a different tint than the modal */
     background: var(--surface);
   }
-  /* Pane fills overlay; on mobile AppModal sizes the overlay to visualViewport (keyboard + URL bar). */
+  /* Pane fills overlay; on mobile AppModal shrinks the overlay from the bottom when the keyboard is open. */
   .paneExpanded.pane {
     max-height: 100%;
   }
