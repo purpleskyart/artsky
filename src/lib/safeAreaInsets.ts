@@ -113,7 +113,16 @@ export function initSafeAreaInsets(): SafeAreaInsets {
 
 let listenersBound = false
 
-/** Call once at startup; re-measures on orientation change in standalone mode. */
+/**
+ * Call once at startup. Safe-area insets only change on orientation change, so we re-measure on
+ * `orientationchange` plus a few deferred passes after load (env() can report 0 on first paint).
+ *
+ * We deliberately do NOT re-measure on `visualViewport` resize: that event also fires when the
+ * on-screen keyboard opens/closes and when the mobile browser toolbar shows/hides during scroll.
+ * In those cases `env(safe-area-inset-bottom)` transiently changes (iOS reports ~0 while the
+ * keyboard is up), which would shift fixed chrome that depends on `--app-safe-bottom` — e.g. the
+ * bottom navbar visibly drifting while scrolling after a modal text field was focused.
+ */
 export function bindSafeAreaInsetListeners(): void {
   if (typeof window === 'undefined' || listenersBound) return
   listenersBound = true
@@ -121,5 +130,7 @@ export function bindSafeAreaInsetListeners(): void {
   window.addEventListener('orientationchange', () => {
     setTimeout(remeasure, 100)
   })
-  window.visualViewport?.addEventListener('resize', remeasure)
+  // Catch late env() availability without reacting to keyboard / toolbar viewport changes.
+  setTimeout(remeasure, 300)
+  setTimeout(remeasure, 1000)
 }
