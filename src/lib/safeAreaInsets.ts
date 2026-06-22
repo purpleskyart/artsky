@@ -43,6 +43,18 @@ export function estimateIosStandaloneTopInset(): number {
   return 20
 }
 
+/**
+ * iOS home-screen PWAs often report env(safe-area-inset-bottom) as 0 on first paint.
+ * Home-indicator iPhones use ~34px; classic home-button phones use 0.
+ */
+export function estimateIosStandaloneBottomInset(): number {
+  if (typeof window === 'undefined') return 0
+  const minSide = Math.min(window.screen.width, window.screen.height)
+  const maxSide = Math.max(window.screen.width, window.screen.height)
+  if (maxSide >= 812 && minSide >= 375) return 34
+  return 0
+}
+
 /** Read env(safe-area-inset-*) via a probe element (returns 0 when unsupported). */
 export function measureEnvSafeAreaInsets(): SafeAreaInsets {
   if (typeof document === 'undefined') {
@@ -67,7 +79,11 @@ export function resolveSafeAreaInsets(measured: SafeAreaInsets): SafeAreaInsets 
   if (!isStandalonePwa() || !isIos()) return measured
   const top =
     measured.top >= 20 ? measured.top : Math.max(measured.top, estimateIosStandaloneTopInset())
-  return { ...measured, top }
+  const bottom =
+    measured.bottom >= 20
+      ? measured.bottom
+      : Math.max(measured.bottom, estimateIosStandaloneBottomInset())
+  return { ...measured, top, bottom }
 }
 
 export function applySafeAreaInsets(insets: SafeAreaInsets): void {

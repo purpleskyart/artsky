@@ -554,6 +554,7 @@ export default function Layout({ title, children, showNav }: Props) {
   const headerGearWrapRef = useRef<HTMLDivElement>(null)
   const lastScrollYRef = useRef(0)
   const scrollEndTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const anyPopupOpenRef = useRef(false)
   const [aboutOpen, setAboutOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [searchOverlayBottom, setSearchOverlayBottom] = useState(0)
@@ -1254,6 +1255,7 @@ export default function Layout({ title, children, showNav }: Props) {
 
   /* When any full-screen popup is open, lock body scroll so only the popup scrolls */
   const anyPopupOpen = isModalOpen || (mobileSearchOpen && !isDesktop) || composeOpen || aboutOpen || settingsOpen || !!activeChat
+  anyPopupOpenRef.current = anyPopupOpen
   const layoutPopupOpen =
     (mobileSearchOpen && !isDesktop) || composeOpen || aboutOpen || settingsOpen || !!activeChat
   useEffect(() => {
@@ -1273,6 +1275,17 @@ export default function Layout({ title, children, showNav }: Props) {
     scrollLock.lockScroll()
     return () => scrollLock.unlockScroll()
   }, [anyPopupOpen, scrollLock])
+
+  /* After a modal/popup closes, reset nav chrome that may have been skewed by keyboard focus. */
+  const prevAnyPopupOpenRef = useRef(anyPopupOpen)
+  useEffect(() => {
+    if (prevAnyPopupOpenRef.current && !anyPopupOpen) {
+      setMobileNavScrollHidden(false)
+      setMobileVirtualKeyboardOpen(isMobileKeyboardLikelyOpen())
+      lastScrollYRef.current = window.scrollY
+    }
+    prevAnyPopupOpenRef.current = anyPopupOpen
+  }, [anyPopupOpen])
 
   function focusSearch() {
     if (isDesktop) {
@@ -1361,6 +1374,7 @@ export default function Layout({ title, children, showNav }: Props) {
     const SCROLL_THRESHOLD = 8
     const SCROLL_END_MS = 350
     function onScroll() {
+      if (anyPopupOpenRef.current) return
       const y = window.scrollY
       const delta = y - lastScrollYRef.current
       if (delta > SCROLL_THRESHOLD) {
@@ -2475,7 +2489,7 @@ export default function Layout({ title, children, showNav }: Props) {
           {typeof document !== 'undefined' &&
             createPortal(
               <div
-                className={`${styles.navOuter} nav-outer ${navVisible ? '' : styles.navHidden} ${!isDesktop && mobileVirtualKeyboardOpen ? styles.navOuterKeyboardInset : ''} ${!isDesktop && (mobileNavScrollHidden || (isModalOpen && modalScrollHidden)) ? styles.navOuterScrollHidden : ''}`}
+                className={`${styles.navOuter} nav-outer ${navVisible ? '' : styles.navHidden} ${!isDesktop && mobileVirtualKeyboardOpen && !anyPopupOpen ? styles.navOuterKeyboardInset : ''} ${!isDesktop && (mobileNavScrollHidden || (isModalOpen && modalScrollHidden)) ? styles.navOuterScrollHidden : ''}`}
               >
                 {!isModalOpen && (
                   <button

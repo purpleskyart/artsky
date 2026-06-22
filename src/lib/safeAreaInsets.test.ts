@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { estimateIosStandaloneTopInset, resolveSafeAreaInsets } from './safeAreaInsets'
+import {
+  estimateIosStandaloneBottomInset,
+  estimateIosStandaloneTopInset,
+  resolveSafeAreaInsets,
+} from './safeAreaInsets'
 
 describe('estimateIosStandaloneTopInset', () => {
   it('returns 59px for Dynamic Island width class', () => {
@@ -27,9 +31,31 @@ describe('estimateIosStandaloneTopInset', () => {
   })
 })
 
+describe('estimateIosStandaloneBottomInset', () => {
+  it('returns 34px for home-indicator iPhones', () => {
+    Object.defineProperty(window, 'screen', {
+      configurable: true,
+      value: { width: 393, height: 852 },
+    })
+    expect(estimateIosStandaloneBottomInset()).toBe(34)
+  })
+
+  it('returns 0 for classic home-button iPhones', () => {
+    Object.defineProperty(window, 'screen', {
+      configurable: true,
+      value: { width: 375, height: 667 },
+    })
+    expect(estimateIosStandaloneBottomInset()).toBe(0)
+  })
+})
+
 describe('resolveSafeAreaInsets', () => {
   it('keeps measured top when env reports a real inset', () => {
     expect(resolveSafeAreaInsets({ top: 47, right: 0, bottom: 34, left: 0 }).top).toBe(47)
+  })
+
+  it('keeps measured bottom when env reports a real inset', () => {
+    expect(resolveSafeAreaInsets({ top: 47, right: 0, bottom: 34, left: 0 }).bottom).toBe(34)
   })
 
   it('does not override insets outside iOS standalone', () => {
@@ -50,5 +76,6 @@ describe('resolveSafeAreaInsets', () => {
       value: { width: 393, height: 852 },
     })
     expect(resolveSafeAreaInsets({ top: 0, right: 0, bottom: 0, left: 0 }).top).toBe(59)
+    expect(resolveSafeAreaInsets({ top: 0, right: 0, bottom: 0, left: 0 }).bottom).toBe(34)
   })
 })

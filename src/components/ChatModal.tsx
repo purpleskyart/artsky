@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import { getMobileSnapshot, subscribeMobile } from '../config/breakpoints'
-import { usePinnedModalViewport } from '../hooks/usePinnedModalViewport'
+import { useModalKeyboardOpen } from '../hooks/useModalKeyboardOpen'
 import { useSession } from '../context/SessionContext'
 import { useScrollLock } from '../context/ScrollLockContext'
 import {
@@ -59,11 +59,10 @@ export default function ChatModal({
   const [sending, setSending] = useState(false)
   const [requestLoading, setRequestLoading] = useState<'accept' | 'decline' | null>(null)
   const isMobile = useSyncExternalStore(subscribeMobile, getMobileSnapshot, () => false)
-  const overlayRef = useRef<HTMLDivElement>(null)
   const messagesRef = useRef<HTMLDivElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
-  const { keyboardOpen } = usePinnedModalViewport(overlayRef, isMobile)
+  const keyboardOpen = useModalKeyboardOpen(isMobile)
   const convoRef = useRef(convo)
   convoRef.current = convo
   const lastMessageIdRef = useRef<string | null>(null)
@@ -188,8 +187,6 @@ export default function ChatModal({
     if (!loading && convoId && !isMobile) inputRef.current?.focus({ preventScroll: true })
   }, [loading, convoId, isMobile])
 
-  /* Overlay geometry (keyboard shrink + iOS viewport pan) is owned by usePinnedModalViewport. */
-
   async function handleAccept() {
     if (!convoId || requestLoading) return
     setRequestLoading('accept')
@@ -254,7 +251,6 @@ export default function ChatModal({
 
   const modal = (
     <div
-      ref={overlayRef}
       className={`${styles.overlay}${keyboardOpen ? ` ${styles.overlayKeyboardOpen}` : ''}`}
       role="dialog"
       aria-label={`Chat with @${displayHandle}`}
