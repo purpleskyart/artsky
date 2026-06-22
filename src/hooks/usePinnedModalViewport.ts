@@ -11,19 +11,23 @@ interface PinnedModalViewport {
   keyboardOpen: boolean
 }
 
+function clearPinnedGeometry(node: HTMLElement) {
+  node.style.top = ''
+  node.style.left = ''
+  node.style.right = ''
+  node.style.bottom = ''
+  node.style.width = ''
+  node.style.height = ''
+  node.style.minHeight = ''
+  node.style.maxHeight = ''
+}
+
 /**
- * Pins a `position: fixed` full-screen overlay to the *visual* viewport so it always covers exactly
- * the visible region minus the on-screen keyboard.
+ * While the on-screen keyboard is open, pins a fixed overlay to the visual viewport so it sits
+ * above the keyboard and iOS viewport panning cannot desync touch coordinates.
  *
- * Why this exists: a plain `inset: 0` overlay is anchored to the layout viewport, but iOS pans the
- * visual viewport when a field is focused — opening gaps where the page behind shows through and
- * desyncing touch coordinates. We write geometry directly to the DOM inside a single rAF (no React
- * state round-trip, which lags a frame) on every `resize` AND `scroll`, plus VirtualKeyboard
- * `geometrychange` for Chromium where the visual viewport doesn't shrink.
- *
- * Pair with a full-screen opaque scrim behind the pinned overlay so any gap below the shrunk box
- * still hides the feed. The overlay's `top/left/width/height/right/bottom` are owned by this hook
- * while enabled — do not set those via inline styles (z-index etc. are fine).
+ * When the keyboard is closed, inline geometry is cleared so CSS `inset: 0` applies. Keeping pin
+ * active after dismiss (stale iOS offsetTop) caused bottom gaps on stacked modals and after focus.
  */
 export function usePinnedModalViewport(
   overlayRef: RefObject<HTMLElement | null>,
@@ -46,12 +50,22 @@ export function usePinnedModalViewport(
       raf = 0
       const node = overlayRef.current
       if (!node) return
+
+      const open = isMobileKeyboardLikelyOpen()
+      if (open !== lastKeyboardOpen) {
+        lastKeyboardOpen = open
+        setKeyboardOpen(open)
+      }
+
+      if (!open) {
+        clearPinnedGeometry(node)
+        return
+      }
+
       const keyboardInset = virtualKeyboardInsetPx()
       const top = Math.max(0, vv.offsetTop)
       const left = Math.max(0, vv.offsetLeft)
       const width = Math.max(0, vv.width)
-      // iOS: vv.height already excludes the keyboard (keyboardInset is 0).
-      // Chromium: vv.height stays full, so subtract the VirtualKeyboard height.
       const height = Math.max(0, vv.height - keyboardInset)
       node.style.top = `${top}px`
       node.style.left = `${left}px`
@@ -59,16 +73,8 @@ export function usePinnedModalViewport(
       node.style.bottom = 'auto'
       node.style.width = `${width}px`
       node.style.height = `${height}px`
-      // Overlay CSS may declare `min-height: 100dvh`, which would otherwise win over the shrunk
-      // height while the keyboard is open. Neutralise min/max-height so the pinned height holds.
       node.style.minHeight = '0'
       node.style.maxHeight = 'none'
-
-      const open = isMobileKeyboardLikelyOpen()
-      if (open !== lastKeyboardOpen) {
-        lastKeyboardOpen = open
-        setKeyboardOpen(open)
-      }
     }
 
     const schedule = () => {
@@ -90,16 +96,7 @@ export function usePinnedModalViewport(
       document.removeEventListener('focusout', schedule)
       offGeometry()
       const node = overlayRef.current
-      if (node) {
-        node.style.top = ''
-        node.style.left = ''
-        node.style.right = ''
-        node.style.bottom = ''
-        node.style.width = ''
-        node.style.height = ''
-        node.style.minHeight = ''
-        node.style.maxHeight = ''
-      }
+      if (node) clearPinnedGeometry(node)
       setKeyboardOpen(false)
     }
   }, [enabled, overlayRef])

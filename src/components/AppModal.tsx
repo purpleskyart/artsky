@@ -447,7 +447,7 @@ export default function AppModal({
   if (pinViewport) {
     return createPortal(
       <div className={styles.modalStackRoot} style={stackZIndex !== undefined ? { zIndex: stackZIndex } : undefined}>
-        <div className={styles.modalViewportScrim} aria-hidden />
+        {keyboardOpen && <div className={styles.modalViewportScrim} aria-hidden />}
         {modal}
       </div>,
       document.body

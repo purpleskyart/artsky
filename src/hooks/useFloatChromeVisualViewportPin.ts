@@ -1,4 +1,5 @@
 import { useLayoutEffect } from 'react'
+import { isMobileKeyboardLikelyOpen } from '../lib/mobileKeyboardInset'
 
 const FLOAT_CHROME_VV_OFFSET_VAR = '--float-chrome-vv-offset'
 
@@ -11,7 +12,10 @@ export function useFloatChromeVisualViewportPin(enabled: boolean): void {
     if (!vv) return
 
     const pin = () => {
-      root.style.setProperty(FLOAT_CHROME_VV_OFFSET_VAR, `${vv.offsetTop}px`)
+      // Only offset when the keyboard is open — iOS keeps offsetTop elevated after dismiss and
+      // visualViewport scroll during modal scroll would otherwise drift float chrome / nav sync.
+      const offset = isMobileKeyboardLikelyOpen() ? vv.offsetTop : 0
+      root.style.setProperty(FLOAT_CHROME_VV_OFFSET_VAR, `${offset}px`)
     }
 
     pin()
