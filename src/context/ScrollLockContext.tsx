@@ -10,6 +10,32 @@ const ScrollLockContext = createContext<ScrollLockContextValue | null>(null)
 export function ScrollLockProvider({ children }: { children: ReactNode }) {
   const countRef = useRef(0)
   const scrollPositionRef = useRef(0)
+  const scrollGuardRef = useRef<(() => void) | null>(null)
+
+  const attachScrollGuard = useCallback(() => {
+    const guard = () => {
+      const target = scrollPositionRef.current
+      if (window.scrollY !== target) {
+        window.scrollTo({ top: target, left: 0, behavior: 'instant' })
+      }
+    }
+    scrollGuardRef.current = guard
+    guard()
+    window.addEventListener('scroll', guard, { passive: true })
+    window.visualViewport?.addEventListener('scroll', guard, { passive: true })
+    document.addEventListener('focusin', guard)
+    document.addEventListener('focusout', guard)
+  }, [])
+
+  const detachScrollGuard = useCallback(() => {
+    const guard = scrollGuardRef.current
+    if (!guard) return
+    window.removeEventListener('scroll', guard)
+    window.visualViewport?.removeEventListener('scroll', guard)
+    document.removeEventListener('focusin', guard)
+    document.removeEventListener('focusout', guard)
+    scrollGuardRef.current = null
+  }, [])
 
   const lockScroll = useCallback(() => {
     countRef.current += 1
@@ -23,19 +49,23 @@ export function ScrollLockProvider({ children }: { children: ReactNode }) {
       // Stop overscroll / scroll chaining to the page behind overlays (feed stays mounted under modal routes).
       document.documentElement.style.overscrollBehavior = 'none'
       document.body.style.overscrollBehavior = 'none'
+      // iOS can still pan the layout viewport when a modal field is focused; that desyncs
+      // position:fixed float chrome from the visual viewport until scroll is restored.
+      attachScrollGuard()
     }
-  }, [])
+  }, [attachScrollGuard])
 
   const unlockScroll = useCallback(() => {
     if (countRef.current > 0) countRef.current -= 1
     if (countRef.current === 0) {
+      detachScrollGuard()
       document.body.style.overflow = ''
       document.documentElement.style.overflow = ''
       document.documentElement.style.overscrollBehavior = ''
       document.body.style.overscrollBehavior = ''
       window.scrollTo({ top: scrollPositionRef.current, left: 0, behavior: 'instant' })
     }
-  }, [])
+  }, [detachScrollGuard])
 
   const value: ScrollLockContextValue = useMemo(
     () => ({ lockScroll, unlockScroll }),

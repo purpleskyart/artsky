@@ -52,6 +52,7 @@ import {
   GUEST_MIX_ENTRIES,
 } from '../config/feedSources'
 import { getDesktopSnapshot, subscribeDesktop } from '../config/breakpoints'
+import { useFloatChromeVisualViewportPin } from '../hooks/useFloatChromeVisualViewportPin'
 import { HOME_PATH, isHandleBoardPath, isHomePath, isMultiColumnGridRoute } from '../lib/routes'
 import { getPostAppPath } from '../lib/appUrl'
 import { useFeedMix } from '../context/FeedMixContext'
@@ -481,6 +482,7 @@ export default function Layout({ title, children, showNav }: Props) {
   const showFeedStyleSettingsFloat =
     isHomePath(path) || path === '/collections' || isHandleBoardPath(path)
   const isDesktop = useSyncExternalStore(subscribeDesktop, getDesktopSnapshot, () => false)
+  useFloatChromeVisualViewportPin(!isDesktop && isModalOpen)
   const scrollLock = useScrollLock()
   const [, setAccountSheetOpen] = useState(false)
   const [accountMenuOpen, setAccountMenuOpen] = useState(false)
@@ -1614,13 +1616,6 @@ export default function Layout({ title, children, showNav }: Props) {
     return () => composePreviewUrls.forEach((u) => URL.revokeObjectURL(u))
   }, [composePreviewUrls])
 
-  /* Mobile: when a modal (e.g. post detail) has the on-screen keyboard open for a
-   * text field, iOS positions `position: fixed` chrome relative to the layout viewport,
-   * so the floating top buttons detach and drift with scroll. Hide them while typing so
-   * the modal (which tracks the visual viewport) keeps covering the feed cleanly. */
-  const chromeHiddenForKeyboard =
-    !isDesktop && isModalOpen && mobileVirtualKeyboardOpen
-
   /* Mobile nav: Home, [Collections], New, Search, Profile. Desktop tray: Home, New, Search, [Collections]. */
   const searchActive = mobileSearchOpen && !isDesktop
   const homeActive = isHomePath(path) && !isModalOpen && !searchActive
@@ -2200,7 +2195,7 @@ export default function Layout({ title, children, showNav }: Props) {
         createPortal(
           <>
         <div
-          className={`${styles.feedsFloatWrap} feeds-float-wrap ${isModalOpen ? styles.feedsFloatWrapAboveModal : ''} ${mobileNavScrollHidden || (isModalOpen && modalScrollHidden) || (chromeHiddenForKeyboard && searchModalTopQuery == null) ? styles.feedsFloatWrapScrollHidden : ''} ${searchModalTopQuery != null ? styles.feedsFloatWrapSearchSlot : ''} ${searchModalTopQuery != null && showFeedStyleSettingsFloat && isModalOpen ? styles.feedsFloatWrapSearchSlotBetweenChrome : ''} ${searchModalTopQuery != null && showFeedStyleSettingsFloat && isModalOpen && showAccountFeedUi ? styles.feedsFloatWrapSearchSlotBetweenChromeRightAccount : ''} ${searchModalTopQuery != null && showFeedStyleSettingsFloat && isModalOpen && !showAccountFeedUi ? styles.feedsFloatWrapSearchSlotBetweenChromeRightGuest : ''}`}
+          className={`${styles.feedsFloatWrap} feeds-float-wrap ${isModalOpen ? styles.feedsFloatWrapAboveModal : ''} ${mobileNavScrollHidden || (isModalOpen && modalScrollHidden) ? styles.feedsFloatWrapScrollHidden : ''} ${searchModalTopQuery != null ? styles.feedsFloatWrapSearchSlot : ''} ${searchModalTopQuery != null && showFeedStyleSettingsFloat && isModalOpen ? styles.feedsFloatWrapSearchSlotBetweenChrome : ''} ${searchModalTopQuery != null && showFeedStyleSettingsFloat && isModalOpen && showAccountFeedUi ? styles.feedsFloatWrapSearchSlotBetweenChromeRightAccount : ''} ${searchModalTopQuery != null && showFeedStyleSettingsFloat && isModalOpen && !showAccountFeedUi ? styles.feedsFloatWrapSearchSlotBetweenChromeRightGuest : ''}`}
           ref={feedsDropdownRef}
         >
           {searchModalTopQuery != null ? (
@@ -2280,7 +2275,7 @@ export default function Layout({ title, children, showNav }: Props) {
           )}
         </div>
       {showFeedStyleSettingsFloat && (
-        <div ref={gearFloatWrapRef} className={`${styles.gearFloatWrap} ${isModalOpen ? styles.gearFloatWrapModalOpen : ''} ${mobileNavScrollHidden || (isModalOpen && modalScrollHidden) || chromeHiddenForKeyboard ? styles.gearFloatWrapScrollHidden : ''}`}>
+        <div ref={gearFloatWrapRef} className={`${styles.gearFloatWrap} ${isModalOpen ? styles.gearFloatWrapModalOpen : ''} ${mobileNavScrollHidden || (isModalOpen && modalScrollHidden) ? styles.gearFloatWrapScrollHidden : ''}`}>
           <button
             type="button"
             className={`${styles.feedFloatBtn} float-btn`}
@@ -2376,7 +2371,7 @@ export default function Layout({ title, children, showNav }: Props) {
         </div>
       )}
       {!showAccountFeedUi && (
-        <div className={`${styles.loginFloatWrap} login-float-wrap ${isModalOpen ? styles.loginFloatWrapAboveModal : ''} ${mobileNavScrollHidden || (isModalOpen && modalScrollHidden) || chromeHiddenForKeyboard ? styles.loginFloatWrapScrollHidden : ''}`}>
+        <div className={`${styles.loginFloatWrap} login-float-wrap ${isModalOpen ? styles.loginFloatWrapAboveModal : ''} ${mobileNavScrollHidden || (isModalOpen && modalScrollHidden) ? styles.loginFloatWrapScrollHidden : ''}`}>
           <button
             type="button"
             className={`${styles.loginFloatBtn} float-btn`}
@@ -2389,7 +2384,7 @@ export default function Layout({ title, children, showNav }: Props) {
         </div>
       )}
       {showAccountFeedUi && (
-        <div className={`${styles.notificationFloatWrap} notification-float-wrap ${isModalOpen ? styles.notificationFloatWrapAboveModal : ''} ${mobileNavScrollHidden || (isModalOpen && modalScrollHidden) || chromeHiddenForKeyboard ? styles.notificationFloatWrapScrollHidden : ''}`}>
+        <div className={`${styles.notificationFloatWrap} notification-float-wrap ${isModalOpen ? styles.notificationFloatWrapAboveModal : ''} ${mobileNavScrollHidden || (isModalOpen && modalScrollHidden) ? styles.notificationFloatWrapScrollHidden : ''}`}>
           <div className={styles.headerChromeFloatRow}>
             <button
               ref={messagesBtnRef}
