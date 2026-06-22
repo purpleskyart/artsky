@@ -1803,9 +1803,8 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
   }, [replyingTo])
 
   /* Focus the real reply composer textarea so the mobile keyboard opens.
-   * ComposerSuggestions.handleFocus handles scrollFieldAboveKeyboard with
-   * proper cleanup — calling it here too would create leaked viewport
-   * listeners that fight over scroll position and misplace the caret. */
+   * AppModal delegates scrollFieldAboveKeyboard for modal fields — calling it here too would
+   * create leaked viewport listeners that fight over scroll position and misplace the caret. */
   useEffect(() => {
     if (!replyingTo) return
     const uri = replyingTo.uri

@@ -249,8 +249,11 @@ export default function ComposerSuggestions({
   }, [syncCursor])
 
   const handleFocus = useCallback((e: React.FocusEvent<HTMLTextAreaElement>) => {
-    keyboardScrollCleanupRef.current?.()
-    keyboardScrollCleanupRef.current = scrollFieldAboveKeyboard(e.currentTarget)
+    // AppModal delegates keyboard scroll for `[data-modal-scroll]` fields; compose sheet only needs caret nudge.
+    if (e.currentTarget.closest('[data-compose-sheet]')) {
+      keyboardScrollCleanupRef.current?.()
+      keyboardScrollCleanupRef.current = scrollFieldAboveKeyboard(e.currentTarget)
+    }
     onFocusProp?.()
   }, [onFocusProp])
 
