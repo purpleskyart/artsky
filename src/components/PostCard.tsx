@@ -241,7 +241,7 @@ function PostCardInner({
       : resolvedLikeOverride !== undefined
         ? (resolvedLikeOverride ?? undefined)
         : likedUri
-  const isLiked = !!effectiveLikedUri
+  const isLiked = !!effectiveLikedUri && (effectiveLikedUri !== 'pending' || likeLoading)
 
   const [mediaAspect, setMediaAspect] = useState<number | null>(() =>
     hasMedia && media ? initialLayoutAspect(media.url, media.aspectRatio) : null,
@@ -774,6 +774,7 @@ function PostCardInner({
       openLoginModal()
       return
     }
+    setLikeLoading(true)
     if (effectiveLikedUri) {
       const previousLikedUri = effectiveLikedUri
       setLikedUri(undefined)
@@ -783,6 +784,8 @@ function PostCardInner({
       }).catch(() => {
         setLikedUri(previousLikedUri === 'pending' ? undefined : previousLikedUri)
         onLikedChange?.(post.uri, previousLikedUri === 'pending' ? null : previousLikedUri)
+      }).finally(() => {
+        setLikeLoading(false)
       })
     } else {
       setLikedUri('pending')
@@ -791,6 +794,8 @@ function PostCardInner({
         onLikedChange?.(post.uri, res.uri)
       }).catch(() => {
         setLikedUri(undefined)
+      }).finally(() => {
+        setLikeLoading(false)
       })
     }
     cardRef.current?.querySelector<HTMLElement>(`.${styles.cardLink}`)?.blur()
@@ -1499,7 +1504,7 @@ function PostCardInner({
                   </span>
                 ) : null)}
               <span className={styles.handleRowMain}>
-                <span className={effectiveLikedUri ? styles.handleLinkWrapLiked : styles.handleLinkWrap}>
+                <span className={isLiked ? styles.handleLinkWrapLiked : styles.handleLinkWrap}>
                   <ProfileLink
                     handle={handle}
                     className={styles.handleLink}
