@@ -15,6 +15,7 @@ import { useSeenPosts } from '../context/SeenPostsContext'
 import { useToast } from '../context/ToastContext'
 import { setFeedSuspendReason } from '../lib/videoPlaybackManager'
 import { gateKeyboardShortcutsForEditable } from '../lib/modalKeyboard'
+import { isMobileKeyboardLikelyOpen } from '../lib/mobileKeyboardInset'
 import LayoutNavItems from './LayoutNavItems'
 import LayoutNotificationsPanel from './LayoutNotificationsPanel'
 import LayoutMessagesPanel, { type MessagesFilter } from './LayoutMessagesPanel'
@@ -1383,27 +1384,22 @@ export default function Layout({ title, children, showNav }: Props) {
     if (isDesktop) setMobileVirtualKeyboardOpen(false)
   }, [isDesktop])
 
-  /* Mobile: detect on-screen keyboard via Visual Viewport API; hide nav bar only while keyboard is up. */
+  /* Mobile: detect on-screen keyboard via bottom inset (same as compose/ChatModal).
+   * Do not use offsetTop > threshold alone — iOS keeps offsetTop elevated after dismiss.
+   * Do not listen to visualViewport scroll; it causes sticky false positives with modals. */
   useEffect(() => {
     if (isDesktop || typeof window === 'undefined') return
     const vv = window.visualViewport
     if (!vv) return
     const update = () => {
-      const ih = window.innerHeight
-      const h = vv.height
-      const ot = vv.offsetTop
-      // Only consider it a keyboard if the viewport is significantly smaller than window
-      // This prevents false positives from address bar changes or console opening
-      const shrunk = h < ih * 0.75
-      const panned = ot > 48
-      setMobileVirtualKeyboardOpen(shrunk || panned)
+      setMobileVirtualKeyboardOpen(isMobileKeyboardLikelyOpen())
     }
     update()
     vv.addEventListener('resize', update)
-    vv.addEventListener('scroll', update, { passive: true })
+    document.addEventListener('focusout', update)
     return () => {
       vv.removeEventListener('resize', update)
-      vv.removeEventListener('scroll', update)
+      document.removeEventListener('focusout', update)
     }
   }, [isDesktop])
 
