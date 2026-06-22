@@ -2489,7 +2489,7 @@ export default function Layout({ title, children, showNav }: Props) {
           {typeof document !== 'undefined' &&
             createPortal(
               <div
-                className={`${styles.navOuter} nav-outer ${navVisible ? '' : styles.navHidden} ${!isDesktop && mobileVirtualKeyboardOpen && !anyPopupOpen ? styles.navOuterKeyboardInset : ''} ${!isDesktop && (mobileNavScrollHidden || (isModalOpen && modalScrollHidden)) ? styles.navOuterScrollHidden : ''}`}
+                className={`${styles.navOuter} nav-outer ${navVisible ? '' : styles.navHidden} ${!isDesktop && mobileVirtualKeyboardOpen ? styles.navOuterKeyboardInset : ''} ${!isDesktop && (mobileNavScrollHidden || (isModalOpen && modalScrollHidden)) ? styles.navOuterScrollHidden : ''}`}
               >
                 {!isModalOpen && (
                   <button

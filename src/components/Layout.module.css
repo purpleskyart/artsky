@@ -2416,7 +2416,7 @@ button.logoLink {
   backface-visibility: hidden;
 }
 
-/* Visual Viewport API (Layout): hide only the pill while virtual keyboard is open — stays visible in modals when keyboard is closed. */
+/* Visual Viewport API (Layout): hide the nav pill while the on-screen keyboard is open (feed and modals). */
 .navOuter.navOuterKeyboardInset .nav {
   opacity: 0;
   pointer-events: none;

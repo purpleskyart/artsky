@@ -367,7 +367,7 @@ export default function ChatModal({
   if (isMobile) {
     return createPortal(
       <div className={styles.modalStackRoot}>
-        <div className={styles.modalViewportScrim} aria-hidden />
+        {keyboardOpen && <div className={styles.modalViewportScrim} aria-hidden />}
         {modal}
       </div>,
       document.body

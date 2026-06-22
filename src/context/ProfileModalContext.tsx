@@ -172,6 +172,19 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
     return () => cancelAnimationFrame(t)
   }, [location.search, location.pathname])
 
+  /** Dismiss keyboard when pushing another modal so the new top layer is full-height. */
+  const prevModalStackLenRef = useRef(0)
+  useEffect(() => {
+    const len = modalStack.length
+    if (len > prevModalStackLenRef.current) {
+      const editable = getFocusedEditableElement()
+      if (editable?.closest('[role="dialog"]')) {
+        editable.blur()
+      }
+    }
+    prevModalStackLenRef.current = len
+  }, [modalStack.length])
+
   /**
    * Direct modal URLs (e.g. `/?profile=&post=`) have no prior in-app history entry, so POP would leave
    * the site. Seed feed underneath once so in-modal back and browser back both return to the homepage.
