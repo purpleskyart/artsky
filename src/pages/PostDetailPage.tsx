@@ -29,7 +29,7 @@ import { useToast } from '../context/ToastContext'
 import ImageLightbox from '../components/ImageLightbox'
 import { VirtualizedCell } from '../components/ProfileColumn'
 import { getDesktopSnapshot, subscribeDesktop } from '../config/breakpoints'
-import { useLikeOverrideForUri } from '../context/LikeOverridesContext'
+import { useLikeOverrideForUri, useLikeOverridesActions } from '../context/LikeOverridesContext'
 import { shouldGateReplyThread } from '../lib/replyThreadLayout'
 import styles from './PostDetailPage.module.css'
 
@@ -1362,6 +1362,8 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
   const { session: sessionFromContext, sessionsList, switchAccount } = useSession()
   const toast = useToast()
   const { setFollowOverride } = useFollowOverrides()
+  const { setLikeOverride } = useLikeOverridesActions()
+  const storeLikeOverride = useLikeOverrideForUri(decodedUri)
   const [replyAsProfile, setReplyAsProfile] = useState<{ handle: string; avatar?: string } | null>(null)
 
   // Image lightbox state
@@ -1413,6 +1415,9 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
 
   useEffect(() => {
     setLikeUriOverride(undefined)
+    setThread(null)
+    setLoading(true)
+    setError(null)
     appliedInitialFocusUriRef.current = null
     appliedInitialFocusRedirectRef.current = null
     appliedInitialRootScrollRef.current = null
@@ -1469,9 +1474,17 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
   const authorViewer = thread && isThreadViewPost(thread) ? (thread.post.author as { viewer?: { following?: string } }).viewer : undefined
   const followingUri = authorViewer?.following ?? followUriOverride
   const alreadyFollowing = !!followingUri || authorFollowed
-  const postViewer = thread && isThreadViewPost(thread) ? (thread.post as { viewer?: { like?: string; repost?: string } }).viewer : undefined
+  const rootThreadPost =
+    thread && isThreadViewPost(thread) && thread.post.uri === decodedUri ? thread.post : null
+  const postViewer = rootThreadPost
+    ? (rootThreadPost as { viewer?: { like?: string; repost?: string } }).viewer
+    : undefined
   const likedUri =
-    likeUriOverride !== undefined ? likeUriOverride : postViewer?.like ?? null
+    likeUriOverride !== undefined
+      ? likeUriOverride
+      : storeLikeOverride !== undefined
+        ? storeLikeOverride
+        : postViewer?.like ?? null
   const repostedUri = postViewer?.repost ?? repostUriOverride
   const isLiked = !!likedUri
   const isReposted = !!repostedUri
@@ -1561,9 +1574,11 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
         if (!unlikeRecordUri) throw new Error('No like to remove')
         await unlikePostWithLifecycle(unlikeRecordUri, uri)
         setLikeUriOverride(null)
+        setLikeOverride(uri, null)
       } else {
         const res = await likePostWithLifecycle(uri, cid)
         setLikeUriOverride(res.uri)
+        setLikeOverride(uri, res.uri)
       }
     } catch {
       setLikeUriOverride(undefined)
@@ -1678,7 +1693,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
     }
     if (!hadInstantData) setLoading(true)
     try {
-      const threadRes = await getPostThreadCached(decodedUri, api)
+      const threadRes = await getPostThreadCached(decodedUri, api, { skipCache: true })
       if (gen !== loadGenRef.current || decodedUri !== uriAtStart) return
       const threadData = threadRes.data.thread as AppBskyFeedDefs.ThreadViewPost | AppBskyFeedDefs.NotFoundPost | AppBskyFeedDefs.BlockedPost | { $type: string }
       setThread(threadData)
@@ -3443,6 +3458,7 @@ export default function PostDetailPage() {
   return (
     <Layout title="Post" showNav>
       <PostDetailContent
+        key={resolvedUri}
         uri={resolvedUri}
         initialOpenReply={initialOpenReply}
         initialFocusedCommentUri={initialFocusedCommentUri}

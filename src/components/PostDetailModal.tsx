@@ -48,6 +48,7 @@ export default function PostDetailModal({ uri, openReply, focusUri, onClose, onB
       stackIndex={stackIndex}
     >
       <PostDetailContent
+        key={uri}
         uri={uri}
         initialOpenReply={openReply}
         initialFocusedCommentUri={focusUri}

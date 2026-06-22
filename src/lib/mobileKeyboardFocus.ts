@@ -4,7 +4,8 @@
  *
  * Returns a disposer; call on blur or unmount.
  *
- * Inside AppModal, adjusts only the `[data-modal-scroll]` container.
+ * Inside AppModal, adjusts only the `[data-modal-scroll]` container. The overlay is pinned to
+ * the visual viewport via usePinnedModalViewport, so we never call scrollIntoView on the window.
  * Layout compose uses `[data-compose-sheet]`: no scroll adjustment (overlay
  * handles keyboard); avoids centering the field which hides Cancel/Post.
  * Never calls el.scrollIntoView() in that path — on iOS Safari it scrolls

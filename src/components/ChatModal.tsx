@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import { getMobileSnapshot, subscribeMobile } from '../config/breakpoints'
-import { useModalKeyboardOpen } from '../hooks/useModalKeyboardOpen'
+import { usePinnedModalViewport } from '../hooks/usePinnedModalViewport'
 import { useSession } from '../context/SessionContext'
 import { useScrollLock } from '../context/ScrollLockContext'
 import {
@@ -59,10 +59,11 @@ export default function ChatModal({
   const [sending, setSending] = useState(false)
   const [requestLoading, setRequestLoading] = useState<'accept' | 'decline' | null>(null)
   const isMobile = useSyncExternalStore(subscribeMobile, getMobileSnapshot, () => false)
+  const overlayRef = useRef<HTMLDivElement>(null)
   const messagesRef = useRef<HTMLDivElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
-  const keyboardOpen = useModalKeyboardOpen(isMobile)
+  const { keyboardOpen } = usePinnedModalViewport(overlayRef, isMobile)
   const convoRef = useRef(convo)
   convoRef.current = convo
   const lastMessageIdRef = useRef<string | null>(null)
@@ -251,7 +252,8 @@ export default function ChatModal({
 
   const modal = (
     <div
-      className={`${styles.overlay}${keyboardOpen ? ` ${styles.overlayKeyboardOpen}` : ''}`}
+      ref={overlayRef}
+      className={`${styles.overlay}${keyboardOpen ? ` ${styles.overlayKeyboardOpen}` : ''}${isMobile ? ` ${styles.overlayPinned}` : ''}`}
       role="dialog"
       aria-label={`Chat with @${displayHandle}`}
       onKeyDown={(e) => {
@@ -361,6 +363,16 @@ export default function ChatModal({
       </div>
     </div>
   )
+
+  if (isMobile) {
+    return createPortal(
+      <div className={styles.modalStackRoot}>
+        <div className={styles.modalViewportScrim} aria-hidden />
+        {modal}
+      </div>,
+      document.body
+    )
+  }
 
   return createPortal(modal, document.body)
 }
