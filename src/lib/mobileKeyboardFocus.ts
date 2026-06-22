@@ -30,12 +30,52 @@ function getVisibleViewportYBounds(): { top: number; bottom: number } {
   return { top: fromLayoutTop, bottom: Math.max(fromLayoutTop + 1, fromLayoutBottom) }
 }
 
-function alignFieldInModalScrollRoot(el: HTMLElement, scrollRoot: HTMLElement) {
-  const { top: visibleTop, bottom: visibleBottom } = getVisibleViewportYBounds()
+function getFieldEffectiveBottom(el: HTMLElement): number {
   const rect = el.getBoundingClientRect()
   const form = el.closest('form')
   const formBottom = form ? form.getBoundingClientRect().bottom : rect.bottom
-  const effectiveBottom = Math.max(rect.bottom, Math.min(formBottom, rect.bottom + 80))
+  return Math.max(rect.bottom, Math.min(formBottom, rect.bottom + 80))
+}
+
+function clearModalKeyboardScrollPadding(scrollRoot: HTMLElement): void {
+  if (!scrollRoot.dataset.keyboardScrollPad) return
+  delete scrollRoot.dataset.keyboardScrollPad
+  scrollRoot.style.removeProperty('padding-bottom')
+}
+
+/** Short posts may not have enough scroll overflow to lift the composer above the keyboard. */
+function ensureModalKeyboardScrollRoom(el: HTMLElement, scrollRoot: HTMLElement): void {
+  alignFieldInModalScrollRootIterated(el, scrollRoot)
+
+  const { bottom: visibleBottom } = getVisibleViewportYBounds()
+  const effectiveBottom = getFieldEffectiveBottom(el)
+  const tol = 6
+  if (effectiveBottom <= visibleBottom + tol) return
+
+  const scrollNeeded = effectiveBottom - visibleBottom + tol
+  const maxScroll = Math.max(0, scrollRoot.scrollHeight - scrollRoot.clientHeight)
+  const availableScroll = maxScroll - scrollRoot.scrollTop
+  if (availableScroll >= scrollNeeded) {
+    alignFieldInModalScrollRootIterated(el, scrollRoot)
+    return
+  }
+
+  const extraPad = scrollNeeded - availableScroll + tol
+  const prevPad = Number(scrollRoot.dataset.keyboardScrollPad || '0')
+  if (extraPad <= prevPad + 1) {
+    alignFieldInModalScrollRootIterated(el, scrollRoot)
+    return
+  }
+
+  scrollRoot.dataset.keyboardScrollPad = String(extraPad)
+  scrollRoot.style.paddingBottom = `${extraPad}px`
+  alignFieldInModalScrollRootIterated(el, scrollRoot)
+}
+
+function alignFieldInModalScrollRoot(el: HTMLElement, scrollRoot: HTMLElement) {
+  const { top: visibleTop, bottom: visibleBottom } = getVisibleViewportYBounds()
+  const rect = el.getBoundingClientRect()
+  const effectiveBottom = getFieldEffectiveBottom(el)
   const tol = 6
   // Already in view — no adjustment needed.
   if (rect.top >= visibleTop - tol && effectiveBottom <= visibleBottom + tol) return
@@ -57,9 +97,7 @@ function alignFieldInModalScrollRootIterated(el: HTMLElement, scrollRoot: HTMLEl
   for (let pass = 0; pass < 3; pass++) {
     const { top: visibleTop, bottom: visibleBottom } = getVisibleViewportYBounds()
     const rect = el.getBoundingClientRect()
-    const form = el.closest('form')
-    const formBottom = form ? form.getBoundingClientRect().bottom : rect.bottom
-    const effectiveBottom = Math.max(rect.bottom, Math.min(formBottom, rect.bottom + 80))
+    const effectiveBottom = getFieldEffectiveBottom(el)
     const tol = 6
     if (rect.top >= visibleTop - tol && effectiveBottom <= visibleBottom + tol) break
     if (effectiveBottom - rect.top > visibleBottom - visibleTop && rect.top >= visibleTop - tol && rect.bottom <= visibleBottom + tol) break
@@ -80,7 +118,7 @@ function adjustScroll(el: HTMLElement) {
   }
   const modalRoot = el.closest('[data-modal-scroll]') as HTMLElement | null
   if (modalRoot) {
-    alignFieldInModalScrollRootIterated(el, modalRoot)
+    ensureModalKeyboardScrollRoom(el, modalRoot)
   } else {
     el.scrollIntoView({ block: 'center', behavior: 'auto', inline: 'nearest' })
   }
@@ -137,5 +175,7 @@ export function scrollFieldAboveKeyboard(el: HTMLElement): () => void {
     if (vv) {
       vv.removeEventListener('resize', onResize)
     }
+    const modalRoot = el.closest('[data-modal-scroll]') as HTMLElement | null
+    if (modalRoot) clearModalKeyboardScrollPadding(modalRoot)
   }
 }

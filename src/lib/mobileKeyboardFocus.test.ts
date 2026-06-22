@@ -101,4 +101,44 @@ describe('scrollFieldAboveKeyboard', () => {
 
     expect(scrollRoot.scrollTop).toBe(800)
   })
+
+  it('adds temporary padding when the scroll root cannot scroll the field above the keyboard', async () => {
+    Object.defineProperty(scrollRoot, 'clientHeight', { value: 400, configurable: true })
+    Object.defineProperty(scrollRoot, 'scrollHeight', { value: 400, configurable: true })
+    scrollRoot.scrollTop = 0
+
+    vi.spyOn(textarea, 'getBoundingClientRect').mockReturnValue({
+      top: 320,
+      bottom: 360,
+      left: 0,
+      right: 100,
+      width: 100,
+      height: 40,
+      x: 0,
+      y: 320,
+      toJSON: () => ({}),
+    })
+    vi.spyOn(form, 'getBoundingClientRect').mockReturnValue({
+      top: 300,
+      bottom: 420,
+      left: 0,
+      right: 100,
+      width: 100,
+      height: 120,
+      x: 0,
+      y: 300,
+      toJSON: () => ({}),
+    })
+
+    const dispose = scrollFieldAboveKeyboard(textarea)
+    await flushRaf(3)
+
+    expect(scrollRoot.dataset.keyboardScrollPad).toBeTruthy()
+    expect(Number(scrollRoot.dataset.keyboardScrollPad)).toBeGreaterThan(0)
+    expect(scrollRoot.style.paddingBottom).toMatch(/^\d+px$/)
+
+    dispose()
+    expect(scrollRoot.dataset.keyboardScrollPad).toBeUndefined()
+    expect(scrollRoot.style.paddingBottom).toBe('')
+  })
 })
