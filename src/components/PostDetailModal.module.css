@@ -20,6 +20,25 @@
   overscroll-behavior: contain;
 }
 
+/* Mobile: full-screen opaque layer behind the pinned overlay so the feed never shows through keyboard gaps. */
+.modalStackRoot {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+
+.modalViewportScrim {
+  position: fixed;
+  inset: 0;
+  background: var(--surface);
+  pointer-events: none;
+}
+
+.overlayPinned.overlay {
+  z-index: 1;
+  pointer-events: auto;
+}
+
 /* Non-top layer in a stacked modal: pane still has pointer-events:auto by default; disable entire subtree so the layer above receives clicks. */
 .overlayStackedUnder,
 .overlayStackedUnder * {
@@ -396,10 +415,10 @@
     padding-bottom: 0;
     background: var(--surface);
   }
+  /* Pane fills overlay; on mobile usePinnedModalViewport shrinks the overlay to the visual viewport. */
   .overlay.overlayKeyboardOpen {
     background: var(--surface);
   }
-  /* Pane fills the full-screen overlay; internal scroll handles keyboard overlap. */
   .paneExpanded.pane {
     max-height: 100%;
   }

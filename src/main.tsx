@@ -2,9 +2,14 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
 import { bindSafeAreaInsetListeners, initSafeAreaInsets } from './lib/safeAreaInsets'
+import { enableVirtualKeyboardOverlays } from './lib/virtualKeyboard'
 
 initSafeAreaInsets()
 bindSafeAreaInsetListeners()
+
+// Opt into VirtualKeyboard geometry so modals can size around the on-screen keyboard on Chromium
+// (where interactive-widget=overlays-content keeps the visual viewport full-size).
+enableVirtualKeyboardOverlays()
 
 // Start loading the feed route chunk in parallel with the first React render (default route is /).
 void import('./pages/FeedPage')

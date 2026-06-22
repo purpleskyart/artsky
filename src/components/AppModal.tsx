@@ -11,7 +11,7 @@ import {
   PULL_THRESHOLD_PX,
 } from '../hooks/usePullToRefresh'
 import { useStandalonePwa } from '../hooks/useStandalonePwa'
-import { useModalKeyboardOpen } from '../hooks/useModalKeyboardOpen'
+import { usePinnedModalViewport } from '../hooks/usePinnedModalViewport'
 import { getMobileSnapshot, subscribeMobile } from '../config/breakpoints'
 import { gateKeyboardShortcutsForEditable } from '../lib/modalKeyboard'
 import styles from './PostDetailModal.module.css'
@@ -95,7 +95,8 @@ export default function AppModal({
   const isMobile = useSyncExternalStore(subscribeMobile, getMobileSnapshot, () => false)
   const isStandalonePwa = useStandalonePwa()
   const [isRestoringScroll, setIsRestoringScroll] = useState(false)
-  const keyboardOpen = useModalKeyboardOpen(isMobile)
+  const pinViewport = isMobile && isTopModal
+  const { keyboardOpen } = usePinnedModalViewport(overlayRef, pinViewport)
   const pullRefresh = usePullToRefresh({
     scrollRef,
     touchTargetRef: scrollRef,
@@ -349,13 +350,15 @@ export default function AppModal({
     onClose()
   }
 
+  const stackZIndex = stackIndex !== undefined ? MODAL_OVERLAY_Z_BASE + stackIndex : undefined
+
   const modal = (
     <ModalTopBarSlotContext.Provider value={{ centerSlot: topBarSlotEl, rightSlot: topBarRightSlotEl, isMobile }}>
       <div
         ref={overlayRef}
-        className={`${styles.overlay}${!isTopModal ? ` ${styles.overlayStackedUnder}` : ''}${transparentTopBar ? ` ${styles.overlayFlushTop}` : ''}${expanded ? ` ${styles.overlayExpanded}` : ''}${keyboardOpen ? ` ${styles.overlayKeyboardOpen}` : ''}`}
+        className={`${styles.overlay}${!isTopModal ? ` ${styles.overlayStackedUnder}` : ''}${transparentTopBar ? ` ${styles.overlayFlushTop}` : ''}${expanded ? ` ${styles.overlayExpanded}` : ''}${keyboardOpen ? ` ${styles.overlayKeyboardOpen}` : ''}${pinViewport ? ` ${styles.overlayPinned}` : ''}`}
         data-keyboard-open={keyboardOpen || undefined}
-        style={stackIndex !== undefined ? { zIndex: MODAL_OVERLAY_Z_BASE + stackIndex } : undefined}
+        style={!pinViewport && stackZIndex !== undefined ? { zIndex: stackZIndex } : undefined}
         onClick={handleBackdropClick}
         role="dialog"
         aria-modal="true"
@@ -440,6 +443,16 @@ export default function AppModal({
       </div>
     </ModalTopBarSlotContext.Provider>
   )
+
+  if (pinViewport) {
+    return createPortal(
+      <div className={styles.modalStackRoot} style={stackZIndex !== undefined ? { zIndex: stackZIndex } : undefined}>
+        <div className={styles.modalViewportScrim} aria-hidden />
+        {modal}
+      </div>,
+      document.body
+    )
+  }
 
   return createPortal(modal, document.body)
 }
