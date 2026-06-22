@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import {
   estimateIosStandaloneBottomInset,
   estimateIosStandaloneTopInset,
@@ -77,5 +77,42 @@ describe('resolveSafeAreaInsets', () => {
     })
     expect(resolveSafeAreaInsets({ top: 0, right: 0, bottom: 0, left: 0 }).top).toBe(59)
     expect(resolveSafeAreaInsets({ top: 0, right: 0, bottom: 0, left: 0 }).bottom).toBe(34)
+  })
+})
+
+describe('bindSafeAreaInsetListeners', () => {
+  beforeEach(() => {
+    vi.resetModules()
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
+  })
+
+  it('does not subscribe to visualViewport resize (keyboard/toolbar would churn safe area)', async () => {
+    const vvAdd = vi.fn()
+    vi.stubGlobal('visualViewport', { addEventListener: vvAdd, removeEventListener: vi.fn() })
+    const { bindSafeAreaInsetListeners } = await import('./safeAreaInsets')
+    bindSafeAreaInsetListeners()
+    expect(vvAdd).not.toHaveBeenCalled()
+  })
+})
+
+describe('restoreMobileLayoutAfterPopup', () => {
+  it('restores scroll position immediately and again after keyboard teardown', async () => {
+    vi.useFakeTimers()
+    const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
+    const { restoreMobileLayoutAfterPopup } = await import('./safeAreaInsets')
+
+    restoreMobileLayoutAfterPopup(420)
+    expect(scrollTo).toHaveBeenCalledWith({ top: 420, left: 0, behavior: 'instant' })
+
+    await vi.runAllTimersAsync()
+    expect(scrollTo.mock.calls.length).toBeGreaterThanOrEqual(3)
+
+    scrollTo.mockRestore()
+    vi.useRealTimers()
   })
 })

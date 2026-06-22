@@ -16,6 +16,7 @@ import { useToast } from '../context/ToastContext'
 import { setFeedSuspendReason } from '../lib/videoPlaybackManager'
 import { gateKeyboardShortcutsForEditable } from '../lib/modalKeyboard'
 import { isMobileKeyboardLikelyOpen } from '../lib/mobileKeyboardInset'
+import { restoreMobileLayoutAfterPopup } from '../lib/safeAreaInsets'
 import { onVirtualKeyboardGeometryChange } from '../lib/virtualKeyboard'
 import LayoutNavItems from './LayoutNavItems'
 import LayoutNotificationsPanel from './LayoutNotificationsPanel'
@@ -1279,13 +1280,24 @@ export default function Layout({ title, children, showNav }: Props) {
   /* After a modal/popup closes, reset nav chrome that may have been skewed by keyboard focus. */
   const prevAnyPopupOpenRef = useRef(anyPopupOpen)
   useEffect(() => {
+    let keyboardTimer: ReturnType<typeof setTimeout> | undefined
     if (prevAnyPopupOpenRef.current && !anyPopupOpen) {
       setMobileNavScrollHidden(false)
-      setMobileVirtualKeyboardOpen(isMobileKeyboardLikelyOpen())
-      lastScrollYRef.current = window.scrollY
+      setMobileVirtualKeyboardOpen(false)
+      const scrollY = window.scrollY
+      lastScrollYRef.current = scrollY
+      if (!isDesktop) {
+        restoreMobileLayoutAfterPopup(scrollY)
+        keyboardTimer = window.setTimeout(() => {
+          setMobileVirtualKeyboardOpen(isMobileKeyboardLikelyOpen())
+        }, 350)
+      }
     }
     prevAnyPopupOpenRef.current = anyPopupOpen
-  }, [anyPopupOpen])
+    return () => {
+      if (keyboardTimer !== undefined) window.clearTimeout(keyboardTimer)
+    }
+  }, [anyPopupOpen, isDesktop])
 
   function focusSearch() {
     if (isDesktop) {
