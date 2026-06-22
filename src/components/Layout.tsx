@@ -16,6 +16,7 @@ import { useToast } from '../context/ToastContext'
 import { setFeedSuspendReason } from '../lib/videoPlaybackManager'
 import { gateKeyboardShortcutsForEditable } from '../lib/modalKeyboard'
 import { isMobileKeyboardLikelyOpen } from '../lib/mobileKeyboardInset'
+import { onVirtualKeyboardGeometryChange } from '../lib/virtualKeyboard'
 import LayoutNavItems from './LayoutNavItems'
 import LayoutNotificationsPanel from './LayoutNotificationsPanel'
 import LayoutMessagesPanel, { type MessagesFilter } from './LayoutMessagesPanel'
@@ -1399,9 +1400,12 @@ export default function Layout({ title, children, showNav }: Props) {
     update()
     vv.addEventListener('resize', update)
     document.addEventListener('focusout', update)
+    // Chromium (overlays-content) doesn't fire visualViewport resize for the keyboard.
+    const offGeometry = onVirtualKeyboardGeometryChange(update)
     return () => {
       vv.removeEventListener('resize', update)
       document.removeEventListener('focusout', update)
+      offGeometry()
     }
   }, [isDesktop])
 

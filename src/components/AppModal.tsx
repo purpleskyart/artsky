@@ -11,9 +11,9 @@ import {
   PULL_THRESHOLD_PX,
 } from '../hooks/usePullToRefresh'
 import { useStandalonePwa } from '../hooks/useStandalonePwa'
+import { usePinnedModalViewport } from '../hooks/usePinnedModalViewport'
 import { getMobileSnapshot, subscribeMobile } from '../config/breakpoints'
 import { gateKeyboardShortcutsForEditable } from '../lib/modalKeyboard'
-import { getMobileKeyboardInsetPx, isMobileKeyboardLikelyOpen } from '../lib/mobileKeyboardInset'
 import styles from './PostDetailModal.module.css'
 
 /** Must match `.overlay` in PostDetailModal.module.css; incremented per stack layer so paint order stays correct when lazy chunks mount after eager siblings. */
@@ -95,8 +95,7 @@ export default function AppModal({
   const isMobile = useSyncExternalStore(subscribeMobile, getMobileSnapshot, () => false)
   const isStandalonePwa = useStandalonePwa()
   const [isRestoringScroll, setIsRestoringScroll] = useState(false)
-  const [keyboardOpen, setKeyboardOpen] = useState(false)
-  const [overlayBottom, setOverlayBottom] = useState(0)
+  const { keyboardOpen } = usePinnedModalViewport(overlayRef, isMobile)
   const pullRefresh = usePullToRefresh({
     scrollRef,
     touchTargetRef: scrollRef,
@@ -124,53 +123,9 @@ export default function AppModal({
     return () => scrollLock?.unlockScroll()
   }, [scrollLock])
 
-  /* Mobile: shrink overlay from the bottom when the keyboard opens (same as compose/ChatModal).
-   * Do not position with visualViewport offsetTop/height — iOS pans offsetTop on focus and
-   * scroll, which leaves gaps at the top/bottom where the feed shows through. */
-  useLayoutEffect(() => {
-    if (!isMobile || typeof window === 'undefined') return
-    const vv = window.visualViewport
-    if (!vv) return
-    const update = () => {
-      const open = isMobileKeyboardLikelyOpen()
-      if (open) {
-        setOverlayBottom(getMobileKeyboardInsetPx())
-        setKeyboardOpen(true)
-        window.scrollTo(0, 0)
-      } else {
-        setOverlayBottom(0)
-        setKeyboardOpen(false)
-      }
-    }
-    update()
-    vv.addEventListener('resize', update)
-    document.addEventListener('focusout', update)
-    return () => {
-      vv.removeEventListener('resize', update)
-      document.removeEventListener('focusout', update)
-      setOverlayBottom(0)
-      setKeyboardOpen(false)
-    }
-  }, [isMobile])
-
-  /* Keep the layout viewport pinned while typing so iOS does not scroll the feed behind the modal. */
-  useEffect(() => {
-    if (!isMobile) return
-    const onFocusIn = (e: FocusEvent) => {
-      const target = e.target
-      if (!(target instanceof HTMLElement)) return
-      if (!overlayRef.current?.contains(target)) return
-      if (
-        target instanceof HTMLInputElement ||
-        target instanceof HTMLTextAreaElement ||
-        target.isContentEditable
-      ) {
-        window.scrollTo(0, 0)
-      }
-    }
-    document.addEventListener('focusin', onFocusIn)
-    return () => document.removeEventListener('focusin', onFocusIn)
-  }, [isMobile])
+  /* Overlay geometry while open (keyboard shrink, iOS viewport pan) is owned by usePinnedModalViewport,
+   * which pins the overlay to the visual viewport via direct DOM writes. The ScrollLock guard keeps the
+   * feed behind the modal from scrolling, so we no longer fight iOS with manual window.scrollTo here. */
 
   /* Mobile pull-to-refresh: propagate pull offset to Layout floating buttons (gear, feeds, notification)
      which live outside the modal portal but should move with the pull. */
@@ -404,10 +359,7 @@ export default function AppModal({
         ref={overlayRef}
         className={`${styles.overlay}${!isTopModal ? ` ${styles.overlayStackedUnder}` : ''}${transparentTopBar ? ` ${styles.overlayFlushTop}` : ''}${expanded ? ` ${styles.overlayExpanded}` : ''}${keyboardOpen ? ` ${styles.overlayKeyboardOpen}` : ''}`}
         data-keyboard-open={keyboardOpen || undefined}
-        style={{
-          ...(stackIndex !== undefined ? { zIndex: MODAL_OVERLAY_Z_BASE + stackIndex } : {}),
-          ...(isMobile && overlayBottom > 0 ? { bottom: overlayBottom } : {}),
-        }}
+        style={stackIndex !== undefined ? { zIndex: MODAL_OVERLAY_Z_BASE + stackIndex } : undefined}
         onClick={handleBackdropClick}
         role="dialog"
         aria-modal="true"

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import { getMobileSnapshot, subscribeMobile } from '../config/breakpoints'
+import { usePinnedModalViewport } from '../hooks/usePinnedModalViewport'
 import { useSession } from '../context/SessionContext'
 import { useScrollLock } from '../context/ScrollLockContext'
 import {
@@ -58,11 +59,11 @@ export default function ChatModal({
   const [sending, setSending] = useState(false)
   const [requestLoading, setRequestLoading] = useState<'accept' | 'decline' | null>(null)
   const isMobile = useSyncExternalStore(subscribeMobile, getMobileSnapshot, () => false)
+  const overlayRef = useRef<HTMLDivElement>(null)
   const messagesRef = useRef<HTMLDivElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
-  const [overlayBottom, setOverlayBottom] = useState(0)
-  const [keyboardOpen, setKeyboardOpen] = useState(false)
+  const { keyboardOpen } = usePinnedModalViewport(overlayRef, isMobile)
   const convoRef = useRef(convo)
   convoRef.current = convo
   const lastMessageIdRef = useRef<string | null>(null)
@@ -187,36 +188,7 @@ export default function ChatModal({
     if (!loading && convoId && !isMobile) inputRef.current?.focus({ preventScroll: true })
   }, [loading, convoId, isMobile])
 
-  /* Mobile: shrink overlay from the bottom when the keyboard opens (same as compose).
-   * Only listen to resize — tracking visualViewport scroll pans the sheet off-screen. */
-  useEffect(() => {
-    if (!isMobile || typeof window === 'undefined') return
-    const vv = window.visualViewport
-    if (!vv) return
-    const update = () => {
-      const inferred = Math.max(0, Math.round(window.innerHeight - (vv.offsetTop + vv.height)))
-      if (inferred > 72) {
-        setOverlayBottom(inferred)
-        setKeyboardOpen(true)
-        window.scrollTo(0, 0)
-      } else {
-        setOverlayBottom(0)
-        setKeyboardOpen(false)
-      }
-    }
-    update()
-    vv.addEventListener('resize', update)
-    return () => {
-      vv.removeEventListener('resize', update)
-      setOverlayBottom(0)
-      setKeyboardOpen(false)
-    }
-  }, [isMobile])
-
-  function handleInputFocus() {
-    if (!isMobile) return
-    window.scrollTo(0, 0)
-  }
+  /* Overlay geometry (keyboard shrink + iOS viewport pan) is owned by usePinnedModalViewport. */
 
   async function handleAccept() {
     if (!convoId || requestLoading) return
@@ -282,10 +254,10 @@ export default function ChatModal({
 
   const modal = (
     <div
+      ref={overlayRef}
       className={`${styles.overlay}${keyboardOpen ? ` ${styles.overlayKeyboardOpen}` : ''}`}
       role="dialog"
       aria-label={`Chat with @${displayHandle}`}
-      style={isMobile ? { bottom: overlayBottom } : undefined}
       onKeyDown={(e) => {
         if (e.key === 'Escape') onClose()
       }}
@@ -380,7 +352,6 @@ export default function ChatModal({
             className={styles.input}
             value={text}
             onChange={(e) => setText(e.target.value)}
-            onFocus={handleInputFocus}
             onKeyDown={handleKeyDown}
             placeholder={canSend ? 'Write a message…' : 'Accept request to reply'}
             disabled={!canSend}
