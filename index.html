@@ -41,13 +41,16 @@
           html.removeChild(el)
 
           var ios = /iPhone|iPad|iPod/.test(navigator.userAgent || '')
+          var minSide = Math.min(screen.width, screen.height)
+          var maxSide = Math.max(screen.width, screen.height)
           if (ios && standalone && top < 20) {
-            var minSide = Math.min(screen.width, screen.height)
-            var maxSide = Math.max(screen.width, screen.height)
             if (minSide >= 768) top = 24
             else if (minSide >= 393) top = 59
             else if (maxSide >= 812) top = 47
             else top = 20
+          }
+          if (ios && standalone && bottom < 20) {
+            if (maxSide >= 812 && minSide >= 375) bottom = 34
           }
 
           html.style.setProperty('--app-safe-top', top + 'px')

@@ -11,7 +11,7 @@ import {
   PULL_THRESHOLD_PX,
 } from '../hooks/usePullToRefresh'
 import { useStandalonePwa } from '../hooks/useStandalonePwa'
-import { usePinnedModalViewport } from '../hooks/usePinnedModalViewport'
+import { useModalKeyboardOpen } from '../hooks/useModalKeyboardOpen'
 import { getMobileSnapshot, subscribeMobile } from '../config/breakpoints'
 import { gateKeyboardShortcutsForEditable } from '../lib/modalKeyboard'
 import styles from './PostDetailModal.module.css'
@@ -95,7 +95,7 @@ export default function AppModal({
   const isMobile = useSyncExternalStore(subscribeMobile, getMobileSnapshot, () => false)
   const isStandalonePwa = useStandalonePwa()
   const [isRestoringScroll, setIsRestoringScroll] = useState(false)
-  const { keyboardOpen } = usePinnedModalViewport(overlayRef, isMobile)
+  const keyboardOpen = useModalKeyboardOpen(isMobile)
   const pullRefresh = usePullToRefresh({
     scrollRef,
     touchTargetRef: scrollRef,
@@ -122,10 +122,6 @@ export default function AppModal({
     scrollLock?.lockScroll()
     return () => scrollLock?.unlockScroll()
   }, [scrollLock])
-
-  /* Overlay geometry while open (keyboard shrink, iOS viewport pan) is owned by usePinnedModalViewport,
-   * which pins the overlay to the visual viewport via direct DOM writes. The ScrollLock guard keeps the
-   * feed behind the modal from scrolling, so we no longer fight iOS with manual window.scrollTo here. */
 
   /* Mobile pull-to-refresh: propagate pull offset to Layout floating buttons (gear, feeds, notification)
      which live outside the modal portal but should move with the pull. */
