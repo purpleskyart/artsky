@@ -13,6 +13,7 @@ import {
 import { useStandalonePwa } from '../hooks/useStandalonePwa'
 import { getMobileSnapshot, subscribeMobile } from '../config/breakpoints'
 import { gateKeyboardShortcutsForEditable } from '../lib/modalKeyboard'
+import { isMobileKeyboardLikelyOpen } from '../lib/mobileKeyboardInset'
 import styles from './PostDetailModal.module.css'
 
 /** Must match `.overlay` in PostDetailModal.module.css; incremented per stack layer so paint order stays correct when lazy chunks mount after eager siblings. */
@@ -137,17 +138,14 @@ export default function AppModal({
       el.style.height = `${vv.height}px`
       el.style.right = 'auto'
       el.style.bottom = 'auto'
-      const ih = window.innerHeight
-      const shrunk = vv.height < ih * 0.75
-      const panned = vv.offsetTop > 48
-      setKeyboardOpen(shrunk || panned)
+      setKeyboardOpen(isMobileKeyboardLikelyOpen())
     }
     update()
     vv.addEventListener('resize', update)
-    vv.addEventListener('scroll', update, { passive: true })
+    document.addEventListener('focusout', update)
     return () => {
       vv.removeEventListener('resize', update)
-      vv.removeEventListener('scroll', update)
+      document.removeEventListener('focusout', update)
       el.style.removeProperty('top')
       el.style.removeProperty('left')
       el.style.removeProperty('width')
