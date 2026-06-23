@@ -148,6 +148,8 @@ function PostCardInner({
   const TOUCH_OPEN_DELAY_MS = 450
   /** Max ms between two taps to count as double-tap-like; matches PostDetailPage MediaGallery (400ms). */
   const TOUCH_DOUBLE_TAP_WINDOW_MS = 400
+  /** Block synthetic clicks after touchEnd; must exceed TOUCH_OPEN_DELAY_MS (iOS/Android ghost clicks). */
+  const TOUCH_GHOST_CLICK_BLOCK_MS = 800
   const MEDIA_CLICK_DOUBLE_TAP_WINDOW_MS = TOUCH_DOUBLE_TAP_WINDOW_MS
 
   const navigate = useNavigate()
@@ -262,6 +264,7 @@ function PostCardInner({
   const touchSessionRef = useRef(false)
   const mediaClickFromTouchRef = useRef(false)
   const openDelayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const touchGhostClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const mediaOpenDelayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const touchStartRef = useRef<{ x: number; y: number } | null>(null)
   const nsfwOverlayHandledRef = useRef(false)
@@ -409,6 +412,10 @@ function PostCardInner({
         clearTimeout(openDelayTimerRef.current)
         openDelayTimerRef.current = null
       }
+      if (touchGhostClearTimerRef.current) {
+        clearTimeout(touchGhostClearTimerRef.current)
+        touchGhostClearTimerRef.current = null
+      }
       if (mediaOpenDelayTimerRef.current) {
         clearTimeout(mediaOpenDelayTimerRef.current)
         mediaOpenDelayTimerRef.current = null
@@ -420,8 +427,21 @@ function PostCardInner({
     }
   }, [])
 
+  const scheduleTouchSessionClear = useCallback((delayMs = TOUCH_GHOST_CLICK_BLOCK_MS) => {
+    if (touchGhostClearTimerRef.current) clearTimeout(touchGhostClearTimerRef.current)
+    touchGhostClearTimerRef.current = setTimeout(() => {
+      touchGhostClearTimerRef.current = null
+      touchSessionRef.current = false
+      mediaClickFromTouchRef.current = false
+    }, delayMs)
+  }, [])
+
   // Reset touch state when modal opens/closes to prevent stuck touch sessions
   useEffect(() => {
+    if (touchGhostClearTimerRef.current) {
+      clearTimeout(touchGhostClearTimerRef.current)
+      touchGhostClearTimerRef.current = null
+    }
     touchSessionRef.current = false
     mediaClickFromTouchRef.current = false
     didDoubleTapRef.current = false
@@ -819,7 +839,7 @@ function PostCardInner({
       lastMediaClickRef.current = 0
       return
     }
-    if (mediaClickFromTouchRef.current) return
+    if (mediaClickFromTouchRef.current || touchSessionRef.current) return
     // When displaying quoted media (outer post has no media), clicking should open the quote post in modal context, quoting post on feed
     const openTargetPost = isDisplayingQuotedMedia
       ? (isModalOpen ? openQuotedPost : openPost)
@@ -843,8 +863,8 @@ function PostCardInner({
     mediaOpenDelayTimerRef.current = setTimeout(() => {
       mediaOpenDelayTimerRef.current = null
       openTargetPost()
-    }, isDesktop ? TOUCH_OPEN_DELAY_MS : 0)
-  }, [mediaClickFromTouchRef, lastMediaClickRef, handleMediaDoubleTapLike, openPost, openQuotedPost, isDisplayingQuotedMedia, nsfwBlurred, onNsfwUnblur, isDesktop])
+    }, TOUCH_OPEN_DELAY_MS)
+  }, [touchSessionRef, mediaClickFromTouchRef, lastMediaClickRef, handleMediaDoubleTapLike, openPost, openQuotedPost, isDisplayingQuotedMedia, nsfwBlurred, onNsfwUnblur])
 
   const setCardRef = useCallback(
     (el: HTMLDivElement | null) => {
@@ -914,6 +934,10 @@ function PostCardInner({
               clearTimeout(openDelayTimerRef.current)
               openDelayTimerRef.current = null
             }
+            if (touchGhostClearTimerRef.current) {
+              clearTimeout(touchGhostClearTimerRef.current)
+              touchGhostClearTimerRef.current = null
+            }
             touchSessionRef.current = false
             mediaClickFromTouchRef.current = false
             return
@@ -931,18 +955,16 @@ function PostCardInner({
             if (nsfwBlurred && onNsfwUnblur) {
               onNsfwUnblur()
               nsfwTouchUnblurOnlyRef.current = true
+              scheduleTouchSessionClear()
               setTimeout(() => {
-                touchSessionRef.current = false
-                mediaClickFromTouchRef.current = false
                 didDoubleTapRef.current = false
                 nsfwTouchUnblurOnlyRef.current = false
-              }, 450)
+              }, TOUCH_OPEN_DELAY_MS)
               return
             }
             handleMediaDoubleTapLike()
-            setTimeout(() => { 
-              touchSessionRef.current = false
-              mediaClickFromTouchRef.current = false
+            scheduleTouchSessionClear(500)
+            setTimeout(() => {
               didDoubleTapRef.current = false
             }, 500)
           } else {
@@ -952,20 +974,18 @@ function PostCardInner({
               e.preventDefault()
               onNsfwUnblur()
               nsfwTouchUnblurOnlyRef.current = true
+              scheduleTouchSessionClear()
               openDelayTimerRef.current = setTimeout(() => {
                 openDelayTimerRef.current = null
-                touchSessionRef.current = false
-                mediaClickFromTouchRef.current = false
                 nsfwTouchUnblurOnlyRef.current = false
               }, TOUCH_OPEN_DELAY_MS)
             } else {
               if (openDelayTimerRef.current) clearTimeout(openDelayTimerRef.current)
               openDelayTimerRef.current = setTimeout(() => {
                 openDelayTimerRef.current = null
-                touchSessionRef.current = false
-                mediaClickFromTouchRef.current = false
                 openPost()
               }, TOUCH_OPEN_DELAY_MS)
+              scheduleTouchSessionClear()
             }
           }
         }}
