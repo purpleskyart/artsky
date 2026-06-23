@@ -122,6 +122,32 @@ export default function AppModal({
     return () => scrollLock?.unlockScroll()
   }, [scrollLock])
 
+  /* Mobile: iOS scrolls the feed behind the overlay when a modal field is focused — re-pin. */
+  useEffect(() => {
+    if (!isMobile || !isTopModal || !scrollLock) return
+    const overlay = overlayRef.current
+    if (!overlay) return
+    const pinFeedScroll = () => {
+      const y = scrollLock.getLockedScrollY()
+      if (window.scrollY !== y) {
+        window.scrollTo({ top: y, left: 0, behavior: 'instant' })
+        document.documentElement.scrollTop = y
+        document.body.scrollTop = y
+      }
+    }
+    const onFocusIn = (e: FocusEvent) => {
+      const t = e.target
+      if (!(t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement)) return
+      if (t.type === 'file' || t.type === 'hidden' || t.disabled) return
+      if (!overlay.contains(t)) return
+      pinFeedScroll()
+      requestAnimationFrame(pinFeedScroll)
+      requestAnimationFrame(() => requestAnimationFrame(pinFeedScroll))
+    }
+    overlay.addEventListener('focusin', onFocusIn, true)
+    return () => overlay.removeEventListener('focusin', onFocusIn, true)
+  }, [isMobile, isTopModal, scrollLock])
+
   /* Mobile: keep focused inputs above the keyboard without scrolling the feed behind the overlay. */
   useEffect(() => {
     if (!isMobile || !isTopModal || !scrollElement) return
