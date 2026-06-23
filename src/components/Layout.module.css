@@ -2385,7 +2385,7 @@ button.logoLink {
    Portaled to document.body so position:fixed stays viewport-pinned while the feed scrolls (see Layout.tsx). */
 .navOuter {
   position: fixed;
-  bottom: calc(max(0.75rem, var(--app-safe-bottom)) + var(--bottom-chrome-vv-gap, 0px));
+  bottom: max(0.75rem, var(--app-safe-bottom));
   left: max(1rem, var(--app-safe-left));
   right: max(1rem, var(--app-safe-right));
   z-index: 1100;

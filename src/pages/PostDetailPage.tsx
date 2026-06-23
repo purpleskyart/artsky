@@ -1834,7 +1834,7 @@ export function PostDetailContent({ uri: uriProp, initialOpenReply, initialFocus
       const ta = queryReplyComposerTextarea(uri)
       if (!ta) return
       focused = true
-      ta.focus()
+      ta.focus({ preventScroll: true })
     }
     requestAnimationFrame(() => {
       requestAnimationFrame(run)

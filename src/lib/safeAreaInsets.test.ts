@@ -1,12 +1,7 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import {
-  applySafeAreaInsets,
   estimateIosStandaloneBottomInset,
   estimateIosStandaloneTopInset,
-  initSafeAreaInsets,
-  isLikelyKeyboardOpen,
-  measureEnvSafeAreaInsets,
-  resetSessionSafeAreaInsets,
   resolveSafeAreaInsets,
 } from './safeAreaInsets'
 
@@ -102,54 +97,5 @@ describe('bindSafeAreaInsetListeners', () => {
     const { bindSafeAreaInsetListeners } = await import('./safeAreaInsets')
     bindSafeAreaInsetListeners()
     expect(vvAdd).not.toHaveBeenCalled()
-  })
-})
-
-describe('session safe area insets', () => {
-  beforeEach(() => {
-    resetSessionSafeAreaInsets()
-    document.documentElement.style.removeProperty('--app-safe-bottom')
-  })
-
-  it('never decreases bottom inset during the session', () => {
-    applySafeAreaInsets({ top: 0, right: 0, bottom: 34, left: 0 })
-    applySafeAreaInsets({ top: 0, right: 0, bottom: 0, left: 0 })
-    expect(document.documentElement.style.getPropertyValue('--app-safe-bottom')).toBe('34px')
-  })
-
-  it('skips env remeasure while the keyboard is likely open', () => {
-    applySafeAreaInsets({ top: 0, right: 0, bottom: 34, left: 0 })
-    vi.stubGlobal('visualViewport', {
-      offsetTop: 0,
-      height: 400,
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-    })
-    Object.defineProperty(window, 'innerHeight', {
-      configurable: true,
-      value: 800,
-    })
-    expect(isLikelyKeyboardOpen()).toBe(true)
-    const measured = measureEnvSafeAreaInsets()
-    expect(measured.bottom).toBe(0)
-    initSafeAreaInsets()
-    expect(document.documentElement.style.getPropertyValue('--app-safe-bottom')).toBe('34px')
-  })
-})
-
-describe('restoreMobileLayoutAfterPopup', () => {
-  it('restores scroll position immediately and again after keyboard teardown', async () => {
-    vi.useFakeTimers()
-    const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
-    const { restoreMobileLayoutAfterPopup } = await import('./safeAreaInsets')
-
-    restoreMobileLayoutAfterPopup(420)
-    expect(scrollTo).toHaveBeenCalledWith({ top: 420, left: 0, behavior: 'instant' })
-
-    await vi.runAllTimersAsync()
-    expect(scrollTo.mock.calls.length).toBeGreaterThanOrEqual(3)
-
-    scrollTo.mockRestore()
-    vi.useRealTimers()
   })
 })

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { visualViewportBottomGap } from './mobileViewportSettle'
+import { resetMobileViewportAfterKeyboard, visualViewportBottomGap } from './mobileViewportSettle'
 
 describe('visualViewportBottomGap', () => {
   it('returns the layout/visual viewport bottom gap', () => {
@@ -24,5 +24,31 @@ describe('visualViewportBottomGap', () => {
       value: 800,
     })
     expect(visualViewportBottomGap()).toBe(0)
+  })
+})
+
+describe('resetMobileViewportAfterKeyboard', () => {
+  it('restores scroll position repeatedly after keyboard teardown', () => {
+    vi.useFakeTimers()
+    const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
+    Object.defineProperty(document.documentElement, 'scrollTop', {
+      configurable: true,
+      writable: true,
+      value: 0,
+    })
+    Object.defineProperty(document.body, 'scrollTop', {
+      configurable: true,
+      writable: true,
+      value: 0,
+    })
+
+    resetMobileViewportAfterKeyboard(420)
+    expect(scrollTo).toHaveBeenCalledWith({ top: 420, left: 0, behavior: 'instant' })
+
+    vi.runAllTimers()
+    expect(scrollTo.mock.calls.length).toBeGreaterThanOrEqual(4)
+
+    scrollTo.mockRestore()
+    vi.useRealTimers()
   })
 })
