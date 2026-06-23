@@ -51,7 +51,9 @@ import {
   GUEST_MIX_ENTRIES,
 } from '../config/feedSources'
 import { getDesktopSnapshot, subscribeDesktop } from '../config/breakpoints'
+import { useVisualBottomChromeAnchor } from '../hooks/useVisualBottomChromeAnchor'
 import { HOME_PATH, isHandleBoardPath, isHomePath, isMultiColumnGridRoute } from '../lib/routes'
+import { blurDialogFocusAndSyncScroll } from '../lib/mobileViewportSettle'
 import { getPostAppPath } from '../lib/appUrl'
 import { useFeedMix } from '../context/FeedMixContext'
 import { FeedSwipeProvider } from '../context/FeedSwipeContext'
@@ -572,6 +574,10 @@ export default function Layout({ title, children, showNav }: Props) {
   const seenPosts = useSeenPosts()
   const toast = useToast()
   const { messagesPanelOpen, setMessagesPanelOpen, toggleMessagesPanel, activeChat, openChat, closeChat } = useMessages()
+  const anyPopupOpen =
+    isModalOpen || (mobileSearchOpen && !isDesktop) || composeOpen || aboutOpen || settingsOpen || !!activeChat
+  anyPopupOpenRef.current = anyPopupOpen
+  useVisualBottomChromeAnchor(!isDesktop && !anyPopupOpen)
   const previousSessionDidRef = useRef<string | null>(session?.did ?? null)
   const userInitiatedLogoutRef = useRef(false)
   const HOME_HOLD_MS = 500
@@ -1248,8 +1254,6 @@ export default function Layout({ title, children, showNav }: Props) {
   prevNotificationsOpenRef.current = notificationsOpen
 
   /* When any full-screen popup is open, lock body scroll so only the popup scrolls */
-  const anyPopupOpen = isModalOpen || (mobileSearchOpen && !isDesktop) || composeOpen || aboutOpen || settingsOpen || !!activeChat
-  anyPopupOpenRef.current = anyPopupOpen
   const layoutPopupOpen =
     (mobileSearchOpen && !isDesktop) || composeOpen || aboutOpen || settingsOpen || !!activeChat
   useEffect(() => {
@@ -1270,15 +1274,19 @@ export default function Layout({ title, children, showNav }: Props) {
     return () => scrollLock.unlockScroll()
   }, [anyPopupOpen, scrollLock])
 
-  /* After a modal/popup closes, reset nav chrome scroll-hide state. */
+  /* After a modal/popup closes, reset nav chrome and re-sync viewport after keyboard use. */
   const prevAnyPopupOpenRef = useRef(anyPopupOpen)
   useEffect(() => {
     if (prevAnyPopupOpenRef.current && !anyPopupOpen) {
       setMobileNavScrollHidden(false)
-      lastScrollYRef.current = window.scrollY
+      const scrollY = window.scrollY
+      lastScrollYRef.current = scrollY
+      if (!isDesktop) {
+        blurDialogFocusAndSyncScroll(scrollY)
+      }
     }
     prevAnyPopupOpenRef.current = anyPopupOpen
-  }, [anyPopupOpen])
+  }, [anyPopupOpen, isDesktop])
 
   function focusSearch() {
     if (isDesktop) {

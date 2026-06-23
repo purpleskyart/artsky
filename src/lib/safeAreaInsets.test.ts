@@ -2,6 +2,11 @@ import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import {
   estimateIosStandaloneBottomInset,
   estimateIosStandaloneTopInset,
+  applySafeAreaInsets,
+  initSafeAreaInsets,
+  isLikelyKeyboardOpen,
+  measureEnvSafeAreaInsets,
+  resetSessionSafeAreaInsets,
   resolveSafeAreaInsets,
 } from './safeAreaInsets'
 
@@ -97,5 +102,37 @@ describe('bindSafeAreaInsetListeners', () => {
     const { bindSafeAreaInsetListeners } = await import('./safeAreaInsets')
     bindSafeAreaInsetListeners()
     expect(vvAdd).not.toHaveBeenCalled()
+  })
+})
+
+describe('session safe area insets', () => {
+  beforeEach(() => {
+    resetSessionSafeAreaInsets()
+    document.documentElement.style.removeProperty('--app-safe-bottom')
+  })
+
+  it('never decreases bottom inset during the session', () => {
+    applySafeAreaInsets({ top: 0, right: 0, bottom: 34, left: 0 })
+    applySafeAreaInsets({ top: 0, right: 0, bottom: 0, left: 0 })
+    expect(document.documentElement.style.getPropertyValue('--app-safe-bottom')).toBe('34px')
+  })
+
+  it('skips env remeasure while the keyboard is likely open', () => {
+    applySafeAreaInsets({ top: 0, right: 0, bottom: 34, left: 0 })
+    vi.stubGlobal('visualViewport', {
+      offsetTop: 0,
+      height: 400,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    })
+    Object.defineProperty(window, 'innerHeight', {
+      configurable: true,
+      value: 800,
+    })
+    expect(isLikelyKeyboardOpen()).toBe(true)
+    const measured = measureEnvSafeAreaInsets()
+    expect(measured.bottom).toBe(0)
+    initSafeAreaInsets()
+    expect(document.documentElement.style.getPropertyValue('--app-safe-bottom')).toBe('34px')
   })
 })
