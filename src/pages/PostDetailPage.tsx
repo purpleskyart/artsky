@@ -394,15 +394,24 @@ function MediaGallery({
   const lastTapRef = useRef(0)
   const lastClickRef = useRef(0)
   const touchSessionRef = useRef(false)
+  /** Block synthetic clicks after touchEnd; must exceed double-tap window (ghost clicks on mobile). */
+  const TOUCH_GHOST_CLICK_BLOCK_MS = 800
 
   if (items.length === 0) return null
   const firstVideoIndex = autoPlayFirstVideo
     ? items.findIndex((m) => m.type === 'video' && m.videoPlaylist)
     : -1
 
+  const beginTouchSession = () => {
+    touchSessionRef.current = true
+    window.setTimeout(() => {
+      touchSessionRef.current = false
+    }, TOUCH_GHOST_CLICK_BLOCK_MS)
+  }
+
   const handleMediaTouchEnd = (e: React.TouchEvent) => {
     if (!onDoubleTapLike || e.changedTouches.length !== 1) return
-    touchSessionRef.current = true
+    beginTouchSession()
     const now = Date.now()
     if (now - lastTapRef.current < 400) {
       lastTapRef.current = 0
@@ -412,9 +421,6 @@ function MediaGallery({
     } else {
       lastTapRef.current = now
     }
-    window.setTimeout(() => {
-      touchSessionRef.current = false
-    }, 450)
   }
 
   const handleMediaClick = (e: React.MouseEvent) => {
@@ -499,12 +505,14 @@ function MediaGallery({
           }
           const handleImageTouchEnd = (e: React.TouchEvent) => {
             if (!onDoubleTapLike || e.changedTouches.length !== 1) return
+            /* Stop bubbling — parent handleMediaTouchEnd shares lastTapRef and would false-like on single tap. */
+            e.stopPropagation()
+            beginTouchSession()
             const now = Date.now()
             if (now - lastTapRef.current < 400) {
               lastTapRef.current = 0
               lastClickRef.current = now // Block synthetic click from opening lightbox
               e.preventDefault()
-              e.stopPropagation()
               onDoubleTapLike()
             } else {
               lastTapRef.current = now
