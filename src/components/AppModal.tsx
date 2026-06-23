@@ -108,7 +108,7 @@ export default function AppModal({
   const { expanded, setExpanded } = useModalExpand()
 
   const scrollLock = useScrollLock()
-  const keyboardInset = useMobileKeyboardInset(isMobile && isTopModal, {
+  useMobileKeyboardInset(isMobile && isTopModal, {
     containerRef: overlayRef,
   })
   const handleSwipeRight = useCallback(() => {
@@ -411,13 +411,7 @@ export default function AppModal({
   }
 
   const stackZIndex = stackIndex !== undefined ? MODAL_OVERLAY_Z_BASE + stackIndex : undefined
-  const overlayStyle =
-    stackZIndex !== undefined || (isMobile && keyboardInset > 0)
-      ? {
-          ...(stackZIndex !== undefined ? { zIndex: stackZIndex } : {}),
-          ...(isMobile && keyboardInset > 0 ? { bottom: keyboardInset } : {}),
-        }
-      : undefined
+  const overlayStyle = stackZIndex !== undefined ? { zIndex: stackZIndex } : undefined
 
   const modal = (
     <ModalTopBarSlotContext.Provider value={{ centerSlot: topBarSlotEl, rightSlot: topBarRightSlotEl, isMobile }}>

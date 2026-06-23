@@ -22,11 +22,9 @@ export function inferMobileKeyboardInset(): number {
 export function applyModalKeyboardInset(el: HTMLElement | null, inset: number): void {
   if (!el) return
   if (inset > 0) {
-    el.style.bottom = `${inset}px`
     el.style.setProperty(MODAL_KEYBOARD_INSET_VAR, `${inset}px`)
     el.setAttribute(MODAL_KEYBOARD_AWARE_ATTR, '')
   } else {
-    el.style.bottom = ''
     el.style.removeProperty(MODAL_KEYBOARD_INSET_VAR)
     el.removeAttribute(MODAL_KEYBOARD_AWARE_ATTR)
   }

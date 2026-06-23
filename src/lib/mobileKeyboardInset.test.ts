@@ -24,10 +24,9 @@ describe('inferMobileKeyboardInset', () => {
 })
 
 describe('applyModalKeyboardInset', () => {
-  it('sets bottom, CSS var, and keyboard-aware attribute when inset > 0', () => {
+  it('sets CSS var and keyboard-aware attribute when inset > 0', () => {
     const el = document.createElement('div')
     applyModalKeyboardInset(el, 280)
-    expect(el.style.bottom).toBe('280px')
     expect(el.style.getPropertyValue(MODAL_KEYBOARD_INSET_VAR)).toBe('280px')
     expect(el.hasAttribute(MODAL_KEYBOARD_AWARE_ATTR)).toBe(true)
   })
@@ -36,7 +35,6 @@ describe('applyModalKeyboardInset', () => {
     const el = document.createElement('div')
     applyModalKeyboardInset(el, 280)
     applyModalKeyboardInset(el, 0)
-    expect(el.style.bottom).toBe('')
     expect(el.style.getPropertyValue(MODAL_KEYBOARD_INSET_VAR)).toBe('')
     expect(el.hasAttribute(MODAL_KEYBOARD_AWARE_ATTR)).toBe(false)
   })
