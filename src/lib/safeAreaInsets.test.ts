@@ -99,20 +99,3 @@ describe('bindSafeAreaInsetListeners', () => {
     expect(vvAdd).not.toHaveBeenCalled()
   })
 })
-
-describe('restoreMobileLayoutAfterPopup', () => {
-  it('restores scroll position immediately and again after keyboard teardown', async () => {
-    vi.useFakeTimers()
-    const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
-    const { restoreMobileLayoutAfterPopup } = await import('./safeAreaInsets')
-
-    restoreMobileLayoutAfterPopup(420)
-    expect(scrollTo).toHaveBeenCalledWith({ top: 420, left: 0, behavior: 'instant' })
-
-    await vi.runAllTimersAsync()
-    expect(scrollTo.mock.calls.length).toBeGreaterThanOrEqual(3)
-
-    scrollTo.mockRestore()
-    vi.useRealTimers()
-  })
-})

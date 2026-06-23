@@ -15,9 +15,6 @@ import { useSeenPosts } from '../context/SeenPostsContext'
 import { useToast } from '../context/ToastContext'
 import { setFeedSuspendReason } from '../lib/videoPlaybackManager'
 import { gateKeyboardShortcutsForEditable } from '../lib/modalKeyboard'
-import { isMobileKeyboardLikelyOpen } from '../lib/mobileKeyboardInset'
-import { restoreMobileLayoutAfterPopup } from '../lib/safeAreaInsets'
-import { onVirtualKeyboardGeometryChange } from '../lib/virtualKeyboard'
 import LayoutNavItems from './LayoutNavItems'
 import LayoutNotificationsPanel from './LayoutNotificationsPanel'
 import LayoutMessagesPanel, { type MessagesFilter } from './LayoutMessagesPanel'
@@ -54,7 +51,6 @@ import {
   GUEST_MIX_ENTRIES,
 } from '../config/feedSources'
 import { getDesktopSnapshot, subscribeDesktop } from '../config/breakpoints'
-import { useFloatChromeVisualViewportPin } from '../hooks/useFloatChromeVisualViewportPin'
 import { HOME_PATH, isHandleBoardPath, isHomePath, isMultiColumnGridRoute } from '../lib/routes'
 import { getPostAppPath } from '../lib/appUrl'
 import { useFeedMix } from '../context/FeedMixContext'
@@ -558,8 +554,6 @@ export default function Layout({ title, children, showNav }: Props) {
   const [aboutOpen, setAboutOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [searchOverlayBottom, setSearchOverlayBottom] = useState(0)
-  /** Mobile: virtual keyboard shrinks/pans visual viewport — hide bottom nav pill only while it’s open. */
-  const [mobileVirtualKeyboardOpen, setMobileVirtualKeyboardOpen] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const accountBtnRef = useRef<HTMLButtonElement>(null)
   const accountMenuRef = useRef<HTMLDivElement>(null)
@@ -578,15 +572,6 @@ export default function Layout({ title, children, showNav }: Props) {
   const seenPosts = useSeenPosts()
   const toast = useToast()
   const { messagesPanelOpen, setMessagesPanelOpen, toggleMessagesPanel, activeChat, openChat, closeChat } = useMessages()
-  useFloatChromeVisualViewportPin(
-    !isDesktop &&
-      (isModalOpen ||
-        mobileSearchOpen ||
-        composeOpen ||
-        aboutOpen ||
-        settingsOpen ||
-        !!activeChat)
-  )
   const previousSessionDidRef = useRef<string | null>(session?.did ?? null)
   const userInitiatedLogoutRef = useRef(false)
   const HOME_HOLD_MS = 500
@@ -1281,32 +1266,19 @@ export default function Layout({ title, children, showNav }: Props) {
   }, [messagesPanelOpen, activeChat])
   useEffect(() => {
     if (!scrollLock || !anyPopupOpen) return
-    lastScrollYRef.current = window.scrollY
     scrollLock.lockScroll()
     return () => scrollLock.unlockScroll()
   }, [anyPopupOpen, scrollLock])
 
-  /* After a modal/popup closes, reset nav chrome that may have been skewed by keyboard focus. */
+  /* After a modal/popup closes, reset nav chrome scroll-hide state. */
   const prevAnyPopupOpenRef = useRef(anyPopupOpen)
   useEffect(() => {
-    let keyboardTimer: ReturnType<typeof setTimeout> | undefined
     if (prevAnyPopupOpenRef.current && !anyPopupOpen) {
       setMobileNavScrollHidden(false)
-      setMobileVirtualKeyboardOpen(false)
-      const scrollY = window.scrollY
-      lastScrollYRef.current = scrollY
-      if (!isDesktop) {
-        restoreMobileLayoutAfterPopup(scrollY)
-        keyboardTimer = window.setTimeout(() => {
-          setMobileVirtualKeyboardOpen(isMobileKeyboardLikelyOpen())
-        }, 350)
-      }
+      lastScrollYRef.current = window.scrollY
     }
     prevAnyPopupOpenRef.current = anyPopupOpen
-    return () => {
-      if (keyboardTimer !== undefined) window.clearTimeout(keyboardTimer)
-    }
-  }, [anyPopupOpen, isDesktop])
+  }, [anyPopupOpen])
 
   function focusSearch() {
     if (isDesktop) {
@@ -1317,7 +1289,7 @@ export default function Layout({ title, children, showNav }: Props) {
       setSearchOverlayBottom(0)
       requestAnimationFrame(() => {
         setTimeout(() => {
-          searchInputRef.current?.focus({ preventScroll: true })
+          searchInputRef.current?.focus({ preventScroll: false })
         }, 200)
       })
     }
@@ -1334,8 +1306,10 @@ export default function Layout({ title, children, showNav }: Props) {
     }
     update()
     viewport.addEventListener('resize', update)
+    viewport.addEventListener('scroll', update, { passive: true })
     return () => {
       viewport.removeEventListener('resize', update)
+      viewport.removeEventListener('scroll', update)
     }
   }, [mobileSearchOpen, isDesktop])
 
@@ -1343,7 +1317,7 @@ export default function Layout({ title, children, showNav }: Props) {
   useEffect(() => {
     if (!mobileSearchOpen || isDesktop) return
     const id = setTimeout(() => {
-      searchInputRef.current?.focus({ preventScroll: true })
+      searchInputRef.current?.focus({ preventScroll: false })
     }, 100)
     return () => clearTimeout(id)
   }, [mobileSearchOpen, isDesktop])
@@ -1414,53 +1388,6 @@ export default function Layout({ title, children, showNav }: Props) {
       window.removeEventListener('scroll', onScroll)
       if (scrollEndTimerRef.current) clearTimeout(scrollEndTimerRef.current)
     }
-  }, [isDesktop])
-
-  useEffect(() => {
-    if (isDesktop) setMobileVirtualKeyboardOpen(false)
-  }, [isDesktop])
-
-  /* Mobile: detect on-screen keyboard via bottom inset (same as compose/ChatModal).
-   * Do not use offsetTop > threshold alone — iOS keeps offsetTop elevated after dismiss.
-   * Do not listen to visualViewport scroll; it causes sticky false positives with modals. */
-  useEffect(() => {
-    if (isDesktop || typeof window === 'undefined') return
-    const vv = window.visualViewport
-    if (!vv) return
-    const update = () => {
-      setMobileVirtualKeyboardOpen(isMobileKeyboardLikelyOpen())
-    }
-    update()
-    vv.addEventListener('resize', update)
-    document.addEventListener('focusout', update)
-    // Chromium (overlays-content) doesn't fire visualViewport resize for the keyboard.
-    const offGeometry = onVirtualKeyboardGeometryChange(update)
-    return () => {
-      vv.removeEventListener('resize', update)
-      document.removeEventListener('focusout', update)
-      offGeometry()
-    }
-  }, [isDesktop])
-
-  /* Mobile: when focus moves into portaled fixed chrome or keyboard overlays, keep window
-   * scroll pinned — iOS Safari scrolls the layout viewport on focus and breaks position:fixed nav. */
-  useEffect(() => {
-    if (isDesktop || typeof window === 'undefined') return
-    const CHROME_SELECTOR = '[data-fixed-chrome], [data-keyboard-sheet], [data-compose-sheet]'
-    const restoreScroll = () => {
-      const y = lastScrollYRef.current
-      if (window.scrollY !== y) {
-        window.scrollTo({ top: y, left: 0, behavior: 'instant' })
-      }
-    }
-    const onFocusIn = (e: FocusEvent) => {
-      const t = e.target
-      if (!(t instanceof HTMLElement) || !t.closest(CHROME_SELECTOR)) return
-      requestAnimationFrame(restoreScroll)
-      requestAnimationFrame(() => requestAnimationFrame(restoreScroll))
-    }
-    document.addEventListener('focusin', onFocusIn)
-    return () => document.removeEventListener('focusin', onFocusIn)
   }, [isDesktop])
 
   function closeMobileSearch() {
@@ -2255,7 +2182,6 @@ export default function Layout({ title, children, showNav }: Props) {
         <div
           className={`${styles.feedsFloatWrap} feeds-float-wrap ${isModalOpen ? styles.feedsFloatWrapAboveModal : ''} ${mobileNavScrollHidden || (isModalOpen && modalScrollHidden) ? styles.feedsFloatWrapScrollHidden : ''} ${searchModalTopQuery != null ? styles.feedsFloatWrapSearchSlot : ''} ${searchModalTopQuery != null && showFeedStyleSettingsFloat && isModalOpen ? styles.feedsFloatWrapSearchSlotBetweenChrome : ''} ${searchModalTopQuery != null && showFeedStyleSettingsFloat && isModalOpen && showAccountFeedUi ? styles.feedsFloatWrapSearchSlotBetweenChromeRightAccount : ''} ${searchModalTopQuery != null && showFeedStyleSettingsFloat && isModalOpen && !showAccountFeedUi ? styles.feedsFloatWrapSearchSlotBetweenChromeRightGuest : ''}`}
           ref={feedsDropdownRef}
-          data-fixed-chrome
         >
           {searchModalTopQuery != null ? (
             <SearchBar
@@ -2530,7 +2456,7 @@ export default function Layout({ title, children, showNav }: Props) {
           {typeof document !== 'undefined' &&
             createPortal(
               <div
-                className={`${styles.navOuter} nav-outer ${navVisible ? '' : styles.navHidden} ${!isDesktop && mobileVirtualKeyboardOpen ? styles.navOuterKeyboardInset : ''} ${!isDesktop && (mobileNavScrollHidden || (isModalOpen && modalScrollHidden)) ? styles.navOuterScrollHidden : ''}`}
+                className={`${styles.navOuter} nav-outer ${navVisible ? '' : styles.navHidden} ${!isDesktop && (mobileNavScrollHidden || (isModalOpen && modalScrollHidden)) ? styles.navOuterScrollHidden : ''}`}
               >
                 {!isModalOpen && (
                   <button
@@ -2584,7 +2510,7 @@ export default function Layout({ title, children, showNav }: Props) {
                 aria-label="Search"
                 style={{ bottom: searchOverlayBottom }}
               >
-                <div className={styles.searchOverlayCard} data-keyboard-sheet>
+                <div className={styles.searchOverlayCard}>
                   <SearchBar inputRef={searchInputRef} onClose={closeMobileSearch} suggestionsAbove onSelectFeed={handleSelectFeedFromSearch} />
                 </div>
               </div>
@@ -2618,7 +2544,7 @@ export default function Layout({ title, children, showNav }: Props) {
                 onDrop={handleComposeDrop}
                 style={!isDesktop ? { bottom: composeOverlayBottom } : undefined}
               >
-                <div ref={composeCardRef} className={styles.composeCard} data-compose-sheet data-keyboard-sheet onClick={(e) => e.stopPropagation()} onTouchStart={(e) => e.stopPropagation()} onTouchEnd={(e) => e.stopPropagation()}>
+                <div ref={composeCardRef} className={styles.composeCard} data-compose-sheet onClick={(e) => e.stopPropagation()} onTouchStart={(e) => e.stopPropagation()} onTouchEnd={(e) => e.stopPropagation()}>
                   <header className={styles.composeHeader}>
                     <button type="button" className={styles.composeCancel} onClick={closeCompose} disabled={composePosting}>
                       Cancel

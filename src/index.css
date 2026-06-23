@@ -163,11 +163,6 @@ html[data-theme="dark"] {
   --app-safe-left: var(--app-safe-left);
 }
 
-/* CSS-only fallback until inline script runs (max beats env returning 0) */
-html[data-standalone-pwa] {
-  --app-safe-top: max(var(--app-safe-top), 59px);
-}
-
 html {
   /* Safe-area horizontal inset on desktop/notched Mac; mobile uses per-component insets (see below) */
   padding-left: var(--app-safe-left);

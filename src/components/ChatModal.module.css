@@ -12,25 +12,6 @@
     max(1rem, var(--app-safe-bottom)) max(1rem, var(--app-safe-left));
 }
 
-.modalStackRoot {
-  position: fixed;
-  inset: 0;
-  z-index: 1200;
-  pointer-events: none;
-}
-
-.modalViewportScrim {
-  position: fixed;
-  inset: 0;
-  background: var(--surface);
-  pointer-events: none;
-}
-
-.overlayPinned.overlay {
-  z-index: 1;
-  pointer-events: auto;
-}
-
 .backdrop {
   position: absolute;
   inset: 0;
@@ -304,10 +285,6 @@
     padding-left: var(--app-safe-left);
     padding-right: var(--app-safe-right);
     padding-bottom: var(--app-safe-bottom);
-  }
-
-  .overlayKeyboardOpen.overlay {
-    padding-bottom: 0;
   }
 
   .card {

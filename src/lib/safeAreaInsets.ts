@@ -134,21 +134,3 @@ export function bindSafeAreaInsetListeners(): void {
   setTimeout(remeasure, 300)
   setTimeout(remeasure, 1000)
 }
-
-/**
- * Re-stabilize fixed chrome (bottom nav uses `--app-safe-bottom`) after a modal/popup closes.
- * iOS can leave the layout viewport offset after keyboard use; restoring scroll + safe area once
- * env() settles prevents the nav from drifting on subsequent feed scrolls.
- */
-export function restoreMobileLayoutAfterPopup(scrollY?: number): void {
-  if (typeof window === 'undefined') return
-  const y = scrollY ?? window.scrollY
-  window.scrollTo({ top: y, left: 0, behavior: 'instant' })
-  requestAnimationFrame(() => {
-    window.scrollTo({ top: y, left: 0, behavior: 'instant' })
-  })
-  setTimeout(() => {
-    initSafeAreaInsets()
-    window.scrollTo({ top: y, left: 0, behavior: 'instant' })
-  }, 300)
-}
