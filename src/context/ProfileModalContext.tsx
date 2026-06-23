@@ -1,9 +1,22 @@
 import { createContext, lazy, Suspense, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useLocation, useNavigate, type Location } from 'react-router-dom'
 import { ChunkLoadError } from '../components/ChunkLoadError'
-import { HOME_PATH, isHandleBoardPath } from '../lib/routes'
-import { getPostOverlayPath, postUriToQuotesParam, quotesParamToPostUri } from '../lib/appUrl'
-import { getOverlayBackgroundLocation, hasPathOverlayStack, isPostOverlayPath } from '../lib/overlayNavigation'
+import { HOME_PATH } from '../lib/routes'
+import { getOverlayBackgroundLocation, hasPathOverlayStack } from '../lib/overlayNavigation'
+import {
+  clearPostModalScrollPersistence,
+  clearProfileModalScrollPersistence,
+  navigateToOverlay,
+  resolvePostOverlayNavigation,
+  resolveProfileOverlayNavigation,
+} from '../lib/overlayEntry'
+import {
+  modalItemToSearch,
+  modalStackToSearch,
+  parseSearchToModalStack,
+  pathForModalNavigation,
+  type ModalItem,
+} from '../lib/modalStack'
 import { VideoAutoplayBootstrap } from '../components/VideoAutoplayBootstrap'
 import { VideoFeedSuspendSync } from '../components/VideoFeedSuspendSync'
 import { blurEditableOnEscape, getFocusedEditableElement } from '../lib/modalKeyboard'
@@ -14,12 +27,7 @@ const TagModal = lazy(() => import('../components/TagModal'))
 const SearchModal = lazy(() => import('../components/SearchModal'))
 const QuotesModal = lazy(() => import('../components/QuotesModal'))
 
-export type ModalItem =
-  | { type: 'post'; uri: string; openReply?: boolean; focusUri?: string }
-  | { type: 'profile'; handle: string }
-  | { type: 'tag'; tag: string }
-  | { type: 'search'; query: string }
-  | { type: 'quotes'; uri: string }
+export type { ModalItem } from '../lib/modalStack'
 
 type ProfileModalContextValue = {
   openProfileModal: (handle: string) => void
@@ -46,108 +54,6 @@ type ProfileModalContextValue = {
 }
 
 const ProfileModalContext = createContext<ProfileModalContextValue | null>(null)
-
-/**
- * URL ↔ modal stack: single source of truth for all popups.
- * To add a new modal type: add the variant to ModalItem, then in parseSearchToModalStack (read param)
- * and modalItemToSearch (write param). openXxx() just navigates; stack is derived from location.search each render (no lag vs URL).
- * Stack bottom → top: search, tag, profile, post (whichever params exist), e.g. [tag, post] or
- * [search, profile, post] so back restores scroll/position under each layer.
- * Opening a profile from the app uses `?profile=` on the frozen pathname (e.g. `/feed?profile=`) so history stacks
- * like the feed post overlay: push post → POP restores the previous entry with the same mounted modal and scroll.
- * `?quotes=` uses compact `did/rkey` (see postUriToQuotesParam) for shareable URLs; full `at://` still parses.
- */
-function parseSearchToModalStack(search: string): ModalItem[] {
-  const params = new URLSearchParams(search)
-  const forumPostParam = params.get('forumPost')
-  const bskyThreadFromLegacy =
-    forumPostParam && forumPostParam.includes('app.bsky.feed.post') ? forumPostParam : null
-  const postUriParam = params.get('post')
-  const resolvedPostUriRaw = postUriParam ?? bskyThreadFromLegacy
-  const resolvedPostUri =
-    resolvedPostUriRaw && resolvedPostUriRaw.length > 0 ? resolvedPostUriRaw : null
-
-  const searchQueryParam = params.get('search')
-  const tag = params.get('tag')
-  const quotesUri = params.get('quotes')
-  const profileParam = params.get('profile')
-
-  const stack: ModalItem[] = []
-  /* Bottom → top: search → tag → profile → post (must include parents before post or post-only wins and drops parents). */
-  if (searchQueryParam && searchQueryParam.length > 0) {
-    stack.push({ type: 'search', query: searchQueryParam })
-  }
-  if (tag) stack.push({ type: 'tag', tag })
-  if (profileParam) stack.push({ type: 'profile', handle: profileParam })
-
-  if (resolvedPostUri) {
-    const focusUri = params.get('focus') ?? undefined
-    stack.push({
-      type: 'post',
-      uri: resolvedPostUri,
-      openReply: params.get('reply') === '1',
-      focusUri: focusUri ?? undefined,
-    })
-  }
-
-  if (stack.length > 0) return stack
-  if (quotesUri) {
-    const uri = quotesParamToPostUri(quotesUri)
-    if (uri) return [{ type: 'quotes', uri }]
-  }
-  return []
-}
-
-/** Serialize one modal layer into URLSearchParams (single source of truth for encoding). */
-function appendModalItemToSearchParams(p: URLSearchParams, item: ModalItem): void {
-  if (item.type === 'post') {
-    p.set('post', item.uri)
-    if (item.openReply) p.set('reply', '1')
-    if (item.focusUri) p.set('focus', item.focusUri)
-    return
-  }
-  if (item.type === 'tag') {
-    p.set('tag', item.tag)
-    return
-  }
-  if (item.type === 'search') {
-    p.set('search', item.query)
-    return
-  }
-  if (item.type === 'quotes') {
-    p.set('quotes', postUriToQuotesParam(item.uri))
-    return
-  }
-  if (item.type === 'profile') {
-    p.set('profile', item.handle)
-    return
-  }
-}
-
-function modalStackToSearch(stack: ModalItem[]): string {
-  const p = new URLSearchParams()
-  for (const item of stack) {
-    appendModalItemToSearchParams(p, item)
-  }
-  return p.toString()
-}
-
-function modalItemToSearch(item: ModalItem): string {
-  return modalStackToSearch([item])
-}
-
-/**
- * Full-page post URLs use `/profile/:handle/post/:rkey` or encoded `/post/:uri`. Modal stacks encode the
- * post in `?post=`; keeping both would show the path post while query pointed elsewhere — so modal
- * navigation must use home (`/`) when leaving those paths.
- */
-function pathForModalNavigation(pathname: string): string {
-  if (pathname.startsWith('/post/')) return HOME_PATH
-  if (/^\/profile\/[^/]+\/post\//.test(pathname)) return HOME_PATH
-  if (/^\/profile\/[^/]+$/.test(pathname)) return HOME_PATH
-  if (pathname === '/collections' || isHandleBoardPath(pathname)) return HOME_PATH
-  return pathname
-}
 
 /** Preserve frozen underlay (feed scroll) on replace navigations that only change modal query params. */
 function overlayBackgroundNavigateState(loc: Location): { backgroundLocation: Location } | undefined {
@@ -216,167 +122,16 @@ export function ProfileModalProvider({ children }: { children: ReactNode }) {
 
   /** Opens post via URI path with optional `reply` / `focus` query for instant modal resolution. */
   const openPostModal = useCallback((uri: string, openReply?: boolean, focusUri?: string, authorHandle?: string) => {
-    /* Clear saved scroll position so the post always starts at the top when clicked fresh.
-       Scroll restoration should only happen when navigating back via browser back button. */
-    try {
-      sessionStorage.removeItem(`artsky-post-modal-scroll-v1:${encodeURIComponent(uri)}`)
-    } catch {
-      /* ignore storage errors */
-    }
-
-    const bg = getOverlayBackgroundLocation(location)
-    /**
-     * Path-based profile popup (`/profile/h` + backgroundLocation): encode as `?profile=&post=` on the
-     * frozen pathname so the profile modal stays mounted (same idea as feed + post overlay).
-     */
-    const profilePathMatch = /^\/profile\/([^/]+)\/?$/.exec(location.pathname)
-    if (hasPathOverlayStack(location) && profilePathMatch) {
-      const handle = decodeURIComponent(profilePathMatch[1])
-      const rawSearch = bg.search?.replace(/^\?/, '') ?? ''
-      const p = new URLSearchParams(rawSearch)
-      p.set('profile', handle)
-      p.set('post', uri)
-      p.delete('forumPost')
-      if (openReply) p.set('reply', '1')
-      else p.delete('reply')
-      if (focusUri) p.set('focus', focusUri)
-      else p.delete('focus')
-      const qs = p.toString()
-      navigate(
-        { pathname: bg.pathname, search: qs ? `?${qs}` : '', hash: bg.hash ?? '' },
-        { replace: false, state: { backgroundLocation: bg } },
-      )
-      return
-    }
-
-    /**
-     * Path-based post popup (`/post/` or `/profile/h/post/rkey` + backgroundLocation): encode as
-     * `?post=` on the frozen pathname so back pops one history entry to the prior post overlay.
-     */
-    if (hasPathOverlayStack(location) && isPostOverlayPath(location.pathname)) {
-      const rawSearch = bg.search?.replace(/^\?/, '') ?? ''
-      const p = new URLSearchParams(rawSearch)
-      p.set('post', uri)
-      p.delete('forumPost')
-      if (openReply) p.set('reply', '1')
-      else p.delete('reply')
-      if (focusUri) p.set('focus', focusUri)
-      else p.delete('focus')
-      const qs = p.toString()
-      navigate(
-        { pathname: bg.pathname, search: qs ? `?${qs}` : '', hash: bg.hash ?? '' },
-        { replace: false, state: { backgroundLocation: bg } },
-      )
-      return
-    }
-
-    /**
-     * Query modal already showing a post (`?profile=&post=` etc.): push the next post on query
-     * instead of a path overlay so swipe/back pops one entry to the previous post layer.
-     */
-    const existingPostInSearch = new URLSearchParams(location.search).get('post')
-    if (existingPostInSearch && hasPathOverlayStack(location) && !isPostOverlayPath(location.pathname)) {
-      const p = new URLSearchParams(location.search.replace(/^\?/, ''))
-      p.set('post', uri)
-      p.delete('forumPost')
-      if (openReply) p.set('reply', '1')
-      else p.delete('reply')
-      if (focusUri) p.set('focus', focusUri)
-      else p.delete('focus')
-      const qs = p.toString()
-      const frozenBg = getOverlayBackgroundLocation(location)
-      navigate(
-        { pathname: location.pathname, search: qs ? `?${qs}` : '', hash: location.hash },
-        { replace: false, state: { backgroundLocation: frozenBg } },
-      )
-      return
-    }
-
-    /**
-     * Query-based search (`?search=…): push `post=` on the same pathname even when history state
-     * lost `backgroundLocation` (e.g. restore / edge cases). Path-based `/post/` would not match
-     * these stacked query modals.
-     */
-    const searchInSearch = new URLSearchParams(location.search).get('search')
-    if (
-      searchInSearch &&
-      !isPostOverlayPath(location.pathname)
-    ) {
-      const p = new URLSearchParams(location.search.replace(/^\?/, ''))
-      p.set('post', uri)
-      p.delete('forumPost')
-      if (openReply) p.set('reply', '1')
-      else p.delete('reply')
-      if (focusUri) p.set('focus', focusUri)
-      else p.delete('focus')
-      const qs = p.toString()
-      const frozenBg = getOverlayBackgroundLocation(location)
-      navigate(
-        { pathname: location.pathname, search: qs ? `?${qs}` : '', hash: location.hash },
-        { replace: false, state: { backgroundLocation: frozenBg } },
-      )
-      return
-    }
-
-    /**
-     * Query-based tag modal (`?tag=…`): same as search — stack post on query so ProfileModal stack
-     * stays the source of truth (path `/post/` would drop the tag layer).
-     */
-    const tagInSearch = new URLSearchParams(location.search).get('tag')
-    if (
-      tagInSearch &&
-      !isPostOverlayPath(location.pathname)
-    ) {
-      const p = new URLSearchParams(location.search.replace(/^\?/, ''))
-      p.set('post', uri)
-      p.delete('forumPost')
-      if (openReply) p.set('reply', '1')
-      else p.delete('reply')
-      if (focusUri) p.set('focus', focusUri)
-      else p.delete('focus')
-      const qs = p.toString()
-      const frozenBg = getOverlayBackgroundLocation(location)
-      navigate(
-        { pathname: location.pathname, search: qs ? `?${qs}` : '', hash: location.hash },
-        { replace: false, state: { backgroundLocation: frozenBg } },
-      )
-      return
-    }
-
-    const path = getPostOverlayPath(uri, authorHandle)
-    const q = new URLSearchParams()
-    if (openReply) q.set('reply', '1')
-    if (focusUri) q.set('focus', focusUri)
-    const qs = q.toString()
-    navigate(
-      { pathname: path, search: qs ? `?${qs}` : '' },
-      { replace: false, state: { backgroundLocation: bg } }
+    clearPostModalScrollPersistence(uri)
+    navigateToOverlay(
+      navigate,
+      resolvePostOverlayNavigation(location, { uri, openReply, focusUri, authorHandle }),
     )
   }, [navigate, location])
 
   const openProfileModal = useCallback((handle: string) => {
-    const bg = getOverlayBackgroundLocation(location)
-    /* Use path-based routing (/profile/:handle) to match modal overlay routes. */
-    /* Preserve other query params (search, tag) by merging them into the new location. */
-    const p = new URLSearchParams(location.search.replace(/^\?/, ''))
-    p.delete('profile')
-    p.delete('post')
-    p.delete('forumPost')
-    p.delete('reply')
-    p.delete('focus')
-    p.delete('quotes')
-    const qs = p.toString()
-    /* Clear saved scroll position so the profile always starts at the top when clicked fresh.
-       Scroll restoration should only happen when navigating back via browser back button. */
-    try {
-      sessionStorage.removeItem(`artsky-profile-modal-scroll-v1:${encodeURIComponent(handle)}`)
-    } catch {
-      /* ignore storage errors */
-    }
-    navigate(
-      { pathname: `/profile/${encodeURIComponent(handle)}`, search: qs ? `?${qs}` : '', hash: location.hash ?? bg.hash ?? '' },
-      { replace: false, state: { backgroundLocation: bg } },
-    )
+    clearProfileModalScrollPersistence(handle)
+    navigateToOverlay(navigate, resolveProfileOverlayNavigation(location, handle))
   }, [navigate, location])
 
   const openTagModal = useCallback((tag: string) => {
