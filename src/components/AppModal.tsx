@@ -11,6 +11,7 @@ import {
   PULL_THRESHOLD_PX,
 } from '../hooks/usePullToRefresh'
 import { useStandalonePwa } from '../hooks/useStandalonePwa'
+import { useMobileKeyboardInset } from '../hooks/useMobileKeyboardInset'
 import { scrollFieldAboveKeyboard } from '../lib/mobileKeyboardFocus'
 import { getMobileSnapshot, subscribeMobile } from '../config/breakpoints'
 import { gateKeyboardShortcutsForEditable } from '../lib/modalKeyboard'
@@ -107,6 +108,9 @@ export default function AppModal({
   const { expanded, setExpanded } = useModalExpand()
 
   const scrollLock = useScrollLock()
+  const keyboardInset = useMobileKeyboardInset(isMobile && isTopModal, {
+    containerRef: overlayRef,
+  })
   const handleSwipeRight = useCallback(() => {
     if (canGoBack) onBack()
     else onClose()
@@ -407,13 +411,20 @@ export default function AppModal({
   }
 
   const stackZIndex = stackIndex !== undefined ? MODAL_OVERLAY_Z_BASE + stackIndex : undefined
+  const overlayStyle =
+    stackZIndex !== undefined || (isMobile && keyboardInset > 0)
+      ? {
+          ...(stackZIndex !== undefined ? { zIndex: stackZIndex } : {}),
+          ...(isMobile && keyboardInset > 0 ? { bottom: keyboardInset } : {}),
+        }
+      : undefined
 
   const modal = (
     <ModalTopBarSlotContext.Provider value={{ centerSlot: topBarSlotEl, rightSlot: topBarRightSlotEl, isMobile }}>
       <div
         ref={overlayRef}
         className={`${styles.overlay}${!isTopModal ? ` ${styles.overlayStackedUnder}` : ''}${transparentTopBar ? ` ${styles.overlayFlushTop}` : ''}${expanded ? ` ${styles.overlayExpanded}` : ''}`}
-        style={stackZIndex !== undefined ? { zIndex: stackZIndex } : undefined}
+        style={overlayStyle}
         onClick={handleBackdropClick}
         role="dialog"
         aria-modal="true"
