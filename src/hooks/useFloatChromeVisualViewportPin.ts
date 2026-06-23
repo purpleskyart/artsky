@@ -3,7 +3,7 @@ import { isMobileKeyboardLikelyOpen } from '../lib/mobileKeyboardInset'
 
 const FLOAT_CHROME_VV_OFFSET_VAR = '--float-chrome-vv-offset'
 
-/** Pin Layout mobile float chrome (gear, feeds, bell) to the visual viewport while a modal is open. */
+/** Pin Layout mobile float chrome (gear, feeds, bell) to the visual viewport while a modal or layout popup is open. */
 export function useFloatChromeVisualViewportPin(enabled: boolean): void {
   useLayoutEffect(() => {
     if (!enabled || typeof window === 'undefined') return

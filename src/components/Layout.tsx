@@ -484,7 +484,6 @@ export default function Layout({ title, children, showNav }: Props) {
   const showFeedStyleSettingsFloat =
     isHomePath(path) || path === '/collections' || isHandleBoardPath(path)
   const isDesktop = useSyncExternalStore(subscribeDesktop, getDesktopSnapshot, () => false)
-  useFloatChromeVisualViewportPin(!isDesktop && isModalOpen)
   const scrollLock = useScrollLock()
   const [, setAccountSheetOpen] = useState(false)
   const [accountMenuOpen, setAccountMenuOpen] = useState(false)
@@ -579,6 +578,15 @@ export default function Layout({ title, children, showNav }: Props) {
   const seenPosts = useSeenPosts()
   const toast = useToast()
   const { messagesPanelOpen, setMessagesPanelOpen, toggleMessagesPanel, activeChat, openChat, closeChat } = useMessages()
+  useFloatChromeVisualViewportPin(
+    !isDesktop &&
+      (isModalOpen ||
+        mobileSearchOpen ||
+        composeOpen ||
+        aboutOpen ||
+        settingsOpen ||
+        !!activeChat)
+  )
   const previousSessionDidRef = useRef<string | null>(session?.did ?? null)
   const userInitiatedLogoutRef = useRef(false)
   const HOME_HOLD_MS = 500
@@ -1273,6 +1281,7 @@ export default function Layout({ title, children, showNav }: Props) {
   }, [messagesPanelOpen, activeChat])
   useEffect(() => {
     if (!scrollLock || !anyPopupOpen) return
+    lastScrollYRef.current = window.scrollY
     scrollLock.lockScroll()
     return () => scrollLock.unlockScroll()
   }, [anyPopupOpen, scrollLock])
@@ -1308,7 +1317,7 @@ export default function Layout({ title, children, showNav }: Props) {
       setSearchOverlayBottom(0)
       requestAnimationFrame(() => {
         setTimeout(() => {
-          searchInputRef.current?.focus({ preventScroll: false })
+          searchInputRef.current?.focus({ preventScroll: true })
         }, 200)
       })
     }
@@ -1325,10 +1334,8 @@ export default function Layout({ title, children, showNav }: Props) {
     }
     update()
     viewport.addEventListener('resize', update)
-    viewport.addEventListener('scroll', update, { passive: true })
     return () => {
       viewport.removeEventListener('resize', update)
-      viewport.removeEventListener('scroll', update)
     }
   }, [mobileSearchOpen, isDesktop])
 
@@ -1336,7 +1343,7 @@ export default function Layout({ title, children, showNav }: Props) {
   useEffect(() => {
     if (!mobileSearchOpen || isDesktop) return
     const id = setTimeout(() => {
-      searchInputRef.current?.focus({ preventScroll: false })
+      searchInputRef.current?.focus({ preventScroll: true })
     }, 100)
     return () => clearTimeout(id)
   }, [mobileSearchOpen, isDesktop])
@@ -1433,6 +1440,27 @@ export default function Layout({ title, children, showNav }: Props) {
       document.removeEventListener('focusout', update)
       offGeometry()
     }
+  }, [isDesktop])
+
+  /* Mobile: when focus moves into portaled fixed chrome or keyboard overlays, keep window
+   * scroll pinned — iOS Safari scrolls the layout viewport on focus and breaks position:fixed nav. */
+  useEffect(() => {
+    if (isDesktop || typeof window === 'undefined') return
+    const CHROME_SELECTOR = '[data-fixed-chrome], [data-keyboard-sheet], [data-compose-sheet]'
+    const restoreScroll = () => {
+      const y = lastScrollYRef.current
+      if (window.scrollY !== y) {
+        window.scrollTo({ top: y, left: 0, behavior: 'instant' })
+      }
+    }
+    const onFocusIn = (e: FocusEvent) => {
+      const t = e.target
+      if (!(t instanceof HTMLElement) || !t.closest(CHROME_SELECTOR)) return
+      requestAnimationFrame(restoreScroll)
+      requestAnimationFrame(() => requestAnimationFrame(restoreScroll))
+    }
+    document.addEventListener('focusin', onFocusIn)
+    return () => document.removeEventListener('focusin', onFocusIn)
   }, [isDesktop])
 
   function closeMobileSearch() {
@@ -2227,6 +2255,7 @@ export default function Layout({ title, children, showNav }: Props) {
         <div
           className={`${styles.feedsFloatWrap} feeds-float-wrap ${isModalOpen ? styles.feedsFloatWrapAboveModal : ''} ${mobileNavScrollHidden || (isModalOpen && modalScrollHidden) ? styles.feedsFloatWrapScrollHidden : ''} ${searchModalTopQuery != null ? styles.feedsFloatWrapSearchSlot : ''} ${searchModalTopQuery != null && showFeedStyleSettingsFloat && isModalOpen ? styles.feedsFloatWrapSearchSlotBetweenChrome : ''} ${searchModalTopQuery != null && showFeedStyleSettingsFloat && isModalOpen && showAccountFeedUi ? styles.feedsFloatWrapSearchSlotBetweenChromeRightAccount : ''} ${searchModalTopQuery != null && showFeedStyleSettingsFloat && isModalOpen && !showAccountFeedUi ? styles.feedsFloatWrapSearchSlotBetweenChromeRightGuest : ''}`}
           ref={feedsDropdownRef}
+          data-fixed-chrome
         >
           {searchModalTopQuery != null ? (
             <SearchBar
@@ -2555,7 +2584,7 @@ export default function Layout({ title, children, showNav }: Props) {
                 aria-label="Search"
                 style={{ bottom: searchOverlayBottom }}
               >
-                <div className={styles.searchOverlayCard}>
+                <div className={styles.searchOverlayCard} data-keyboard-sheet>
                   <SearchBar inputRef={searchInputRef} onClose={closeMobileSearch} suggestionsAbove onSelectFeed={handleSelectFeedFromSearch} />
                 </div>
               </div>
@@ -2589,7 +2618,7 @@ export default function Layout({ title, children, showNav }: Props) {
                 onDrop={handleComposeDrop}
                 style={!isDesktop ? { bottom: composeOverlayBottom } : undefined}
               >
-                <div ref={composeCardRef} className={styles.composeCard} data-compose-sheet onClick={(e) => e.stopPropagation()} onTouchStart={(e) => e.stopPropagation()} onTouchEnd={(e) => e.stopPropagation()}>
+                <div ref={composeCardRef} className={styles.composeCard} data-compose-sheet data-keyboard-sheet onClick={(e) => e.stopPropagation()} onTouchStart={(e) => e.stopPropagation()} onTouchEnd={(e) => e.stopPropagation()}>
                   <header className={styles.composeHeader}>
                     <button type="button" className={styles.composeCancel} onClick={closeCompose} disabled={composePosting}>
                       Cancel
