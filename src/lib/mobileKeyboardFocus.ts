@@ -6,12 +6,25 @@
  *
  * Inside AppModal, adjusts only the `[data-modal-scroll]` container. The overlay is pinned to
  * the visual viewport via usePinnedModalViewport, so we never call scrollIntoView on the window.
- * Layout compose uses `[data-compose-sheet]`: no scroll adjustment (overlay
- * handles keyboard); avoids centering the field which hides Cancel/Post.
- * Never calls el.scrollIntoView() in that path — on iOS Safari it scrolls
- * the body/window behind the position:fixed overlay, desyncing touch
- * coordinates from where elements visually appear.
+ * Layout overlays (`[data-keyboard-sheet]` / `[data-compose-sheet]`) and portaled fixed chrome
+ * (`[data-fixed-chrome]`) skip window scroll — the overlay handles keyboard inset.
+ * On mobile (<1280px) we never call scrollIntoView on the window: on iOS Safari it scrolls
+ * the body behind position:fixed bottom nav and breaks the nav until scroll is restored.
  */
+const KEYBOARD_SHEET_SELECTOR = '[data-keyboard-sheet], [data-compose-sheet]'
+const FIXED_CHROME_SELECTOR = '[data-fixed-chrome]'
+
+function isMobileViewport(): boolean {
+  return typeof window !== 'undefined' && window.innerWidth < 1280
+}
+
+function usesOverlayKeyboard(el: HTMLElement): boolean {
+  return !!el.closest(KEYBOARD_SHEET_SELECTOR)
+}
+
+function usesFixedChrome(el: HTMLElement): boolean {
+  return !!el.closest(FIXED_CHROME_SELECTOR)
+}
 function getVisibleViewportYBounds(): { top: number; bottom: number } {
   const vv = window.visualViewport
   const pad = 12
@@ -75,14 +88,12 @@ function nudgeCaretPosition(el: HTMLElement) {
 }
 
 function adjustScroll(el: HTMLElement) {
-  if (el.closest('[data-compose-sheet]')) {
-    requestAnimationFrame(() => nudgeCaretPosition(el))
-    return
-  }
   const modalRoot = el.closest('[data-modal-scroll]') as HTMLElement | null
-  if (modalRoot) {
+  if (usesOverlayKeyboard(el) || usesFixedChrome(el)) {
+    // Overlay / fixed chrome handles keyboard; window scroll breaks fixed bottom nav on iOS.
+  } else if (modalRoot) {
     alignFieldInModalScrollRootIterated(el, modalRoot)
-  } else {
+  } else if (!isMobileViewport()) {
     el.scrollIntoView({ block: 'center', behavior: 'auto', inline: 'nearest' })
   }
   requestAnimationFrame(() => nudgeCaretPosition(el))

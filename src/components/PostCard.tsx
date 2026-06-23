@@ -1119,8 +1119,13 @@ function PostCardInner({
                             poster={m.url || undefined}
                             className={styles.replyParentMediaVideo}
                             loop
+                            autoPlay
                             preload="none"
-                            controlsHiddenUntilTap
+                            controls={false}
+                            forceMuted={true}
+                            playbackMode={
+                              collectionGridPlayback ? 'preview' : modalScrollContainer ? 'detail' : 'feed'
+                            }
                             intersectionRoot={modalScrollContainer}
                           />
                         </div>

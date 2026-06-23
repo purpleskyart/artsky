@@ -101,4 +101,33 @@ describe('scrollFieldAboveKeyboard', () => {
 
     expect(scrollRoot.scrollTop).toBe(800)
   })
+
+  it('does not call scrollIntoView for keyboard sheet fields on mobile', async () => {
+    Object.defineProperty(window, 'innerWidth', { value: 390, configurable: true })
+    const scrollIntoView = vi.fn()
+    HTMLElement.prototype.scrollIntoView = scrollIntoView
+    const sheet = document.createElement('div')
+    sheet.setAttribute('data-keyboard-sheet', '')
+    const input = document.createElement('input')
+    sheet.appendChild(input)
+    document.body.appendChild(sheet)
+
+    scrollFieldAboveKeyboard(input)
+    await flushRaf()
+
+    expect(scrollIntoView).not.toHaveBeenCalled()
+  })
+
+  it('does not call scrollIntoView for any field on mobile outside modals', async () => {
+    Object.defineProperty(window, 'innerWidth', { value: 390, configurable: true })
+    const scrollIntoView = vi.fn()
+    HTMLElement.prototype.scrollIntoView = scrollIntoView
+    const input = document.createElement('input')
+    document.body.appendChild(input)
+
+    scrollFieldAboveKeyboard(input)
+    await flushRaf()
+
+    expect(scrollIntoView).not.toHaveBeenCalled()
+  })
 })
