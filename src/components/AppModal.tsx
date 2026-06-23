@@ -11,6 +11,7 @@ import {
   PULL_THRESHOLD_PX,
 } from '../hooks/usePullToRefresh'
 import { useStandalonePwa } from '../hooks/useStandalonePwa'
+import { scrollFieldAboveKeyboard } from '../lib/mobileKeyboardFocus'
 import { getMobileSnapshot, subscribeMobile } from '../config/breakpoints'
 import { gateKeyboardShortcutsForEditable } from '../lib/modalKeyboard'
 import styles from './PostDetailModal.module.css'
@@ -120,6 +121,38 @@ export default function AppModal({
     scrollLock?.lockScroll()
     return () => scrollLock?.unlockScroll()
   }, [scrollLock])
+
+  /* Mobile: keep focused inputs above the keyboard without scrolling the feed behind the overlay. */
+  useEffect(() => {
+    if (!isMobile || !isTopModal || !scrollElement) return
+    let keyboardScrollCleanup: (() => void) | null = null
+    const onFocusIn = (e: FocusEvent) => {
+      const t = e.target
+      if (!(t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement)) return
+      if (t.type === 'file' || t.type === 'hidden' || t.disabled) return
+      keyboardScrollCleanup?.()
+      keyboardScrollCleanup = scrollFieldAboveKeyboard(t)
+    }
+    const onFocusOut = (e: FocusEvent) => {
+      const next = e.relatedTarget
+      if (
+        next instanceof HTMLInputElement ||
+        next instanceof HTMLTextAreaElement ||
+        next instanceof HTMLSelectElement
+      ) {
+        return
+      }
+      keyboardScrollCleanup?.()
+      keyboardScrollCleanup = null
+    }
+    scrollElement.addEventListener('focusin', onFocusIn)
+    scrollElement.addEventListener('focusout', onFocusOut)
+    return () => {
+      scrollElement.removeEventListener('focusin', onFocusIn)
+      scrollElement.removeEventListener('focusout', onFocusOut)
+      keyboardScrollCleanup?.()
+    }
+  }, [isMobile, isTopModal, scrollElement])
 
   /* Mobile pull-to-refresh: propagate pull offset to Layout floating buttons (gear, feeds, notification)
      which live outside the modal portal but should move with the pull. */
