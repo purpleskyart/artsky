@@ -203,12 +203,6 @@ body {
 
 /* Mobile: edge-to-edge layout; safe areas handled by header, nav, and page padding (not html/body) */
 @media (max-width: 1279px) {
-  :root {
-    /* Corner floats use the notch “ears”; center Feeds pill keeps a minimal Dynamic Island gap */
-    --mobile-float-corner-top: max(var(--space-sm), calc(var(--app-safe-top) - 2.75rem));
-    --mobile-float-center-top: max(var(--space-sm), calc(var(--app-safe-top) - 0.5rem));
-  }
-
   html {
     background: var(--bg);
     padding-left: 0;

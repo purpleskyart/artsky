@@ -86,52 +86,19 @@ export function resolveSafeAreaInsets(measured: SafeAreaInsets): SafeAreaInsets 
   return { ...measured, top, bottom }
 }
 
-/** Largest insets seen this session — env() can report 0 while the keyboard is open. */
-let sessionSafeAreaInsets: SafeAreaInsets | null = null
-
-export function isLikelyKeyboardOpen(): boolean {
-  if (typeof window === 'undefined') return false
-  const vv = window.visualViewport
-  if (!vv) return false
-  return window.innerHeight - vv.offsetTop - vv.height > 120
-}
-
-function mergeMonotonicInsets(next: SafeAreaInsets): SafeAreaInsets {
-  if (!sessionSafeAreaInsets) {
-    sessionSafeAreaInsets = next
-    return next
-  }
-  sessionSafeAreaInsets = {
-    top: Math.max(next.top, sessionSafeAreaInsets.top),
-    right: Math.max(next.right, sessionSafeAreaInsets.right),
-    bottom: Math.max(next.bottom, sessionSafeAreaInsets.bottom),
-    left: Math.max(next.left, sessionSafeAreaInsets.left),
-  }
-  return sessionSafeAreaInsets
-}
-
-export function resetSessionSafeAreaInsets(): void {
-  sessionSafeAreaInsets = null
-}
-
 export function applySafeAreaInsets(insets: SafeAreaInsets): void {
   if (typeof document === 'undefined') return
-  const stable = mergeMonotonicInsets(insets)
   const html = document.documentElement
-  html.style.setProperty(SAFE_AREA_CSS_VARS.top, `${stable.top}px`)
-  html.style.setProperty(SAFE_AREA_CSS_VARS.right, `${stable.right}px`)
-  html.style.setProperty(SAFE_AREA_CSS_VARS.bottom, `${stable.bottom}px`)
-  html.style.setProperty(SAFE_AREA_CSS_VARS.left, `${stable.left}px`)
+  html.style.setProperty(SAFE_AREA_CSS_VARS.top, `${insets.top}px`)
+  html.style.setProperty(SAFE_AREA_CSS_VARS.right, `${insets.right}px`)
+  html.style.setProperty(SAFE_AREA_CSS_VARS.bottom, `${insets.bottom}px`)
+  html.style.setProperty(SAFE_AREA_CSS_VARS.left, `${insets.left}px`)
 }
 
 /** Measure env() values and publish --app-safe-* (with iOS standalone top fallback). */
 export function initSafeAreaInsets(): SafeAreaInsets {
   if (typeof document === 'undefined') {
     return { top: 0, right: 0, bottom: 0, left: 0 }
-  }
-  if (isLikelyKeyboardOpen() && sessionSafeAreaInsets) {
-    applySafeAreaInsets(sessionSafeAreaInsets)
-    return sessionSafeAreaInsets
   }
   const html = document.documentElement
   if (isStandalonePwa()) {
@@ -161,7 +128,6 @@ export function bindSafeAreaInsetListeners(): void {
   listenersBound = true
   const remeasure = () => initSafeAreaInsets()
   window.addEventListener('orientationchange', () => {
-    resetSessionSafeAreaInsets()
     setTimeout(remeasure, 100)
   })
   // Catch late env() availability without reacting to keyboard / toolbar viewport changes.
