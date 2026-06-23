@@ -403,7 +403,7 @@
     max-height: 100%;
   }
   .scroll {
-    padding-bottom: calc(var(--nav-height) + var(--app-safe-bottom));
+    padding-bottom: calc(var(--nav-height) + var(--app-safe-bottom) + var(--modal-keyboard-inset, 0px));
   }
   /* Transparent bar on mobile: keep at top */
   .modalTopBarTransparent {
@@ -412,6 +412,6 @@
   }
   .scrollWithTransparentBar {
     padding-top: 0;
-    padding-bottom: calc(var(--nav-height) + var(--app-safe-bottom));
+    padding-bottom: calc(var(--nav-height) + var(--app-safe-bottom) + var(--modal-keyboard-inset, 0px));
   }
 }

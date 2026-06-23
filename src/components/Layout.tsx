@@ -51,6 +51,7 @@ import {
   GUEST_MIX_ENTRIES,
 } from '../config/feedSources'
 import { getDesktopSnapshot, subscribeDesktop } from '../config/breakpoints'
+import { useMobileKeyboardInset } from '../hooks/useMobileKeyboardInset'
 import { HOME_PATH, isHandleBoardPath, isHomePath, isMultiColumnGridRoute } from '../lib/routes'
 import { getPostAppPath } from '../lib/appUrl'
 import { useFeedMix } from '../context/FeedMixContext'
@@ -526,10 +527,7 @@ export default function Layout({ title, children, showNav }: Props) {
   const unreadCountInitialFetchDoneRef = useRef(false)
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false)
   const [composeOpen, setComposeOpen] = useState(false)
-  const [composeOverlayBottom, setComposeOverlayBottom] = useState(0)
   const [_composeFieldFocused, setComposeFieldFocused] = useState(false)
-  /** Mobile compose: once the real keyboard has shown, use actual inset; before that, reserve a typical gap so first paint matches post-focus layout. */
-  const composeKeyboardUsedRef = useRef(false)
   /** Track when file picker is opening to prevent modal from jumping when keyboard hides */
   const composeFilePickerOpeningRef = useRef(false)
   const [composeSegments, setComposeSegments] = useState<ComposeSegment[]>([{ id: Math.random().toString(36).slice(2), text: '', images: [], imageAlts: [] }])
@@ -540,6 +538,11 @@ export default function Layout({ title, children, showNav }: Props) {
   const composeFormRef = useRef<HTMLFormElement>(null)
   const composeOverlayRef = useRef<HTMLDivElement>(null)
   const composeCardRef = useRef<HTMLDivElement>(null)
+  const composeKeyboardInset = useMobileKeyboardInset(composeOpen && !isDesktop, {
+    reserveImmediately: true,
+    containerRef: composeOverlayRef,
+    shouldSkipUpdate: () => composeFilePickerOpeningRef.current,
+  })
   const composeOpenTimestampRef = useRef<number>(0)
   const [_composeBackdropClickable, setComposeBackdropClickable] = useState(false)
   const currentSegment = composeSegments[composeSegmentIndex] ?? { text: '', images: [], imageAlts: [] }
@@ -1322,44 +1325,6 @@ export default function Layout({ title, children, showNav }: Props) {
     return () => clearTimeout(id)
   }, [mobileSearchOpen, isDesktop])
 
-  /* Keyboard inset for compose: resize only (same as AppModal). Listening to
-   * visualViewport scroll makes `offsetTop` track iOS viewport panning and
-   * spikes `bottom` on the fixed overlay so the sheet jumps too high.
-   * Until the keyboard is visible, reserve a typical inset so the sheet does not
-   * start at the full-viewport bottom then jump when the field is focused. */
-  useEffect(() => {
-    if (!composeOpen || isDesktop || typeof window === 'undefined') return
-    const vv = window.visualViewport
-    if (!vv) return
-    const viewport = vv
-    function estimatedKeyboardInset(): number {
-      // Use visualViewport.height for stable viewport on mobile
-      const h = viewport.height || window.innerHeight
-      return Math.min(340, Math.max(200, Math.round(h * 0.35)))
-    }
-    function update() {
-      // Skip updates when file picker is opening to prevent modal jumping
-      if (composeFilePickerOpeningRef.current) return
-      const inferred = Math.max(
-        0,
-        Math.round(window.innerHeight - (viewport.offsetTop + viewport.height))
-      )
-      if (inferred > 72) {
-        composeKeyboardUsedRef.current = true
-        setComposeOverlayBottom(inferred)
-      } else if (!composeKeyboardUsedRef.current) {
-        setComposeOverlayBottom(estimatedKeyboardInset())
-      } else {
-        setComposeOverlayBottom(0)
-      }
-    }
-    update()
-    viewport.addEventListener('resize', update)
-    return () => {
-      viewport.removeEventListener('resize', update)
-    }
-  }, [composeOpen, isDesktop])
-
   /* Mobile: hide bottom nav when scrolling down; show when scrolling up or when scroll stops. Also collapse gear expandable on scroll. */
   useEffect(() => {
     if (typeof window === 'undefined' || isDesktop) return
@@ -1448,7 +1413,6 @@ export default function Layout({ title, children, showNav }: Props) {
     setComposeSegments([{ id: Math.random().toString(36).slice(2), text: '', images: [], imageAlts: [], hasSpoiler: false, mediaSensitive: false }])
     setComposeSegmentIndex(0)
     setComposeError(null)
-    composeKeyboardUsedRef.current = false
     // Allow backdrop to be clickable after 300ms to prevent immediate closure
     setTimeout(() => setComposeBackdropClickable(true), 300)
   }
@@ -2542,7 +2506,7 @@ export default function Layout({ title, children, showNav }: Props) {
                 onKeyDown={(e) => { if (e.key === 'Escape') closeCompose() }}
                 onDragOver={handleComposeDragOver}
                 onDrop={handleComposeDrop}
-                style={!isDesktop ? { bottom: composeOverlayBottom } : undefined}
+                style={!isDesktop ? { bottom: composeKeyboardInset } : undefined}
               >
                 <div ref={composeCardRef} className={styles.composeCard} data-compose-sheet onClick={(e) => e.stopPropagation()} onTouchStart={(e) => e.stopPropagation()} onTouchEnd={(e) => e.stopPropagation()}>
                   <header className={styles.composeHeader}>

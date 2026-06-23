@@ -68,7 +68,7 @@ function nudgeCaretPosition(el: HTMLElement) {
 }
 
 function adjustScroll(el: HTMLElement) {
-  if (el.closest('[data-compose-sheet]')) {
+  if (el.closest('[data-compose-sheet]') || el.closest('[data-modal-keyboard-aware]')) {
     requestAnimationFrame(() => nudgeCaretPosition(el))
     return
   }
