@@ -1,5 +1,4 @@
 import { createContext, useCallback, useContext, useMemo, useRef, type ReactNode } from 'react'
-import { blurDialogFocusAndSyncScroll } from '../lib/mobileViewportSettle'
 
 type ScrollLockContextValue = {
   lockScroll: () => void
@@ -23,14 +22,12 @@ export function ScrollLockProvider({ children }: { children: ReactNode }) {
     scrollGuardRef.current = guard
     guard()
     window.addEventListener('scroll', guard, { passive: true })
-    window.visualViewport?.addEventListener('scroll', guard, { passive: true })
   }, [])
 
   const detachScrollGuard = useCallback(() => {
     const guard = scrollGuardRef.current
     if (!guard) return
     window.removeEventListener('scroll', guard)
-    window.visualViewport?.removeEventListener('scroll', guard)
     scrollGuardRef.current = null
   }, [])
 
@@ -58,7 +55,7 @@ export function ScrollLockProvider({ children }: { children: ReactNode }) {
       document.documentElement.style.overflow = ''
       document.documentElement.style.overscrollBehavior = ''
       document.body.style.overscrollBehavior = ''
-      blurDialogFocusAndSyncScroll(scrollPositionRef.current)
+      window.scrollTo({ top: scrollPositionRef.current, left: 0, behavior: 'instant' })
     }
   }, [detachScrollGuard])
 
