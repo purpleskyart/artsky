@@ -1141,22 +1141,6 @@ button.logoLink {
   z-index: 1101;
 }
 
-/* Mobile: pin float chrome to the visual viewport while a modal is open (iOS keyboard pans layout viewport). */
-@media (max-width: 1279px) {
-  .feedsFloatWrapAboveModal.feedsFloatWrap {
-    top: calc(max(var(--space-md), var(--app-safe-top)) + var(--float-chrome-vv-offset, 0px));
-  }
-
-  .gearFloatWrap.gearFloatWrapModalOpen {
-    top: calc(max(var(--space-md), var(--app-safe-top)) + var(--float-chrome-vv-offset, 0px));
-  }
-
-  .notificationFloatWrapAboveModal.notificationFloatWrap,
-  .loginFloatWrapAboveModal.loginFloatWrap {
-    top: calc(max(var(--space-md), var(--app-safe-top)) + var(--float-chrome-vv-offset, 0px));
-  }
-}
-
 .feedsFloatBtn {
   display: inline-flex;
   align-items: center;
@@ -2414,12 +2398,6 @@ button.logoLink {
   transform: translateZ(0);
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
-}
-
-/* Visual Viewport API (Layout): hide the nav pill while the on-screen keyboard is open (feed and modals). */
-.navOuter.navOuterKeyboardInset .nav {
-  opacity: 0;
-  pointer-events: none;
 }
 
 .navOuter > .nav {

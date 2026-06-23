@@ -11,8 +11,6 @@ import {
   PULL_THRESHOLD_PX,
 } from '../hooks/usePullToRefresh'
 import { useStandalonePwa } from '../hooks/useStandalonePwa'
-import { usePinnedModalViewport } from '../hooks/usePinnedModalViewport'
-import { scrollFieldAboveKeyboard } from '../lib/mobileKeyboardFocus'
 import { getMobileSnapshot, subscribeMobile } from '../config/breakpoints'
 import { gateKeyboardShortcutsForEditable } from '../lib/modalKeyboard'
 import styles from './PostDetailModal.module.css'
@@ -96,8 +94,6 @@ export default function AppModal({
   const isMobile = useSyncExternalStore(subscribeMobile, getMobileSnapshot, () => false)
   const isStandalonePwa = useStandalonePwa()
   const [isRestoringScroll, setIsRestoringScroll] = useState(false)
-  const pinViewport = isMobile && isTopModal
-  const { keyboardOpen } = usePinnedModalViewport(overlayRef, pinViewport)
   const pullRefresh = usePullToRefresh({
     scrollRef,
     touchTargetRef: scrollRef,
@@ -124,38 +120,6 @@ export default function AppModal({
     scrollLock?.lockScroll()
     return () => scrollLock?.unlockScroll()
   }, [scrollLock])
-
-  /* Mobile: keep focused inputs above the keyboard without scrolling the feed behind the overlay. */
-  useEffect(() => {
-    if (!isMobile || !isTopModal || !scrollElement) return
-    let keyboardScrollCleanup: (() => void) | null = null
-    const onFocusIn = (e: FocusEvent) => {
-      const t = e.target
-      if (!(t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement)) return
-      if (t.type === 'file' || t.type === 'hidden' || t.disabled) return
-      keyboardScrollCleanup?.()
-      keyboardScrollCleanup = scrollFieldAboveKeyboard(t)
-    }
-    const onFocusOut = (e: FocusEvent) => {
-      const next = e.relatedTarget
-      if (
-        next instanceof HTMLInputElement ||
-        next instanceof HTMLTextAreaElement ||
-        next instanceof HTMLSelectElement
-      ) {
-        return
-      }
-      keyboardScrollCleanup?.()
-      keyboardScrollCleanup = null
-    }
-    scrollElement.addEventListener('focusin', onFocusIn)
-    scrollElement.addEventListener('focusout', onFocusOut)
-    return () => {
-      scrollElement.removeEventListener('focusin', onFocusIn)
-      scrollElement.removeEventListener('focusout', onFocusOut)
-      keyboardScrollCleanup?.()
-    }
-  }, [isMobile, isTopModal, scrollElement])
 
   /* Mobile pull-to-refresh: propagate pull offset to Layout floating buttons (gear, feeds, notification)
      which live outside the modal portal but should move with the pull. */
@@ -389,9 +353,8 @@ export default function AppModal({
     <ModalTopBarSlotContext.Provider value={{ centerSlot: topBarSlotEl, rightSlot: topBarRightSlotEl, isMobile }}>
       <div
         ref={overlayRef}
-        className={`${styles.overlay}${!isTopModal ? ` ${styles.overlayStackedUnder}` : ''}${transparentTopBar ? ` ${styles.overlayFlushTop}` : ''}${expanded ? ` ${styles.overlayExpanded}` : ''}${keyboardOpen ? ` ${styles.overlayKeyboardOpen}` : ''}${pinViewport ? ` ${styles.overlayPinned}` : ''}`}
-        data-keyboard-open={keyboardOpen || undefined}
-        style={!pinViewport && stackZIndex !== undefined ? { zIndex: stackZIndex } : undefined}
+        className={`${styles.overlay}${!isTopModal ? ` ${styles.overlayStackedUnder}` : ''}${transparentTopBar ? ` ${styles.overlayFlushTop}` : ''}${expanded ? ` ${styles.overlayExpanded}` : ''}`}
+        style={stackZIndex !== undefined ? { zIndex: stackZIndex } : undefined}
         onClick={handleBackdropClick}
         role="dialog"
         aria-modal="true"
@@ -476,16 +439,6 @@ export default function AppModal({
       </div>
     </ModalTopBarSlotContext.Provider>
   )
-
-  if (pinViewport) {
-    return createPortal(
-      <div className={styles.modalStackRoot} style={stackZIndex !== undefined ? { zIndex: stackZIndex } : undefined}>
-        {keyboardOpen && <div className={styles.modalViewportScrim} aria-hidden />}
-        {modal}
-      </div>,
-      document.body
-    )
-  }
 
   return createPortal(modal, document.body)
 }

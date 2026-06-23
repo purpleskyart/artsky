@@ -9,7 +9,6 @@ import {
 import { createPortal } from 'react-dom'
 import type { AppBskyActorDefs } from '@atproto/api'
 import { searchActorsTypeahead, searchPostsByTag } from '../lib/bsky'
-import { scrollFieldAboveKeyboard } from '../lib/mobileKeyboardFocus'
 import { resizedAvatarUrl } from '../lib/imageUtils'
 import styles from './ComposerSuggestions.module.css'
 
@@ -96,7 +95,6 @@ export default function ComposerSuggestions({
   const [dropdownAtCaret, setDropdownAtCaret] = useState<{ top: number; left: number; placement?: 'above' | 'below' } | null>(null)
   const triggerRef = useRef<{ trigger: TriggerKind; query: string; startIndex: number } | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const keyboardScrollCleanupRef = useRef<(() => void) | null>(null)
 
   const triggerAtCursor = useMemo(
     () => getTriggerAtCursor(value, cursor),
@@ -248,24 +246,15 @@ export default function ComposerSuggestions({
     syncCursor()
   }, [syncCursor])
 
-  const handleFocus = useCallback((e: React.FocusEvent<HTMLTextAreaElement>) => {
-    // AppModal delegates keyboard scroll for `[data-modal-scroll]` fields; compose sheet only needs caret nudge.
-    if (e.currentTarget.closest('[data-compose-sheet]')) {
-      keyboardScrollCleanupRef.current?.()
-      keyboardScrollCleanupRef.current = scrollFieldAboveKeyboard(e.currentTarget)
-    }
+  const handleFocus = useCallback(() => {
     onFocusProp?.()
   }, [onFocusProp])
 
   const handleBlur = useCallback(() => {
-    keyboardScrollCleanupRef.current?.()
-    keyboardScrollCleanupRef.current = null
     setOpen(false)
     setSuggestions([])
     onBlurProp?.()
   }, [onBlurProp])
-
-  useEffect(() => () => keyboardScrollCleanupRef.current?.(), [])
 
   useEffect(() => {
     if (!open || !listRef.current) return
