@@ -1,5 +1,5 @@
 import { useRef, useEffect, useLayoutEffect, useState, useCallback, useMemo, memo, useSyncExternalStore } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useLocation } from 'react-router-dom'
 import { getPostMediaInfoForDisplay, getPostAllMediaForDisplay, getPostExternalLink, getReplyParentPostView, getQuotedPostView, POST_MEDIA_FEED_PREVIEW, likePostWithLifecycle, unlikePostWithLifecycle, followAccountWithLifecycle, getFeedItemRepostedAt, getFeedItemRepostRecordUri, type TimelineItem } from '../lib/bsky'
 import {
   resolveMediaAspect,
@@ -13,8 +13,7 @@ import { useLikeOverrideForUri } from '../context/LikeOverridesContext'
 import { usePostCardDisplayContext, type PostCardDisplayContext } from '../hooks/usePostCardDisplayContext'
 import CollectionSaveMenu from './CollectionSaveMenu'
 import { setInitialPostForUri } from '../lib/postCache'
-import { getPostOverlayPath } from '../lib/appUrl'
-import { getOverlayBackgroundLocation, hasPathOverlayStack } from '../lib/overlayNavigation'
+import { hasPathOverlayStack } from '../lib/overlayNavigation'
 import { useModalScroll } from '../context/ModalScrollContext'
 import { preloadPostOpen } from '../lib/modalPreload'
 import { getProgressiveImageDefaults } from '../lib/imageUtils'
@@ -152,7 +151,6 @@ function PostCardInner({
   const TOUCH_GHOST_CLICK_BLOCK_MS = 800
   const MEDIA_CLICK_DOUBLE_TAP_WINDOW_MS = TOUCH_DOUBLE_TAP_WINDOW_MS
 
-  const navigate = useNavigate()
   const { openLoginModal } = useLoginModal()
   const {
     artOnly,
@@ -665,7 +663,7 @@ function PostCardInner({
     return () => observer.disconnect()
   }, [hasMedia, post.uri, isRevealed, setUnblurred, modalScrollRef])
 
-  /** Open post in modal (profile page) or navigate to feed with post param (other pages). Same behavior as when onPostClick is provided. */
+  /** Open post overlay via unified entry (path vs query decided in overlayEntry). */
   const openPostInModalOrFeed = useCallback(() => {
     preloadPostOpen(post.uri)
     /* Mobile: touch unblur runs before paint; synthetic click can fire after nsfwBlurred is already false — suppress opening. */
@@ -681,21 +679,13 @@ function PostCardInner({
       onPostClick(post.uri, { initialItem: item })
       return
     }
-    if (location.pathname.startsWith('/profile/')) {
-      setInitialPostForUri(post.uri, item)
-      openPostModal(post.uri, undefined, undefined, post.author.handle)
-    } else {
-      setInitialPostForUri(post.uri, item)
-      const path = getPostOverlayPath(post.uri, post.author?.handle)
-      navigate(path, { state: { backgroundLocation: getOverlayBackgroundLocation(location) } })
-    }
+    setInitialPostForUri(post.uri, item)
+    openPostModal(post.uri, undefined, undefined, post.author?.handle)
   }, [
     onPostClick,
     post.uri,
     post.author?.handle,
     item,
-    navigate,
-    location,
     openPostModal,
     nsfwBlurred,
     onNsfwUnblur,
@@ -759,15 +749,9 @@ function PostCardInner({
       })
       return
     }
-    if (location.pathname.startsWith('/profile/')) {
-      setInitialPostForUri(replyParentPost.uri, { post: replyParentPost })
-      openPostModal(replyParentPost.uri, undefined, undefined, replyParentPost.author.handle)
-    } else {
-      setInitialPostForUri(replyParentPost.uri, { post: replyParentPost })
-      const path = getPostOverlayPath(replyParentPost.uri, replyParentPost.author?.handle)
-      navigate(path, { state: { backgroundLocation: getOverlayBackgroundLocation(location) } })
-    }
-  }, [replyParentPost, onPostClick, location, openPostModal, navigate])
+    setInitialPostForUri(replyParentPost.uri, { post: replyParentPost })
+    openPostModal(replyParentPost.uri, undefined, undefined, replyParentPost.author?.handle)
+  }, [replyParentPost, onPostClick, openPostModal])
 
   const openQuotedPost = useCallback(() => {
     if (!quotedPost) return
@@ -779,15 +763,9 @@ function PostCardInner({
       })
       return
     }
-    if (location.pathname.startsWith('/profile/')) {
-      setInitialPostForUri(quotedPost.uri, { post: quotedPost })
-      openPostModal(quotedPost.uri, undefined, undefined, quotedPost.author.handle)
-    } else {
-      setInitialPostForUri(quotedPost.uri, { post: quotedPost })
-      const path = getPostOverlayPath(quotedPost.uri, quotedPost.author?.handle)
-      navigate(path, { state: { backgroundLocation: getOverlayBackgroundLocation(location) } })
-    }
-  }, [quotedPost, onPostClick, location, openPostModal, navigate])
+    setInitialPostForUri(quotedPost.uri, { post: quotedPost })
+    openPostModal(quotedPost.uri, undefined, undefined, quotedPost.author?.handle)
+  }, [quotedPost, onPostClick, openPostModal])
 
   const handleMediaDoubleTapLike = useCallback(() => {
     if (!sessionDid) {
