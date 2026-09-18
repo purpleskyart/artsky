@@ -115,10 +115,12 @@ export default function AppModal({
     if (canGoBack) onBack()
     else onClose()
   }, [canGoBack, onBack, onClose])
+  const paneRef = useRef<HTMLDivElement>(null)
   const swipe = useSwipeToClose({
     enabled: isMobile && isTopModal,
     onSwipeLeft,
     onSwipeRight: handleSwipeRight,
+    targetRef: paneRef,
   })
 
   useEffect(() => {
@@ -425,11 +427,9 @@ export default function AppModal({
         aria-label={ariaLabel}
       >
         <div
+          ref={paneRef}
           className={`${styles.pane}${swipe.isReturning ? ` ${styles.paneSwipeReturning}` : ''}${transparentTopBar ? ` ${styles.paneNoRightBorder}` : ''}${compact ? ` ${styles.paneCompact}` : ''}${expanded ? ` ${styles.paneExpanded}` : ''}${feedBackground ? ` ${styles.paneFeedBackground}` : ''}`}
           style={swipe.style}
-          onTouchStart={swipe.onTouchStart}
-          onTouchMove={swipe.onTouchMove}
-          onTouchEnd={swipe.onTouchEnd}
           onClick={(e) => e.stopPropagation()}
         >
           {onPullToRefresh && isMobile && isStandalonePwa && (
@@ -492,6 +492,7 @@ export default function AppModal({
               onTouchStart={pullRefresh.onTouchStart}
               onTouchMove={pullRefresh.onTouchMove}
               onTouchEnd={pullRefresh.onTouchEnd}
+              onTouchCancel={pullRefresh.onTouchCancel}
               style={{ visibility: isRestoringScroll ? 'hidden' : 'visible' }}
             >
               <ModalScrollProvider scrollElement={scrollElement}>

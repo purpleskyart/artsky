@@ -201,13 +201,15 @@ export class ResponseCache {
   
   /**
    * Remove expired entries
-   * 
+   *
    * Useful for periodic cleanup to prevent memory leaks.
+   * Uses the same expiry rule as {@link get}: entries inside their stale-while-revalidate
+   * window are still servable, so prune must not evict them early.
    */
   prune(): void {
     const now = Date.now()
     for (const [key, entry] of this.cache.entries()) {
-      if (now - entry.timestamp > entry.ttl) {
+      if (now - entry.timestamp > entry.ttl + (entry.staleWhileRevalidate ?? 0)) {
         this.cache.delete(key)
       }
     }

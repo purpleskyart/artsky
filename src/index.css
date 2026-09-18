@@ -156,11 +156,14 @@ html[data-theme="dark"] {
 }
 
 :root {
-  /* env() often returns 0 in iOS home-screen PWAs; inline script sets --app-safe-* before paint */
-  --app-safe-top: var(--app-safe-top);
-  --app-safe-right: var(--app-safe-right);
-  --app-safe-bottom: var(--app-safe-bottom);
-  --app-safe-left: var(--app-safe-left);
+  /* Live env() defaults so --app-safe-* tracks browser inset changes even before/without JS.
+     The pre-paint inline script and initSafeAreaInsets() overwrite these with measured or
+     estimated values via inline style on <html> (inline style wins over this :root block);
+     standalone non-iOS installs skip writing 0 values so these live fallbacks stay in effect. */
+  --app-safe-top: env(safe-area-inset-top, 0px);
+  --app-safe-right: env(safe-area-inset-right, 0px);
+  --app-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --app-safe-left: env(safe-area-inset-left, 0px);
 }
 
 html {
@@ -172,6 +175,55 @@ html {
   overflow-y: scroll; /* Always show scrollbar track to prevent layout shift */
   scrollbar-gutter: stable; /* Reserve space for scrollbar */
   scroll-behavior: smooth;
+}
+
+/* View transitions (feed swipe): subtle directional push, like a native page switch */
+@media (prefers-reduced-motion: no-preference) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: 0.25s;
+    animation-timing-function: ease-out;
+  }
+  html[data-view-transition-direction='left']::view-transition-old(root) {
+    animation-name: vt-exit-left;
+  }
+  html[data-view-transition-direction='left']::view-transition-new(root) {
+    animation-name: vt-enter-left;
+  }
+  html[data-view-transition-direction='right']::view-transition-old(root) {
+    animation-name: vt-exit-right;
+  }
+  html[data-view-transition-direction='right']::view-transition-new(root) {
+    animation-name: vt-enter-right;
+  }
+}
+
+@keyframes vt-exit-left {
+  to {
+    opacity: 0;
+    transform: translateX(-8%);
+  }
+}
+
+@keyframes vt-enter-left {
+  from {
+    opacity: 0;
+    transform: translateX(8%);
+  }
+}
+
+@keyframes vt-exit-right {
+  to {
+    opacity: 0;
+    transform: translateX(8%);
+  }
+}
+
+@keyframes vt-enter-right {
+  from {
+    opacity: 0;
+    transform: translateX(-8%);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

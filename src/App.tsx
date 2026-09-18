@@ -14,6 +14,7 @@ import { ChunkLoadError } from './components/ChunkLoadError'
 import { ModalErrorBoundary } from './components/ModalErrorBoundary'
 import OfflineIndicator from './components/OfflineIndicator'
 import { useScrollRestoration } from './hooks/useScrollRestoration'
+import { wipePersistedSessionsForRecovery } from './lib/bsky'
 
 // Lazy load route components for code splitting
 const FeedPage = lazy(() => import('./pages/FeedPage'))
@@ -42,28 +43,112 @@ function GitLogo() {
   )
 }
 
-class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
-  state = { error: null as Error | null }
+/** Matches background OAuth/session refresh failures the boundary auto-recovers from. */
+function isSessionRecoveryError(error: Error): boolean {
+  return /session was deleted by another process|TokenRefreshError/i.test(error.message)
+}
+
+/** Consecutive boot failures before auto-recovery gives up and shows the error screen. */
+const SESSION_RECOVERY_REDIRECT_LIMIT = 2
+const SESSION_RECOVERY_COUNT_KEY = 'artsky-session-recovery-redirects'
+/** A successful boot resets the redirect streak after this long. */
+const SESSION_RECOVERY_GRACE_MS = 15_000
+
+function readRecoveryRedirectCount(): number {
+  try {
+    const raw = sessionStorage.getItem(SESSION_RECOVERY_COUNT_KEY)
+    return raw ? parseInt(raw, 10) || 0 : 0
+  } catch {
+    return 0
+  }
+}
+
+class ErrorBoundary extends Component<
+  { children: ReactNode },
+  { error: Error | null; recoveryPending: boolean }
+> {
+  state = { error: null as Error | null, recoveryPending: false }
+  private recoveryGraceTimer: ReturnType<typeof setTimeout> | null = null
 
   static getDerivedStateFromError(error: Error) {
-    // Session/token errors: auto-recover by redirecting to feed without showing error UI
-    const isSessionError = /session was deleted by another process|TokenRefreshError/i.test(error.message)
-    if (isSessionError) {
-      // Immediately redirect without rendering error page
-      window.location.assign(appAbsoluteUrl(HOME_PATH))
-      return { error: null }
-    }
-    return { error }
+    // Pure: only classify. The redirect side effect lives in componentDidCatch — doing it here
+    // would run during render (React may invoke this twice) and re-fire on every pass.
+    return { error, recoveryPending: isSessionRecoveryError(error) }
+  }
+
+  componentDidMount() {
+    // We booted: after a grace period forget any earlier recovery redirects so an isolated
+    // blip weeks later still gets the full redirect budget.
+    this.recoveryGraceTimer = setTimeout(() => {
+      try {
+        sessionStorage.removeItem(SESSION_RECOVERY_COUNT_KEY)
+      } catch {
+        /* ignore */
+      }
+    }, SESSION_RECOVERY_GRACE_MS)
+  }
+
+  componentWillUnmount() {
+    if (this.recoveryGraceTimer != null) clearTimeout(this.recoveryGraceTimer)
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
-    const isSessionError = /session was deleted by another process|TokenRefreshError/i.test(error.message)
-    if (!isSessionError) {
-      console.error('App error:', error, info.componentStack)
+    if (isSessionRecoveryError(error)) {
+      // Boot failed with a session error → reload to the feed to retry restore. After two
+      // consecutive failures (persisted in sessionStorage), stop: wipe the persisted session
+      // so the next boot starts logged-out instead of looping the redirect forever.
+      const count = readRecoveryRedirectCount()
+      if (count < SESSION_RECOVERY_REDIRECT_LIMIT) {
+        try {
+          sessionStorage.setItem(SESSION_RECOVERY_COUNT_KEY, String(count + 1))
+        } catch {
+          /* private mode / quota: still redirect, just unguarded */
+        }
+        console.warn('Session error at boot — reloading to recover:', error.message)
+        window.location.assign(appAbsoluteUrl(HOME_PATH))
+        return
+      }
+      // Recovery loop detected: stop redirecting so the user sees the error and can act.
+      console.error('Session error recovery loop detected; giving up auto-recovery:', error)
+      try {
+        sessionStorage.removeItem(SESSION_RECOVERY_COUNT_KEY)
+      } catch {
+        /* ignore */
+      }
+      wipePersistedSessionsForRecovery()
+      this.setState({ recoveryPending: false })
+      return
     }
+    // Any caught error means this boot did not succeed — keep the redirect streak alive.
+    if (this.recoveryGraceTimer != null) {
+      clearTimeout(this.recoveryGraceTimer)
+      this.recoveryGraceTimer = null
+    }
+    console.error('App error:', error, info.componentStack)
   }
 
   render() {
+    if (this.state.recoveryPending && this.state.error) {
+      // Session error mid-boot and a recovery reload is in flight — show a calm interstitial
+      // instead of the error screen (the page navigates away momentarily).
+      return (
+        <div
+          style={{
+            minHeight: '100vh',
+            background: 'var(--bg)',
+            color: 'var(--text)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontFamily: 'system-ui, sans-serif',
+          }}
+        >
+          <p style={{ margin: 0, fontSize: '0.95rem', color: 'var(--muted)' }}>
+            Signing you back in…
+          </p>
+        </div>
+      )
+    }
     if (this.state.error) {
       return (
         <div

@@ -25,6 +25,9 @@ export default defineConfig({
       injectManifest: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         globIgnores: [
+          // iOS renders startup images from its own home-screen snapshot; the SW
+          // never needs them (and they'd bloat the precache).
+          '**/apple-splash-*.png',
           '**/video-*.js',
           '**/ProfilePage-*.js',
           '**/ProfilePage-*.css',
@@ -62,50 +65,64 @@ export default defineConfig({
         'apple-touch-icon.png',
         'icon-192.png',
         'icon-512.png',
+        'icon-72.png',
       ],
       manifest: {
+        id: '/',
         name: 'PurpleSky',
         short_name: 'PurpleSky',
         description: 'Bluesky feed for art',
         theme_color: '#0f0f1a',
         background_color: '#0f0f1a',
         display: 'standalone',
+        display_override: ['standalone', 'minimal-ui'],
         orientation: 'portrait',
         scope: './',
         start_url: './',
+        /* Focus the running app instead of opening a second window on link taps. */
+        launch_handler: { client_mode: 'navigate-existing' },
+        /* Long-press app-icon shortcuts. The ?params are consumed once at startup in Layout. */
+        shortcuts: [
+          {
+            name: 'Compose a post',
+            short_name: 'Compose',
+            url: './?compose=1',
+            icons: [{ src: './icon-192.png', sizes: '192x192' }],
+          },
+          {
+            name: 'Notifications',
+            short_name: 'Inbox',
+            url: './?notifications=1',
+            icons: [{ src: './icon-192.png', sizes: '192x192' }],
+          },
+          {
+            name: 'Messages',
+            short_name: 'Messages',
+            url: './?messages=1',
+            icons: [{ src: './icon-192.png', sizes: '192x192' }],
+          },
+        ],
+        /* Accept shares from other apps; the SW stashes the POST and redirects to ?share=1,
+           where Layout opens the composer prefilled (text + image files). */
+        share_target: {
+          action: './share-target',
+          method: 'POST',
+          enctype: 'multipart/form-data',
+          params: {
+            title: 'title',
+            text: 'text',
+            url: 'url',
+            files: [{ name: 'media', accept: ['image/*', 'video/*'] }],
+          },
+        },
         icons: [
           { src: './icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
           { src: './icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
           { src: './icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
-      workbox: {
-        runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/cdn\.bsky\.app\/.*/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'artsky-images',
-              expiration: {
-                maxEntries: 200,
-                maxAgeSeconds: 60 * 60 * 24 * 7, // 7 days
-              },
-            },
-          },
-          {
-            urlPattern: ({ request, url }) =>
-              request.mode === 'navigate' ? false : /\/assets\/[^/]+\.(?:js|css)$/.test(url.pathname),
-            handler: 'StaleWhileRevalidate',
-            options: {
-              cacheName: 'artsky-assets-runtime',
-              expiration: {
-                maxEntries: 120,
-                maxAgeSeconds: 60 * 60 * 24 * 30,
-              },
-            },
-          },
-        ],
-      },
+      // NOTE: with `strategies: 'injectManifest'` the workbox.runtimeCaching option is
+      // ignored — runtime caching routes live in src/sw.ts instead.
     }),
   ],
   build: {

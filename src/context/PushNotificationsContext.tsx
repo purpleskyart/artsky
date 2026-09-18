@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useCallback, useEffect } from 'react'
+import React, { createContext, useContext, useCallback } from 'react'
 import {
   usePushNotifications,
   type NotificationPreferences,
@@ -115,28 +115,6 @@ export function PushNotificationsProvider({ children }: PushNotificationsProvide
   const setPollInterval = useCallback((minutes: number): void => {
     push.updatePreferences({ pollInterval: minutes })
   }, [push])
-
-  // Check if we should be in quiet hours
-  useEffect(() => {
-    if (!push.preferences.enabled || !push.preferences.quietHours.enabled) {
-      return
-    }
-
-    // Check every minute if we enter/exit quiet hours
-    const interval = setInterval(() => {
-      const now = new Date()
-      const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
-
-      const { start, end } = push.preferences.quietHours
-      // Check if currently in quiet hours
-      void isTimeInRange(currentTime, start, end)
-
-      // Could update a "isInQuietHours" state here if needed
-      // This is useful for UI indicators
-    }, 60000)
-
-    return () => clearInterval(interval)
-  }, [push.preferences.enabled, push.preferences.quietHours])
 
   const value: PushNotificationsContextValue = {
     isSupported: push.isSupported,

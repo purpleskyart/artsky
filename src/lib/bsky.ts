@@ -722,6 +722,24 @@ export async function logout(): Promise<void> {
   await logoutCurrentAccount()
 }
 
+/**
+ * Last-resort recovery for the root error boundary: wipe every persisted-session hint so
+ * the next boot takes the guest path (login screen) instead of repeating a failing restore.
+ * Unlike {@link logoutCurrentAccount} this does not restore another account and does not
+ * need the agent — it only clears localStorage; OAuth tokens in IndexedDB are simply
+ * orphaned (harmless, and re-linked when the user logs in again).
+ */
+export function wipePersistedSessionsForRecovery(): void {
+  try {
+    localStorage.removeItem(SESSION_KEY)
+    localStorage.removeItem(ACCOUNTS_KEY)
+    localStorage.removeItem(OAUTH_ACCOUNTS_KEY)
+    localStorage.removeItem(OAUTH_TOKENS_KEY)
+  } catch {
+    // ignore
+  }
+}
+
 export function getSession(): AtpSessionData | null {
   const a = getAgent()
   const atp = a as AtpAgent
