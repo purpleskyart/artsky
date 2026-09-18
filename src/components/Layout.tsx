@@ -546,7 +546,6 @@ export default function Layout({ title, children, showNav }: Props) {
   const composeOpenTimestampRef = useRef<number>(0)
   const [_composeBackdropClickable, setComposeBackdropClickable] = useState(false)
   const currentSegment = composeSegments[composeSegmentIndex] ?? { text: '', images: [], imageAlts: [] }
-  const navVisible = true
   const [mobileNavScrollHidden, setMobileNavScrollHidden] = useState(false)
   const [feedFloatButtonsExpanded, setFeedFloatButtonsExpanded] = useState(false)
   const gearFloatWrapRef = useRef<HTMLDivElement>(null)
@@ -1303,9 +1302,16 @@ export default function Layout({ title, children, showNav }: Props) {
     const vv = window.visualViewport
     if (!vv) return
     const viewport = vv
+    let rafId: number | null = null
     function update() {
-      // Use visualViewport.height for stable viewport on mobile (doesn't change with address bar)
-      setSearchOverlayBottom(window.innerHeight - (viewport.offsetTop + viewport.height))
+      // rAF-batch: vv scroll fires per frame while panning; coalesce so Layout doesn't
+      // re-render once per event.
+      if (rafId != null) return
+      rafId = requestAnimationFrame(() => {
+        rafId = null
+        // Use visualViewport.height for stable viewport on mobile (doesn't change with address bar)
+        setSearchOverlayBottom(window.innerHeight - (viewport.offsetTop + viewport.height))
+      })
     }
     update()
     viewport.addEventListener('resize', update)
@@ -1313,6 +1319,7 @@ export default function Layout({ title, children, showNav }: Props) {
     return () => {
       viewport.removeEventListener('resize', update)
       viewport.removeEventListener('scroll', update)
+      if (rafId != null) cancelAnimationFrame(rafId)
     }
   }, [mobileSearchOpen, isDesktop])
 
@@ -1422,6 +1429,96 @@ export default function Layout({ title, children, showNav }: Props) {
     setComposeOpen(false)
     setComposeError(null)
   }
+
+  /* Like openCompose, but with prefilled text and media (PWA web share target). */
+  function openComposeWithDraft(text: string, files: File[]) {
+    composeOpenTimestampRef.current = Date.now()
+    setComposeBackdropClickable(false)
+    setComposeOpen(true)
+    const media = files
+      .filter((f) => COMPOSE_IMAGE_TYPES.includes(f.type))
+      .slice(0, COMPOSE_IMAGE_MAX)
+    setComposeSegments([{ id: Math.random().toString(36).slice(2), text, images: media, imageAlts: media.map(() => ''), hasSpoiler: false, mediaSensitive: false }])
+    setComposeSegmentIndex(0)
+    setComposeError(null)
+    setTimeout(() => setComposeBackdropClickable(true), 300)
+  }
+
+  /* PWA launch params: app shortcuts (?compose/?notifications/?messages) and the web share
+     target (?share=1, payload stashed in a cache by the service worker POST handler).
+     Handled once per mount, then stripped from the URL so back/refresh stays clean. */
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+
+    const stripLaunchParams = () => {
+      const url = new URL(window.location.href)
+      let changed = false
+      for (const key of ['share', 'compose', 'notifications', 'messages']) {
+        if (url.searchParams.has(key)) {
+          url.searchParams.delete(key)
+          changed = true
+        }
+      }
+      if (changed) {
+        // Preserve history.state so React Router's backgroundLocation survives.
+        window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash)
+      }
+    }
+
+    if (params.get('compose') === '1') openCompose()
+    if (params.get('notifications') === '1') setNotificationsOpen(true)
+    if (params.get('messages') === '1') setMessagesPanelOpen(true)
+    if (params.get('share') !== '1') {
+      if (params.has('compose') || params.has('notifications') || params.has('messages')) {
+        stripLaunchParams()
+      }
+      return
+    }
+
+    let cancelled = false
+    void (async () => {
+      try {
+        const scopeBase = new URL('./', document.baseURI).href
+        const cache = await caches.open('artsky-share-target')
+        const payloadRes = await cache.match(`${scopeBase}share-payload`)
+        if (cancelled) return
+        if (payloadRes) {
+          const payload = (await payloadRes.json()) as {
+            title?: string
+            text?: string
+            url?: string
+            fileKeys?: string[]
+          }
+          const files: File[] = []
+          for (const key of payload.fileKeys ?? []) {
+            const fileRes = await cache.match(key)
+            if (!fileRes) continue
+            const blob = await fileRes.blob()
+            const name = key.split('share-file-')[1] ?? 'shared'
+            files.push(new File([blob], name, { type: blob.type }))
+          }
+          await cache.delete(`${scopeBase}share-payload`)
+          for (const key of payload.fileKeys ?? []) await cache.delete(key)
+          if (cancelled) return
+          let text = (payload.text ?? '').trim()
+          const sharedUrl = (payload.url ?? '').trim()
+          if (sharedUrl && !text.includes(sharedUrl)) {
+            text = text ? `${text}\n\n${sharedUrl}` : sharedUrl
+          }
+          if (text || files.length > 0) openComposeWithDraft(text, files)
+        }
+      } catch {
+        // No/invalid payload (e.g. plain navigation to ?share=1) — nothing to prefill.
+      } finally {
+        if (!cancelled) stripLaunchParams()
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const COMPOSE_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
 
@@ -2420,7 +2517,7 @@ export default function Layout({ title, children, showNav }: Props) {
           {typeof document !== 'undefined' &&
             createPortal(
               <div
-                className={`${styles.navOuter} nav-outer ${navVisible ? '' : styles.navHidden} ${!isDesktop && (mobileNavScrollHidden || (isModalOpen && modalScrollHidden)) ? styles.navOuterScrollHidden : ''}`}
+                className={`${styles.navOuter} nav-outer ${!isDesktop && (mobileNavScrollHidden || (isModalOpen && modalScrollHidden)) ? styles.navOuterScrollHidden : ''}`}
               >
                 {!isModalOpen && (
                   <button

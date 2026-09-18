@@ -32,12 +32,14 @@ export function isIos(): boolean {
 /**
  * iOS home-screen PWAs often report env(safe-area-inset-top) as 0 despite viewport-fit=cover.
  * Estimate status-bar + notch height from the shorter screen edge (CSS px).
+ * Tiers: iPad 24 / Pro Max (430pt) 62 / other notched 59 / notch-era 47 / classic 20.
  */
 export function estimateIosStandaloneTopInset(): number {
   if (typeof window === 'undefined') return 47
   const minSide = Math.min(window.screen.width, window.screen.height)
   const maxSide = Math.max(window.screen.width, window.screen.height)
   if (minSide >= 768) return 24
+  if (minSide >= 430) return 62
   if (minSide >= 393) return 59
   if (maxSide >= 812) return 47
   return 20
@@ -95,6 +97,26 @@ export function applySafeAreaInsets(insets: SafeAreaInsets): void {
   html.style.setProperty(SAFE_AREA_CSS_VARS.left, `${insets.left}px`)
 }
 
+/**
+ * Like applySafeAreaInsets, but for standalone non-iOS installs (Android) a measured 0 is
+ * not written: `:root` falls back to a live `env(safe-area-inset-*)` value, and Android
+ * populates env() only after the window insets land (post first layout). Keeping the CSS
+ * fallback live lets the var self-correct instead of pinning a stale 0px until a JS
+ * re-measure — that late correction is what made the bottom bar visibly jump at launch.
+ */
+function publishSafeAreaInsets(insets: SafeAreaInsets): void {
+  const html = document.documentElement
+  const keepEnvLive = isStandalonePwa() && !isIos()
+  const publish = (cssVar: string, value: number) => {
+    if (keepEnvLive && value === 0) html.style.removeProperty(cssVar)
+    else html.style.setProperty(cssVar, `${value}px`)
+  }
+  publish(SAFE_AREA_CSS_VARS.top, insets.top)
+  publish(SAFE_AREA_CSS_VARS.right, insets.right)
+  publish(SAFE_AREA_CSS_VARS.bottom, insets.bottom)
+  publish(SAFE_AREA_CSS_VARS.left, insets.left)
+}
+
 /** Measure env() values and publish --app-safe-* (with iOS standalone top fallback). */
 export function initSafeAreaInsets(): SafeAreaInsets {
   if (typeof document === 'undefined') {
@@ -107,7 +129,7 @@ export function initSafeAreaInsets(): SafeAreaInsets {
     html.removeAttribute('data-standalone-pwa')
   }
   const resolved = resolveSafeAreaInsets(measureEnvSafeAreaInsets())
-  applySafeAreaInsets(resolved)
+  publishSafeAreaInsets(resolved)
   return resolved
 }
 
@@ -117,11 +139,17 @@ let listenersBound = false
  * Call once at startup. Safe-area insets only change on orientation change, so we re-measure on
  * `orientationchange` plus a few deferred passes after load (env() can report 0 on first paint).
  *
- * We deliberately do NOT re-measure on `visualViewport` resize: that event also fires when the
- * on-screen keyboard opens/closes and when the mobile browser toolbar shows/hides during scroll.
- * In those cases `env(safe-area-inset-bottom)` transiently changes (iOS reports ~0 while the
+ * We deliberately do NOT re-measure on `visualViewport` resize in general: that event also fires
+ * when the on-screen keyboard opens/closes and when the mobile browser toolbar shows/hides during
+ * scroll. In those cases `env(safe-area-inset-bottom)` transiently changes (iOS reports ~0 while the
  * keyboard is up), which would shift fixed chrome that depends on `--app-safe-bottom` — e.g. the
  * bottom navbar visibly drifting while scrolling after a modal text field was focused.
+ *
+ * Exception: during the first moments after launch we DO listen, because Android standalone PWAs
+ * only populate env() once the window insets land — catching that as soon as it happens (instead
+ * of at the deferred 300ms/1000ms passes) is what keeps the bottom bar from visibly jumping. The
+ * keyboard guard below skips remeasure while the visual viewport is shrunk (keyboard open), and
+ * the listeners detach themselves after the early window closes.
  */
 export function bindSafeAreaInsetListeners(): void {
   if (typeof window === 'undefined' || listenersBound) return
@@ -130,6 +158,31 @@ export function bindSafeAreaInsetListeners(): void {
   window.addEventListener('orientationchange', () => {
     setTimeout(remeasure, 100)
   })
+
+  const vv = window.visualViewport
+  if (vv && typeof vv.addEventListener === 'function') {
+    let rafId: number | null = null
+    const earlyRemeasure = () => {
+      // Keyboard open → visual viewport shrinks well below the layout viewport; skip.
+      if (vv.height < window.innerHeight - 48) return
+      if (rafId != null) return
+      rafId = requestAnimationFrame(() => {
+        rafId = null
+        remeasure()
+      })
+    }
+    vv.addEventListener('resize', earlyRemeasure)
+    vv.addEventListener('scroll', earlyRemeasure)
+    const detachEarly = () => {
+      vv.removeEventListener('resize', earlyRemeasure)
+      vv.removeEventListener('scroll', earlyRemeasure)
+      window.removeEventListener('pagehide', detachEarly)
+      if (rafId != null) cancelAnimationFrame(rafId)
+    }
+    window.addEventListener('pagehide', detachEarly)
+    setTimeout(detachEarly, 1500)
+  }
+
   // Catch late env() availability without reacting to keyboard / toolbar viewport changes.
   setTimeout(remeasure, 300)
   setTimeout(remeasure, 1000)

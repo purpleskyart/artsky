@@ -16,6 +16,12 @@ import {
   updateVideoVisibility,
 } from '../lib/videoPlaybackManager'
 import { observeVideoVisibility } from '../lib/videoVisibility'
+import {
+  acquireMediaSession,
+  acquireWakeLock,
+  releaseMediaSession,
+  releaseWakeLock,
+} from '../lib/mediaSession'
 import type Hls from 'hls.js'
 
 function isHlsUrl(url: string): boolean {
@@ -328,11 +334,20 @@ export default function VideoWithHls({
       setVideoPlaying(id, true)
       onPlayStateChange?.(true)
       onPlaybackPendingChange?.(false)
+      // Only unmuted, user-initiated videos get lock-screen controls / wake lock;
+      // muted feed autoplay must not hijack the OS media session.
+      const video = videoRef.current
+      if (video && !video.muted && !shouldMute) {
+        acquireMediaSession(video, { title: 'PurpleSky', artwork: poster })
+        void acquireWakeLock()
+      }
     }
     const handlePause = () => {
       setIsPlaying(false)
       setVideoPlaying(id, false)
       onPlayStateChange?.(false)
+      releaseMediaSession(videoRef.current)
+      releaseWakeLock()
     }
     const handleWaiting = () => onPlaybackPendingChange?.(true)
     const handlePlaying = () => onPlaybackPendingChange?.(false)
@@ -346,8 +361,10 @@ export default function VideoWithHls({
       video.removeEventListener('pause', handlePause)
       video.removeEventListener('waiting', handleWaiting)
       video.removeEventListener('playing', handlePlaying)
+      releaseMediaSession(video)
+      releaseWakeLock()
     }
-  }, [onPlayStateChange, onPlaybackPendingChange])
+  }, [onPlayStateChange, onPlaybackPendingChange, shouldMute, poster])
 
   useEffect(() => {
     const video = videoRef.current

@@ -47,6 +47,7 @@ export function FollowListModal({
   const swipe = useSwipeToClose({
     enabled: isMobile,
     onSwipeRight: handleSwipeRight,
+    targetRef: panelRef,
   })
 
   const load = useCallback(
@@ -166,9 +167,6 @@ export function FollowListModal({
         className={`${styles.panel} ${swipe.isReturning ? styles.panelSwipeReturning : ''} ${isMobile ? styles.panelMobile : ''}`}
         style={swipe.style}
         onClick={(e) => e.stopPropagation()}
-        onTouchStart={swipe.onTouchStart}
-        onTouchMove={swipe.onTouchMove}
-        onTouchEnd={swipe.onTouchEnd}
       >
         <div className={styles.header}>
           <h2 id="follow-list-title" className={styles.title}>

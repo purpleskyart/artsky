@@ -317,6 +317,16 @@ export default function ImageLightbox({ imageUrl, alt = '', onClose, onPrevious,
     setVerticalDragOffset(0)
   }, [scale, onClose, onNext, onPrevious])
 
+  // touchcancel (OS gesture takeover etc.): reset in-progress gestures so the
+  // image doesn't stay stuck at the dragged offset until the next touch.
+  const handleTouchCancel = useCallback(() => {
+    isPinchingRef.current = false
+    isVerticalSwipingRef.current = false
+    isHorizontalSwipingRef.current = false
+    setIsDragging(false)
+    setVerticalDragOffset(0)
+  }, [])
+
   // Handle click on backdrop to close (but not when clicking the image)
   const handleBackdropClick = useCallback((e: React.MouseEvent) => {
     // Don't close if clicking on the actual image element
@@ -394,6 +404,7 @@ export default function ImageLightbox({ imageUrl, alt = '', onClose, onPrevious,
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
+          onTouchCancel={handleTouchCancel}
           draggable={false}
         />
       </div>

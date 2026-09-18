@@ -246,15 +246,21 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       }
 
       try {
-        // OAuth callback: keep a bounded wait so a broken redirect cannot hang boot forever.
-        // Normal load (incl. after PWA update reload): await restore fully — a short race timeout
-        // could fire while IndexedDB still opens, skip OAuth, and look "logged out" despite valid tokens.
-        const oauthResult = hasCallback
-          ? await Promise.race([
-              oauth.initOAuth({ hasCallback: true }),
-              new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), oauthCallbackTimeoutMs)),
-            ])
-          : await oauth.initOAuth({ hasCallback: false, preferredRestoreDid })
+        let callbackTimeoutId: ReturnType<typeof setTimeout> | null = null
+        const callbackTimeout = new Promise<undefined>((resolve) => {
+          callbackTimeoutId = setTimeout(() => resolve(undefined), oauthCallbackTimeoutMs)
+        })
+        let oauthResult: Awaited<ReturnType<typeof oauth.initOAuth>>
+        try {
+          // OAuth callback: keep a bounded wait so a broken redirect cannot hang boot forever.
+          // Normal load (incl. after PWA update reload): await restore fully — a short race timeout
+          // could fire while IndexedDB still opens, skip OAuth, and look "logged out" despite valid tokens.
+          oauthResult = hasCallback
+            ? await Promise.race([oauth.initOAuth({ hasCallback: true }), callbackTimeout])
+            : await oauth.initOAuth({ hasCallback: false, preferredRestoreDid })
+        } finally {
+          if (callbackTimeoutId != null) clearTimeout(callbackTimeoutId)
+        }
 
         if (cancelled) return
 

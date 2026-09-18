@@ -38,6 +38,8 @@ export interface UsePullToRefreshResult {
   onTouchStart: (e: React.TouchEvent) => void
   onTouchMove: (e: React.TouchEvent) => void
   onTouchEnd: (e: React.TouchEvent) => void
+  /** Reset the pull (e.g. the OS/browser cancelled the gesture mid-pull). */
+  onTouchCancel: (e: React.TouchEvent) => void
   /** Current pull distance in px (0 when not pulling). Use for indicator transform. */
   pullDistance: number
   /** True while onRefresh is in progress (after trigger until Promise resolves). */
@@ -75,6 +77,8 @@ export function usePullToRefresh({
   const isRefreshingRef = useRef(false)
   const onRefreshRef = useRef(onRefresh)
   const snapRafRef = useRef<number | null>(null)
+  /** Latest cancel handler for the native touchcancel listener (binds once per element). */
+  const onTouchCancelRef = useRef<() => void>(() => {})
   onRefreshRef.current = onRefresh
 
   useEffect(() => {
@@ -201,6 +205,14 @@ export function usePullToRefresh({
     [enabled, runRefresh, snapBackToZero, cancelSnap, pullThresholdPx]
   )
 
+  /* touchcancel (OS gesture takeover etc.): snap back without triggering a refresh. */
+  const onTouchCancel = useCallback(() => {
+    if (!pullingRef.current) return
+    pullingRef.current = false
+    snapBackToZero(pullDistanceRef.current)
+  }, [snapBackToZero])
+  onTouchCancelRef.current = onTouchCancel
+
   /* touchmove with passive: false so preventDefault() works when pulling at top. */
   useEffect(() => {
     const el = touchTargetRef?.current ?? scrollRef?.current
@@ -234,11 +246,14 @@ export function usePullToRefresh({
         applyPullFromDy(dy)
       }
     }
+    const onCancel = () => onTouchCancelRef.current()
     el.addEventListener('touchstart', onStart, { passive: true })
     el.addEventListener('touchmove', onMove, { passive: false })
+    el.addEventListener('touchcancel', onCancel, { passive: true })
     return () => {
       el.removeEventListener('touchstart', onStart)
       el.removeEventListener('touchmove', onMove)
+      el.removeEventListener('touchcancel', onCancel)
     }
   }, [
     enabled,
@@ -259,6 +274,7 @@ export function usePullToRefresh({
     onTouchStart,
     onTouchMove,
     onTouchEnd,
+    onTouchCancel,
     pullDistance,
     isRefreshing,
   }

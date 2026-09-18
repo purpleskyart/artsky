@@ -157,7 +157,11 @@ export default function ChatModal({
 
   useEffect(() => {
     if (loading || !convoId) return
-    const poll = () => void refreshMessages()
+    // Skip background polling (battery/network); refresh on visibilitychange instead.
+    const poll = () => {
+      if (document.visibilityState !== 'visible') return
+      void refreshMessages()
+    }
     const interval = setInterval(poll, 3000)
     function onVisibilityChange() {
       if (document.visibilityState === 'visible') poll()

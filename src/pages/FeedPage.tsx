@@ -27,6 +27,7 @@ import { useFeedMix } from '../context/FeedMixContext'
 import { useFeedSwipe } from '../context/FeedSwipeContext'
 import { blockAccount } from '../lib/bsky'
 import { gateKeyboardShortcutsForEditable } from '../lib/modalKeyboard'
+import { withViewTransition } from '../lib/viewTransition'
 import { useViewMode } from '../context/ViewModeContext'
 import { useModeration } from '../context/ModerationContext'
 import { useHideReposts } from '../context/HideRepostsContext'
@@ -976,15 +977,17 @@ export default function FeedPage() {
   const swipeEnabled =
     !!feedSwipe && mixEntries.length === 1 && feedSwipe.feedSources.length > 1
 
+  /* These handlers only carry the feed-swipe logic. Pull-to-refresh is handled by the native
+     (non-passive) listeners that usePullToRefresh binds to the same target element — wiring it
+     through these React props as well ran every touch through the pull logic twice. */
   const handleTouchStart = useCallback(
     (e: React.TouchEvent) => {
-      pullRefresh.onTouchStart(e)
       if (swipeEnabled && e.touches.length === 1) {
         swipeStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
         swipeGestureRef.current = 'unknown'
       }
     },
-    [swipeEnabled, pullRefresh]
+    [swipeEnabled]
   )
 
   const handleTouchMove = useCallback(
@@ -997,14 +1000,9 @@ export default function FeedPage() {
             swipeGestureRef.current = Math.abs(dx) > 2 * Math.abs(dy) ? 'swipe' : 'pull'
           }
         }
-        if (swipeGestureRef.current === 'pull' || swipeGestureRef.current === 'unknown') {
-          pullRefresh.onTouchMove(e)
-        }
-      } else {
-        pullRefresh.onTouchMove(e)
       }
     },
-    [swipeEnabled, pullRefresh]
+    [swipeEnabled]
   )
 
   const handleTouchEnd = useCallback(
@@ -1022,15 +1020,21 @@ export default function FeedPage() {
           const idx = sources.findIndex((s) => sameFeedSource(s, cur))
           if (idx >= 0) {
             const nextIdx = dx < 0 ? (idx + 1) % sources.length : (idx - 1 + sources.length) % sources.length
-            feedSwipe.setSingleFeed(sources[nextIdx])
+            const next = sources[nextIdx]
+            if (next) {
+              /* Native-feel push: slide the feed change in the swipe direction. */
+              withViewTransition(
+                () => feedSwipe.setSingleFeed(next),
+                dx < 0 ? 'left' : 'right',
+              )
+            }
           }
         }
         swipeStartRef.current = null
         swipeGestureRef.current = 'unknown'
       }
-      pullRefresh.onTouchEnd(e)
     },
-    [swipeEnabled, feedSwipe, mixEntries, pullRefresh]
+    [swipeEnabled, feedSwipe, mixEntries]
   )
 
   useEffect(() => {

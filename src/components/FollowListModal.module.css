@@ -7,6 +7,7 @@
   justify-content: center;
   z-index: 1001;
   padding: 1rem;
+  animation: backdropFadeIn 0.2s ease-out;
 }
 
 /* Mobile: align backdrop to bottom so panel doesn't reach too high or low */
@@ -30,6 +31,27 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  animation: panelSlideIn 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes backdropFadeIn {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes panelSlideIn {
+  from {
+    transform: translateY(28px);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .backdrop,
+  .panel {
+    animation: none;
+  }
 }
 
 /* Mobile: anchor panel to bottom with safe area inset to prevent reaching too high/low */

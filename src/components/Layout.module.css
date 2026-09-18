@@ -163,6 +163,9 @@
     border-radius: 0;
     box-shadow: none;
     padding-top: max(0.5rem, var(--app-safe-top));
+    /* Keep transform (headerHidden) and animate padding-top so a late safe-area top
+       correction at PWA launch settles instead of jumping. */
+    transition: transform 0.25s ease, padding-top 0.2s ease-out;
   }
   .header::before {
     content: '';
@@ -2390,7 +2393,9 @@ button.logoLink {
   right: max(1rem, var(--app-safe-right));
   z-index: 1100;
   pointer-events: none;
-  transition: opacity var(--transition-fast);
+  /* Animate bottom too: if the safe-area inset is corrected shortly after PWA launch
+     (env() populates late on Android), the bar settles instead of teleporting. */
+  transition: opacity var(--transition-fast), bottom 0.2s ease-out;
   display: flex;
   justify-content: center;
   align-items: flex-end;
