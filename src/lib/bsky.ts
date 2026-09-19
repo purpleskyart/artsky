@@ -584,14 +584,25 @@ function takeEligibleGuestFeedPosts(feed: TimelineItem[], max: number): Timeline
   return out
 }
 
+/** Post time for guest feed ordering (when the post was created). */
+function getGuestFeedItemTime(item: TimelineItem): string {
+  return (item.post.record as { createdAt?: string } | undefined)?.createdAt ?? item.post.indexedAt ?? ''
+}
+
 function mergeDedupeSortGuestItems(feedArrays: TimelineItem[][]): TimelineItem[] {
   const all = feedArrays.flat()
   const seen = new Set<string>()
-  // Keep original API order (newest-first). Don't re-sort to prevent posts jumping above user's scroll position.
-  return all.filter((item) => {
+  const deduped = all.filter((item) => {
     if (seen.has(item.post.uri)) return false
     seen.add(item.post.uri)
     return true
+  })
+  // Newest first by post time so guest-list order does not control the homescreen.
+  return deduped.sort((a, b) => {
+    const tb = getGuestFeedItemTime(b)
+    const ta = getGuestFeedItemTime(a)
+    if (ta !== tb) return tb < ta ? -1 : 1
+    return a.post.uri < b.post.uri ? -1 : a.post.uri > b.post.uri ? 1 : 0
   })
 }
 
@@ -628,13 +639,9 @@ async function fetchGuestAuthorBatch(
 /**
  * Fetch and merge author feeds for guest (no login). Uses public API so it works when logged out.
  * Reposts are excluded. Quote posts are kept only when the quoted author is on the guest feed list.
- * cursor = page number as string (which author group to fetch).
- * To avoid rate limits (60 req/min), we progressively fetch from more authors per page:
- * - Page 0: fetch from first 3 authors, return up to 20 posts
- * - Page 1: fetch from next 3 authors, return up to 20 posts
- * - Page 2+: fetch from remaining authors, return up to 20 posts
- * Each page returns posts from a different set of authors. The FeedPage will append them.
- * This keeps initial load very fast and under rate limit, while allowing pagination to discover more content.
+ * Posts are ordered by when they were posted (newest first), not by guest-list account order.
+ * cursor = offset into the merged chronological list (as a decimal string).
+ * All guest authors are fetched in parallel (results are cached) so the timeline can interleave by time.
  */
 export async function getGuestFeed(
   limit: number,
@@ -642,34 +649,25 @@ export async function getGuestFeed(
   mediaMode?: MediaFilterMode,
 ): Promise<{ feed: TimelineItem[]; cursor: string | undefined }> {
   const authorFeedFilter = mediaMode ? authorFeedFilterForMediaMode(mediaMode) : undefined
-  const pageNumber = cursor ? parseInt(cursor, 10) || 0 : 0
+  const offset = cursor ? Math.max(0, parseInt(cursor, 10) || 0) : 0
   const handles = GUEST_FEED_HANDLES
-  const AUTHORS_PER_PAGE = 3
   const POSTS_PER_PAGE = Math.min(limit, 20) // Cap at 20 posts per page for faster loads
 
-  // Determine which authors to fetch based on page number
-  const authorStartIndex = pageNumber * AUTHORS_PER_PAGE
-  const authorEndIndex = Math.min(authorStartIndex + AUTHORS_PER_PAGE, handles.length)
-  const authorsToFetch = handles.slice(authorStartIndex, authorEndIndex)
-
-  let deduped: TimelineItem[]
-
-  if (authorsToFetch.length > 0) {
-    const perHandle = Math.ceil(POSTS_PER_PAGE / authorsToFetch.length)
-    const results = await fetchGuestAuthorBatch(authorsToFetch, perHandle, authorFeedFilter)
-    deduped = mergeDedupeSortGuestItems(
-      results.map((res) => (res.data.feed || []) as TimelineItem[]),
-    )
-  } else {
-    // No more authors to fetch
-    deduped = []
+  if (handles.length === 0) {
+    return { feed: [], cursor: undefined }
   }
 
-  const feed = deduped.slice(0, POSTS_PER_PAGE)
+  // Enough recent posts per author to fill several chronological pages after merge.
+  // Fixed size so pagination hits the same response cache as the first page.
+  const perHandle = 15
+  const results = await fetchGuestAuthorBatch(handles, perHandle, authorFeedFilter)
+  const deduped = mergeDedupeSortGuestItems(
+    results.map((res) => (res.data.feed || []) as TimelineItem[]),
+  )
 
-  /* Allow pagination if there are more authors to fetch, regardless of whether current page has posts.
-   * This ensures we check all authors even if earlier ones have no posts. */
-  const nextCursor = authorEndIndex < handles.length ? String(pageNumber + 1) : undefined
+  const feed = deduped.slice(offset, offset + POSTS_PER_PAGE)
+  const nextOffset = offset + POSTS_PER_PAGE
+  const nextCursor = nextOffset < deduped.length ? String(nextOffset) : undefined
   return { feed, cursor: nextCursor }
 }
 
